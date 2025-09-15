@@ -1,0 +1,104 @@
+:root {
+  --green: #10b981;
+  --green-dark: #059669;
+}
+
+.app-root {
+  min-height: 100vh;
+}
+
+/* Logo + thương hiệu */
+.app-sider .app-brand {
+  /* display: flex; */
+  text-align: center;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+  height: 56px;
+  padding: 12px;
+  cursor: pointer;
+  margin-bottom: 20px;
+}
+.app-logo {
+  width: 180px;
+  height: 180px;
+  border-radius: 8px;
+  background: #fff;
+  object-fit: contain;
+  background: none;
+}
+.app-brand-text {
+  color: #fff !important;
+  margin: 0 !important;
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 12px;
+  background: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.app-header .trigger {
+  font-size: 18px;
+  margin-right: 12px;
+  cursor: pointer;
+  color: var(--green-dark);
+}
+.app-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.app-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-search {
+  width: 260px;
+}
+
+.icon-btn {
+  font-size: 18px;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.icon-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* User */
+.app-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.app-user-name {
+  font-weight: 500;
+}
+
+/* Content */
+.app-content {
+  margin: 16px;
+}
+.app-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+/* Menu highlight */
+.ant-menu-dark .ant-menu-item-selected,
+.ant-menu-dark .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  background: linear-gradient(135deg, var(--green), var(--green-dark)) !important;
+}

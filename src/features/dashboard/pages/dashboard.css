@@ -1,0 +1,18 @@
+/* src/features/dashboard/pages/dashboard.css */
+.kpi {
+  border-radius: 12px;
+  background: rgba(255,255,255,0.7);
+  backdrop-filter: blur(6px);
+}
+.kpi .ant-card-body { padding: 16px; }
+.kpi-hint { opacity: .65; font-size: 12px; }
+
+/* tông xanh lá cho tiêu điểm */
+.ant-typography a, .ant-btn-primary, .ant-tag-green { color: #fff; }
+.ant-btn-primary { background: linear-gradient(135deg, #10b981, #059669); border: none; }
+.ant-btn-primary:hover { filter: brightness(1.03); }
+
+/* optional: giảm khoảng trắng để vừa màn nhỏ */
+@media (max-width: 480px) {
+  .kpi .ant-card-body { padding: 14px; }
+}

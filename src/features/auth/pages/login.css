@@ -1,0 +1,158 @@
+:root {
+  /* Xanh lá chủ đạo */
+  --g-50:  #ecfdf5;
+  --g-100: #d1fae5;
+  --g-200: #a7f3d0;
+  --g-300: #6ee7b7;
+  --g-400: #34d399;
+  --g-500: #10b981; /* primary */
+  --g-600: #059669;
+  --g-700: #047857;
+
+  /* Màu nền / text */
+  --bg: #0b1220;   /* xanh-đen rất nhẹ cho chiều sâu */
+  --text: #e6f2ea; /* trắng pha xanh cho dịu mắt */
+
+  /* Glass */
+  --glass-bg: rgba(255,255,255,0.06);
+  --glass-br: 16px;
+  --glass-bd: rgba(255,255,255,0.12);
+  --glass-blur: 14px;
+
+  /* Accent & focus */
+  --acc: var(--g-500);
+  --acc-weak: rgba(16,185,129,0.18);
+}
+
+
+.db-logo {
+  width: 32px; height: 32px; border-radius: 8px;
+  object-fit: cover;
+  box-shadow: 0 8px 18px rgba(16,185,129,0.28);
+  border: 1px solid rgba(255,255,255,0.18);
+  background: none;
+  backdrop-filter: blur(6px);
+}
+/* Root layout – khóa scroll dọc, căn giữa tuyệt đối */
+.lg-root {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(800px 600px at 15% 10%, rgba(16,185,129,0.18), transparent 55%),
+              radial-gradient(900px 700px at 85% 15%, rgba(5,150,105,0.18), transparent 60%),
+              linear-gradient(180deg, #081019, var(--bg));
+  overflow: hidden;
+  padding: 20px;
+  color: var(--text);
+}
+
+/* Nền pattern tinh tế (grid chấm) */
+.lg-bg {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  background-size: 18px 18px, 100% 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Card chính */
+.lg-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 420px);
+  padding: 28px 24px 18px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-bd);
+  border-radius: var(--glass-br);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  box-shadow:
+    0 18px 40px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+/* Thương hiệu */
+.lg-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.lg-logo {
+  width: 44px; height: 44px; border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 8px 18px rgba(16,185,129,0.28);
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(6px);
+}
+.lg-title {
+  font-size: 20px;
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: .2px;
+}
+.lg-sub {
+  margin: 2px 0 0 0;
+  opacity: .75;
+  font-size: 13px;
+}
+
+/* Input khớp glass */
+.lg-input,
+.lg-card .ant-input-affix-wrapper {
+  background: rgba(255,255,255,0.07) !important;
+  border-color: rgba(255,255,255,0.16) !important;
+  color: var(--text) !important;
+  border-radius: 12px !important;
+}
+.lg-card .ant-input::placeholder,
+.lg-card .ant-input-password input::placeholder {
+  color: rgba(230,242,234,0.55) !important;
+}
+
+.lg-card .ant-input-affix-wrapper:focus,
+.lg-card .ant-input-affix-wrapper-focused,
+.lg-input:focus,
+.lg-input.ant-input-focused {
+  border-color: var(--acc) !important;
+  box-shadow: 0 0 0 3px var(--acc-weak) !important;
+}
+
+/* Button xanh lá tối giản */
+.lg-btn.ant-btn {
+  height: 44px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, var(--g-500), var(--g-600));
+  box-shadow: 0 10px 24px rgba(16,185,129,0.28);
+}
+.lg-btn.ant-btn:hover {
+  filter: brightness(1.03);
+}
+
+/* Footer */
+.lg-foot {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 12px;
+  opacity: .6;
+}
+
+/* Form spacing */
+.lg-card .ant-form-item {
+  margin-bottom: 16px;
+}
+
+/* Responsive – giữ card không tràn, không tạo scroll */
+@media (max-width: 480px) {
+  .lg-card { padding: 22px 16px 14px; border-radius: 14px; }
+  .lg-logo { width: 40px; height: 40px; border-radius: 10px; }
+  .lg-title { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lg-root, .lg-card { animation: none; }
+}
