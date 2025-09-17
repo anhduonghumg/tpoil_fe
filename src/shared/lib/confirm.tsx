@@ -1,6 +1,5 @@
 import { Modal } from "antd";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
-import React from "react";
 
 export const confirmDialog = {
   delete: (title: string, content: string, onOk: () => void) =>

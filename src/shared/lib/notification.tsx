@@ -1,11 +1,10 @@
-import { App, notification, message, Modal } from "antd";
+import {notification } from "antd";
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   InfoCircleOutlined,
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
-import React from "react";
 
 /**
  * Icon mặc định cho từng loại thông báo
