@@ -30,7 +30,6 @@ export default function PersonalForm({
 }) {
   const [internal] = Form.useForm();
   const form = externalForm ?? internal;
-  const { message } = App.useApp();
   const [openUploader, setOpenUploader] = useState(false);
   const [tempAvatar, setTempAvatar] = useState<null | {
     blob: Blob;
@@ -69,7 +68,6 @@ export default function PersonalForm({
   }, []);
 
   const setPreviewUrl = (url: string) => {
-    // cleanup url cũ
     if (lastObjectUrlRef.current && lastObjectUrlRef.current !== url) {
       URL.revokeObjectURL(lastObjectUrlRef.current);
     }
