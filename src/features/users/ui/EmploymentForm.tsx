@@ -67,7 +67,7 @@ export default function EmploymentForm({
         });
       }}
     >
-      <Row gutter={[16, 16]}>
+      <Row gutter={[16, 16]} style={{ rowGap: 0 }}>
         <Col xs={12} md={6}>
           <Form.Item
             label="Mã nhân viên"
@@ -83,7 +83,20 @@ export default function EmploymentForm({
             name="departmentName"
             rules={[{ required: true, message: "Phòng ban là bắt buộc" }]}
           >
-            <Input placeholder="VD: Sales" />
+            {/* <Input placeholder="VD: Sales" /> */}
+            <Select
+              placeholder="Chọn phòng ban"
+              allowClear
+              options={[
+                { value: "it", label: "IT" },
+                { value: "hr", label: "Nhân sự" },
+                { value: "sales", label: "Kinh doanh" },
+                { value: "marketing", label: "Marketing" },
+                { value: "finance", label: "Tài chính" },
+                { value: "operations", label: "Vận hành" },
+                { value: "other", label: "Khác" },
+              ]}
+            />
           </Form.Item>
         </Col>
         <Col xs={12} md={6}>
@@ -92,12 +105,35 @@ export default function EmploymentForm({
             name="title"
             rules={[{ required: true, message: "Chức danh là bắt buộc" }]}
           >
-            <Input placeholder="VD: Senior Developer" />
+            <Select
+              placeholder="Chọn chức danh"
+              allowClear
+              options={[
+                { value: "intern", label: "Thực tập sinh" },
+                { value: "junior", label: "Nhân viên" },
+                { value: "senior", label: "Chuyên viên" },
+                { value: "lead", label: "Trưởng nhóm" },
+                { value: "manager", label: "Quản lý" },
+                { value: "director", label: "Giám đốc" },
+                { value: "vp", label: "Phó giám đốc" },
+                { value: "c-level", label: "Cấp cao" },
+              ]}
+            />
           </Form.Item>
         </Col>
         <Col xs={12} md={6}>
           <Form.Item label="Cấp bậc" name="grade">
-            <Input placeholder="VD: Senior" />
+           <Select
+              placeholder="Chọn cấp bậc"
+              allowClear
+              options={[
+                { value: "1", label: "Cấp 1" },
+                { value: "2", label: "Cấp 2" },
+                { value: "3", label: "Cấp 3" },
+                { value: "4", label: "Cấp 4" },
+                { value: "5", label: "Cấp 5" },
+              ]}
+            />
           </Form.Item>
         </Col>
 
@@ -171,7 +207,7 @@ export default function EmploymentForm({
           </Form.Item>
         </Col>
 
-        <Col span={24}>
+        <Col span={24} style={{ borderBottom: "1px solid #eee" }}>
           <h4 style={{ margin: "16px 0 8px 0", color: "#666" }}>
             Vị trí chỗ ngồi
           </h4>
@@ -201,7 +237,7 @@ export default function EmploymentForm({
             <Input placeholder="VD: AC001234" />
           </Form.Item>
         </Col>
-      </Row>  
+      </Row>
 
       {!hideInlineSubmit && (
         <Form.Item>

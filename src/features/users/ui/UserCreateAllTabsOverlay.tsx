@@ -17,6 +17,7 @@ import {
   TabFormRef,
   validateFormsSequential,
 } from "../../../shared/ui/formUtils";
+import { CloseCircleOutlined, SaveOutlined } from "@ant-design/icons";
 
 export default function UserCreateAllTabsOverlay({
   open,
@@ -175,6 +176,7 @@ export default function UserCreateAllTabsOverlay({
           : undefined,
     };
 
+    console.log("Creating user with payload", payload);
     await create.mutateAsync(payload);
   };
 
@@ -189,10 +191,21 @@ export default function UserCreateAllTabsOverlay({
       okText="Tạo & mở chi tiết"
       footerRender={({ submitting }) => (
         <div style={{ textAlign: "right" }}>
-          <Button onClick={onClose} style={{ marginRight: 8 }}>
+          <Button
+            type="default"
+            onClick={onClose}
+            style={{ marginRight: 8}}
+            disabled={submitting}
+            icon={<CloseCircleOutlined />}
+          >
             Hủy
           </Button>
-          <Button type="primary" onClick={handleCreate} loading={submitting}>
+          <Button
+            type="primary"
+            onClick={handleCreate}
+            loading={submitting}
+            icon={<SaveOutlined />}
+          >
             Lưu
           </Button>
         </div>
@@ -213,7 +226,7 @@ export default function UserCreateAllTabsOverlay({
                   onSave={() => {}}
                 />
               ),
-              forceRender: true, 
+              forceRender: true,
             },
             {
               key: "citizen",
@@ -225,7 +238,7 @@ export default function UserCreateAllTabsOverlay({
                   onSave={() => {}}
                 />
               ),
-              forceRender: true, 
+              forceRender: true,
             },
             {
               key: "contact",
@@ -237,7 +250,7 @@ export default function UserCreateAllTabsOverlay({
                   onSave={() => {}}
                 />
               ),
-              forceRender: true, 
+              forceRender: true,
             },
             {
               key: "employment",
@@ -249,7 +262,7 @@ export default function UserCreateAllTabsOverlay({
                   onSave={() => {}}
                 />
               ),
-              forceRender: true, 
+              forceRender: true,
             },
             {
               key: "finance",
@@ -261,7 +274,7 @@ export default function UserCreateAllTabsOverlay({
                   onSave={() => {}}
                 />
               ),
-              forceRender: true, 
+              forceRender: true,
             },
           ]}
         />

@@ -105,7 +105,7 @@ export default function PersonalForm({
             dob: vals.dob?.format("DD-MM-YYYY"),
             nationality: vals.nationality,
             maritalStatus: vals.maritalStatus,
-            avatarUrl: vals.avatarUrl,
+            avatarUrl: finalAvatarUrl,
           });
         }}
       >
@@ -127,7 +127,7 @@ export default function PersonalForm({
                 <Space>
                   <Button onClick={() => setOpenUploader(true)}>Đổi ảnh</Button>
                   <Form.Item name="avatarUrl" noStyle>
-                    <Input style={{ width: 320 }} placeholder="https://..." />
+                    <Input style={{ width: 320 }} disabled placeholder="https://..." />
                   </Form.Item>
                 </Space>
                 <div style={{ color: "#888", fontSize: 12, marginTop: 6 }}>
@@ -144,12 +144,13 @@ export default function PersonalForm({
               name="name"
               rules={[{ required: true, message: "Bắt buộc" }]}
             >
-              <Input maxLength={128} showCount />
+              <Input maxLength={128} showCount placeholder="VD: Nguyễn Văn A" />
             </Form.Item>
           </Col>
           <Col xs={12} md={6}>
             <Form.Item label="Giới tính" name="gender">
               <Select
+                placeholder="Chọn giới tính"
                 allowClear
                 options={[
                   { value: "male", label: "Nam" },
@@ -171,12 +172,19 @@ export default function PersonalForm({
 
           <Col xs={12} md={6}>
             <Form.Item label="Quốc tịch" name="nationality">
-              <Input />
+               <Select
+                placeholder="Chọn quốc tịch"
+                allowClear
+                options={[
+                  { value: "vn", label: "Việt Nam" },
+                ]}
+              />
             </Form.Item>
           </Col>
           <Col xs={12} md={6}>
             <Form.Item label="Hôn nhân" name="maritalStatus">
               <Select
+                placeholder="Chọn tình trạng"
                 allowClear
                 options={[
                   { value: "single", label: "Độc thân" },

@@ -1,5 +1,5 @@
 // src/features/users/ui/UserCreateOverlay.tsx
-import { App, Button, Form } from "antd";
+import { Button, Form } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { UsersApi } from "../api";
@@ -7,6 +7,7 @@ import type { User } from "../types";
 import UserCreateForm, { CreateUserInput } from "./UserCreateForm";
 import CommonModal from "../../../shared/ui/CommonModal";
 import CommonDrawer from "../../../shared/ui/CommonDrawer";
+import { notify } from "../../../shared/lib/notification";
 
 type Variant = "modal" | "drawer";
 
@@ -20,7 +21,6 @@ export default function UserCreateOverlay({
   onClose: () => void;
 }) {
   const [form] = Form.useForm<CreateUserInput>();
-  const { message } = App.useApp();
   const nav = useNavigate();
   const qc = useQueryClient();
 
@@ -29,11 +29,11 @@ export default function UserCreateOverlay({
       UsersApi.create(payload as Partial<User>),
     onSuccess: (u) => {
       qc.invalidateQueries({ queryKey: ["users", "list"] });
-      message.success("Tạo nhân viên thành công");
+      notify.success("Tạo nhân viên thành công");
       onClose();
       nav(`/users/${u.id}`);
     },
-    onError: () => message.error("Tạo nhân viên thất bại"),
+    onError: () => notify.error("Tạo nhân viên thất bại"),
   });
 
   const content = (

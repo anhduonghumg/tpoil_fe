@@ -1,4 +1,3 @@
-// src/features/users/ui/CitizenForm.tsx
 import {
   Button,
   Col,
@@ -105,7 +104,7 @@ export default function CitizenForm({
             if (tmpFront) frontUrl = await uploadDoc(tmpFront.blob);
             if (tmpBack) backUrl = await uploadDoc(tmpBack.blob);
           } catch (e) {
-            message.error("Upload ảnh giấy tờ thất bại");
+            notify.error("Upload ảnh giấy tờ thất bại");
             return;
           } finally {
             if (lastObjFrontRef.current) {
@@ -133,7 +132,7 @@ export default function CitizenForm({
           });
         }}
       >
-        <Row gutter={[16, 16]}>
+        <Row gutter={[16, 16]} style={{rowGap: 0}}>
           <Col xs={12} md={6}>
             <Form.Item label="Loại giấy tờ" name="type">
               <Select
@@ -193,12 +192,13 @@ export default function CitizenForm({
             <Form.Item label="Ảnh mặt trước">
               <Input.Group compact style={{ display: "flex" }}>
                 <Form.Item name="frontImageUrl" noStyle>
-                  <Input placeholder="https://..." style={{ flex: 1 }} />
+                  <Input placeholder="https://..." style={{ flex: 1 }} disabled />
                 </Form.Item>
                 <Button
                   onClick={() => setOpenFront(true)}
                   style={{ marginLeft: 0 }}
                   icon={<UploadOutlined />}
+                  type="primary"
                 >
                   Upload
                 </Button>
@@ -249,7 +249,7 @@ export default function CitizenForm({
                         }
                         form.setFieldsValue({ frontImageUrl: undefined });
                         setTmpFront(null);
-                        message.success("Đã xóa ảnh mặt trước");
+                        notify.success("Đã xóa ảnh mặt trước");
                       }}
                     >
                       <Tooltip title="Xóa ảnh">
@@ -275,12 +275,13 @@ export default function CitizenForm({
             <Form.Item label="Ảnh mặt sau">
               <Input.Group compact style={{ display: "flex" }}>
                 <Form.Item name="backImageUrl" noStyle>
-                  <Input placeholder="https://..." style={{ flex: 1 }} />
+                  <Input placeholder="https://..." style={{ flex: 1 }} disabled />
                 </Form.Item>
                 <Button
                   onClick={() => setOpenBack(true)}
                   style={{ marginLeft: 0 }}
                   icon={<UploadOutlined />}
+                  type="primary"
                 >
                   Upload
                 </Button>
@@ -329,7 +330,7 @@ export default function CitizenForm({
                         }
                         form.setFieldsValue({ backImageUrl: undefined });
                         setTmpBack(null);
-                        message.success("Đã xóa ảnh mặt sau");
+                        notify.success("Đã xóa ảnh mặt sau");
                       }}
                     >
                       <Tooltip title="Xóa ảnh">
@@ -353,7 +354,10 @@ export default function CitizenForm({
 
         {!hideInlineSubmit && (
           <Form.Item style={{ marginTop: 8 }}>
-            <Button type="primary" htmlType="submit">
+            <Button
+              type="primary"
+              htmlType="submit"
+            >
               Lưu
             </Button>
           </Form.Item>

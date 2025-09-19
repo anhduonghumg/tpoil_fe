@@ -1,7 +1,7 @@
-// src/features/users/ui/ContactForm.tsx
 import { Button, Col, Form, FormInstance, Input, Row } from "antd";
 import type { User } from "../types";
 import { PHONE_VN } from "../validators";
+import AddressCascaderSimple from "../../../shared/components/Address/AddressCascaderSimple";
 
 export default function ContactForm({
   data,
@@ -27,11 +27,6 @@ export default function ContactForm({
     ap_ward: data?.addressPermanent?.ward,
     ap_street: data?.addressPermanent?.street,
 
-    at_province: data?.addressTemp?.province,
-    at_district: data?.addressTemp?.district,
-    at_ward: data?.addressTemp?.ward,
-    at_street: data?.addressTemp?.street,
-
     ec_name: data?.emergency?.name,
     ec_relation: data?.emergency?.relation,
     ec_phone: data?.emergency?.phone,
@@ -44,21 +39,22 @@ export default function ContactForm({
       initialValues={init}
       scrollToFirstError={true}
       onFinish={(v) => {
+        const [province, district, ward] = v.ap_codes || [];
         onSave({
           email: v.email,
           personalEmail: v.personalEmail,
           phone: v.phone,
+          // addressPermanent: {
+          //   province: v.ap_province,
+          //   district: v.ap_district,
+          //   ward: v.ap_ward,
+          //   street: v.ap_street,
+          // },
           addressPermanent: {
-            province: v.ap_province,
-            district: v.ap_district,
-            ward: v.ap_ward,
+            province,
+            district,
+            ward,
             street: v.ap_street,
-          },
-          addressTemp: {
-            province: v.at_province,
-            district: v.at_district,
-            ward: v.at_ward,
-            street: v.at_street,
           },
           emergency:
             v.ec_name || v.ec_phone
@@ -77,7 +73,7 @@ export default function ContactForm({
               { required: true, type: "email", message: "Email không hợp lệ" },
             ]}
           >
-            <Input />
+            <Input placeholder="VD: admin@tpoil.com" />
           </Form.Item>
         </Col>
         <Col xs={24} md={8}>
@@ -87,7 +83,7 @@ export default function ContactForm({
             style={{ marginBottom: 0 }}
             rules={[{ type: "email", message: "Email không hợp lệ" }]}
           >
-            <Input />
+            <Input placeholder="VD: admin@gmail.com" />
           </Form.Item>
         </Col>
         <Col xs={24} md={8}>
@@ -107,13 +103,46 @@ export default function ContactForm({
           </Form.Item>
         </Col>
 
-        <Col span={24} style={{ margin: 0 }}>
-          <h4>Địa chỉ thường trú</h4>
+        <Col
+          span={24}
+          style={{ marginTop: "5px", borderBottom: "1px solid #d9d9d9" }}
+        >
+          <span style={{ fontSize: 14, fontWeight: "500" }}>
+            Địa chỉ thường trú
+          </span>
+        </Col>
+        <Col xs={24} md={16}>
+          <Form.Item
+            label="Tỉnh/Quận/Phường"
+            name="ap_codes"
+            style={{ marginBottom: 0 }}
+            rules={[{ required: true, message: "Vui lòng chọn đủ 3 cấp" }]}
+          >
+            <AddressCascaderSimple />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={8}>
+          <Form.Item
+            label="Số nhà/Đường"
+            name="ap_street"
+            style={{ marginBottom: 0 }}
+          >
+            <Input placeholder="VD: 12 Nguyễn Trãi" />
+          </Form.Item>
+        </Col>
+        {/* <Col xs={12} md={6}>
+          <Form.Item
+            label="Số nhà/Đường"
+            name="ap_street"
+            style={{ marginBottom: 0 }}
+          >
+            <Input />
+          </Form.Item>
         </Col>
         <Col xs={12} md={6}>
           <Form.Item
-            label="Tỉnh/TP"
-            name="ap_province"
+            label="Phường/Xã"
+            name="ap_ward"
             style={{ marginBottom: 0 }}
           >
             <Input />
@@ -130,56 +159,24 @@ export default function ContactForm({
         </Col>
         <Col xs={12} md={6}>
           <Form.Item
-            label="Phường/Xã"
-            name="ap_ward"
+            label="Tỉnh/TP"
+            name="ap_province"
             style={{ marginBottom: 0 }}
           >
             <Input />
           </Form.Item>
-        </Col>
-        <Col xs={12} md={6}>
-          <Form.Item
-            label="Số nhà/Đường"
-            name="ap_street"
-            style={{ marginBottom: 0 }}
-          >
-            <Input />
-          </Form.Item>
-        </Col>
-        <Col xs={12} md={6}>
-          <Form.Item
-            label="Quận/Huyện"
-            name="at_district"
-            style={{ marginBottom: 0 }}
-          >
-            <Input />
-          </Form.Item>
-        </Col>
-        <Col xs={12} md={6}>
-          <Form.Item
-            label="Phường/Xã"
-            name="at_ward"
-            style={{ marginBottom: 0 }}
-          >
-            <Input />
-          </Form.Item>
-        </Col>
-        <Col xs={12} md={6}>
-          <Form.Item
-            label="Số nhà/Đường"
-            name="at_street"
-            style={{ marginBottom: 0 }}
-          >
-            <Input />
-          </Form.Item>
-        </Col>
-
-        <Col span={24}>
-          <h4>Liên hệ khẩn cấp</h4>
+        </Col> */}
+        <Col
+          span={24}
+          style={{ marginTop: "5px", borderBottom: "1px solid #d9d9d9" }}
+        >
+          <span style={{ fontSize: 14, fontWeight: "500" }}>
+            Liên hệ khẩn cấp
+          </span>
         </Col>
         <Col xs={24} md={8}>
           <Form.Item label="Họ tên" name="ec_name" style={{ marginBottom: 0 }}>
-            <Input />
+            <Input placeholder="VD: Nguyễn Thị A..." />
           </Form.Item>
         </Col>
         <Col xs={24} md={8}>
@@ -188,7 +185,7 @@ export default function ContactForm({
             name="ec_relation"
             style={{ marginBottom: 0 }}
           >
-            <Input />
+            <Input placeholder="VD: Chị gái" />
           </Form.Item>
         </Col>
         <Col xs={24} md={8}>
@@ -198,7 +195,7 @@ export default function ContactForm({
             style={{ marginBottom: 0 }}
             rules={[{ pattern: PHONE_VN, message: "SĐT không hợp lệ" }]}
           >
-            <Input />
+            <Input placeholder="VD: 09712288999" />
           </Form.Item>
         </Col>
       </Row>
