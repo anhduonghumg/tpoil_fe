@@ -1,4 +1,4 @@
-export type User = { id: string; email?: string; fullname?: string }
+export type User = { id: string; email?: string; name?: string }
 
 const LS_KEY = 'erp:user'
 

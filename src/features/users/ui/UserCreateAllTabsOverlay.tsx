@@ -11,7 +11,7 @@ import EmploymentForm from "../ui/EmploymentForm";
 import FinanceForm from "../ui/FinanceForm";
 import OverlayForm from "./OverlayForm";
 import { useEffect, useMemo, useState } from "react";
-import { NamePath } from "antd/es/form/interface";
+
 import {
   collectFormsValues,
   TabFormRef,

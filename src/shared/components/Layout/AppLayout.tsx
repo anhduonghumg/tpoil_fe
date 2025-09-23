@@ -24,12 +24,14 @@ import {
   BellOutlined,
   MailOutlined,
   SearchOutlined,
+  UngroupOutlined,
 } from "@ant-design/icons";
 import "./AppLayout.css";
 import { useLogout, useMe } from "../../../features/auth/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { saveUserToCache } from "../../../features/auth/session";
 
+// @ts-ignore
 import logo from "../../../assets/logo_200.png";
 import { confirmDialog } from "../../lib/confirm";
 
@@ -48,6 +50,7 @@ const NAV: NavItem[] = [
   { key: "/orders", label: "Đơn hàng", icon: <ShoppingCartOutlined /> },
   { key: "/inventory", label: "Kho hàng", icon: <DatabaseOutlined /> },
   { key: "/users", label: "Nhân viên", icon: <UserOutlined /> },
+  { key: "/department", label: "Phòng ban", icon: <UngroupOutlined /> },
 ];
 const FLAT_KEYS = NAV.flatMap((i) =>
   i.children ? [i.key, ...i.children.map((c) => c.key)] : [i.key]
@@ -120,22 +123,22 @@ const HeaderRight = React.memo(function HeaderRight({
 
   return (
     <div className="app-header-right">
-      <Input
+      {/* <Input
         allowClear
         prefix={<SearchOutlined />}
         placeholder="Tìm kiếm..."
         className="app-search"
-      />
+      /> */}
       <Tooltip title="Thông báo">
         <Badge count={3} size="small">
           <BellOutlined className="icon-btn" />
         </Badge>
       </Tooltip>
-      <Tooltip title="Tin nhắn">
+      {/* <Tooltip title="Tin nhắn">
         <Badge dot>
           <MailOutlined className="icon-btn" />
         </Badge>
-      </Tooltip>
+      </Tooltip> */}
       <Dropdown menu={userMenu} trigger={["click"]} placement="bottomRight">
         <div className="app-user">
           <Avatar size={32} style={{ backgroundColor: "#10b981" }}>
@@ -174,7 +177,6 @@ export default function AppLayout() {
     else setCollapsed((c) => !c);
   }, [isMobile]);
 
-
   const handleLogout = () => {
     confirmDialog.confirm(
       "Xác nhận",
@@ -192,7 +194,7 @@ export default function AppLayout() {
       nav("/login", { replace: true });
     }
   };
-  
+
   const selectedKeys = useMemo(() => {
     const best = FLAT_KEYS.filter(
       (k) => pathname === k || pathname.startsWith(k + "/")
@@ -215,7 +217,7 @@ export default function AppLayout() {
     }));
   }, [pathname]);
 
-  const userName = (me?.data?.fullname || me?.data?.email || "User") as string;
+  const userName = (me?.data?.name || me?.data?.email || "User") as string;
 
   return (
     <Layout className="app-root">

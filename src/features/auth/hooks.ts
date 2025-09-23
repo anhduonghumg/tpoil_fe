@@ -16,7 +16,7 @@ export const useMe = () => {
     refetchOnReconnect: false,
     retry: 0,
     enabled: initial == null,
-    select: (u) => ({ id: u.id, fullname: u.fullname, email: u.email }),
+    select: (u) => ({ id: u.id, name: u.name, email: u.email }),
   })
 }
 

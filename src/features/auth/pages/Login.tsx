@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Form, Input, Button, message, Alert } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
-import { useLogin, useMe } from "../hooks";
+import { useLogin } from "../hooks";
 import { useNavigate, useLocation } from "react-router-dom";
 
+// @ts-ignore
 import logo from "../../../assets/logo_200.png";
+import { saveUserToCache } from "../session";
 
 export default function Login() {
   const [form] = Form.useForm();
@@ -29,6 +31,7 @@ export default function Login() {
     try {
       const login = (await mLogin.mutateAsync(vals)) as LoginResponse;
       if (login?.statusCode == 200) {
+        saveUserToCache(login.data?.user || null);
         nav(redirectTo, { replace: true });
       }
     } catch (e: any) {

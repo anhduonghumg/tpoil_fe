@@ -6,12 +6,14 @@ import AppLayout from "../shared/components/Layout/AppLayout";
 import { loadUserFromCache } from "../features/auth/session";
 import UsersList from "../features/users/page/UsersList";
 import UserDetail from "../features/users/page/UserDetail";
+import DepartmentsPage from "../features/departments/page/DepartmentsPage";
+import { Test } from "../page/Test";
 
 const requireAuth = async () => {
-  if (loadUserFromCache()) return null;
+  if (loadUserFromCache()) return;
   try {
     await AuthApi.me();
-    return null;
+    return;
   } catch {
     throw redirect("/login");
   }
@@ -28,18 +30,14 @@ export const router = createBrowserRouter([
       { path: "dashboard", element: <Dashboard /> },
       { path: "orders", element: <div>Đơn hàng</div> },
       { path: "inventory", element: <div>Kho hàng</div> },
-      { path: 'users', element: <UsersList /> },
-      { path: 'users/:id', element: <UserDetail /> },
+      { path: "users", element: <UsersList /> },
+      { path: "users/:id", element: <UserDetail /> },
+      { path: "department", element: <DepartmentsPage /> },
     ],
   },
   // {
   //   path: "/",
   //   loader: requireAuth,
-  //   element: <AppLayout />,
-  //   children: [
-  //     { index: true, element: <Dashboard /> },
-  //     { path: "dashboard", element: <Dashboard /> },
-  //   ],
+  //   element: <Test />,
   // },
-  // { path: "*", element: <NotFound /> },
 ]);

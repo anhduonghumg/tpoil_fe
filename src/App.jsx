@@ -16,7 +16,7 @@ const themeTokens = {
       borderRadiusLG: 12,
     },
     Message: {
-      contentBg: "#ffffff", 
+      contentBg: "#ffffff",
       colorText: "#1f2937",
     },
   },
