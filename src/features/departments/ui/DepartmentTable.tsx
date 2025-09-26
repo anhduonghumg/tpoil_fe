@@ -103,10 +103,11 @@ export default function DepartmentTable({
         pageSize,
         total,
         showSizeChanger: true,
-        pageSizeOptions: [5, 10, 20, 50, 100],
+        pageSizeOptions: [10, 20, 50, 100],
         onChange: onPageChange,
+        position: ["bottomLeft"],
       }}
-      scroll={{ x: 200, y: 340 }}
+      scroll={{ y: 390 }}
     />
   );
 }

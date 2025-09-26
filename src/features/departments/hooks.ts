@@ -8,6 +8,12 @@ export const useDeptList = (params: DeptListQuery) =>
     queryFn: () => DepartmentsApi.list(params).then((r) => r.data!),
   });
 
+export const useAllDepts = (params: any) =>
+  useQuery({
+    queryKey: ["departments", "all", params],
+    queryFn: () => DepartmentsApi.all(params).then((r) => r.data!),
+  });
+
 export const useDeptTree = () =>
   useQuery({
     queryKey: ["departments", "tree"],

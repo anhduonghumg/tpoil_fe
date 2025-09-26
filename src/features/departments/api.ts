@@ -3,6 +3,7 @@ import {
   ApiResponse,
   Department,
   DeptListQuery,
+  DeptOption,
   DeptSite,
   DeptTreeNode,
   Paged,
@@ -13,6 +14,9 @@ export const DepartmentsApi = {
     apiCall<ApiResponse<Paged<Department>>>("department.list", { query }).then(
       (r) => r.data!
     ),
+
+  all: () =>
+    apiCall<ApiResponse<Department[]>>("department.all").then((r) => r.data!),
 
   tree: (opts?: { rootId?: string }) =>
     apiCall<ApiResponse<DeptTreeNode[]>>("department.tree", {

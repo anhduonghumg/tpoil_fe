@@ -18,6 +18,7 @@ import {
   validateFormsSequential,
 } from "../../../shared/ui/formUtils";
 import { CloseCircleOutlined, SaveOutlined } from "@ant-design/icons";
+import { notify } from "../../../shared/lib/notification";
 
 export default function UserCreateAllTabsOverlay({
   open,
@@ -67,7 +68,7 @@ export default function UserCreateAllTabsOverlay({
     mutationFn: (payload: Partial<User>) => UsersApi.create(payload),
     onSuccess: (u) => {
       qc.invalidateQueries({ queryKey: ["users", "list"] });
-      message.success("Tạo nhân viên thành công");
+      notify.success("Tạo nhân viên thành công");
       onClose();
       nav(`/users/${u.id}`);
     },
@@ -194,7 +195,7 @@ export default function UserCreateAllTabsOverlay({
           <Button
             type="default"
             onClick={onClose}
-            style={{ marginRight: 8}}
+            style={{ marginRight: 8 }}
             disabled={submitting}
             icon={<CloseCircleOutlined />}
           >

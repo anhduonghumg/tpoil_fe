@@ -12,10 +12,11 @@ import {
   Typography,
 } from "antd";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useUsers, useDepartments } from "../hooks";
+import { useUsers } from "../hooks";
 import type { User } from "../types";
 import UserCreateAllTabsOverlay from "../ui/UserCreateAllTabsOverlay";
 import { PlusOutlined } from "@ant-design/icons";
+import { useAllDepts } from "../../departments/hooks";
 
 export default function UsersList() {
   const [params, setParams] = useSearchParams();
@@ -32,7 +33,7 @@ export default function UsersList() {
     [q, dept, status, page, size]
   );
   const { data, isLoading } = useUsers(filters);
-  const depts = useDepartments();
+  const depts = useAllDepts();
 
   const columns = [
     {
@@ -86,97 +87,95 @@ export default function UsersList() {
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      <Card>
-        <Row gutter={[12, 12]} align="middle">
-          <Col xs={24} md={8}>
-            <Input
-              placeholder="Tìm theo tên, email, mã NV…"
-              allowClear
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setPage(1);
-              }}
-            />
-          </Col>
-          <Col xs={12} md={6}>
-            <Select
-              allowClear
-              placeholder="Phòng ban"
-              style={{ width: "100%" }}
-              loading={depts.isLoading}
-              options={(depts.data || []).map((d) => ({
-                value: d.id,
-                label: d.name,
-              }))}
-              value={dept}
-              onChange={(v) => {
-                setDept(v);
-                setPage(1);
-              }}
-            />
-          </Col>
-          <Col xs={12} md={6}>
-            <Select
-              allowClear
-              placeholder="Trạng thái"
-              style={{ width: "100%" }}
-              options={[
-                { value: "active", label: "Đang làm" },
-                { value: "probation", label: "Thử việc" },
-                { value: "inactive", label: "Tạm dừng" },
-                { value: "quit", label: "Nghỉ việc" },
-              ]}
-              value={status}
-              onChange={(v) => {
-                setStatus(v);
-                setPage(1);
-              }}
-            />
-          </Col>
-          <Col xs={24} md={4} style={{ textAlign: "right" }}>
-            <Button
-              icon={<PlusOutlined />}
-              type="primary"
-              onClick={() => {
-                params.set("new", "1");
-                setParams(params);
-              }}
-            >
-              Thêm nhân viên
-            </Button>
+      <Row gutter={[12, 12]} align="middle">
+        <Col xs={24} md={8}>
+          <Input
+            size="small"
+            placeholder="Tìm theo tên, email, mã NV…"
+            allowClear
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+          />
+        </Col>
+        <Col xs={12} md={6}>
+          <Select
+            size="small"
+            allowClear
+            placeholder="Phòng ban"
+            style={{ width: "100%" }}
+            loading={depts.isLoading}
+            options={(depts.data || []).map((d) => ({
+              value: d.id,
+              label: d.name,
+            }))}
+            value={dept}
+            onChange={(v) => {
+              setDept(v);
+              setPage(1);
+            }}
+          />
+        </Col>
+        <Col xs={12} md={6}>
+          <Select
+            size="small"
+            allowClear
+            placeholder="Trạng thái"
+            style={{ width: "100%" }}
+            options={[
+              { value: "active", label: "Đang làm" },
+              { value: "probation", label: "Thử việc" },
+              { value: "inactive", label: "Tạm dừng" },
+              { value: "quit", label: "Nghỉ việc" },
+            ]}
+            value={status}
+            onChange={(v) => {
+              setStatus(v);
+              setPage(1);
+            }}
+          />
+        </Col>
+        <Col xs={24} md={4} style={{ textAlign: "right" }}>
+          <Button
+            icon={<PlusOutlined />}
+            type="primary"
+            onClick={() => {
+              params.set("new", "1");
+              setParams(params);
+            }}
+          >
+            Thêm nhân viên
+          </Button>
 
-            <UserCreateAllTabsOverlay
-              open={open}
-              onClose={() => {
-                params.delete("new");
-                setParams(params, { replace: true });
-              }}
-              variant="modal"
-            />
-          </Col>
-        </Row>
-      </Card>
-
-      <Card>
-        <Table
-          rowKey="id"
-          loading={isLoading}
-          dataSource={data?.items || []}
-          columns={columns as any}
-          pagination={{
-            current: page,
-            pageSize: size,
-            total: data?.total || 0,
-            onChange: (p, s) => {
-              setPage(p);
-              setSize(s);
-            },
-            showSizeChanger: true,
-          }}
-          size="middle"
-        />
-      </Card>
+          <UserCreateAllTabsOverlay
+            open={open}
+            onClose={() => {
+              params.delete("new");
+              setParams(params, { replace: true });
+            }}
+            variant="modal"
+          />
+        </Col>
+      </Row>
+      <Table
+        rowKey="id"
+        loading={isLoading}
+        dataSource={data?.items || []}
+        columns={columns as any}
+        pagination={{
+          current: page,
+          pageSize: size,
+          total: data?.total || 0,
+          onChange: (p, s) => {
+            setPage(p);
+            setSize(s);
+          },
+          showSizeChanger: true,
+        }}
+        size="middle"
+      />
     </Space>
   );
 }

@@ -79,57 +79,53 @@ export default function DepartmentsPage() {
   }, [setQuery]);
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <Card>
-        <Tabs
-          defaultActiveKey={params.get("tab") || "list"}
-          items={[
-            {
-              key: "list",
-              label: "Danh sách",
-              children: (
-                <>
-                  <DepartmentFilters
-                    value={{
-                      q: f.q,
-                      type: f.type,
-                      siteId: f.siteId,
-                    }}
-                    siteValue={sites}
-                    onApply={handleApply}
-                    onAdd={handleAdd}
-                  />
-                  <DepartmentTable
-                    data={list.data?.items || []}
-                    total={list.data?.total || 0}
-                    loading={list.isLoading}
-                    page={f.page!}
-                    pageSize={f.pageSize!}
-                    onPageChange={(p, s) => setQuery({ page: p, pageSize: s })}
-                    onEdit={(id) => setEditId(id)}
-                    onDelete={onDelete}
-                  />
-                </>
-              ),
-            },
-            {
-              key: "tree",
-              label: "Cây phòng ban",
-              children: (
-                <Card bordered={false} style={{ padding: 0 }}>
-                  <DepartmentTree
-                    onAddChild={(parentId) =>
-                      setQuery({ create: "1", parentId })
-                    }
-                    onEdit={(id) => setEditId(id)}
-                    onDelete={onDelete}
-                  />
-                </Card>
-              ),
-            },
-          ]}
-        />
-      </Card>
+    <div style={{ display: "grid" }}>
+      <Tabs
+        defaultActiveKey={params.get("tab") || "list"}
+        items={[
+          {
+            key: "list",
+            label: "Danh sách",
+            children: (
+              <>
+                <DepartmentFilters
+                  value={{
+                    q: f.q,
+                    type: f.type,
+                    siteId: f.siteId,
+                  }}
+                  siteValue={sites}
+                  onApply={handleApply}
+                  onAdd={handleAdd}
+                />
+                <DepartmentTable
+                  data={list.data?.items || []}
+                  total={list.data?.total || 0}
+                  loading={list.isLoading}
+                  page={f.page!}
+                  pageSize={f.pageSize!}
+                  onPageChange={(p, s) => setQuery({ page: p, pageSize: s })}
+                  onEdit={(id) => setEditId(id)}
+                  onDelete={onDelete}
+                />
+              </>
+            ),
+          },
+          {
+            key: "tree",
+            label: "Cây phòng ban",
+            children: (
+              <Card bordered={false} style={{ padding: 0 }}>
+                <DepartmentTree
+                  onAddChild={(parentId) => setQuery({ create: "1", parentId })}
+                  onEdit={(id) => setEditId(id)}
+                  onDelete={onDelete}
+                />
+              </Card>
+            ),
+          },
+        ]}
+      />
 
       {/* Create */}
       <DeptCreateOverlay

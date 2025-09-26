@@ -22,6 +22,7 @@ export const ROUTES = {
   },
   department: {
     list: ["GET", "/departments"] as RouteTuple,
+    all: ["GET", "/departments/all"] as RouteTuple,
     tree: ["GET", "/departments/tree"] as RouteTuple,
     create: ["POST", "/departments"] as RouteTuple,
     detail: ["GET", "/departments/:id"] as RouteTuple,

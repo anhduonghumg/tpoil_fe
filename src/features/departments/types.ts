@@ -16,6 +16,11 @@ export type Department = {
   deletedBy?: string | null;
 };
 
+export type DeptOption = {
+  id: string;
+  name: string;
+};
+
 export type DeptListQuery = {
   q?: string;
   type?: DeptType;

@@ -75,12 +75,7 @@ export default function DepartmentTree({
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      <Input.Search
-        placeholder="Tìm theo tên/code"
-        allowClear
-        onChange={(e) => setQ(e.target.value)}
-      />
-      <div style={{ minHeight: 320 }}>
+      <div>
         {isLoading ? (
           <Spin />
         ) : (
