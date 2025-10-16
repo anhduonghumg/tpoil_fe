@@ -17,7 +17,7 @@ export default function ContactForm({
   const [internal] = Form.useForm();
   const form = externalForm ?? internal;
   const init = {
-    email: data?.email,
+    workEmail: data?.workEmail,
     personalEmail: data?.personalEmail,
     phone: data?.phone,
 
@@ -41,15 +41,9 @@ export default function ContactForm({
       onFinish={(v) => {
         const [province, district, ward] = v.ap_codes || [];
         onSave({
-          email: v.email,
+          workEmail: v.workEmail,
           personalEmail: v.personalEmail,
           phone: v.phone,
-          // addressPermanent: {
-          //   province: v.ap_province,
-          //   district: v.ap_district,
-          //   ward: v.ap_ward,
-          //   street: v.ap_street,
-          // },
           addressPermanent: {
             province,
             district,
@@ -67,7 +61,7 @@ export default function ContactForm({
         <Col xs={24} md={8}>
           <Form.Item
             label="Email (công ty/cá nhân)"
-            name="email"
+            name="workEmail"
             style={{ marginBottom: 0 }}
             rules={[
               { required: true, type: "email", message: "Email không hợp lệ" },
@@ -159,7 +153,7 @@ export default function ContactForm({
         </Col>
         <Col xs={12} md={6}>
           <Form.Item
-            label="Tỉnh/TP"
+            label="Tỉnh/TP" 
             name="ap_province"
             style={{ marginBottom: 0 }}
           >

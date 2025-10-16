@@ -4,7 +4,7 @@ import type { User } from "./types";
 
 export const useUsers = (filters: any) =>
   useQuery({
-    queryKey: ["users", "list", filters],
+    queryKey: ["employees", "list", filters],
     queryFn: () => UsersApi.list(filters),
     // keepPreviousData: true,
   });

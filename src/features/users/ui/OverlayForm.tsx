@@ -11,11 +11,11 @@ export interface OverlayFormProps {
   title: string;
   open: boolean;
   onClose: () => void;
-  variant?: Variant; // 'drawer' (default) | 'modal'
-  size?: Size; // modal: sm|md|lg ; drawer: sm|md|lg|xl
+  variant?: Variant;
+  size?: Size;
   loading?: boolean;
-  confirmClose?: boolean; // chỉ áp dụng cho Drawer
-  fullHeight?: boolean; // chỉ áp dụng cho Drawer
+  confirmClose?: boolean;
+  fullHeight?: boolean;
   children: (ctx: { form: FormInstance }) => React.ReactNode;
   footerRender?: (ctx: {
     submitting: boolean;

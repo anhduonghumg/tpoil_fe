@@ -7,7 +7,6 @@ import {
   Input,
   Row,
   Select,
-  App,
   Avatar,
   Space,
 } from "antd";
@@ -16,6 +15,31 @@ import type { User } from "../types";
 import { useEffect, useRef, useState } from "react";
 import AvatarUploader from "../ui/AvatarUploader";
 import { notify } from "../../../shared/lib/notification";
+
+// ========= Helpers =========
+const UPLOAD_URL = "/api/uploads/image";
+
+const guessExt = (mime: string) => {
+  if (mime === "image/png") return "png";
+  if (mime === "image/jpeg" || mime === "image/jpg") return "jpg";
+  if (mime === "image/webp") return "webp";
+  return "jpg";
+};
+
+const uploadAvatar = async (blob: Blob): Promise<string> => {
+  const ext = guessExt(blob.type || "image/jpeg");
+  const fd = new FormData();
+  fd.append("file", blob, `avatar.${ext}`);
+
+  const res = await fetch(UPLOAD_URL, {
+    method: "POST",
+    body: fd,
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Upload failed");
+  const json = (await res.json()) as { url: string };
+  return json.url;
+};
 
 export default function PersonalForm({
   data,
@@ -30,6 +54,7 @@ export default function PersonalForm({
 }) {
   const [internal] = Form.useForm();
   const form = externalForm ?? internal;
+
   const [openUploader, setOpenUploader] = useState(false);
   const [tempAvatar, setTempAvatar] = useState<null | {
     blob: Blob;
@@ -47,19 +72,6 @@ export default function PersonalForm({
     avatarUrl: data?.avatarUrl,
   };
 
-  const uploadAvatar = async (blob: Blob): Promise<string> => {
-    const fd = new FormData();
-    fd.append("file", blob, "avatar.webp");
-    const res = await fetch("/api/uploads/avatar", {
-      method: "POST",
-      body: fd,
-      credentials: "include",
-    });
-    if (!res.ok) throw new Error("Upload failed");
-    const json = (await res.json()) as { url: string };
-    return json.url;
-  };
-
   useEffect(() => {
     return () => {
       if (lastObjectUrlRef.current)
@@ -75,13 +87,23 @@ export default function PersonalForm({
     form.setFieldsValue({ avatarUrl: url });
   };
 
+  const handleClearAvatar = () => {
+    if (lastObjectUrlRef.current) {
+      URL.revokeObjectURL(lastObjectUrlRef.current);
+      lastObjectUrlRef.current = null;
+    }
+    setTempAvatar(null);
+    form.setFieldsValue({ avatarUrl: undefined });
+    notify.success("Đã xóa ảnh tạm thời");
+  };
+
   return (
     <>
       <Form
         form={form}
         layout="vertical"
         initialValues={init}
-        scrollToFirstError={true}
+        scrollToFirstError
         onFinish={async (vals) => {
           let finalAvatarUrl = vals.avatarUrl;
 
@@ -90,7 +112,6 @@ export default function PersonalForm({
               const uploaded = await uploadAvatar(tempAvatar.blob);
               finalAvatarUrl = uploaded;
             } finally {
-              
               if (lastObjectUrlRef.current) {
                 URL.revokeObjectURL(lastObjectUrlRef.current);
                 lastObjectUrlRef.current = null;
@@ -124,10 +145,17 @@ export default function PersonalForm({
                 <div style={{ fontWeight: 600, marginBottom: 8 }}>
                   Ảnh đại diện
                 </div>
-                <Space>
+                <Space wrap>
                   <Button onClick={() => setOpenUploader(true)}>Đổi ảnh</Button>
+                  <Button danger onClick={handleClearAvatar}>
+                    Xóa ảnh
+                  </Button>
                   <Form.Item name="avatarUrl" noStyle>
-                    <Input style={{ width: 320 }} disabled placeholder="https://..." />
+                    <Input
+                      style={{ width: 320 }}
+                      disabled
+                      placeholder="https://..."
+                    />
                   </Form.Item>
                 </Space>
                 <div style={{ color: "#888", fontSize: 12, marginTop: 6 }}>
@@ -147,6 +175,7 @@ export default function PersonalForm({
               <Input maxLength={128} showCount placeholder="VD: Nguyễn Văn A" />
             </Form.Item>
           </Col>
+
           <Col xs={12} md={6}>
             <Form.Item label="Giới tính" name="gender">
               <Select
@@ -160,27 +189,34 @@ export default function PersonalForm({
               />
             </Form.Item>
           </Col>
+
           <Col xs={12} md={6}>
             <Form.Item
               label="Ngày sinh"
               name="dob"
               rules={[{ required: true, message: "Bắt buộc" }]}
             >
-              <DatePicker style={{ width: "100%" }} format="DD-MM-YYYY" />
+              <DatePicker
+                style={{ width: "100%" }}
+                format="DD-MM-YYYY"
+                disabledDate={(d) => d && d.isAfter(dayjs(), "day")}
+              />
             </Form.Item>
           </Col>
 
           <Col xs={12} md={6}>
             <Form.Item label="Quốc tịch" name="nationality">
-               <Select
+              <Select
                 placeholder="Chọn quốc tịch"
                 allowClear
                 options={[
-                  { value: "vn", label: "Việt Nam" },
+                  // Khớp đúng với initialValues & BE: dùng "Việt Nam"
+                  { value: "Việt Nam", label: "Việt Nam" },
                 ]}
               />
             </Form.Item>
           </Col>
+
           <Col xs={12} md={6}>
             <Form.Item label="Hôn nhân" name="maritalStatus">
               <Select
@@ -212,13 +248,20 @@ export default function PersonalForm({
         onClose={() => setOpenUploader(false)}
         onDone={({ blob, previewUrl }) => {
           setTempAvatar({ blob, previewUrl });
-          setPreviewUrl(previewUrl);
+          setPreviewUrl(previewUrl); // hiển thị ảnh tạm thời (object URL)
           notify.success("Đã cập nhật ảnh tạm thời");
         }}
+        // Nếu muốn upload ngay khi chọn ảnh (không đợi submit):
         // uploadFn={uploadAvatar}
-        // onDone={({ previewUrl, uploadedUrl }) => {
-        //   form.setFieldsValue({ avatarUrl: uploadedUrl || previewUrl });
-        //   message.success("Đã cập nhật ảnh đại diện");
+        // onDone={async ({ blob, previewUrl }) => {
+        //   const uploadedUrl = await uploadAvatar(blob);
+        //   form.setFieldsValue({ avatarUrl: uploadedUrl });
+        //   if (lastObjectUrlRef.current) {
+        //     URL.revokeObjectURL(lastObjectUrlRef.current);
+        //     lastObjectUrlRef.current = null;
+        //   }
+        //   setTempAvatar(null);
+        //   notify.success("Đã cập nhật ảnh đại diện");
         // }}
       />
     </>

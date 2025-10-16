@@ -37,9 +37,9 @@ export default function UserCreateAllTabsOverlay({
 
   const [activeKey, setActiveKey] = useState("personal");
 
-  const { message } = App.useApp();
   const nav = useNavigate();
   const qc = useQueryClient();
+  // const depts = useAllDepts();
 
   useEffect(() => {
     if (!open) {
@@ -67,12 +67,12 @@ export default function UserCreateAllTabsOverlay({
   const create = useMutation({
     mutationFn: (payload: Partial<User>) => UsersApi.create(payload),
     onSuccess: (u) => {
-      qc.invalidateQueries({ queryKey: ["users", "list"] });
+      qc.invalidateQueries({ queryKey: ["employees", "list"] });
       notify.success("Tạo nhân viên thành công");
       onClose();
-      nav(`/users/${u.id}`);
+      // nav(`/users/${u.id}`);
     },
-    onError: () => message.error("Tạo nhân viên thất bại"),
+    onError: (e) => notify.error("Tạo nhân viên thất bại!" + e),
   });
 
   const handleCreate = async () => {
@@ -100,7 +100,7 @@ export default function UserCreateAllTabsOverlay({
       avatarUrl: pVals.avatarUrl,
 
       // Contact
-      email: cont.email,
+      workEmail: cont.email,
       personalEmail: cont.personalEmail,
       phone: cont.phone,
       addressPermanent: cont.ap_province
@@ -150,8 +150,9 @@ export default function UserCreateAllTabsOverlay({
       title: eVals.title,
       grade: eVals.grade,
       code: eVals.code,
+      managerId: eVals.managerId,
       managerName: eVals.managerName,
-      site: eVals.site,
+      siteId: eVals.site,
       floor: eVals.floor,
       area: eVals.area,
       desk: eVals.desk,

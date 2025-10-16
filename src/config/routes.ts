@@ -31,6 +31,11 @@ export const ROUTES = {
     deleteMultiple: ["POST", "/departments/delete-multiple"] as RouteTuple,
     sites: ["GET", "/departments/sites"] as RouteTuple,
   },
+  employee: {
+    list: ["GET", "/employees"] as RouteTuple,
+    create: ["POST", "/employees"] as RouteTuple,
+    roles: ["GET", "/employees/roles"] as RouteTuple,
+  },
 };
 
 export function buildPath(

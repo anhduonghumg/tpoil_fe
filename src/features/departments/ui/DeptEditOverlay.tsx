@@ -24,7 +24,7 @@ export default function DeptEditOverlay({
   const onSubmit = async (values: any) => {
     try {
       const result: any = await update.mutateAsync(values);
-      console.log("Update result", result);
+      // console.log("Update result", result);
       if (!result) {
         notify.error(result?.message || "Cập nhật phòng ban thất bại");
         return;

@@ -29,7 +29,10 @@ import {
 import "./AppLayout.css";
 import { useLogout, useMe } from "../../../features/auth/hooks";
 import { useQueryClient } from "@tanstack/react-query";
-import { saveUserToCache } from "../../../features/auth/session";
+import {
+  loadUserFromCache,
+  saveUserToCache,
+} from "../../../features/auth/session";
 
 // @ts-ignore
 import logo from "../../../assets/logo_200.png";
@@ -160,7 +163,8 @@ export default function AppLayout() {
   const nav = useNavigate();
   const { pathname } = useLocation();
 
-  const me = useMe();
+  const cachedUser = loadUserFromCache();
+  const me = cachedUser ? useMe() : undefined;
   const logout = useLogout();
   const qc = useQueryClient();
 

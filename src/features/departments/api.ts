@@ -3,7 +3,6 @@ import {
   ApiResponse,
   Department,
   DeptListQuery,
-  DeptOption,
   DeptSite,
   DeptTreeNode,
   Paged,

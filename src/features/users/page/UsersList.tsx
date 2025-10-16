@@ -1,173 +1,246 @@
 import { useMemo, useState } from "react";
-import {
-  Button,
-  Card,
-  Col,
-  Input,
-  Row,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-} from "antd";
+import { Button, Space, Table, Tag, Typography, Popconfirm, App } from "antd";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useUsers } from "../hooks";
+import { PlusOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
+
+import { useUsers, useDeleteUser } from "../hooks";
 import type { User } from "../types";
 import UserCreateAllTabsOverlay from "../ui/UserCreateAllTabsOverlay";
-import { PlusOutlined } from "@ant-design/icons";
 import { useAllDepts } from "../../departments/hooks";
+import EmployeesFilters, { EmployeesFilterValues } from "../ui/EmployeeFilter";
+import ActionButtons from "../../../shared/ui/ActionButtons";
+import { notify } from "../../../shared/lib/notification";
+
+const compactObj = <T extends Record<string, any>>(o: T): T =>
+  Object.entries(o).reduce((acc, [k, v]) => {
+    if (v !== undefined && v !== null && v !== "") (acc as any)[k] = v;
+    return acc;
+  }, {} as T);
+
+const statusColor: Record<string, any> = {
+  active: "green",
+  probation: "blue",
+  inactive: "default",
+  quit: "red",
+  on_leave: "orange",
+};
+
+const statusText: Record<string, string> = {
+  active: "Đang làm",
+  probation: "Thử việc",
+  inactive: "Tạm dừng",
+  quit: "Nghỉ việc",
+  on_leave: "Nghỉ phép",
+};
 
 export default function UsersList() {
   const [params, setParams] = useSearchParams();
   const open = params.get("new") === "1";
   const nav = useNavigate();
-  const [q, setQ] = useState("");
-  const [dept, setDept] = useState<string | undefined>(undefined);
-  const [status, setStatus] = useState<string | undefined>(undefined);
+
+  // filters & paging
+  const [filters, setFilters] = useState<EmployeesFilterValues>({});
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
 
-  const filters = useMemo(
-    () => ({ q, deptId: dept, status, page, size }),
-    [q, dept, status, page, size]
+  const handleSearch = (vals: EmployeesFilterValues) => {
+    setFilters(compactObj(vals));
+    setPage(1);
+  };
+  const handleReset = () => {
+    setFilters({});
+    setPage(1);
+  };
+
+  const query = useMemo(
+    () => compactObj({ ...filters, page, size }),
+    [filters, page, size]
   );
-  const { data, isLoading } = useUsers(filters);
+
+  const { data, isLoading } = useUsers(query);
   const depts = useAllDepts();
 
+  // unwrap response: hỗ trợ cả {items,...} và {data:{items,...}}
+  const items = useMemo(() => {
+    const d: any = data;
+    return d?.items ?? d?.data?.items ?? [];
+  }, [data]);
+
+  const total = useMemo(() => {
+    const d: any = data;
+    return d?.total ?? d?.data?.total ?? 0;
+  }, [data]);
+
+  const getDeptName = (r: any) =>
+    r?.memberships?.[0]?.department?.name ?? r?.departmentName ?? "";
+
+  const fmt = (d?: string | Date) => (d ? dayjs(d).format("DD-MM-YYYY") : "");
+
+  // selection + delete
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const del = useDeleteUser();
+
+  const handleDeleteOne = async (id: string) => {
+    try {
+      await del.mutateAsync(id);
+      notify.success("Đã xóa nhân viên");
+    } catch {
+      notify.error("Xóa nhân viên thất bại");
+    }
+  };
+
+  const handleEditOne = async (id: string) => {};
+
+  const handleBulkDelete = async (id: string) => {
+    if (!selectedRowKeys.length) return;
+    try {
+      await Promise.allSettled(
+        selectedRowKeys.map((id) => del.mutateAsync(String(id)))
+      );
+      setSelectedRowKeys([]);
+      notify.success("Đã xóa các nhân viên đã chọn");
+    } catch {
+      notify.error("Xóa nhiều thất bại");
+    }
+  };
+
+  // columns
   const columns = [
     {
       title: "Nhân viên",
-      dataIndex: "name",
-      render: (_: any, r: User) => (
+      dataIndex: "fullName",
+      render: (_: any, r: any) => (
         <Space direction="vertical" size={0}>
-          <a onClick={() => nav(`/users/${r.id}`)}>{r.name}</a>
+          <a onClick={() => nav(`/users/${r.id}`)}>{r.fullName ?? r.name}</a>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {r.email}
+            {r.workEmail ?? r.personalEmail}
           </Typography.Text>
         </Space>
       ),
     },
     { title: "Điện thoại", dataIndex: "phone", width: 140 },
-    { title: "Phòng ban", dataIndex: "departmentName", width: 160 },
+    {
+      title: "Phòng ban",
+      dataIndex: "memberships",
+      width: 160,
+      render: (_: any, r: any) => getDeptName(r),
+    },
     { title: "Chức danh", dataIndex: "title", width: 160 },
     {
       title: "Mốc thời gian",
       key: "milestones",
-      render: (_: any, r: User) => (
+      width: 200,
+      render: (_: any, r: any) => (
         <Typography.Text>
-          {r.joinedAt} → {r.leftAt ? r.leftAt : "nay"}
+          {fmt(r.joinedAt)} → {r.leftAt ? fmt(r.leftAt) : "nay"}
         </Typography.Text>
       ),
-      width: 200,
     },
     {
       title: "Trạng thái",
       dataIndex: "status",
       width: 120,
-      render: (v: User["status"]) => {
-        const color: any =
-          {
-            active: "green",
-            probation: "blue",
-            inactive: "default",
-            quit: "red",
-          }[v] || "default";
-        const text: any =
-          {
-            active: "Đang làm",
-            probation: "Thử việc",
-            inactive: "Tạm dừng",
-            quit: "Nghỉ việc",
-          }[v] || v;
+      render: (v: string) => {
+        const color = statusColor[v] ?? "default";
+        const text = statusText[v] ?? v;
         return <Tag color={color}>{text}</Tag>;
       },
+    },
+    {
+      title: "Thao tác",
+      key: "actions",
+      fixed: "right" as const,
+      width: 140,
+      render: (_: any, r: User) => (
+        <Space>
+          {/* <Button size="small" onClick={() => nav(`/users/${r.id}`)}>
+            Xem
+          </Button>
+          <Popconfirm
+            title="Xóa nhân viên này?"
+            okText="Xóa"
+            okButtonProps={{ danger: true, loading: del.isPending }}
+            cancelText="Hủy"
+            onConfirm={() => handleDeleteOne(r.id)}
+          >
+            <Button size="small" danger loading={del.isPending}>
+              Xóa
+            </Button>
+          </Popconfirm> */}
+
+          <ActionButtons
+            onEdit={() => handleEditOne(r.id)}
+            onDelete={() => handleDeleteOne(r.id)}
+            confirmDelete
+            size="small"
+          />
+        </Space>
+      ),
     },
   ];
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      <Row gutter={[12, 12]} align="middle">
-        <Col xs={24} md={8}>
-          <Input
+      {/* Filters + actions */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <EmployeesFilters
+          loadingDepts={depts.isLoading}
+          deptOptions={(depts.data || []).map((d) => ({
+            value: d.id,
+            label: d.name,
+          }))}
+          initial={filters}
+          onSearch={handleSearch}
+          onReset={handleReset}
+        />
+
+        <Space>
+          <Button
+            danger
             size="small"
-            placeholder="Tìm theo tên, email, mã NV…"
-            allowClear
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setPage(1);
-            }}
-          />
-        </Col>
-        <Col xs={12} md={6}>
-          <Select
-            size="small"
-            allowClear
-            placeholder="Phòng ban"
-            style={{ width: "100%" }}
-            loading={depts.isLoading}
-            options={(depts.data || []).map((d) => ({
-              value: d.id,
-              label: d.name,
-            }))}
-            value={dept}
-            onChange={(v) => {
-              setDept(v);
-              setPage(1);
-            }}
-          />
-        </Col>
-        <Col xs={12} md={6}>
-          <Select
-            size="small"
-            allowClear
-            placeholder="Trạng thái"
-            style={{ width: "100%" }}
-            options={[
-              { value: "active", label: "Đang làm" },
-              { value: "probation", label: "Thử việc" },
-              { value: "inactive", label: "Tạm dừng" },
-              { value: "quit", label: "Nghỉ việc" },
-            ]}
-            value={status}
-            onChange={(v) => {
-              setStatus(v);
-              setPage(1);
-            }}
-          />
-        </Col>
-        <Col xs={24} md={4} style={{ textAlign: "right" }}>
+            disabled={!selectedRowKeys.length}
+            onClick={() => handleBulkDelete}
+            loading={del.isPending}
+          >
+            Xóa đã chọn ({selectedRowKeys.length})
+          </Button>
           <Button
             icon={<PlusOutlined />}
+            size="small"
             type="primary"
             onClick={() => {
               params.set("new", "1");
               setParams(params);
             }}
           >
-            Thêm nhân viên
+            Thêm mới
           </Button>
+        </Space>
+      </div>
 
-          <UserCreateAllTabsOverlay
-            open={open}
-            onClose={() => {
-              params.delete("new");
-              setParams(params, { replace: true });
-            }}
-            variant="modal"
-          />
-        </Col>
-      </Row>
       <Table
-        rowKey="id"
+        rowKey={(r: any) => r.id ?? r._id ?? r.code}
         loading={isLoading}
-        dataSource={data?.items || []}
+        dataSource={items}
         columns={columns as any}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: setSelectedRowKeys,
+          preserveSelectedRowKeys: true,
+        }}
         pagination={{
           current: page,
           pageSize: size,
-          total: data?.total || 0,
+          total,
           onChange: (p, s) => {
             setPage(p);
             setSize(s);
@@ -175,6 +248,16 @@ export default function UsersList() {
           showSizeChanger: true,
         }}
         size="middle"
+        scroll={{ x: 900 }}
+      />
+
+      <UserCreateAllTabsOverlay
+        open={open}
+        onClose={() => {
+          params.delete("new");
+          setParams(params, { replace: true });
+        }}
+        variant="modal"
       />
     </Space>
   );

@@ -13,7 +13,7 @@ export const AuthApi = {
     apiCall("auth.login", { data: payload }).then((r) => r.data),
   logout: () => apiCall("auth.logout").then((r) => r.data),
   me: async () => {
-    console.log("Calling me api");
+    // console.log("Calling me api");
     const res = await apiCall<MeResponse>("auth.me");
     return res.data.data as User;
   },

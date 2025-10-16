@@ -10,6 +10,7 @@ import {
 } from "antd";
 import dayjs, { Dayjs } from "dayjs";
 import type { User } from "../types";
+import { useAllDepts } from "../../departments/hooks";
 
 export default function EmploymentForm({
   data,
@@ -17,6 +18,7 @@ export default function EmploymentForm({
   form: externalForm,
   hideInlineSubmit = false,
 }: {
+  depts?: any;
   data?: User;
   form?: FormInstance;
   hideInlineSubmit?: boolean;
@@ -24,6 +26,7 @@ export default function EmploymentForm({
 }) {
   const [internal] = Form.useForm();
   const form = externalForm ?? internal;
+  const dept = useAllDepts();
   const init = {
     departmentId: data?.departmentId,
     departmentName: data?.departmentName,
@@ -35,7 +38,7 @@ export default function EmploymentForm({
     joinedAt: data?.joinedAt ? dayjs(data.joinedAt, "DD-MM-YYYY") : undefined,
     leftAt: data?.leftAt ? dayjs(data.leftAt, "DD-MM-YYYY") : undefined,
 
-    site: data?.site,
+    siteId: data?.siteId,
     floor: data?.floor,
     area: data?.area,
     desk: data?.desk,
@@ -50,7 +53,7 @@ export default function EmploymentForm({
       scrollToFirstError={true}
       onFinish={(v) => {
         onSave({
-          departmentId: v.departmentId,
+          departmentId: v.departmentName,
           departmentName: v.departmentName,
           title: v.title,
           grade: v.grade,
@@ -59,7 +62,7 @@ export default function EmploymentForm({
           managerName: v.managerName,
           joinedAt: v.joinedAt?.format("DD-MM-YYYY"),
           leftAt: v.leftAt?.format("DD-MM-YYYY"),
-          site: v.site,
+          siteId: v.siteId,
           floor: v.floor,
           area: v.area,
           desk: v.desk,
@@ -87,15 +90,10 @@ export default function EmploymentForm({
             <Select
               placeholder="Chọn phòng ban"
               allowClear
-              options={[
-                { value: "it", label: "IT" },
-                { value: "hr", label: "Nhân sự" },
-                { value: "sales", label: "Kinh doanh" },
-                { value: "marketing", label: "Marketing" },
-                { value: "finance", label: "Tài chính" },
-                { value: "operations", label: "Vận hành" },
-                { value: "other", label: "Khác" },
-              ]}
+              options={(dept.data || []).map((d) => ({
+                value: d.id,
+                label: d.name,
+              }))}
             />
           </Form.Item>
         </Col>
@@ -123,7 +121,7 @@ export default function EmploymentForm({
         </Col>
         <Col xs={12} md={6}>
           <Form.Item label="Cấp bậc" name="grade">
-           <Select
+            <Select
               placeholder="Chọn cấp bậc"
               allowClear
               options={[
@@ -159,7 +157,6 @@ export default function EmploymentForm({
             <Input placeholder="VD: Nguyễn Văn A" />
           </Form.Item>
         </Col>
-
         <Col xs={12} md={6}>
           <Form.Item
             label="Ngày bắt đầu"
@@ -213,22 +210,52 @@ export default function EmploymentForm({
           </h4>
         </Col>
         <Col xs={12} md={6}>
-          <Form.Item label="Cơ sở/Toà nhà" name="site">
-            <Input placeholder="VD: Tòa A" />
+          <Form.Item label="Cơ sở/Toà nhà" name="siteId">
+            <Select
+              placeholder="Chọn cơ sở"
+              allowClear
+              options={[
+                {
+                  value: "018f3c2a-8b5e-7d12-8a9b-3c4d5e6f7a8b",
+                  label: "Thanh Hóa",
+                },
+                {
+                  value: "018f3c2a-8b5e-7d12-8a9b-3c4d5e6f7a8c",
+                  label: "Hải Phòng",
+                },
+              ]}
+            />
           </Form.Item>
         </Col>
         <Col xs={12} md={6}>
           <Form.Item label="Tầng" name="floor">
-            <Input placeholder="VD: Tầng 5" />
+            <Select
+              placeholder="Chọn cơ sở"
+              allowClear
+              options={[
+                {
+                  value: 1,
+                  label: "Tầng 1",
+                },
+                {
+                  value: 2,
+                  label: "Tầng 2",
+                },
+                {
+                  value: 3,
+                  label: "Tầng 3",
+                },
+              ]}
+            />
           </Form.Item>
         </Col>
-        <Col xs={12} md={6}>
+        {/* <Col xs={12} md={6}>
           <Form.Item label="Khu" name="area">
             <Input placeholder="VD: Khu A" />
           </Form.Item>
-        </Col>
+        </Col> */}
         <Col xs={12} md={6}>
-          <Form.Item label="Bàn" name="desk">
+          <Form.Item label="Phòng" name="desk">
             <Input placeholder="VD: A-05-01" />
           </Form.Item>
         </Col>

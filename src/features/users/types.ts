@@ -1,81 +1,90 @@
-export type EmploymentStatus = 'active'|'probation'|'inactive'|'quit'
-export type IdentityDocType = 'CCCD'|'CMND'|'PASSPORT'
+export type EmploymentStatus = "active" | "probation" | "inactive" | "quit";
+export type IdentityDocType = "CCCD" | "CMND" | "PASSPORT";
 
 export type Address = {
-  province?: string
-  district?: string
-  ward?: string
-  street?: string
-}
+  province?: string;
+  district?: string;
+  ward?: string;
+  street?: string;
+};
 
 export type EmergencyContact = {
-  name: string
-  relation?: string
-  phone: string
-}
+  name: string;
+  relation?: string;
+  phone: string;
+};
 
 export type CitizenDoc = {
-  type: IdentityDocType
-  number: string
-  issuedDate?: string
-  issuedPlace?: string
-  expiryDate?: string
-  frontImageUrl?: string
-  backImageUrl?: string
-}
+  type: IdentityDocType;
+  number: string;
+  issuedDate?: string;
+  issuedPlace?: string;
+  expiryDate?: string;
+  frontImageUrl?: string;
+  backImageUrl?: string;
+};
 
 export type Banking = {
-  bankName?: string
-  branch?: string
-  accountNumber?: string
-  accountHolder?: string
-}
+  bankName?: string;
+  branch?: string;
+  accountNumber?: string;
+  accountHolder?: string;
+};
 
 export type InsuranceTax = {
-  pitCode?: string
-  siNumber?: string
-  hiNumber?: string
-}
+  pitCode?: string;
+  siNumber?: string;
+  hiNumber?: string;
+};
 
 export type User = {
-  id: string
-  code?: string
-  name: string
-  gender?: 'male'|'female'|'other'
-  dob: string               
-  nationality?: string
-  maritalStatus?: 'single'|'married'|'divorced'|'widowed'
-  avatarUrl?: string
+  id: string;
+  code?: string;
+  name: string;
+  gender?: "male" | "female" | "other";
+  dob: string;
+  nationality?: string;
+  maritalStatus?: "single" | "married" | "divorced" | "widowed";
+  avatarUrl?: string;
 
-  citizen?: CitizenDoc
+  citizen?: CitizenDoc;
 
-  email: string
-  personalEmail?: string
-  phone: string
-  addressPermanent?: Address
-  addressTemp?: Address
-  emergency?: EmergencyContact
+  workEmail: string;
+  personalEmail?: string;
+  phone: string;
+  addressPermanent?: Address;
+  addressTemp?: Address;
+  emergency?: EmergencyContact;
 
-  departmentId?: string
-  departmentName?: string
-  title?: string
-  grade?: string
-  status: EmploymentStatus
-  joinedAt: string
-  leftAt?: string
-  managerId?: string
-  managerName?: string
+  departmentId?: string;
+  departmentName?: string;
+  title?: string;
+  grade?: string;
+  status: EmploymentStatus;
+  joinedAt: string;
+  leftAt?: string;
+  managerId?: string;
+  managerName?: string;
 
-  site?: string; floor?: string; area?: string; desk?: string
-  accessCard?: string
+  siteId?: string;
+  floor?: string;
+  area?: string;
+  desk?: string;
+  accessCard?: string;
 
-  tax?: InsuranceTax
-  banking?: Banking
+  tax?: InsuranceTax;
+  banking?: Banking;
 
-  createdAt?: string
-  updatedAt?: string
-  createdBy?: string
-  updatedBy?: string
-}
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string;
+  updatedBy?: string;
+};
 
-export type Paged<T> = { items: T[]; total: number }
+export type Employee = User & {
+  username: string;
+  roles: string[];
+  isAdmin: boolean;
+};
+
+export type Paged<T> = { items: T[]; total: number };

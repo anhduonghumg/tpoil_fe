@@ -1,7 +1,7 @@
 import { Form, Input, Select, TreeSelect, FormInstance } from "antd";
 import type { Department, DeptType } from "../types";
 import { DEPT_CODE } from "../types";
-import { useDeptTree, useSiteList } from "../hooks";
+import { useDeptTree } from "../hooks";
 import { useMemo } from "react";
 
 const TYPE_OPTS = [
@@ -122,7 +122,6 @@ export default function DepartmentForm({
           allowClear
           showSearch
           placeholder="Chọn địa điểm"
-          // TODO: thay bằng options thật từ API site nếu có
           options={sites?.map((s) => ({ label: s.name, value: s.id })) || []}
           filterOption={(input, opt) =>
             (opt?.label as string).toLowerCase().includes(input.toLowerCase())
