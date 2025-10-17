@@ -15,6 +15,7 @@ import type { User } from "../types";
 import { useEffect, useRef, useState } from "react";
 import AvatarUploader from "../ui/AvatarUploader";
 import { notify } from "../../../shared/lib/notification";
+import { uploadImage } from "../../../shared/api/uploads";
 
 // ========= Helpers =========
 const UPLOAD_URL = "/api/uploads/image";
@@ -26,24 +27,10 @@ const guessExt = (mime: string) => {
   return "jpg";
 };
 
-const uploadAvatar = async (blob: Blob): Promise<string> => {
-  const ext = guessExt(blob.type || "image/jpeg");
-  const fd = new FormData();
-  fd.append("file", blob, `avatar.${ext}`);
-
-  const res = await fetch(UPLOAD_URL, {
-    method: "POST",
-    body: fd,
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error("Upload failed");
-  const json = (await res.json()) as { url: string };
-  return json.url;
-};
-
 export default function PersonalForm({
   data,
   onSave,
+  onAvatarTemp,
   form: externalForm,
   hideInlineSubmit = false,
 }: {
@@ -51,15 +38,12 @@ export default function PersonalForm({
   form?: FormInstance;
   hideInlineSubmit?: boolean;
   onSave: (p: Partial<User>) => void;
+  onAvatarTemp?: (f: { blob: Blob | null }) => void;
 }) {
   const [internal] = Form.useForm();
   const form = externalForm ?? internal;
 
   const [openUploader, setOpenUploader] = useState(false);
-  const [tempAvatar, setTempAvatar] = useState<null | {
-    blob: Blob;
-    previewUrl: string;
-  }>(null);
   const lastObjectUrlRef = useRef<string | null>(null);
   const avatarUrl = Form.useWatch("avatarUrl", form);
 
@@ -92,9 +76,9 @@ export default function PersonalForm({
       URL.revokeObjectURL(lastObjectUrlRef.current);
       lastObjectUrlRef.current = null;
     }
-    setTempAvatar(null);
+    onAvatarTemp?.({ blob: null });
     form.setFieldsValue({ avatarUrl: undefined });
-    notify.success("Đã xóa ảnh tạm thời");
+    notify.success("Đã xóa ảnh");
   };
 
   return (
@@ -105,28 +89,13 @@ export default function PersonalForm({
         initialValues={init}
         scrollToFirstError
         onFinish={async (vals) => {
-          let finalAvatarUrl = vals.avatarUrl;
-
-          if (tempAvatar) {
-            try {
-              const uploaded = await uploadAvatar(tempAvatar.blob);
-              finalAvatarUrl = uploaded;
-            } finally {
-              if (lastObjectUrlRef.current) {
-                URL.revokeObjectURL(lastObjectUrlRef.current);
-                lastObjectUrlRef.current = null;
-              }
-              setTempAvatar(null);
-            }
-          }
-
           onSave({
             name: vals.name?.trim(),
             gender: vals.gender,
             dob: vals.dob?.format("DD-MM-YYYY"),
             nationality: vals.nationality,
             maritalStatus: vals.maritalStatus,
-            avatarUrl: finalAvatarUrl,
+            avatarUrl: vals.avatarUrl,
           });
         }}
       >
@@ -230,6 +199,9 @@ export default function PersonalForm({
                 ]}
               />
             </Form.Item>
+            <Form.Item name="avatarBlob" hidden>
+              <Input />
+            </Form.Item>
           </Col>
         </Row>
 
@@ -246,23 +218,14 @@ export default function PersonalForm({
       <AvatarUploader
         open={openUploader}
         onClose={() => setOpenUploader(false)}
+        // uploadFn={async (blob) =>
+        //   uploadImage(blob, "employee/avatar", "avatar")
+        // }
         onDone={({ blob, previewUrl }) => {
-          setTempAvatar({ blob, previewUrl });
-          setPreviewUrl(previewUrl); // hiển thị ảnh tạm thời (object URL)
-          notify.success("Đã cập nhật ảnh tạm thời");
+          onAvatarTemp?.({ blob });
+          setPreviewUrl(previewUrl);
+          notify.success("Đã chọn ảnh");
         }}
-        // Nếu muốn upload ngay khi chọn ảnh (không đợi submit):
-        // uploadFn={uploadAvatar}
-        // onDone={async ({ blob, previewUrl }) => {
-        //   const uploadedUrl = await uploadAvatar(blob);
-        //   form.setFieldsValue({ avatarUrl: uploadedUrl });
-        //   if (lastObjectUrlRef.current) {
-        //     URL.revokeObjectURL(lastObjectUrlRef.current);
-        //     lastObjectUrlRef.current = null;
-        //   }
-        //   setTempAvatar(null);
-        //   notify.success("Đã cập nhật ảnh đại diện");
-        // }}
       />
     </>
   );

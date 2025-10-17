@@ -44,3 +44,9 @@ export const useDepartments = () =>
 
 export const useRoles = () =>
   useQuery({ queryKey: ["meta", "roles"], queryFn: UsersApi.roles });
+
+export const useLeaders = () =>
+  useQuery({
+    queryKey: ["employees", "roles"],
+    queryFn: UsersApi.roles,
+  });

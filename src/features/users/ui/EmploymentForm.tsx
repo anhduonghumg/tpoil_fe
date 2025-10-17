@@ -11,6 +11,7 @@ import {
 import dayjs, { Dayjs } from "dayjs";
 import type { User } from "../types";
 import { useAllDepts } from "../../departments/hooks";
+import { useLeaders } from "../hooks";
 
 export default function EmploymentForm({
   data,
@@ -27,14 +28,18 @@ export default function EmploymentForm({
   const [internal] = Form.useForm();
   const form = externalForm ?? internal;
   const dept = useAllDepts();
+  const leads = useLeaders();
+
   const init = {
-    departmentId: data?.departmentId,
-    departmentName: data?.departmentName,
+    departmentName: data?.departmentId
+      ? { value: data.departmentId, label: data.departmentName }
+      : undefined,
     title: data?.title,
     grade: data?.grade,
     status: data?.status || "active",
     code: data?.code,
     managerName: data?.managerName,
+    managerId: data?.managerId,
     joinedAt: data?.joinedAt ? dayjs(data.joinedAt, "DD-MM-YYYY") : undefined,
     leftAt: data?.leftAt ? dayjs(data.leftAt, "DD-MM-YYYY") : undefined,
 
@@ -45,6 +50,7 @@ export default function EmploymentForm({
     accessCard: data?.accessCard,
   };
 
+  // console.log("data:", leads.data);
   return (
     <Form
       form={form}
@@ -53,13 +59,14 @@ export default function EmploymentForm({
       scrollToFirstError={true}
       onFinish={(v) => {
         onSave({
-          departmentId: v.departmentName,
-          departmentName: v.departmentName,
+          departmentId: v.departmentName.value,
+          departmentName: v.departmentName.label,
           title: v.title,
           grade: v.grade,
           status: v.status,
           code: v.code,
-          managerName: v.managerName,
+          managerName: v.managerName.label,
+          managerId: v.managerName.value,
           joinedAt: v.joinedAt?.format("DD-MM-YYYY"),
           leftAt: v.leftAt?.format("DD-MM-YYYY"),
           siteId: v.siteId,
@@ -88,6 +95,7 @@ export default function EmploymentForm({
           >
             {/* <Input placeholder="VD: Sales" /> */}
             <Select
+              labelInValue
               placeholder="Chọn phòng ban"
               allowClear
               options={(dept.data || []).map((d) => ({
@@ -154,7 +162,15 @@ export default function EmploymentForm({
         </Col>
         <Col xs={12} md={6}>
           <Form.Item label="Quản lý trực tiếp" name="managerName">
-            <Input placeholder="VD: Nguyễn Văn A" />
+            <Select
+              labelInValue
+              placeholder="Chọn quản lý"
+              allowClear
+              options={(leads.data || []).map((d) => ({
+                value: d.id,
+                label: d.fullName,
+              }))}
+            />
           </Form.Item>
         </Col>
         <Col xs={12} md={6}>

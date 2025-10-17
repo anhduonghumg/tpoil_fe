@@ -23,7 +23,7 @@ export const UsersApi = {
       (r) => r.data
     ),
   roles: () =>
-    apiCall<ApiResponse<Array<{ id: string; name: string }>>>(
+    apiCall<ApiResponse<Array<{ id: string; fullName: string }>>>(
       "employee.roles"
-    ).then((r) => r.data),
+    ).then((r) => r.data?.data),
 };

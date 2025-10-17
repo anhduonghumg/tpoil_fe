@@ -19,6 +19,10 @@ import {
 } from "../../../shared/ui/formUtils";
 import { CloseCircleOutlined, SaveOutlined } from "@ant-design/icons";
 import { notify } from "../../../shared/lib/notification";
+import { uploadImage } from "../../../shared/api/uploads";
+
+const isBlobUrl = (u?: string) =>
+  !!u && (u.startsWith("blob:") || u.startsWith("data:"));
 
 export default function UserCreateAllTabsOverlay({
   open,
@@ -35,9 +39,11 @@ export default function UserCreateAllTabsOverlay({
   const [fContact] = Form.useForm();
   const [fFinance] = Form.useForm();
 
+  const [avatarBlob, setAvatarBlob] = useState<Blob | null>(null);
+  const [ctzFrontBlob, setCtzFrontBlob] = useState<Blob | null>(null);
+  const [ctzBackBlob, setCtzBackBlob] = useState<Blob | null>(null);
   const [activeKey, setActiveKey] = useState("personal");
 
-  const nav = useNavigate();
   const qc = useQueryClient();
   // const depts = useAllDepts();
 
@@ -53,6 +59,14 @@ export default function UserCreateAllTabsOverlay({
     }
   }, [open, fPersonal, fEmployment, fCitizen, fContact, fFinance]);
 
+  useEffect(() => {
+    if (!open) {
+      setAvatarBlob(null);
+      setCtzFrontBlob(null);
+      setCtzBackBlob(null);
+    }
+  }, [open]);
+
   const tabForms: TabFormRef[] = useMemo(
     () => [
       { key: "personal", form: fPersonal, required: true },
@@ -66,14 +80,27 @@ export default function UserCreateAllTabsOverlay({
 
   const create = useMutation({
     mutationFn: (payload: Partial<User>) => UsersApi.create(payload),
-    onSuccess: (u) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["employees", "list"] });
       notify.success("Tạo nhân viên thành công");
       onClose();
-      // nav(`/users/${u.id}`);
     },
     onError: (e) => notify.error("Tạo nhân viên thất bại!" + e),
   });
+
+  const uploadPendingImages = async (vals: { avatarUrl?: string }) => {
+    const tasks: Array<Promise<void>> = [];
+
+    if (avatarBlob && isBlobUrl(vals.avatarUrl)) {
+      tasks.push(
+        uploadImage(avatarBlob, "employee/avatar", "avatar").then((url) => {
+          vals.avatarUrl = url;
+        })
+      );
+    }
+
+    await Promise.all(tasks);
+  };
 
   const handleCreate = async () => {
     const isValid = await validateFormsSequential(tabForms, setActiveKey);
@@ -89,6 +116,14 @@ export default function UserCreateAllTabsOverlay({
     const cont = all.contact;
     const fin = all.finance;
 
+    const imageVals = {
+      avatarUrl: pVals.avatarUrl,
+    };
+
+    await uploadPendingImages(imageVals);
+
+    const [ap_province, ap_district, ap_ward] = cont.ap_codes || [];
+
     // Chuẩn hoá về payload BE (đúng contract bạn đang dùng)
     const payload: Partial<User> = {
       // Personal
@@ -100,14 +135,14 @@ export default function UserCreateAllTabsOverlay({
       avatarUrl: pVals.avatarUrl,
 
       // Contact
-      workEmail: cont.email,
+      workEmail: cont.workEmail,
       personalEmail: cont.personalEmail,
       phone: cont.phone,
-      addressPermanent: cont.ap_province
+      addressPermanent: ap_province
         ? {
-            province: cont.ap_province,
-            district: cont.ap_district,
-            ward: cont.ap_ward,
+            province: ap_province,
+            district: ap_district,
+            ward: ap_ward,
             street: cont.ap_street,
           }
         : undefined,
@@ -145,14 +180,14 @@ export default function UserCreateAllTabsOverlay({
       status: eVals.status || "active",
       joinedAt: eVals.joinedAt?.format?.("DD-MM-YYYY"),
       leftAt: eVals.leftAt?.format?.("DD-MM-YYYY"),
-      departmentId: eVals.departmentId,
-      departmentName: eVals.departmentName,
+      departmentId: eVals.departmentName.value,
+      departmentName: eVals.departmentName.label,
       title: eVals.title,
       grade: eVals.grade,
       code: eVals.code,
-      managerId: eVals.managerId,
-      managerName: eVals.managerName,
-      siteId: eVals.site,
+      managerId: eVals.managerName?.value,
+      managerName: eVals.managerName?.label,
+      siteId: eVals.siteId,
       floor: eVals.floor,
       area: eVals.area,
       desk: eVals.desk,
@@ -178,7 +213,8 @@ export default function UserCreateAllTabsOverlay({
           : undefined,
     };
 
-    console.log("Creating user with payload", payload);
+    // console.log("test", de)
+    // console.log("Creating user with payload", payload);
     await create.mutateAsync(payload);
   };
 
