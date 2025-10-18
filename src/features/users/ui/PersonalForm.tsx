@@ -15,17 +15,6 @@ import type { User } from "../types";
 import { useEffect, useRef, useState } from "react";
 import AvatarUploader from "../ui/AvatarUploader";
 import { notify } from "../../../shared/lib/notification";
-import { uploadImage } from "../../../shared/api/uploads";
-
-// ========= Helpers =========
-const UPLOAD_URL = "/api/uploads/image";
-
-const guessExt = (mime: string) => {
-  if (mime === "image/png") return "png";
-  if (mime === "image/jpeg" || mime === "image/jpg") return "jpg";
-  if (mime === "image/webp") return "webp";
-  return "jpg";
-};
 
 export default function PersonalForm({
   data,

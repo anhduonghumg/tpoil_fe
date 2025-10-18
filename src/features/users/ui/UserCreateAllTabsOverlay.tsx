@@ -20,6 +20,7 @@ import {
 import { CloseCircleOutlined, SaveOutlined } from "@ant-design/icons";
 import { notify } from "../../../shared/lib/notification";
 import { uploadImage } from "../../../shared/api/uploads";
+import { extractApiError } from "../../../shared/lib/httpError";
 
 const isBlobUrl = (u?: string) =>
   !!u && (u.startsWith("blob:") || u.startsWith("data:"));
@@ -56,16 +57,9 @@ export default function UserCreateAllTabsOverlay({
       fFinance.resetFields();
 
       setActiveKey("personal");
+      setAvatarBlob(null);
     }
   }, [open, fPersonal, fEmployment, fCitizen, fContact, fFinance]);
-
-  useEffect(() => {
-    if (!open) {
-      setAvatarBlob(null);
-      setCtzFrontBlob(null);
-      setCtzBackBlob(null);
-    }
-  }, [open]);
 
   const tabForms: TabFormRef[] = useMemo(
     () => [
@@ -85,12 +79,14 @@ export default function UserCreateAllTabsOverlay({
       notify.success("Tạo nhân viên thành công");
       onClose();
     },
-    onError: (e) => notify.error("Tạo nhân viên thất bại!" + e),
+    onError: (e) => {
+      const { message } = extractApiError(e);
+      notify.error(message);
+    },
   });
 
   const uploadPendingImages = async (vals: { avatarUrl?: string }) => {
     const tasks: Array<Promise<void>> = [];
-
     if (avatarBlob && isBlobUrl(vals.avatarUrl)) {
       tasks.push(
         uploadImage(avatarBlob, "employee/avatar", "avatar").then((url) => {
@@ -98,8 +94,8 @@ export default function UserCreateAllTabsOverlay({
         })
       );
     }
-
     await Promise.all(tasks);
+    return vals;
   };
 
   const handleCreate = async () => {
@@ -116,11 +112,9 @@ export default function UserCreateAllTabsOverlay({
     const cont = all.contact;
     const fin = all.finance;
 
-    const imageVals = {
+    const imageVals = await uploadPendingImages({
       avatarUrl: pVals.avatarUrl,
-    };
-
-    await uploadPendingImages(imageVals);
+    });
 
     const [ap_province, ap_district, ap_ward] = cont.ap_codes || [];
 
@@ -132,7 +126,7 @@ export default function UserCreateAllTabsOverlay({
       dob: pVals.dob?.format?.("DD-MM-YYYY"),
       nationality: pVals.nationality,
       maritalStatus: pVals.maritalStatus,
-      avatarUrl: pVals.avatarUrl,
+      avatarUrl: imageVals.avatarUrl,
 
       // Contact
       workEmail: cont.workEmail,
@@ -215,7 +209,7 @@ export default function UserCreateAllTabsOverlay({
 
     // console.log("test", de)
     // console.log("Creating user with payload", payload);
-    await create.mutateAsync(payload);
+    const rs = await create.mutateAsync(payload);
   };
 
   return (
@@ -262,6 +256,7 @@ export default function UserCreateAllTabsOverlay({
                   form={fPersonal}
                   hideInlineSubmit
                   onSave={() => {}}
+                  onAvatarTemp={({ blob }) => setAvatarBlob(blob)}
                 />
               ),
               forceRender: true,
