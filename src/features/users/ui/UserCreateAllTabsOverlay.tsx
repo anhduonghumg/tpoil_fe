@@ -10,7 +10,7 @@ import ContactForm from "../ui/ContactForm";
 import EmploymentForm from "../ui/EmploymentForm";
 import FinanceForm from "../ui/FinanceForm";
 import OverlayForm from "./OverlayForm";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   collectFormsValues,
@@ -47,6 +47,7 @@ export default function UserCreateAllTabsOverlay({
 
   const qc = useQueryClient();
   // const depts = useAllDepts();
+  const uploadedUrlsRef = useRef<string[]>([]);
 
   useEffect(() => {
     if (!open) {
@@ -58,6 +59,7 @@ export default function UserCreateAllTabsOverlay({
 
       setActiveKey("personal");
       setAvatarBlob(null);
+      uploadedUrlsRef.current = [];
     }
   }, [open, fPersonal, fEmployment, fCitizen, fContact, fFinance]);
 
@@ -75,27 +77,51 @@ export default function UserCreateAllTabsOverlay({
   const create = useMutation({
     mutationFn: (payload: Partial<User>) => UsersApi.create(payload),
     onSuccess: () => {
+      uploadedUrlsRef.current = [];
       qc.invalidateQueries({ queryKey: ["employees", "list"] });
       notify.success("Tạo nhân viên thành công");
       onClose();
     },
-    onError: (e) => {
-      const { message } = extractApiError(e);
-      notify.error(message);
+    onError: async (e) => {
+      try {
+        console.log("avc", uploadedUrlsRef.current);
+        await deleteUploaded(uploadedUrlsRef.current);
+      } finally {
+        uploadedUrlsRef.current = [];
+      }
+      notify.error(extractApiError(e).message);
     },
   });
 
+  const deleteUploaded = async (urls: string[]) => {
+    if (!urls?.length) return;
+    await fetch("/api/uploads/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ urls }),
+    });
+  };
+
   const uploadPendingImages = async (vals: { avatarUrl?: string }) => {
-    const tasks: Array<Promise<void>> = [];
-    if (avatarBlob && isBlobUrl(vals.avatarUrl)) {
-      tasks.push(
-        uploadImage(avatarBlob, "employee/avatar", "avatar").then((url) => {
-          vals.avatarUrl = url;
-        })
-      );
+    // const tasks: Array<Promise<void>> = [];
+    // if (avatarBlob && isBlobUrl(vals.avatarUrl)) {
+    //   tasks.push(
+    //     uploadImage(avatarBlob, "employee/avatar", "avatar").then((url) => {
+    //       vals.avatarUrl = url;
+    //     })
+    //   );
+    // }
+    // await Promise.all(tasks);
+    // return vals;
+
+    const out = { ...vals };
+    if (avatarBlob && isBlobUrl(out.avatarUrl)) {
+      const url = await uploadImage(avatarBlob, "employee/avatar", "avatar");
+      out.avatarUrl = url;
+      uploadedUrlsRef.current.push(url);
     }
-    await Promise.all(tasks);
-    return vals;
+    return out;
   };
 
   const handleCreate = async () => {
