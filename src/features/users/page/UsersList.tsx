@@ -11,6 +11,7 @@ import { useAllDepts } from "../../departments/hooks";
 import EmployeesFilters, { EmployeesFilterValues } from "../ui/EmployeeFilter";
 import ActionButtons from "../../../shared/ui/ActionButtons";
 import { notify } from "../../../shared/lib/notification";
+import UserUpsertAllTabsOverlay from "../ui/UserUpsertAllTabsOverlay";
 
 const compactObj = <T extends Record<string, any>>(o: T): T =>
   Object.entries(o).reduce((acc, [k, v]) => {
@@ -36,7 +37,8 @@ const statusText: Record<string, string> = {
 
 export default function UsersList() {
   const [params, setParams] = useSearchParams();
-  const open = params.get("new") === "1";
+  const createOpen = params.get("new") === "1";
+  const editId = params.get("edit");
   const nav = useNavigate();
 
   // filters & paging
@@ -51,6 +53,11 @@ export default function UsersList() {
   const handleReset = () => {
     setFilters({});
     setPage(1);
+  };
+
+  const handleEditOne = (id: string) => {
+    params.set("edit", id);
+    setParams(params);
   };
 
   const query = useMemo(
@@ -90,9 +97,7 @@ export default function UsersList() {
     }
   };
 
-  const handleEditOne = async (id: string) => {};
-
-  const handleBulkDelete = async (id: string) => {
+  const handleBulkDelete = async () => {
     if (!selectedRowKeys.length) return;
     try {
       await Promise.allSettled(
@@ -101,7 +106,7 @@ export default function UsersList() {
       setSelectedRowKeys([]);
       notify.success("Đã xóa các nhân viên đã chọn");
     } catch {
-      notify.error("Xóa nhiều thất bại");
+      notify.error("Xóa nhân viên thất bại");
     }
   };
 
@@ -251,10 +256,22 @@ export default function UsersList() {
         scroll={{ x: 900 }}
       />
 
-      <UserCreateAllTabsOverlay
+      {/* <UserCreateAllTabsOverlay
         open={open}
         onClose={() => {
           params.delete("new");
+          setParams(params, { replace: true });
+        }}
+        variant="modal"
+      /> */}
+      <UserUpsertAllTabsOverlay
+        mode={editId ? "edit" : "create"}
+        id={editId ?? undefined}
+        open={!!editId || createOpen}
+        onClose={() => {
+          // ưu tiên đóng edit, nếu không thì đóng new
+          if (editId) params.delete("edit");
+          else params.delete("new");
           setParams(params, { replace: true });
         }}
         variant="modal"

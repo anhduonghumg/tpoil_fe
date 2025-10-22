@@ -9,24 +9,35 @@ export const useUsers = (filters: any) =>
     // keepPreviousData: true,
   });
 
-export const useUserDetail = (id?: string) =>
-  useQuery({
-    queryKey: ["users", "detail", id],
+export function useUserDetail(id?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["employees", "detail", id],
     queryFn: () => UsersApi.detail(id!),
-    enabled: !!id,
+    enabled: !!id && enabled,
   });
+}
 
-export const useUpsertUser = (id?: string) => {
+export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: Partial<User>) =>
-      id ? UsersApi.update(id, data) : UsersApi.create(data),
-    onSuccess: (u: User) => {
-      qc.invalidateQueries({ queryKey: ["users", "list"] });
-      qc.setQueryData(["users", "detail", u.id], u);
+    mutationFn: (payload: Partial<User>) => UsersApi.create(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["employees", "list"] });
     },
   });
-};
+}
+
+export function useUpdateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<User> }) =>
+      UsersApi.update(id, payload),
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: ["employees", "list"] });
+      qc.invalidateQueries({ queryKey: ["employees", "detail", vars.id] });
+    },
+  });
+}
 
 export const useDeleteUser = () => {
   const qc = useQueryClient();

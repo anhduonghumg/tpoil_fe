@@ -8,13 +8,25 @@ export const UsersApi = {
       (r) => r.data?.data
     ),
   detail: (id: string) =>
-    apiCall<User>("user.detail", { params: { id } }).then((r) => r.data),
+    apiCall<ApiResponse<User>>("employee.detail", { params: { id } }).then(
+      (r) => r.data?.data
+    ),
   create: (p: Partial<User>) =>
     apiCall<ApiResponse<User>>("employee.create", { data: p }).then(
       (r) => r.data
     ),
-  update: (id: string, data: Partial<User>) =>
-    apiCall<User>("user.update", { params: { id }, data }).then((r) => r.data),
+
+  // update: (id: string, data: Partial<User>) =>
+  //   apiCall<User>("employee.update", { params: { id }, data }).then(
+  //     (r) => r.data
+  //   ),
+
+  update: (id: string, payload: Partial<User>) =>
+    apiCall<ApiResponse<User>>("employee.update", {
+      params: { id },
+      data: payload,
+    }).then((r) => r.data),
+
   remove: (id: string) =>
     apiCall("user.delete", { params: { id } }).then((r) => r.data),
 

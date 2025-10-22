@@ -35,6 +35,9 @@ export const ROUTES = {
     list: ["GET", "/employees"] as RouteTuple,
     create: ["POST", "/employees"] as RouteTuple,
     roles: ["GET", "/employees/roles"] as RouteTuple,
+    detail: ["GET", "/employees/:id"] as RouteTuple,
+    update: ["PATCH", "/employees/:id"] as RouteTuple,
+    delete: ["DELETE", "/employees/:id"] as RouteTuple,
   },
 };
 

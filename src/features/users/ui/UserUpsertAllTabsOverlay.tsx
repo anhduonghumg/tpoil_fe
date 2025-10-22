@@ -1,35 +1,43 @@
+// src/modules/users/ui/UserUpsertAllTabsOverlay.tsx
 import { Button, Form, Tabs } from "antd";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
-import { UsersApi } from "../api";
-import type { User } from "../types";
+import dayjs from "dayjs";
+import { CloseCircleOutlined, SaveOutlined } from "@ant-design/icons";
 
+import OverlayForm from "./OverlayForm";
 import PersonalForm from "../ui/PersonalForm";
 import CitizenForm from "../ui/CitizenForm";
 import ContactForm from "../ui/ContactForm";
 import EmploymentForm from "../ui/EmploymentForm";
 import FinanceForm from "../ui/FinanceForm";
-import OverlayForm from "./OverlayForm";
-import { useEffect, useMemo, useRef, useState } from "react";
 
+import { UsersApi } from "../api";
+import type { Employee, User } from "../types";
 import {
   collectFormsValues,
   TabFormRef,
   validateFormsSequential,
 } from "../../../shared/ui/formUtils";
-import { CloseCircleOutlined, SaveOutlined } from "@ant-design/icons";
-import { notify } from "../../../shared/lib/notification";
 import { uploadImage } from "../../../shared/api/uploads";
+import { notify } from "../../../shared/lib/notification";
 import { extractApiError } from "../../../shared/lib/httpError";
+import { useUserDetail } from "../hooks";
+import { safeJson } from "../../../shared/lib/json";
 
+type Mode = "create" | "edit";
 const isBlobUrl = (u?: string) =>
   !!u && (u.startsWith("blob:") || u.startsWith("data:"));
 
-export default function UserCreateAllTabsOverlay({
+export default function UserUpsertAllTabsOverlay({
+  mode,
+  id,
   open,
   onClose,
-  variant = "drawer",
+  variant = "modal",
 }: {
+  mode: Mode;
+  id?: string;
   open: boolean;
   onClose: () => void;
   variant?: "drawer" | "modal";
@@ -41,14 +49,13 @@ export default function UserCreateAllTabsOverlay({
   const [fFinance] = Form.useForm();
 
   const [avatarBlob, setAvatarBlob] = useState<Blob | null>(null);
-  const [ctzFrontBlob, setCtzFrontBlob] = useState<Blob | null>(null);
-  const [ctzBackBlob, setCtzBackBlob] = useState<Blob | null>(null);
   const [activeKey, setActiveKey] = useState("personal");
-
-  const qc = useQueryClient();
-  // const depts = useAllDepts();
   const uploadedUrlsRef = useRef<string[]>([]);
+  const qc = useQueryClient();
 
+  const detail = useUserDetail(id, open && mode === "edit");
+
+  // Reset khi đóng
   useEffect(() => {
     if (!open) {
       fPersonal.resetFields();
@@ -56,12 +63,108 @@ export default function UserCreateAllTabsOverlay({
       fCitizen.resetFields();
       fContact.resetFields();
       fFinance.resetFields();
-
       setActiveKey("personal");
       setAvatarBlob(null);
       uploadedUrlsRef.current = [];
     }
   }, [open, fPersonal, fEmployment, fCitizen, fContact, fFinance]);
+
+  useEffect(() => {
+    if (!(open && mode === "edit")) return;
+    const d: Employee | undefined = (detail.data as any)?.data ?? detail.data;
+    if (!d) return;
+
+    // console.log("user:", d);
+
+    fPersonal.setFieldsValue({
+      fullName: d.fullName,
+      gender: d.gender,
+      dob: d.dob ? dayjs(d.dob) : undefined,
+      nationality: d.nationality,
+      maritalStatus: d.maritalStatus,
+      avatarUrl: d.avatarUrl,
+    });
+
+    fCitizen.setFieldsValue({
+      type: d.citizen?.type,
+      number: d.citizen?.number,
+      issuedDate: d.citizen?.issuedDate
+        ? dayjs(d.citizen?.issuedDate)
+        : undefined,
+      issuedPlace: d.citizen?.issuedPlace,
+      expiryDate: d.citizen?.expiryDate
+        ? dayjs(d.citizen?.expiryDate)
+        : undefined,
+      frontImageUrl: d.citizen?.frontImageUrl,
+      backImageUrl: d.citizen?.backImageUrl,
+    });
+
+    const addrP =
+      typeof d.addressPermanent === "string"
+        ? safeJson(d.addressPermanent)
+        : d.addressPermanent;
+
+    const ap_codes = addrP
+      ? [addrP.province, addrP.district, addrP.ward]
+      : undefined;
+
+    fContact.setFieldsValue({
+      workEmail: d.workEmail,
+      personalEmail: d.personalEmail,
+      phone: d.phone,
+      ap_codes,
+      ap_street: addrP?.street,
+      at_province: d.addressTemp?.province,
+      at_district: d.addressTemp?.district,
+      at_ward: d.addressTemp?.ward,
+      at_street: d.addressTemp?.street,
+      ec_name: d.emergency?.name,
+      ec_relation: d.emergency?.relation,
+      ec_phone: d.emergency?.phone,
+    });
+
+    fEmployment.setFieldsValue({
+      status: d.status,
+      joinedAt: d.joinedAt ? dayjs(d.joinedAt) : undefined,
+      leftAt: d.leftAt ? dayjs(d.leftAt) : undefined,
+      departmentName: d.memberships[0].departmentId
+        ? {
+            value: d.memberships[0].departmentId,
+            label: d.memberships[0].departmentName,
+          }
+        : undefined,
+      title: d.title,
+      grade: d.grade,
+      code: d.code,
+      managerName: d.managerId
+        ? { value: d.managerId, label: d.managerName }
+        : undefined,
+      siteId: d.siteId,
+      floor: d.floor,
+      area: d.area,
+      desk: d.desk,
+      accessCard: d.accessCard,
+    });
+
+    fFinance.setFieldsValue({
+      pitCode: d.tax?.pitCode,
+      siNumber: d.tax?.siNumber,
+      hiNumber: d.tax?.hiNumber,
+      bankName: d.banking?.bankName,
+      branch: d.banking?.branch,
+      accountNumber: d.banking?.accountNumber,
+      accountHolder: d.banking?.accountHolder,
+    });
+  }, [
+    open,
+    mode,
+    detail.data,
+    fPersonal,
+    fCitizen,
+    fContact,
+    fEmployment,
+    fFinance,
+  ]);
 
   const tabForms: TabFormRef[] = useMemo(
     () => [
@@ -74,17 +177,26 @@ export default function UserCreateAllTabsOverlay({
     [fPersonal, fCitizen, fContact, fEmployment, fFinance]
   );
 
-  const create = useMutation({
-    mutationFn: (payload: Partial<User>) => UsersApi.create(payload),
-    onSuccess: () => {
+  const mutate = useMutation({
+    mutationFn: async (payload: Partial<User>) => {
+      return mode === "create"
+        ? UsersApi.create(payload)
+        : UsersApi.update(id!, payload);
+    },
+    onSuccess: async () => {
       uploadedUrlsRef.current = [];
       qc.invalidateQueries({ queryKey: ["employees", "list"] });
-      notify.success("Tạo nhân viên thành công");
+      if (mode === "edit" && id)
+        qc.invalidateQueries({ queryKey: ["employees", "detail", id] });
+      notify.success(
+        mode === "create"
+          ? "Tạo nhân viên thành công"
+          : "Cập nhật nhân viên thành công"
+      );
       onClose();
     },
     onError: async (e) => {
       try {
-        // console.log("avc", uploadedUrlsRef.current);
         await deleteUploaded(uploadedUrlsRef.current);
       } finally {
         uploadedUrlsRef.current = [];
@@ -104,17 +216,6 @@ export default function UserCreateAllTabsOverlay({
   };
 
   const uploadPendingImages = async (vals: { avatarUrl?: string }) => {
-    // const tasks: Array<Promise<void>> = [];
-    // if (avatarBlob && isBlobUrl(vals.avatarUrl)) {
-    //   tasks.push(
-    //     uploadImage(avatarBlob, "employee/avatar", "avatar").then((url) => {
-    //       vals.avatarUrl = url;
-    //     })
-    //   );
-    // }
-    // await Promise.all(tasks);
-    // return vals;
-
     const out = { ...vals };
     if (avatarBlob && isBlobUrl(out.avatarUrl)) {
       const url = await uploadImage(avatarBlob, "employee/avatar", "avatar");
@@ -124,35 +225,28 @@ export default function UserCreateAllTabsOverlay({
     return out;
   };
 
-  const handleCreate = async () => {
-    const isValid = await validateFormsSequential(tabForms, setActiveKey);
-
-    if (!isValid) {
-      return;
-    }
+  const handleSubmit = async () => {
+    const ok = await validateFormsSequential(tabForms, setActiveKey);
+    if (!ok) return;
 
     const all = collectFormsValues(tabForms);
-    const pVals = all.personal;
-    const eVals = all.employment;
+    const p = all.personal;
+    const e = all.employment;
     const ctz = all.citizen;
     const cont = all.contact;
     const fin = all.finance;
 
-    const imageVals = await uploadPendingImages({
-      avatarUrl: pVals.avatarUrl,
-    });
-
+    const img = await uploadPendingImages({ avatarUrl: p.avatarUrl });
     const [ap_province, ap_district, ap_ward] = cont.ap_codes || [];
 
-    // Chuẩn hoá về payload BE (đúng contract bạn đang dùng)
     const payload: Partial<User> = {
       // Personal
-      fullName: pVals.fullName?.trim(),
-      gender: pVals.gender,
-      dob: pVals.dob?.format?.("DD-MM-YYYY"),
-      nationality: pVals.nationality,
-      maritalStatus: pVals.maritalStatus,
-      avatarUrl: imageVals.avatarUrl,
+      fullName: p.fullName?.trim(),
+      gender: p.gender,
+      dob: p.dob?.format?.("DD-MM-YYYY"),
+      nationality: p.nationality,
+      maritalStatus: p.maritalStatus,
+      avatarUrl: img.avatarUrl,
 
       // Contact
       workEmail: cont.workEmail,
@@ -196,22 +290,22 @@ export default function UserCreateAllTabsOverlay({
           }
         : undefined,
 
-      // Employment (bắt buộc)
-      status: eVals.status || "active",
-      joinedAt: eVals.joinedAt?.format?.("DD-MM-YYYY"),
-      leftAt: eVals.leftAt?.format?.("DD-MM-YYYY"),
-      departmentId: eVals.departmentName.value,
-      departmentName: eVals.departmentName.label,
-      title: eVals.title,
-      grade: eVals.grade,
-      code: eVals.code,
-      managerId: eVals.managerName?.value,
-      managerName: eVals.managerName?.label,
-      siteId: eVals.siteId,
-      floor: eVals.floor,
-      area: eVals.area,
-      desk: eVals.desk,
-      accessCard: eVals.accessCard,
+      // Employment
+      status: e.status || "active",
+      joinedAt: e.joinedAt?.format?.("DD-MM-YYYY"),
+      leftAt: e.leftAt?.format?.("DD-MM-YYYY"),
+      departmentId: e.departmentName?.value,
+      departmentName: e.departmentName?.label,
+      title: e.title,
+      grade: e.grade,
+      code: e.code,
+      managerId: e.managerName?.value,
+      managerName: e.managerName?.label,
+      siteId: e.siteId,
+      floor: e.floor,
+      area: e.area,
+      desk: e.desk,
+      accessCard: e.accessCard,
 
       // Finance
       tax:
@@ -233,20 +327,22 @@ export default function UserCreateAllTabsOverlay({
           : undefined,
     };
 
-    // console.log("test", de)
-    // console.log("Creating user with payload", payload);
-    const rs = await create.mutateAsync(payload);
+    await mutate.mutateAsync(payload);
   };
 
   return (
     <OverlayForm
-      title="Thêm nhân viên"
+      title={mode === "create" ? "Thêm nhân viên" : "Sửa nhân viên"}
       open={open}
       onClose={onClose}
       variant={variant}
       size="xl"
-      loading={create.isPending}
-      okText="Tạo & mở chi tiết"
+      loading={
+        mode === "edit"
+          ? detail.isLoading || mutate.isPending
+          : mutate.isPending
+      }
+      okText={mode === "create" ? "Lưu" : "Lưu thay đổi"}
       footerRender={({ submitting }) => (
         <div style={{ textAlign: "right" }}>
           <Button
@@ -260,11 +356,11 @@ export default function UserCreateAllTabsOverlay({
           </Button>
           <Button
             type="primary"
-            onClick={handleCreate}
+            onClick={handleSubmit}
             loading={submitting}
             icon={<SaveOutlined />}
           >
-            Lưu
+            {mode === "create" ? "Lưu" : "Lưu thay đổi"}
           </Button>
         </div>
       )}

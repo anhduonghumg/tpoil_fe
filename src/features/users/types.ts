@@ -40,7 +40,7 @@ export type InsuranceTax = {
 export type User = {
   id: string;
   code?: string;
-  name: string;
+  fullName: string;
   gender?: "male" | "female" | "other";
   dob: string;
   nationality?: string;
@@ -82,9 +82,10 @@ export type User = {
 };
 
 export type Employee = User & {
-  username: string;
-  roles: string[];
-  isAdmin: boolean;
+  memberships: Array<{
+    departmentId: string;
+    departmentName: string;
+  }>;
 };
 
 export type Paged<T> = { items: T[]; total: number };

@@ -3,13 +3,14 @@ import { useEffect } from "react";
 import { Card, Tabs, Space, Typography, Tag, Skeleton, App } from "antd";
 import { useNavigate, useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { useUserDetail, useUpsertUser } from "../hooks";
+import { useUserDetail } from "../hooks";
 import type { User } from "../types";
 import PersonalForm from "../ui/PersonalForm";
 import CitizenForm from "../ui/CitizenForm";
 import ContactForm from "../ui/ContactForm";
 import EmploymentForm from "../ui/EmploymentForm";
 import FinanceForm from "../ui/FinanceForm";
+import { notify } from "../../../shared/lib/notification";
 
 export default function UserDetail() {
   const { id } = useParams();
@@ -17,7 +18,7 @@ export default function UserDetail() {
   const nav = useNavigate();
   const { message } = App.useApp();
   const detail = useUserDetail(!isNew ? id : undefined);
-  const upsert = useUpsertUser(!isNew ? id : undefined);
+  // const upsert = useUpsertUser(!isNew ? id : undefined);
 
   const data = detail.data as User | undefined;
 
@@ -32,7 +33,7 @@ export default function UserDetail() {
     <Space direction="vertical" size={4} style={{ width: "100%" }}>
       <Space align="center" size={12}>
         <Typography.Title level={4} style={{ margin: 0 }}>
-          {data?.name || "Người dùng mới"}
+          {data?.fullName || "Người dùng mới"}
         </Typography.Title>
         {data?.status && (
           <Tag
@@ -64,13 +65,13 @@ export default function UserDetail() {
   );
 
   const onSave = async (patch: Partial<User>) => {
-    try {
-      const res = await upsert.mutateAsync(patch);
-      message.success("Lưu thay đổi thành công");
-      if (isNew) nav(`/users/${res.id}`, { replace: true });
-    } catch {
-      message.error("Lưu thất bại");
-    }
+    // try {
+    //   const res = await upsert.mutateAsync(patch);
+    //   notify.success("Lưu thay đổi thành công");
+    //   if (isNew) nav(`/users/${res.id}`, { replace: true });
+    // } catch {
+    //   notify.error("Lưu thất bại");
+    // }
   };
 
   if (!isNew && detail.isLoading) return <Skeleton active />;
