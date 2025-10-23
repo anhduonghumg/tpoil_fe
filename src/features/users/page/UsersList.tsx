@@ -1,17 +1,22 @@
 import { useMemo, useState } from "react";
-import { Button, Space, Table, Tag, Typography, Popconfirm, App } from "antd";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Button, Space, Table, Tag, Typography } from "antd";
+import { useSearchParams } from "react-router-dom";
 import { PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 
-import { useUsers, useDeleteUser } from "../hooks";
+import { useUsers, useDeleteManyUsers, useDeleteUser } from "../hooks";
 import type { User } from "../types";
-import UserCreateAllTabsOverlay from "../ui/UserCreateAllTabsOverlay";
 import { useAllDepts } from "../../departments/hooks";
 import EmployeesFilters, { EmployeesFilterValues } from "../ui/EmployeeFilter";
 import ActionButtons from "../../../shared/ui/ActionButtons";
 import { notify } from "../../../shared/lib/notification";
 import UserUpsertAllTabsOverlay from "../ui/UserUpsertAllTabsOverlay";
+import ExportExcelButton from "../../../shared/components/Excel/ExportExcelButton";
+import { EMPLOYEE_EXPORT_COLUMNS } from "../export/employeeExportColumns";
+import { UsersApi } from "../api";
+import { TITLE_LABELS } from "../../../shared/constants/labels";
+
+type SortState = { field?: string; order?: "asc" | "desc" };
 
 const compactObj = <T extends Record<string, any>>(o: T): T =>
   Object.entries(o).reduce((acc, [k, v]) => {
@@ -23,28 +28,33 @@ const statusColor: Record<string, any> = {
   active: "green",
   probation: "blue",
   inactive: "default",
-  quit: "red",
-  on_leave: "orange",
+  suspended: "orange",
+  terminated: "red",
 };
 
 const statusText: Record<string, string> = {
   active: "Đang làm",
   probation: "Thử việc",
-  inactive: "Tạm dừng",
-  quit: "Nghỉ việc",
-  on_leave: "Nghỉ phép",
+  inactive: "Ngưng kích hoạt",
+  suspended: "Tạm đình chỉ",
+  terminated: "Nghỉ việc",
 };
 
 export default function UsersList() {
   const [params, setParams] = useSearchParams();
   const createOpen = params.get("new") === "1";
   const editId = params.get("edit");
-  const nav = useNavigate();
+  const [sort, setSort] = useState<SortState>({});
 
   // filters & paging
   const [filters, setFilters] = useState<EmployeesFilterValues>({});
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
+
+  // selection + delete
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const delMany = useDeleteManyUsers();
+  const del = useDeleteUser();
 
   const handleSearch = (vals: EmployeesFilterValues) => {
     setFilters(compactObj(vals));
@@ -61,8 +71,15 @@ export default function UsersList() {
   };
 
   const query = useMemo(
-    () => compactObj({ ...filters, page, size }),
-    [filters, page, size]
+    () =>
+      compactObj({
+        ...filters,
+        page,
+        size,
+        sortBy: sort.field,
+        sortDir: sort.order,
+      }),
+    [filters, page, size, sort]
   );
 
   const { data, isLoading } = useUsers(query);
@@ -84,10 +101,6 @@ export default function UsersList() {
 
   const fmt = (d?: string | Date) => (d ? dayjs(d).format("DD-MM-YYYY") : "");
 
-  // selection + delete
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const del = useDeleteUser();
-
   const handleDeleteOne = async (id: string) => {
     try {
       await del.mutateAsync(id);
@@ -98,11 +111,11 @@ export default function UsersList() {
   };
 
   const handleBulkDelete = async () => {
+    // console.log("bulk delete", selectedRowKeys);
+    // console.log("bulk delete", selectedRowKeys.length);
     if (!selectedRowKeys.length) return;
     try {
-      await Promise.allSettled(
-        selectedRowKeys.map((id) => del.mutateAsync(String(id)))
-      );
+      await delMany.mutateAsync(selectedRowKeys as string[]);
       setSelectedRowKeys([]);
       notify.success("Đã xóa các nhân viên đã chọn");
     } catch {
@@ -110,14 +123,31 @@ export default function UsersList() {
     }
   };
 
+  const handleTableChange = (_pg: any, _f: any, sorter: any) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    if (!s || !s.order) {
+      setSort({});
+      return;
+    }
+    const field = String(s.columnKey || s.field);
+    const order: "asc" | "desc" = s.order === "ascend" ? "asc" : "desc";
+    setSort({ field, order });
+  };
+
+  const so = (f: string) =>
+    sort.field === f ? (sort.order === "asc" ? "ascend" : "descend") : null;
+
   // columns
   const columns = [
     {
       title: "Nhân viên",
       dataIndex: "fullName",
+      sorter: true,
+      key: "fullName",
+      sortOrder: so("fullName"),
       render: (_: any, r: any) => (
         <Space direction="vertical" size={0}>
-          <a onClick={() => nav(`/users/${r.id}`)}>{r.fullName ?? r.name}</a>
+          <span>{r.fullName ?? r.name}</span>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {r.workEmail ?? r.personalEmail}
           </Typography.Text>
@@ -131,7 +161,12 @@ export default function UsersList() {
       width: 160,
       render: (_: any, r: any) => getDeptName(r),
     },
-    { title: "Chức danh", dataIndex: "title", width: 160 },
+    {
+      title: "Chức danh",
+      dataIndex: "title",
+      width: 160,
+      render: (v: string) => TITLE_LABELS[v] ?? v ?? "",
+    },
     {
       title: "Mốc thời gian",
       key: "milestones",
@@ -155,25 +190,10 @@ export default function UsersList() {
     {
       title: "Thao tác",
       key: "actions",
-      fixed: "right" as const,
-      width: 140,
+      fixed: "center" as const,
+      width: 80,
       render: (_: any, r: User) => (
         <Space>
-          {/* <Button size="small" onClick={() => nav(`/users/${r.id}`)}>
-            Xem
-          </Button>
-          <Popconfirm
-            title="Xóa nhân viên này?"
-            okText="Xóa"
-            okButtonProps={{ danger: true, loading: del.isPending }}
-            cancelText="Hủy"
-            onConfirm={() => handleDeleteOne(r.id)}
-          >
-            <Button size="small" danger loading={del.isPending}>
-              Xóa
-            </Button>
-          </Popconfirm> */}
-
           <ActionButtons
             onEdit={() => handleEditOne(r.id)}
             onDelete={() => handleDeleteOne(r.id)}
@@ -213,8 +233,8 @@ export default function UsersList() {
             danger
             size="small"
             disabled={!selectedRowKeys.length}
-            onClick={() => handleBulkDelete}
-            loading={del.isPending}
+            onClick={handleBulkDelete}
+            loading={delMany.isPending}
           >
             Xóa đã chọn ({selectedRowKeys.length})
           </Button>
@@ -229,6 +249,31 @@ export default function UsersList() {
           >
             Thêm mới
           </Button>
+          <ExportExcelButton
+            allColumns={EMPLOYEE_EXPORT_COLUMNS}
+            fetchAll={async () => {
+              const pageSize = 200;
+              let page = 1;
+              const rows: any[] = [];
+              while (true) {
+                const rs = await UsersApi.list({
+                  ...query,
+                  page,
+                  size: pageSize,
+                });
+                const chunk = (rs as any)?.items ?? [];
+                rows.push(...chunk);
+                if (
+                  !chunk.length ||
+                  rows.length >= ((rs as any)?.total ?? rows.length)
+                )
+                  break;
+                page++;
+              }
+              return rows;
+            }}
+            filename="employees"
+          />
         </Space>
       </div>
 
@@ -242,6 +287,8 @@ export default function UsersList() {
           onChange: setSelectedRowKeys,
           preserveSelectedRowKeys: true,
         }}
+        showSorterTooltip={false}
+        onChange={handleTableChange}
         pagination={{
           current: page,
           pageSize: size,
@@ -253,17 +300,8 @@ export default function UsersList() {
           showSizeChanger: true,
         }}
         size="middle"
-        scroll={{ x: 900 }}
+        scroll={{ x: 900, y: 400 }}
       />
-
-      {/* <UserCreateAllTabsOverlay
-        open={open}
-        onClose={() => {
-          params.delete("new");
-          setParams(params, { replace: true });
-        }}
-        variant="modal"
-      /> */}
       <UserUpsertAllTabsOverlay
         mode={editId ? "edit" : "create"}
         id={editId ?? undefined}

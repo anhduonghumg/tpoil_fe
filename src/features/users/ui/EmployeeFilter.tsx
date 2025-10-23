@@ -5,7 +5,7 @@ import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 export type EmployeesFilterValues = {
   q?: string;
   deptId?: string;
-  status?: "active" | "probation" | "inactive" | "quit";
+  status?: "active" | "inactive" | "suspended" | "probation" | "terminated";
 };
 
 export default function EmployeesFilters({
@@ -75,8 +75,9 @@ export default function EmployeesFilters({
             options={[
               { value: "active", label: "Đang làm" },
               { value: "probation", label: "Thử việc" },
-              { value: "inactive", label: "Tạm dừng" },
-              { value: "quit", label: "Nghỉ việc" },
+              { value: "inactive", label: "Ngưng kích hoạt" },
+              { value: "suspended", label: "Tạm đình chỉ" },
+              { value: "terminated", label: "Nghỉ việc" },
             ]}
             style={{ width: 160 }}
           />

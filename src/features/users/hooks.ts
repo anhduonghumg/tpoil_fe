@@ -39,13 +39,21 @@ export function useUpdateUser() {
   });
 }
 
-export const useDeleteUser = () => {
+export function useDeleteUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => UsersApi.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["users", "list"] }),
+    mutationFn: (id: string) => UsersApi.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["employees", "list"] }),
   });
-};
+}
+
+export function useDeleteManyUsers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => UsersApi.deleteMany(ids),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["employees", "list"] }),
+  });
+}
 
 export const useDepartments = () =>
   useQuery({

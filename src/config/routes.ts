@@ -38,6 +38,7 @@ export const ROUTES = {
     detail: ["GET", "/employees/:id"] as RouteTuple,
     update: ["PATCH", "/employees/:id"] as RouteTuple,
     delete: ["DELETE", "/employees/:id"] as RouteTuple,
+    bulkDelete: ["POST", "/employees/bulk-delete"] as RouteTuple,
   },
 };
 

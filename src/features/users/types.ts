@@ -1,4 +1,4 @@
-export type EmploymentStatus = "active" | "probation" | "inactive" | "quit";
+export type EmploymentStatus = "active" | "inactive" | "suspended" | "probation" | "terminated";
 export type IdentityDocType = "CCCD" | "CMND" | "PASSPORT";
 
 export type Address = {

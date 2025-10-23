@@ -149,13 +149,23 @@ export default function EmploymentForm({
             name="status"
             rules={[{ required: true, message: "Trạng thái là bắt buộc" }]}
           >
-            <Select
+            {/* <Select
               placeholder="Chọn trạng thái"
               options={[
                 { value: "active", label: "Đang làm" },
                 { value: "probation", label: "Thử việc" },
                 { value: "inactive", label: "Tạm dừng" },
                 { value: "quit", label: "Nghỉ việc" },
+              ]}
+            /> */}
+            <Select
+              placeholder="Chọn trạng thái"
+              options={[
+                { value: "active", label: "Đang làm" },
+                { value: "probation", label: "Thử việc" },
+                { value: "inactive", label: "Ngưng kích hoạt" },
+                { value: "suspended", label: "Tạm đình chỉ" },
+                { value: "terminated", label: "Nghỉ việc" },
               ]}
             />
           </Form.Item>

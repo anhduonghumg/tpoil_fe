@@ -27,8 +27,15 @@ export const UsersApi = {
       data: payload,
     }).then((r) => r.data),
 
-  remove: (id: string) =>
-    apiCall("user.delete", { params: { id } }).then((r) => r.data),
+  delete: (id: string) =>
+    apiCall<ApiResponse<User>>("employee.delete", { params: { id } }).then(
+      (r) => r.data
+    ),
+
+  deleteMany: (ids: string[]) =>
+    apiCall<ApiResponse<{ count: number }>>("employee.bulkDelete", {
+      data: { ids },
+    }).then((r) => r.data),
 
   departments: () =>
     apiCall<Array<{ id: string; name: string }>>("user.departments").then(
