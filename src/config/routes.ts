@@ -2,6 +2,9 @@ import type { Method } from "axios";
 type RouteTuple = readonly [Method, string];
 
 export const ROUTES = {
+  // app: {
+  //   bootstrap: ["GET", "/app/bootstrap"],
+  // },
   auth: {
     login: ["POST", "/auth/login"] as const,
     logout: ["POST", "/auth/logout"] as const,
@@ -39,6 +42,7 @@ export const ROUTES = {
     update: ["PATCH", "/employees/:id"] as RouteTuple,
     delete: ["DELETE", "/employees/:id"] as RouteTuple,
     bulkDelete: ["POST", "/employees/bulk-delete"] as RouteTuple,
+    birthdays: ["GET", "/employees/birthdays"] as RouteTuple,
   },
 };
 

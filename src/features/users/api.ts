@@ -1,6 +1,6 @@
 import { apiCall } from "../../shared/lib/api";
 import { ApiResponse } from "../departments/types";
-import type { Paged, User } from "./types";
+import type { Birthday, BirthdayItem, Paged, User } from "./types";
 
 export const UsersApi = {
   list: (query: any) =>
@@ -45,4 +45,12 @@ export const UsersApi = {
     apiCall<ApiResponse<Array<{ id: string; fullName: string }>>>(
       "employee.roles"
     ).then((r) => r.data?.data),
+  birthdays: (month: number) =>
+    apiCall<
+      ApiResponse<
+        Array<{ count: number; items: BirthdayItem[]; month: number }>
+      >
+    >("employee.birthdays", {
+      query: { month },
+    }).then((r) => r.data?.data),
 };

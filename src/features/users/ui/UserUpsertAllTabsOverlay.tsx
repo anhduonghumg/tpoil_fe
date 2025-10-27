@@ -327,6 +327,8 @@ export default function UserUpsertAllTabsOverlay({
           : undefined,
     };
 
+    // console.log("payload:", payload);
+
     await mutate.mutateAsync(payload);
   };
 

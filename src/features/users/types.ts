@@ -1,4 +1,9 @@
-export type EmploymentStatus = "active" | "inactive" | "suspended" | "probation" | "terminated";
+export type EmploymentStatus =
+  | "active"
+  | "inactive"
+  | "suspended"
+  | "probation"
+  | "terminated";
 export type IdentityDocType = "CCCD" | "CMND" | "PASSPORT";
 
 export type Address = {
@@ -86,6 +91,17 @@ export type Employee = User & {
     departmentId: string;
     departmentName: string;
   }>;
+};
+
+export type Birthday = {
+  count: number;
+  items: BirthdayItem[];
+  month: number;
+};
+export type BirthdayItem = {
+  id: string;
+  fullName: string;
+  dob: string;
 };
 
 export type Paged<T> = { items: T[]; total: number };

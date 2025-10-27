@@ -37,6 +37,7 @@ import {
 // @ts-ignore
 import logo from "../../../assets/logo_200.png";
 import { confirmDialog } from "../../lib/confirm";
+import NotificationsBell from "./NotificationsBell";
 
 const { Header, Sider, Content } = Layout;
 const { useBreakpoint } = Grid;
@@ -132,16 +133,17 @@ const HeaderRight = React.memo(function HeaderRight({
         placeholder="Tìm kiếm..."
         className="app-search"
       /> */}
-      <Tooltip title="Thông báo">
+      {/* <Tooltip title="Thông báo">
         <Badge count={3} size="small">
           <BellOutlined className="icon-btn" />
         </Badge>
-      </Tooltip>
+      </Tooltip> */}
       {/* <Tooltip title="Tin nhắn">
         <Badge dot>
           <MailOutlined className="icon-btn" />
         </Badge>
       </Tooltip> */}
+      <NotificationsBell />
       <Dropdown menu={userMenu} trigger={["click"]} placement="bottomRight">
         <div className="app-user">
           <Avatar size={32} style={{ backgroundColor: "#10b981" }}>
@@ -194,6 +196,7 @@ export default function AppLayout() {
       await logout.mutateAsync();
     } finally {
       qc.removeQueries({ queryKey: ["auth", "me"], exact: true });
+      qc.clear();
       saveUserToCache(null);
       nav("/login", { replace: true });
     }

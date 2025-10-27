@@ -69,3 +69,14 @@ export const useLeaders = () =>
     queryKey: ["employees", "roles"],
     queryFn: UsersApi.roles,
   });
+
+export const useBirthday = (month: number) =>
+  useQuery({
+    queryKey: ["employees", "birthdays", month],
+    queryFn: () => UsersApi.birthdays(month),
+    staleTime: 1000 * 60 * 60 * 24,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 1,
+  });

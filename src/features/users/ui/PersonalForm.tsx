@@ -43,12 +43,12 @@ export default function PersonalForm({
   const avatarUrl = Form.useWatch("avatarUrl", form);
 
   const init = {
-    fullName: data?.fullName, // ← FIX typo
+    fullName: data?.fullName,
     gender: data?.gender,
     dob: data?.dob ? dayjs(data.dob) : undefined,
     nationality: data?.nationality || "Việt Nam",
     maritalStatus: data?.maritalStatus,
-    avatarUrl: data?.avatarUrl, // URL server (nếu có)
+    avatarUrl: data?.avatarUrl,
   };
 
   // Khởi tạo preview từ dữ liệu server khi mở form / khi data thay đổi
