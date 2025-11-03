@@ -1,19 +1,17 @@
 import { createBrowserRouter, redirect } from "react-router-dom";
-import { AuthApi } from "../features/auth/api";
 import Login from "../features/auth/pages/Login";
 import Dashboard from "../features/dashboard/pages/Dashboard";
 import AppLayout from "../shared/components/Layout/AppLayout";
-import { loadUserFromCache, saveUserToCache } from "../features/auth/session";
+import { loadUserFromCache } from "../features/auth/session";
 import UsersList from "../features/users/page/UsersList";
 import UserDetail from "../features/users/page/UserDetail";
 import DepartmentsPage from "../features/departments/page/DepartmentsPage";
+import CustomersPage from "../features/customers/page/CustomersPage";
 // import { Test } from "../page/Test";
 
 const requireAuth = async () => {
   const cached = loadUserFromCache();
   if (!cached) {
-    // const me = await AuthApi.me();
-    // saveUserToCache(me);
     throw redirect("/login");
   }
   return null;
@@ -33,6 +31,7 @@ export const router = createBrowserRouter([
       { path: "users", element: <UsersList /> },
       { path: "users/:id", element: <UserDetail /> },
       { path: "department", element: <DepartmentsPage /> },
+      { path: "customers", element: <CustomersPage /> },
     ],
   },
   // {

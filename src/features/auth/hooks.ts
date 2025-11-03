@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AuthApi } from "./api";
 import { loadUserFromCache, saveUserToCache, User } from "./session";
-import { usePrefillBirthdaysAfterLogin } from "../bootstrap/hooks";
 
 const KEY = ["auth", "me"];
 

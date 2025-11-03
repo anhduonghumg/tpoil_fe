@@ -9,6 +9,7 @@ import logo from "../../../assets/logo_200.png";
 import bg from "../../../assets/bg_new.webp";
 import { saveUserToCache } from "../session";
 import { notify } from "../../../shared/lib/notification";
+import SplashScreen from "../../../app/SplashScreen";
 
 export default function Login() {
   const [form] = Form.useForm();
@@ -20,6 +21,7 @@ export default function Login() {
   const mLogin = useLogin();
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showSplash, setShowSplash] = useState(false);
 
   type LoginResponse = { statusCode: number; [key: string]: any };
 
@@ -30,7 +32,8 @@ export default function Login() {
       const login = (await mLogin.mutateAsync(vals)) as LoginResponse;
       if (login?.statusCode === 200) {
         saveUserToCache(login.data?.user || null);
-        nav(redirectTo, { replace: true });
+        setShowSplash(true);
+        // nav(redirectTo, { replace: true });
       }
     } catch (e: any) {
       const errorMsg =
@@ -63,6 +66,14 @@ export default function Login() {
       });
     }
   }, [errorMessage]);
+
+  useEffect(() => {
+    if (!showSplash) return;
+    const t = setTimeout(() => nav(redirectTo, { replace: true }), 500);
+    return () => clearTimeout(t);
+  }, [showSplash, nav, redirectTo]);
+
+  if (showSplash) return <SplashScreen />;
 
   return (
     <div

@@ -1,17 +1,9 @@
 // layout/NotificationsBell.tsx
 import { useMemo, useState } from "react";
-import {
-  Badge,
-  Dropdown,
-  Modal,
-  Space,
-  Table,
-  Typography,
-} from "antd";
+import { Badge, Dropdown, Modal, Space, Table, Typography } from "antd";
 import { BellOutlined, GiftOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useBirthday } from "../../../features/users/hooks";
-
 
 export default function NotificationsBell({
   extraCount = 0,
@@ -20,10 +12,8 @@ export default function NotificationsBell({
 }) {
   const [openModal, setOpenModal] = useState(false);
 
-  // 1 API duy nhất: trả { month, count, items }
   const month = new Date().getMonth() + 1;
   const { data } = useBirthday(month);
-  console.log("birthday data:", data);
 
   const bdayCount = data?.count ?? 0;
   const hasBirthday = bdayCount > 0;

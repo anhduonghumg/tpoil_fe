@@ -44,6 +44,16 @@ export const ROUTES = {
     bulkDelete: ["POST", "/employees/bulk-delete"] as RouteTuple,
     birthdays: ["GET", "/employees/birthdays"] as RouteTuple,
   },
+  customer: {
+    list: ["GET", "/customers"] as RouteTuple,
+    detail: ["GET", "/customers/:id"] as RouteTuple,
+    create: ["POST", "/customers"] as RouteTuple,
+    update: ["PATCH", "/customers/:id"] as RouteTuple,
+    delete: ["DELETE", "/customers/:id"] as RouteTuple,
+    deleteMultiple: ["POST", "/customers/delete-multiple"] as RouteTuple,
+    generateCode: ["POST", "/customers/generate-code"] as RouteTuple,
+    generateCodeForId: ["POST", "/customers/:id/generate-code"] as RouteTuple,
+  },
 };
 
 export function buildPath(

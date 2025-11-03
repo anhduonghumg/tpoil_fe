@@ -3,6 +3,7 @@ import { router } from "./app/router";
 import { ConfigProvider, theme } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "./App.css";
+import AppInit from "./app/AppInit";
 
 const themeTokens = {
   token: {
@@ -28,7 +29,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ConfigProvider theme={themeTokens}>
-        <RouterProvider router={router} />
+        <AppInit />
       </ConfigProvider>
     </QueryClientProvider>
   );

@@ -1,6 +1,6 @@
 import { apiCall } from "../../shared/lib/api";
 import { ApiResponse } from "../departments/types";
-import type { Birthday, BirthdayItem, Paged, User } from "./types";
+import type { BirthdayItem, Paged, User } from "./types";
 
 export const UsersApi = {
   list: (query: any) =>
