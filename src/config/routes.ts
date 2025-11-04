@@ -54,6 +54,15 @@ export const ROUTES = {
     generateCode: ["POST", "/customers/generate-code"] as RouteTuple,
     generateCodeForId: ["POST", "/customers/:id/generate-code"] as RouteTuple,
   },
+  contract: {
+    list: ["GET", "/contracts"] as RouteTuple,
+    detail: ["GET", "/contracts/:id"] as RouteTuple,
+    create: ["POST", "/contracts"] as RouteTuple,
+    update: ["PATCH", "/contracts/:id"] as RouteTuple,
+    delete: ["DELETE", "/contracts/:id"] as RouteTuple,
+    deleteMultiple: ["POST", "/contracts/delete-multiple"] as RouteTuple,
+    generateCode: ["POST", "/contracts/generate-code"] as RouteTuple,
+  },
 };
 
 export function buildPath(

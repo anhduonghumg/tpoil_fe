@@ -61,30 +61,43 @@ export default function CustomersPage() {
   };
 
   return (
-    <>
-      <Space>
-        {selected.length > 0 && (
-          <Tooltip title={`Xoá ${selected.length} dòng đã chọn`}>
-            <Button danger icon={<DeleteOutlined />} onClick={batchDelete}>
-              Xoá đã chọn
-            </Button>
-          </Tooltip>
-        )}
-        <Button
-          size="small"
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => setCreateOpen(true)}
-        >
-          Thêm khách hàng
-        </Button>
-      </Space>
+    <Card title="Khách hàng">
       <Flex vertical gap={12}>
-        <CustomerToolbar
-          value={query}
-          onChange={setQuery}
-          onExport={handleExport}
-        />
+        {/* Hàng trên: bên trái là bộ lọc, bên phải là Xoá đã chọn + Thêm mới */}
+        <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
+          {/* Bộ lọc bên trái */}
+          <CustomerToolbar
+            value={query}
+            onChange={setQuery}
+            onExport={handleExport}
+          />
+
+          {/* Nhóm nút bên phải */}
+          <Space>
+            {selected.length > 0 && (
+              <Tooltip title={`Xoá ${selected.length} dòng đã chọn`}>
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={batchDelete}
+                >
+                  Xoá đã chọn
+                </Button>
+              </Tooltip>
+            )}
+            <Button
+              size="small"
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setCreateOpen(true)}
+            >
+              Thêm mới
+            </Button>
+          </Space>
+        </Flex>
+
+        {/* Bảng danh sách */}
         <CustomerTablePro
           query={query}
           onEdit={(id) => setEditId(id)}
@@ -93,6 +106,7 @@ export default function CustomersPage() {
         />
       </Flex>
 
+      {/* Overlay tạo / sửa */}
       <CustomerUpsertOverlay
         mode="create"
         open={createOpen}
@@ -106,6 +120,6 @@ export default function CustomersPage() {
           onClose={() => setEditId(null)}
         />
       )}
-    </>
+    </Card>
   );
 }

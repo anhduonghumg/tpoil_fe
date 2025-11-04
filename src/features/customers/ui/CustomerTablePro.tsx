@@ -130,34 +130,6 @@ export function CustomerTablePro({
           size="small"
         />
       ),
-      //   render: (_, r) => {
-      //     const items = [
-      //       {
-      //         key: "edit",
-      //         icon: <EditOutlined />,
-      //         label: "Sửa",
-      //         onClick: () => onEdit(r.id),
-      //       },
-      //       {
-      //         key: "delete",
-      //         icon: <DeleteOutlined />,
-      //         danger: true,
-      //         label: (
-      //           <Popconfirm
-      //             title="Xoá khách hàng này?"
-      //             onConfirm={() => del.mutate(r.id)}
-      //           >
-      //             <span>Xoá</span>
-      //           </Popconfirm>
-      //         ),
-      //       },
-      //     ];
-      //     return (
-      //       <Dropdown menu={{ items }} trigger={["click"]}>
-      //         <Button type="text" icon={<MoreOutlined />} />
-      //       </Dropdown>
-      //     );
-      //   },
     },
   ];
 
