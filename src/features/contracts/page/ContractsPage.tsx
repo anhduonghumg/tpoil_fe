@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Card, Flex, Space, Tooltip, message } from "antd";
+import { Button, Flex, Space, Tooltip } from "antd";
 import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { ContractToolbar } from "../ui/ContractToolbar";
@@ -7,6 +7,7 @@ import { ContractTablePro } from "../ui/ContractTablePro";
 import ContractUpsertOverlay from "../ui/ContractUpsertOverlay";
 import type { ContractListQuery } from "../types";
 import { ContractsApi } from "../api";
+import { notify } from "../../../shared/lib/notification";
 
 export default function ContractsPage() {
   const [query, setQuery] = React.useState<ContractListQuery>({
@@ -37,11 +38,12 @@ export default function ContractsPage() {
     await ContractsApi.deleteMultiple(selected);
     await qc.invalidateQueries({ queryKey: ["contracts", "list"] });
     setSelected([]);
-    message.success("Đã xoá các hợp đồng đã chọn");
+    notify.success("Đã xoá các hợp đồng đã chọn");
   };
 
   return (
-    <Card title="Hợp đồng">
+    // <Card title="Hợp đồng">
+    <>
       <Flex vertical gap={12}>
         <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
           <ContractToolbar
@@ -52,17 +54,23 @@ export default function ContractsPage() {
           <Space>
             {selected.length > 0 && (
               <Tooltip title={`Xoá ${selected.length} HĐ đã chọn`}>
-                <Button danger icon={<DeleteOutlined />} onClick={batchDelete}>
-                  Xoá đã chọn
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={batchDelete}
+                >
+                  Xoá đã chọn {selected.length}
                 </Button>
               </Tooltip>
             )}
             <Button
+              size="small"
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setCreateOpen(true)}
             >
-              Thêm hợp đồng
+              Thêm mới
             </Button>
           </Space>
         </Flex>
@@ -87,6 +95,7 @@ export default function ContractsPage() {
           onClose={() => setEditId(null)}
         />
       )}
-    </Card>
+    </>
+    // </Card>
   );
 }

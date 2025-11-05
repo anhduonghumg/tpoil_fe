@@ -39,6 +39,7 @@ export function ContractCustomerSelect(props: Props) {
 
   return (
     <Select
+      size="small"
       showSearch
       optionFilterProp="label"
       loading={loading}

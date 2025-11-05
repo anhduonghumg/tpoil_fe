@@ -61,18 +61,16 @@ export default function CustomersPage() {
   };
 
   return (
-    <Card title="Khách hàng">
+    // <Card title="Khách hàng">
+    <>
       <Flex vertical gap={12}>
-        {/* Hàng trên: bên trái là bộ lọc, bên phải là Xoá đã chọn + Thêm mới */}
         <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
-          {/* Bộ lọc bên trái */}
           <CustomerToolbar
             value={query}
             onChange={setQuery}
             onExport={handleExport}
           />
 
-          {/* Nhóm nút bên phải */}
           <Space>
             {selected.length > 0 && (
               <Tooltip title={`Xoá ${selected.length} dòng đã chọn`}>
@@ -106,7 +104,6 @@ export default function CustomersPage() {
         />
       </Flex>
 
-      {/* Overlay tạo / sửa */}
       <CustomerUpsertOverlay
         mode="create"
         open={createOpen}
@@ -120,6 +117,7 @@ export default function CustomersPage() {
           onClose={() => setEditId(null)}
         />
       )}
-    </Card>
+      {/* </Card> */}
+    </>
   );
 }

@@ -48,6 +48,7 @@ export function ContractToolbar({
     <Form form={form} layout="inline" onFinish={submit} style={{ rowGap: 8 }}>
       <Form.Item name="keyword">
         <Input
+          size="small"
           allowClear
           placeholder="Tìm số HĐ / khách hàng"
           prefix={<SearchOutlined />}
@@ -64,6 +65,7 @@ export function ContractToolbar({
       </Form.Item>
       <Form.Item name="type">
         <Select
+          size="small"
           allowClear
           placeholder="Loại HĐ"
           style={{ width: 160 }}
@@ -78,6 +80,7 @@ export function ContractToolbar({
       </Form.Item>
       <Form.Item name="status">
         <Select
+          size="small"
           allowClear
           placeholder="Trạng thái"
           style={{ width: 160 }}
@@ -92,19 +95,24 @@ export function ContractToolbar({
         />
       </Form.Item>
       <Form.Item name="dateRange">
-        <RangePicker style={{ width: 260 }} format="DD/MM/YYYY" />
+        <RangePicker size="small" style={{ width: 260 }} format="DD/MM/YYYY" />
       </Form.Item>
       <Space.Compact>
         <Tooltip title="Tìm kiếm">
-          <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
+          <Button
+            size="small"
+            type="primary"
+            htmlType="submit"
+            icon={<SearchOutlined />}
+          >
             Tìm
           </Button>
         </Tooltip>
         <Tooltip title="Làm mới">
-          <Button icon={<ReloadOutlined />} onClick={reset} />
+          <Button size="small" icon={<ReloadOutlined />} onClick={reset} />
         </Tooltip>
         <Tooltip title="Xuất dữ liệu">
-          <Button icon={<DownloadOutlined />} onClick={onExport} />
+          <Button size="small" icon={<DownloadOutlined />} onClick={onExport} />
         </Tooltip>
       </Space.Compact>
     </Form>

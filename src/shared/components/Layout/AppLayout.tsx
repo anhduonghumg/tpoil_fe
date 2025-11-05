@@ -60,6 +60,11 @@ const NAV: NavItem[] = [
     label: "Khách hàng",
     icon: <UserOutlined />,
   },
+  {
+    key: "/contracts",
+    label: "Hợp đồng",
+    icon: <ShoppingCartOutlined />,
+  },
 ];
 const FLAT_KEYS = NAV.flatMap((i) =>
   i.children ? [i.key, ...i.children.map((c) => c.key)] : [i.key]

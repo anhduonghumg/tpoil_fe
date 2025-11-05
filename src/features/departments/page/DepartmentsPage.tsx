@@ -63,7 +63,7 @@ export default function DepartmentsPage() {
       async () => {
         try {
           const result = await softDelete.mutateAsync({ id });
-          console.log("Soft delete result", result);
+          // console.log("Soft delete result", result);
           notify.success("Đã xóa");
         } catch (e: any) {
           if (e.code === "HAS_CHILDREN")

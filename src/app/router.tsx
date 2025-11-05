@@ -7,6 +7,7 @@ import UsersList from "../features/users/page/UsersList";
 import UserDetail from "../features/users/page/UserDetail";
 import DepartmentsPage from "../features/departments/page/DepartmentsPage";
 import CustomersPage from "../features/customers/page/CustomersPage";
+import ContractsPage from "../features/contracts/page/ContractsPage";
 // import { Test } from "../page/Test";
 
 const requireAuth = async () => {
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
       { path: "users/:id", element: <UserDetail /> },
       { path: "department", element: <DepartmentsPage /> },
       { path: "customers", element: <CustomersPage /> },
+      { path: "contracts", element: <ContractsPage /> },
     ],
   },
   // {

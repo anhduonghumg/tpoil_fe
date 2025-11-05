@@ -12,13 +12,13 @@ export const ContractsApi = {
       (r) => r.data!
     ),
   create: (body: Partial<Contract>) =>
-    apiCall<ApiResponse<Contract>>("contract.create", { body }).then(
+    apiCall<ApiResponse<Contract>>("contract.create", { data: body }).then(
       (r) => r.data!
     ),
   update: (id: string, body: Partial<Contract>) =>
     apiCall<ApiResponse<Contract>>("contract.update", {
       params: { id },
-      body,
+      data: body,
     }).then((r) => r.data!),
   delete: (id: string) =>
     apiCall<ApiResponse<boolean>>("contract.delete", { params: { id } }).then(
@@ -26,21 +26,10 @@ export const ContractsApi = {
     ),
   deleteMultiple: (ids: string[]) =>
     apiCall<ApiResponse<number>>("contract.deleteMultiple", {
-      body: { ids },
+      data: { ids },
     }).then((r) => r.data!),
   generateCode: (customerId: string) =>
     apiCall<ApiResponse<{ code: string }>>("contract.generateCode", {
-      body: { customerId },
+      data: { customerId },
     }).then((r) => r.data!),
-};
-
-// routes map (gợi ý, thêm vào shared route map)
-export const contractsRoutes = {
-  list: ["GET", "/contracts"] as const,
-  detail: ["GET", "/contracts/:id"] as const,
-  create: ["POST", "/contracts"] as const,
-  update: ["PATCH", "/contracts/:id"] as const,
-  delete: ["DELETE", "/contracts/:id"] as const,
-  deleteMultiple: ["POST", "/contracts/delete-multiple"] as const,
-  generateCode: ["POST", "/contracts/generate-code"] as const,
 };
