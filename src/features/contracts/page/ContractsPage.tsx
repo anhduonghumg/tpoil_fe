@@ -1,101 +1,145 @@
-import React from "react";
-import { Button, Flex, Space, Tooltip } from "antd";
-import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { useQueryClient } from "@tanstack/react-query";
-import { ContractToolbar } from "../ui/ContractToolbar";
-import { ContractTablePro } from "../ui/ContractTablePro";
-import ContractUpsertOverlay from "../ui/ContractUpsertOverlay";
+// features/contracts/page/ContractsPage.tsx
+import React, { useState } from "react";
+import { Button, Card, Flex, Space, Typography } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+import { useContractList, useDeleteContract } from "../hooks";
 import type { ContractListQuery } from "../types";
-import { ContractsApi } from "../api";
+import { ContractUpsertOverlay } from "../ui/ContractUpsertOverlay";
+// Bạn sẽ tự tạo 2 component này theo props gợi ý
+import { ContractFilters } from "../ui/ContractFilters";
+import { ContractTable } from "../ui/ContractTable";
 import { notify } from "../../../shared/lib/notification";
 
-export default function ContractsPage() {
-  const [query, setQuery] = React.useState<ContractListQuery>({
+const { Title } = Typography;
+
+const DEFAULT_PAGE_SIZE = 20;
+
+export const ContractsPage: React.FC = () => {
+  // ===== Query state =====
+  const [query, setQuery] = useState<ContractListQuery>({
     page: 1,
-    pageSize: 20,
+    pageSize: DEFAULT_PAGE_SIZE,
   });
-  (window as any).setContractQuery = setQuery;
 
-  const [createOpen, setCreateOpen] = React.useState(false);
-  const [editId, setEditId] = React.useState<string | null>(null);
-  const [selected, setSelected] = React.useState<string[]>([]);
-  const qc = useQueryClient();
+  const { data, isLoading } = useContractList(query);
+  const deleteMutation = useDeleteContract();
 
-  const handleExport = async () => {
-    const blob = new Blob([JSON.stringify({ query }, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "contracts-export.json";
-    a.click();
-    URL.revokeObjectURL(url);
+  // ===== Overlay state =====
+  const [isOverlayOpen, setOverlayOpen] = useState(false);
+  const [overlayMode, setOverlayMode] = useState<"create" | "edit">("create");
+  const [editingId, setEditingId] = useState<string | undefined>(undefined);
+
+  // ===== Data helpers =====
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const page = data?.page ?? query.page ?? 1;
+  const pageSize = data?.pageSize ?? query.pageSize ?? DEFAULT_PAGE_SIZE;
+
+  // console.log("items:", items);
+
+  // ===== Handlers =====
+
+  // Khi filter submit
+  const handleFilterChange = (
+    next: Omit<ContractListQuery, "page" | "pageSize">
+  ) => {
+    setQuery((prev) => ({
+      ...prev,
+      ...next,
+      page: 1,
+    }));
   };
 
-  const batchDelete = async () => {
-    if (!selected.length) return;
-    await ContractsApi.deleteMultiple(selected);
-    await qc.invalidateQueries({ queryKey: ["contracts", "list"] });
-    setSelected([]);
-    notify.success("Đã xoá các hợp đồng đã chọn");
+  // Khi đổi page / pageSize từ Table
+  const handlePageChange = (nextPage: number, nextPageSize?: number) => {
+    setQuery((prev) => ({
+      ...prev,
+      page: nextPage,
+      pageSize: nextPageSize ?? prev.pageSize ?? DEFAULT_PAGE_SIZE,
+    }));
   };
+
+  // Thêm mới
+  const handleCreate = () => {
+    setOverlayMode("create");
+    setEditingId(undefined);
+    setOverlayOpen(true);
+  };
+
+  // Sửa
+  const handleEdit = (id: string) => {
+    setOverlayMode("edit");
+    setEditingId(id);
+    setOverlayOpen(true);
+  };
+
+  // Xoá
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteMutation.mutateAsync(id);
+      notify.success("Đã xoá hợp đồng");
+      setEditingId(undefined);
+    } catch (err) {
+      notify.error("Xoá hợp đồng thất bại");
+    }
+  };
+
+  // Sau khi tạo / cập nhật thành công
+  const handleUpsertSuccess = (id: string) => {
+    notify.success(
+      overlayMode === "create"
+        ? "Tạo hợp đồng thành công"
+        : "Cập nhật hợp đồng thành công"
+    );
+    setOverlayOpen(false);
+    setEditingId(undefined);
+  };
+
+  const loadingTable = isLoading || deleteMutation.isPending;
 
   return (
-    // <Card title="Hợp đồng">
-    <>
-      <Flex vertical gap={12}>
-        <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
-          <ContractToolbar
-            value={query}
-            onChange={setQuery}
-            onExport={handleExport}
-          />
-          <Space>
-            {selected.length > 0 && (
-              <Tooltip title={`Xoá ${selected.length} HĐ đã chọn`}>
-                <Button
-                  size="small"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={batchDelete}
-                >
-                  Xoá đã chọn {selected.length}
-                </Button>
-              </Tooltip>
-            )}
-            <Button
-              size="small"
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setCreateOpen(true)}
-            >
-              Thêm mới
-            </Button>
-          </Space>
-        </Flex>
-
-        <ContractTablePro
-          query={query}
-          onEdit={(id) => setEditId(id)}
-          onSelectRows={setSelected}
+    <Flex vertical gap={16} style={{ height: "100%", padding: 16 }}>
+      <Space direction="vertical" size="large" style={{ width: "100%" }}>
+        {/* Filters */}
+        <ContractFilters
+          value={query}
+          onChange={handleFilterChange}
+          // nếu cần thêm props khác (options, enum list, ...) bạn bổ sung sau
         />
-      </Flex>
+        <Button
+          size="small"
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={handleCreate}
+        >
+          Thêm mới
+        </Button>
+
+        <ContractTable
+          loading={loadingTable}
+          items={items}
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={handlePageChange}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          // onRowClick={...} // sau này bạn có thể dùng để set selectedId cho Overview
+        />
+      </Space>
 
       <ContractUpsertOverlay
-        mode="create"
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        open={isOverlayOpen}
+        mode={overlayMode}
+        contractId={overlayMode === "edit" ? editingId : undefined}
+        onClose={() => {
+          setOverlayOpen(false);
+          setEditingId(undefined);
+        }}
+        onSuccess={handleUpsertSuccess}
       />
-      {editId && (
-        <ContractUpsertOverlay
-          mode="edit"
-          id={editId}
-          open={!!editId}
-          onClose={() => setEditId(null)}
-        />
-      )}
-    </>
-    // </Card>
+    </Flex>
   );
-}
+};
+
+export default ContractsPage;

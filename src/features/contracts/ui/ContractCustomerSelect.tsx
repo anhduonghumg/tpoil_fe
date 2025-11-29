@@ -1,7 +1,7 @@
 import React from "react";
 import { Select } from "antd";
 import type { SelectProps } from "antd";
-import { CustomersApi } from "../customers-api-bridge"; // cầu nối mỏng, xem file bên dưới
+import { CustomersApi } from "../customers-api-bridge";
 
 interface Props extends Omit<SelectProps<string>, "options"> {
   value?: string;
@@ -25,7 +25,7 @@ export function ContractCustomerSelect(props: Props) {
       setOptions(
         res.items.map((c: any) => ({
           value: c.id,
-          label: `${c.code} - ${c.name}`,
+          label: `${c.name}`,
         }))
       );
     } finally {

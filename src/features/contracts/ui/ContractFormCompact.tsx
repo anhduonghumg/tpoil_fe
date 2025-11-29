@@ -1,8 +1,7 @@
+// features/contracts/ui/ContractCompactForm.tsx
 import React from "react";
 import {
-  Button,
   Col,
-  ConfigProvider,
   DatePicker,
   Divider,
   Form,
@@ -10,226 +9,193 @@ import {
   InputNumber,
   Row,
   Select,
-  Space,
-  Tag,
-  Tooltip,
 } from "antd";
-import { InfoCircleOutlined, ThunderboltOutlined } from "@ant-design/icons";
-import dayjs from "dayjs";
-import type { ContractType, ContractStatus, RiskLevel } from "../types";
-import { useGenerateContractCode } from "../hooks";
-import { ContractCustomerSelect } from "./ContractCustomerSelect";
+import type { FormInstance } from "antd";
+import type { Dayjs } from "dayjs";
+import type { ContractStatus, RiskLevel } from "../types";
+import { CustomerSelect } from "../../../shared/ui/CustomerSelect";
+import ContractTypeSelect from "../../../shared/ui/ContractTypeSelect";
 
-const TYPE_OPTIONS: { label: string; value: ContractType }[] = [
-  { label: "HĐ Khung", value: "FRAME" },
-  { label: "HĐ Mua bán", value: "SALE" },
-  { label: "HĐ Dịch vụ", value: "SERVICE" },
-  { label: "Khác", value: "OTHER" },
-];
+const { TextArea } = Input;
 
-const STATUS_OPTIONS: { label: string; value: ContractStatus }[] = [
-  { label: "Nháp", value: "Draft" },
-  { label: "Hiệu lực", value: "Active" },
-  { label: "Tạm dừng", value: "Suspended" },
-  { label: "Hết hạn", value: "Expired" },
-  { label: "Thanh lý", value: "Terminated" },
-];
+export type ContractFormMode = "create" | "edit";
 
-const RISK_OPTIONS: { label: string; value: RiskLevel }[] = [
-  { label: "Thấp", value: "Low" },
-  { label: "Trung bình", value: "Medium" },
-  { label: "Cao", value: "High" },
-  { label: "Rất cao", value: "Critical" },
-];
+export interface ContractFormValues {
+  customerId?: string | null;
+  contractTypeId: string;
 
-function normalizeCode(v?: string) {
-  return (v || "").trim().toUpperCase();
+  code: string;
+  name: string;
+
+  startDate: Dayjs;
+  endDate: Dayjs;
+
+  status: ContractStatus;
+  paymentTermDays?: number | null;
+  creditLimitOverride?: number | null;
+
+  riskLevel: RiskLevel;
+  sla?: any | null;
+  deliveryScope?: any | null;
+
+  renewalOfId?: string | null;
+  approvalRequestId?: string | null;
 }
 
-export default function ContractFormCompact({ form }: { form: any }) {
-  const genCode = useGenerateContractCode();
+interface ContractCompactFormProps {
+  form: FormInstance<ContractFormValues>;
+  onFinish: (values: ContractFormValues) => void;
+}
 
-  const handleGenerateCode = async () => {
-    const customerId = form.getFieldValue("customerId");
-    if (!customerId) return;
-    const { code } = await genCode.mutateAsync(customerId);
-    form.setFieldsValue({ code });
-  };
-
-  const startDate = Form.useWatch("startDate", form);
-  const endDate = Form.useWatch("endDate", form);
-
-  const days = React.useMemo(() => {
-    if (!startDate || !endDate) return undefined;
-    const s = dayjs(startDate);
-    const e = dayjs(endDate);
-    if (!s.isValid() || !e.isValid()) return undefined;
-    return e.diff(s, "day") + 1;
-  }, [startDate, endDate]);
-
+export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
+  form,
+  onFinish,
+}) => {
   return (
-    <ConfigProvider
-      theme={{
-        token: { fontSize: 13, lineHeight: 1.3, borderRadius: 8 },
-        components: {
-          Form: { itemMarginBottom: 8 },
-          Input: { controlHeight: 32 },
-          Select: { controlHeight: 32, controlHeightLG: 36 },
-          InputNumber: { controlHeight: 32 },
-          Button: { controlHeight: 32 },
-          DatePicker: { controlHeight: 32 },
-          Divider: { marginLG: 12, marginSM: 8 },
-        },
-      }}
+    <Form<ContractFormValues>
+      form={form}
+      layout="vertical"
+      size="small"
+      onFinish={onFinish}
+      className="compact-form"
     >
-      <Form form={form} layout="vertical" className="form-compact">
-        <Divider orientation="left">Thông tin chung</Divider>
-        <Row gutter={[12, 8]}>
-          <Col xs={24} md={12} lg={10}>
-            <Form.Item
-              name="customerId"
-              label="Khách hàng"
-              rules={[{ required: true, message: "Chọn khách hàng" }]}
-            >
-              <ContractCustomerSelect placeholder="Chọn khách hàng" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={12} lg={8}>
-            <Form.Item
-              name="code"
-              label={
-                <Space>
-                  Số hợp đồng
-                  <Tooltip title="Nếu để trống, hệ thống sẽ sinh tự động theo khách hàng.">
-                    <InfoCircleOutlined />
-                  </Tooltip>
-                </Space>
-              }
-            >
-              <Input
-                placeholder="VD: HDMB-2025-001"
-                onBlur={(e) =>
-                  form.setFieldsValue({ code: normalizeCode(e.target.value) })
-                }
-                suffix={
-                  <Button
-                    size="small"
-                    icon={<ThunderboltOutlined />}
-                    onClick={handleGenerateCode}
-                  >
-                    Tạo mã
-                  </Button>
-                }
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={12} lg={6}>
-            <Form.Item
-              name="type"
-              label="Loại hợp đồng"
-              rules={[{ required: true, message: "Chọn loại" }]}
-            >
-              <Select options={TYPE_OPTIONS} placeholder="Loại" />
-            </Form.Item>
-          </Col>
-        </Row>
+      <Divider orientation="center" orientationMargin="0" plain>
+        Thông tin hợp đồng
+      </Divider>
 
-        {/* Thời hạn & trạng thái */}
-        <Divider orientation="left">Thời hạn & Trạng thái</Divider>
-        <Row gutter={[12, 8]}>
-          <Col xs={24} md={8}>
-            <Form.Item
-              name="startDate"
-              label="Ngày hiệu lực"
-              rules={[{ required: true, message: "Chọn ngày" }]}
-            >
-              <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={8}>
-            <Form.Item
-              name="endDate"
-              label="Ngày hết hiệu lực"
-              rules={[{ required: true, message: "Chọn ngày" }]}
-            >
-              <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={8}>
-            <Form.Item label="Thời lượng">
-              <Tag>{days ? `${days} ngày` : "—"}</Tag>
-            </Form.Item>
-          </Col>
-        </Row>
+      <Row gutter={16}>
+        <Col xs={24} md={8}>
+          <Form.Item
+            label="Mã hợp đồng"
+            name="code"
+            rules={[{ required: true, message: "Vui lòng nhập mã hợp đồng" }]}
+          >
+            <Input  size="small" placeholder="VD: HD2025-0001" />
+          </Form.Item>
+        </Col>
 
-        <Row gutter={[12, 8]}>
-          <Col xs={24} md={8}>
-            <Form.Item name="status" label="Trạng thái">
-              <Select options={STATUS_OPTIONS} placeholder="Trạng thái" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={8}>
-            <Form.Item
-              name="paymentTermDays"
-              label={
-                <Space>
-                  Điều khoản thanh toán (ngày)
-                  <Tooltip title="Số ngày từ ngày xuất HĐ đến hạn thanh toán.">
-                    <InfoCircleOutlined />
-                  </Tooltip>
-                </Space>
-              }
-            >
-              <InputNumber
-                style={{ width: "100%" }}
-                min={0}
-                placeholder="VD: 15 / 30 / 45"
-              />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={8}>
-            <Form.Item
-              name="creditLimitOverride"
-              label={
-                <Space>
-                  Hạn mức theo HĐ (VND)
-                  <Tooltip title="Nếu để trống, dùng hạn mức mặc định của khách hàng.">
-                    <InfoCircleOutlined />
-                  </Tooltip>
-                </Space>
-              }
-            >
-              <InputNumber
-                style={{ width: "100%" }}
-                min={0}
-                step={1000000}
-                placeholder="VD: 1.000.000.000"
-              />
-            </Form.Item>
-          </Col>
-        </Row>
+        <Col xs={24} md={8}>
+          <Form.Item
+            label="Loại hợp đồng"
+            name="contractTypeId"
+            rules={[{ required: true, message: "Vui lòng chọn loại hợp đồng" }]}
+          >
+            <ContractTypeSelect placeholder="Chọn loại hợp đồng" />
+          </Form.Item>
+        </Col>
 
-        {/* Rủi ro */}
-        <Divider orientation="left">Rủi ro & Phạm vi</Divider>
-        <Row gutter={[12, 8]}>
-          <Col xs={24} md={8}>
-            <Form.Item name="riskLevel" label="Mức rủi ro">
-              <Select options={RISK_OPTIONS} placeholder="Chọn mức" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} md={16}>
-            <Form.Item
-              name={["sla", "note"]}
-              label="Ghi chú SLA / phạm vi giao hàng"
-            >
-              <Input.TextArea
-                autoSize={{ minRows: 2, maxRows: 4 }}
-                placeholder="Mô tả tóm tắt SLA, phạm vi giao hàng, điều khoản đặc biệt..."
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-      </Form>
-    </ConfigProvider>
+        <Col xs={24} md={8}>
+          <Form.Item
+            label="Trạng thái"
+            name="status"
+            rules={[{ required: true, message: "Vui lòng chọn trạng thái" }]}
+          >
+            <Select  size="small" placeholder="Chọn trạng thái">
+              <Select.Option value="Draft">Nháp</Select.Option>
+              <Select.Option value="Pending">Đang chờ</Select.Option>
+              <Select.Option value="Active">Hiệu lực</Select.Option>
+              <Select.Option value="Terminated">Kết thúc</Select.Option>
+              <Select.Option value="Cancelled">Hủy</Select.Option>
+            </Select>
+          </Form.Item>
+        </Col>
+      </Row>
+
+      <Row gutter={16}>
+        <Col xs={24} md={8}>
+          <Form.Item label="Khách hàng" name="customerId">
+            <CustomerSelect placeholder="Chọn khách hàng" />
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} md={16}>
+          <Form.Item
+            label="Tên hợp đồng"
+            name="name"
+            rules={[{ required: true, message: "Vui lòng nhập tên hợp đồng" }]}
+          >
+            <Input  size="small" placeholder="Tên hiển thị trên hợp đồng" />
+          </Form.Item>
+        </Col>
+      </Row>
+
+      <Divider orientation="center" orientationMargin="0" plain>
+        Hiệu lực & thanh toán
+      </Divider>
+
+      <Row gutter={16}>
+        <Col xs={24} md={6}>
+          <Form.Item
+            label="Ngày bắt đầu"
+            name="startDate"
+            rules={[{ required: true, message: "Chọn ngày bắt đầu" }]}
+          >
+            <DatePicker  size="small" style={{ width: "100%" }} format="DD/MM/YYYY" />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={6}>
+          <Form.Item
+            label="Ngày kết thúc"
+            name="endDate"
+            rules={[{ required: true, message: "Chọn ngày kết thúc" }]}
+          >
+            <DatePicker  size="small" style={{ width: "100%" }} format="DD/MM/YYYY" />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={6}>
+          <Form.Item label="Điều khoản (ngày)" name="paymentTermDays">
+            <InputNumber  size="small" min={0} style={{ width: "100%" }} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={6}>
+          <Form.Item label="Hạn mức override" name="creditLimitOverride">
+            <InputNumber  size="small" min={0} style={{ width: "100%" }} />
+          </Form.Item>
+        </Col>
+      </Row>
+
+      <Divider orientation="center" orientationMargin="0" plain>
+        Rủi ro & phạm vi giao dịch
+      </Divider>
+
+      <Row gutter={16}>
+        <Col xs={24} md={6}>
+          <Form.Item
+            label="Mức độ rủi ro"
+            name="riskLevel"
+            rules={[{ required: true, message: "Chọn mức độ rủi ro" }]}
+          >
+            <Select size="small" placeholder="Chọn rủi ro">
+              <Select.Option value="Low">Thấp</Select.Option>
+              <Select.Option value="Medium">Trung bình</Select.Option>
+              <Select.Option value="High">Cao</Select.Option>
+            </Select>
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={9}>
+          <Form.Item label="Gia hạn từ HĐ" name="renewalOfId">
+            <Select size="small" allowClear showSearch placeholder="Chọn HĐ gốc (nếu có)" />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={9}>
+          <Form.Item label="Yêu cầu phê duyệt" name="approvalRequestId">
+            <Input size="small" placeholder="Mã req phê duyệt (nếu có)" />
+          </Form.Item>
+        </Col>
+      </Row>
+
+      <Row gutter={16}>
+        <Col xs={24} md={12}>
+          <Form.Item label="SLA" name="sla">
+            <TextArea rows={3} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item label="Phạm vi giao dịch" name="deliveryScope">
+            <TextArea rows={3} />
+          </Form.Item>
+        </Col>
+      </Row>
+    </Form>
   );
-}
+};

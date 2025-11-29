@@ -57,7 +57,6 @@ export function collectFormsValues(tabForms: TabFormRef[]) {
       result[tabForm.key] = {};
     }
   }
-
   return result;
 }
 

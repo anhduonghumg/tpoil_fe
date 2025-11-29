@@ -17,10 +17,13 @@ import {
   ThunderboltOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
+import type { FormInstance } from "antd";
 import type { CustomerRole, CustomerType } from "../types";
-import { useGenerateCustomerCode } from "../hooks";
 import { notify } from "../../../shared/lib/notification";
 import { normalizeCode } from "../../../shared/lib/helper";
+import { useGenerateCustomerCode } from "../hooks";
+import EmployeeSelect from "../../../shared/ui/EmployeeSelect";
+import TextArea from "antd/es/input/TextArea";
 
 const ROLE_OPTIONS: { label: string; value: CustomerRole }[] = [
   { label: "Đại lý", value: "Agent" },
@@ -52,13 +55,22 @@ async function vietqrFetchByTax(taxCode: string) {
   }>;
 }
 
-export default function CustomerCompactForm({ form }: { form: any }) {
+interface CustomerCompactFormProps {
+  form: FormInstance;
+  onFinish?: (values: any) => void;
+}
+
+export default function CustomerCompactForm({
+  form,
+  onFinish,
+}: CustomerCompactFormProps) {
   const gen = useGenerateCustomerCode();
 
   const handleGenerateCode = async () => {
     try {
-      const code = await gen.mutateAsync();
-      form.setFieldsValue({ code: code?.data.code });
+      const code: any = await gen.mutateAsync();
+      // console.log("code:", code);
+      form.setFieldsValue({ code: code?.code });
       notify.success("Đã tạo mã tự động");
     } catch (e: any) {
       notify.error(e?.message || "Lỗi tạo mã");
@@ -75,7 +87,8 @@ export default function CustomerCompactForm({ form }: { form: any }) {
         const address = json?.data?.address;
         if (name) form.setFieldsValue({ name });
         if (address) form.setFieldsValue({ billingAddress: address });
-        form.setFieldsValue({ taxVerified: true, taxSource: "VietQR" });
+
+        form.setFieldsValue({ taxVerified: true, taxSource: "Other" });
         notify.success("Đã đọc thông tin từ MST (VietQR)");
       } else {
         notify.warning(json?.desc || "Không lấy được thông tin từ MST");
@@ -104,6 +117,7 @@ export default function CustomerCompactForm({ form }: { form: any }) {
         layout="vertical"
         className="form-compact"
         initialValues={{ roles: ["Retail"], type: "B2B" }}
+        onFinish={onFinish}
       >
         <Divider style={{ borderColor: "#ddedbb" }} orientation="center">
           Thông tin định danh
@@ -201,7 +215,7 @@ export default function CustomerCompactForm({ form }: { form: any }) {
               label="Email"
               rules={[{ type: "email", message: "Email không hợp lệ" }]}
             >
-              <Input placeholder="name@company.com" />
+              <Input size="small" placeholder="name@company.com" />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
@@ -215,12 +229,13 @@ export default function CustomerCompactForm({ form }: { form: any }) {
                 },
               ]}
             >
-              <Input placeholder="0967699999" />
+              <Input size="small" placeholder="0967699999" />
             </Form.Item>
           </Col>
           <Col xs={24} md={8}>
             <Form.Item name="roles" label="Vai trò">
               <Select
+                size="small"
                 mode="multiple"
                 options={ROLE_OPTIONS}
                 allowClear
@@ -237,6 +252,7 @@ export default function CustomerCompactForm({ form }: { form: any }) {
           <Col xs={24} md={8}>
             <Form.Item name="type" label="Loại hình">
               <Select
+                size="small"
                 options={TYPE_OPTIONS}
                 placeholder="B2B / B2C / Distributor"
               />
@@ -245,6 +261,7 @@ export default function CustomerCompactForm({ form }: { form: any }) {
           <Col xs={24} md={8}>
             <Form.Item name="creditLimit" label="Hạn mức (VND)">
               <InputNumber
+                size="small"
                 style={{ width: "100%" }}
                 min={0}
                 step={100000}
@@ -265,6 +282,7 @@ export default function CustomerCompactForm({ form }: { form: any }) {
               }
             >
               <InputNumber
+                size="small"
                 style={{ width: "100%" }}
                 min={0}
                 placeholder="VD: 15 / 30 / 45"
@@ -280,6 +298,36 @@ export default function CustomerCompactForm({ form }: { form: any }) {
             </Form.Item>
             <Form.Item name="taxSource" hidden>
               <input />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Divider style={{ borderColor: "#ddedbb" }} orientation="center">
+          Phụ trách & Quản lý
+        </Divider>
+        <Row gutter={12}>
+          <Col span={8}>
+            <Form.Item label="Kinh doanh" name="salesOwnerEmpId">
+              <EmployeeSelect placeholder="Chọn nhân viên kinh doanh" />
+            </Form.Item>
+          </Col>
+
+          <Col span={8}>
+            <Form.Item label="Kế toán" name="accountingOwnerEmpId">
+              <EmployeeSelect placeholder="Chọn nhân viên kế toán" />
+            </Form.Item>
+          </Col>
+
+          <Col span={8}>
+            <Form.Item label="Pháp chế" name="legalOwnerEmpId">
+              <EmployeeSelect placeholder="Chọn nhân viên pháp lý" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={12}>
+          <Col span={24}>
+            <Form.Item label="Ghi chú" name="note">
+              <TextArea rows={3} autoSize={{ minRows: 3, maxRows: 5 }} />
             </Form.Item>
           </Col>
         </Row>

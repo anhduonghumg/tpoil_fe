@@ -40,6 +40,7 @@ export const CommonModal: React.FC<CommonModalProps> = ({
 
   return (
     <Modal
+      className="small-scrollbar-modal"
       title={title}
       open={open}
       onCancel={onCancel}
@@ -55,6 +56,7 @@ export const CommonModal: React.FC<CommonModalProps> = ({
       footer={footer}
       styles={{
         header: { fontWeight: 600 },
+        body: { maxHeight: "70vh", overflowY: "auto", overflowX: "hidden" },
       }}
     >
       {children}

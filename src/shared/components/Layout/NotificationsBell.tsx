@@ -1,26 +1,57 @@
 // layout/NotificationsBell.tsx
 import { useMemo, useState } from "react";
-import { Badge, Dropdown, Modal, Space, Table, Typography } from "antd";
-import { BellOutlined, GiftOutlined } from "@ant-design/icons";
+import {
+  Badge,
+  Dropdown,
+  Modal,
+  Space,
+  Table,
+  Typography,
+  type MenuProps,
+} from "antd";
+import {
+  BellOutlined,
+  GiftOutlined,
+  FileTextOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useBirthday } from "../../../features/users/hooks";
+import { useNavigate } from "react-router-dom";
+import { useAppBootstrap } from "../../../features/app/hooks";
 
 export default function NotificationsBell({
   extraCount = 0,
 }: {
   extraCount?: number;
 }) {
+  const navigate = useNavigate();
   const [openModal, setOpenModal] = useState(false);
 
-  const month = new Date().getMonth() + 1;
-  const { data } = useBirthday(month);
+  // === Lấy dữ liệu notifications từ /app/bootstrap ===
+  const { data, isLoading } = useAppBootstrap();
 
-  const bdayCount = data?.count ?? 0;
+  const birthdays = data?.notifications?.birthdays;
+  const contracts = data?.notifications?.contracts;
+
+  // console.log("NotificationsBell data", { birthdays, contracts });
+
+  // --- Sinh nhật ---
+  const bdayCount = birthdays?.count ?? 0;
   const hasBirthday = bdayCount > 0;
-  const badgeCount = extraCount + (hasBirthday ? 1 : 0);
+  const month = birthdays?.month ?? new Date().getMonth() + 1;
 
-  const dropdownItems = useMemo(() => {
-    const items: any[] = [];
+  // --- Hợp đồng ---
+  const expiringCount = contracts?.expiringCount ?? 0;
+  const expiredCount = contracts?.expiredCount ?? 0;
+  const hasContracts = expiringCount + expiredCount > 0;
+
+  // Tổng badge: mỗi loại thông báo +1, cộng thêm extraCount nếu bạn muốn
+  const badgeCount =
+    extraCount + (hasBirthday ? 1 : 0) + (hasContracts ? 1 : 0);
+
+  // Menu dropdown
+  const dropdownItems: MenuProps["items"] = useMemo(() => {
+    const items: MenuProps["items"] = [];
+
     if (hasBirthday) {
       items.push({
         key: "birthday",
@@ -29,20 +60,49 @@ export default function NotificationsBell({
         onClick: () => setOpenModal(true),
       });
     }
-    if (!items.length) {
-      items.push({ key: "empty", disabled: true, label: "Không có thông báo" });
-    }
-    return items;
-  }, [hasBirthday, bdayCount]);
 
+    if (hasContracts) {
+      items.push({
+        key: "contracts-expiry",
+        icon: <FileTextOutlined style={{ color: "#1890ff" }} />,
+        label: `Có ${expiringCount} hợp đồng sắp hết hạn, ${expiredCount} hợp đồng đã quá hạn`,
+        onClick: () => {
+          navigate("/reports/contracts-expiry");
+        },
+      });
+    }
+
+    if (!items.length) {
+      items.push({
+        key: "empty",
+        disabled: true,
+        label: "Không có thông báo",
+      });
+    }
+
+    return items;
+  }, [
+    hasBirthday,
+    hasContracts,
+    bdayCount,
+    expiringCount,
+    expiredCount,
+    navigate,
+  ]);
+
+  // Dữ liệu bảng sinh nhật lấy từ bootstrap.notifications.birthdays.items
   const today = dayjs().date();
-  const rows = (data?.items ?? []).map((u) => ({
-    ...u,
-    day: dayjs(u.dob).date(),
-    month: dayjs(u.dob).month() + 1,
-    isToday: dayjs(u.dob).date() === today,
-    dobFmt: dayjs(u.dob).format("DD/MM/YYYY"),
-  }));
+  const rows =
+    birthdays?.items?.map((u) => {
+      const dob = dayjs(u.dob);
+      return {
+        ...u,
+        day: dob.date(),
+        month: dob.month() + 1,
+        isToday: dob.date() === today,
+        dobFmt: dob.format("DD/MM/YYYY"),
+      };
+    }) ?? [];
 
   const columns = [
     {
@@ -88,6 +148,7 @@ export default function NotificationsBell({
         onCancel={() => setOpenModal(false)}
         footer={null}
         width={560}
+        confirmLoading={isLoading}
       >
         <Table
           rowKey="id"
@@ -96,7 +157,6 @@ export default function NotificationsBell({
           dataSource={rows}
           pagination={{ pageSize: 8, hideOnSinglePage: true }}
           locale={{ emptyText: "Tháng này chưa có sinh nhật." }}
-          //   scroll={{ y: 360 }}
         />
       </Modal>
     </>

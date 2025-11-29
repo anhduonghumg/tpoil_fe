@@ -5,6 +5,9 @@ export const ROUTES = {
   // app: {
   //   bootstrap: ["GET", "/app/bootstrap"],
   // },
+  app: {
+    bootstrap: ["GET", "/app/bootstrap"] as RouteTuple,
+  },
   auth: {
     login: ["POST", "/auth/login"] as const,
     logout: ["POST", "/auth/logout"] as const,
@@ -43,25 +46,49 @@ export const ROUTES = {
     delete: ["DELETE", "/employees/:id"] as RouteTuple,
     bulkDelete: ["POST", "/employees/bulk-delete"] as RouteTuple,
     birthdays: ["GET", "/employees/birthdays"] as RouteTuple,
+    select: ["GET", "/employees/select"] as RouteTuple,
   },
   customer: {
     list: ["GET", "/customers"] as RouteTuple,
     detail: ["GET", "/customers/:id"] as RouteTuple,
+    overview: ["GET", "/customers/:id/overview"] as RouteTuple,
     create: ["POST", "/customers"] as RouteTuple,
     update: ["PATCH", "/customers/:id"] as RouteTuple,
     delete: ["DELETE", "/customers/:id"] as RouteTuple,
-    deleteMultiple: ["POST", "/customers/delete-multiple"] as RouteTuple,
-    generateCode: ["POST", "/customers/generate-code"] as RouteTuple,
-    generateCodeForId: ["POST", "/customers/:id/generate-code"] as RouteTuple,
+    generateCode: ["GET", "/customers/generate-code"] as RouteTuple,
+    contracts: ["GET", "/customers/:id/contracts"],
+    assignContracts: ["POST", "/customers/:id/assign-contracts"],
+    unassignContract: ["DELETE", "/customers/:id/contracts/:contractId"],
+    select: ["GET", "/customers/select"] as RouteTuple,
   },
-  contract: {
+  contracts: {
     list: ["GET", "/contracts"] as RouteTuple,
     detail: ["GET", "/contracts/:id"] as RouteTuple,
     create: ["POST", "/contracts"] as RouteTuple,
     update: ["PATCH", "/contracts/:id"] as RouteTuple,
     delete: ["DELETE", "/contracts/:id"] as RouteTuple,
-    deleteMultiple: ["POST", "/contracts/delete-multiple"] as RouteTuple,
-    generateCode: ["POST", "/contracts/generate-code"] as RouteTuple,
+  },
+
+  contractAttachments: {
+    byContract: [
+      "GET",
+      "/contract-attachments/contract/:contractId",
+    ] as RouteTuple,
+    create: ["POST", "/contract-attachments"] as RouteTuple,
+    update: ["PATCH", "/contract-attachments/:id"] as RouteTuple,
+    delete: ["DELETE", "/contract-attachments/:id"] as RouteTuple,
+  },
+  contractTypes: {
+    list: ["GET", "/contract-types"] as RouteTuple,
+    detail: ["GET", "/contract-types/:id"] as RouteTuple,
+    create: ["POST", "/contract-types"] as RouteTuple,
+    update: ["PATCH", "/contract-types/:id"] as RouteTuple,
+    delete: ["DELETE", "/contract-types/:id"] as RouteTuple,
+    deleteMultiple: ["POST", "/contract-types/delete-multiple"] as RouteTuple,
+  },
+  lookups: {
+    // getContractTypes: ["GET", "/contract-types"] as RouteTuple,
+    contractTypes: ["GET", "/lookups/contract-types"] as RouteTuple,
   },
 };
 

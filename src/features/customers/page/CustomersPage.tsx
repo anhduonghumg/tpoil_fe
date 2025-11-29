@@ -1,123 +1,255 @@
-import React from "react";
-import { Button, Card, Flex, Space, Tooltip } from "antd";
-import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { CustomerToolbar } from "../ui/CustomerToolbar";
-import { CustomerTablePro } from "../ui/CustomerTablePro";
-import CustomerUpsertOverlay from "../ui/CustomerUpsertOverlay";
-import type { CustListQuery } from "../types";
-import { CustomersApi } from "../api";
-import { confirmDialog } from "../../../shared/lib/confirm";
+// features/customers/page/CustomerPage.tsx
+import React, { useState } from "react";
+import { Drawer, Grid } from "antd";
+import { CustomerFilters } from "../ui/CustomerFilters";
+import { CustomerTable } from "../ui/CustomerTable";
+import { CustomerOverviewPanel } from "../ui/CustomerOverviewPanel";
+import { CustomerUpsertOverlay } from "../ui/CustomerUpsertOverlay";
+import {
+  useCustomerList,
+  useCustomerOverview,
+  useDeleteCustomer,
+} from "../hooks";
+import type { CustomerListQuery } from "../types";
 import { notify } from "../../../shared/lib/notification";
-import { useDeleteCustomer } from "../hooks";
+import CustomerOverviewSidebar from "../ui/CustomerOverviewSidebar";
 
-export default function CustomersPage() {
-  const [query, setQuery] = React.useState<CustListQuery>({
+const { useBreakpoint } = Grid;
+const SIDEBAR_WIDTH = 380;
+
+export const CustomerPage: React.FC = () => {
+  const [filters, setFilters] = useState<CustomerListQuery>({
+    keyword: "",
+    type: undefined,
+    status: undefined,
     page: 1,
     pageSize: 20,
   });
-  (window as any).setCustQuery = setQuery;
 
-  const [createOpen, setCreateOpen] = React.useState(false);
-  const [editId, setEditId] = React.useState<string | null>(null);
-  const [selected, setSelected] = React.useState<string[]>([]);
-  const del = useDeleteCustomer();
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    null
+  );
 
-  const handleExport = async () => {
-    const blob = new Blob([JSON.stringify({ query }, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "customers-export.json";
-    a.click();
-    URL.revokeObjectURL(url);
+  const [upsertMode, setUpsertMode] = useState<"create" | "edit">("create");
+  const [upsertCustomerId, setUpsertCustomerId] = useState<string | null>(null);
+  const [upsertOpen, setUpsertOpen] = useState(false);
+
+  const screens = useBreakpoint();
+  const isMobile = !screens.lg;
+
+  const { data: listData, isLoading: listLoading } = useCustomerList(filters);
+  const { data: overviewData, isLoading: overviewLoading } =
+    useCustomerOverview(selectedCustomerId || undefined);
+  const deleteMutation = useDeleteCustomer();
+
+  const handlePageChange = (page: number, pageSize: number) => {
+    setFilters((prev) => ({ ...prev, page, pageSize }));
   };
 
-  const handleDelete = async (id: string) => {
-    confirmDialog.confirm(
-      "Xóa khách hàng?",
-      "Khách hàng sẽ bị xóa khỏi danh sách. Tiếp tục?",
-      async () => {
-        try {
-          const result = await del.mutateAsync(id);
-          if (result.success) {
-            notify.success("Đã xóa");
-          } else {
-            notify.error("Lỗi xóa khách hàng");
-          }
-        } catch (e: any) {
-          notify.error(e?.message || "Lỗi xóa khách hàng");
-        }
-      }
+  const handleFilterChange = (next: {
+    keyword?: string;
+    type?: CustomerListQuery["type"];
+    status?: CustomerListQuery["status"];
+  }) => {
+    setFilters((prev) => ({
+      ...prev,
+      ...next,
+      page: 1,
+    }));
+  };
+
+  const handleSelectCustomer = (id: string) => {
+    setSelectedCustomerId(id);
+  };
+
+  const openCreate = () => {
+    setUpsertMode("create");
+    setUpsertCustomerId(null);
+    setUpsertOpen(true);
+  };
+
+  const openEdit = (id: string) => {
+    setUpsertMode("edit");
+    setUpsertCustomerId(id);
+    setUpsertOpen(true);
+  };
+
+  const closeUpsert = () => {
+    setUpsertOpen(false);
+    setUpsertCustomerId(null);
+  };
+
+  const handleUpsertSuccess = () => {
+    notify.success(
+      upsertMode === "create"
+        ? "Tạo khách hàng thành công"
+        : "Cập nhật khách hàng thành công"
     );
+    setUpsertOpen(false);
   };
 
-  const batchDelete = async () => {
-    if (!selected.length) return;
-    await CustomersApi.deleteMultiple(selected);
-    setSelected([]);
-    setQuery({ ...query });
+  const handleDelete = (id: string) => {
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        notify.success("Xóa khách hàng thành công");
+        if (selectedCustomerId === id) {
+          setSelectedCustomerId(null);
+        }
+      },
+    });
   };
 
-  return (
-    // <Card title="Khách hàng">
-    <>
-      <Flex vertical gap={12}>
-        <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
-          <CustomerToolbar
-            value={query}
-            onChange={setQuery}
-            onExport={handleExport}
+  // layout desktop: card lớn bên trái + sidebar phải cố định
+  if (!isMobile) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          height: "100%",
+          padding: 12,
+          background: "#f5f5f5",
+          boxSizing: "border-box",
+        }}
+      >
+        {/* LEFT: card list */}
+        <div
+          style={{
+            flex: 1,
+            marginRight: 12,
+            background: "#fff",
+            borderRadius: 12,
+            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)",
+            display: "flex",
+            flexDirection: "column",
+            minWidth: 0,
+          }}
+        >
+          <CustomerFilters
+            value={{
+              keyword: filters.keyword,
+              type: filters.type,
+              status: filters.status,
+            }}
+            onChange={handleFilterChange}
+            onCreate={openCreate}
+            loading={listLoading}
           />
 
-          <Space>
-            {selected.length > 0 && (
-              <Tooltip title={`Xoá ${selected.length} dòng đã chọn`}>
-                <Button
-                  size="small"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={batchDelete}
-                >
-                  Xoá đã chọn
-                </Button>
-              </Tooltip>
-            )}
-            <Button
-              size="small"
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setCreateOpen(true)}
-            >
-              Thêm mới
-            </Button>
-          </Space>
-        </Flex>
+          <div style={{ flex: 1, padding: "4px 8px 8px" }}>
+            <CustomerTable
+              data={listData?.items ?? []}
+              loading={listLoading}
+              total={listData?.total ?? 0}
+              page={filters.page ?? 1}
+              pageSize={filters.pageSize ?? 20}
+              selectedCustomerId={selectedCustomerId ?? undefined}
+              onPageChange={handlePageChange}
+              onSelect={handleSelectCustomer}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+            />
+          </div>
+        </div>
 
-        {/* Bảng danh sách */}
-        <CustomerTablePro
-          query={query}
-          onEdit={(id) => setEditId(id)}
-          onDelete={(id) => handleDelete(id)}
-          onSelectRows={setSelected}
+        {/* VERTICAL DIVIDER */}
+        <div
+          style={{
+            width: 1,
+            background: "#e5e7eb",
+            margin: "4px 4px",
+          }}
         />
-      </Flex>
 
-      <CustomerUpsertOverlay
-        mode="create"
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        {/* RIGHT: fixed sidebar overview */}
+        <div
+          style={{
+            width: SIDEBAR_WIDTH,
+            flex: `0 0 ${SIDEBAR_WIDTH}px`,
+            background: "#fff",
+            borderRadius: 12,
+            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)",
+            padding: 12,
+            boxSizing: "border-box",
+            overflowY: "auto",
+          }}
+        >
+          {/* <CustomerOverviewPanel
+            data={overviewData}
+            loading={overviewLoading}
+            customerId={selectedCustomerId}
+          /> */}
+          <CustomerOverviewSidebar customerId={selectedCustomerId} />
+        </div>
+
+        {upsertOpen && (
+          <CustomerUpsertOverlay
+            mode={upsertMode}
+            open={upsertOpen}
+            customerId={
+              upsertMode === "edit" ? upsertCustomerId || undefined : undefined
+            }
+            onClose={closeUpsert}
+            onSuccess={handleUpsertSuccess}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // layout mobile (giữ Drawer như cũ, nhưng filter/header cũng đã compact lại)
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <CustomerFilters
+        value={{
+          keyword: filters.keyword,
+          type: filters.type,
+          status: filters.status,
+        }}
+        onChange={handleFilterChange}
+        onCreate={openCreate}
+        loading={listLoading}
       />
-      {editId && (
+
+      <div style={{ flex: 1 }}>
+        <CustomerTable
+          data={listData?.items ?? []}
+          loading={listLoading}
+          total={listData?.total ?? 0}
+          page={filters.page ?? 1}
+          pageSize={filters.pageSize ?? 20}
+          selectedCustomerId={selectedCustomerId ?? undefined}
+          onPageChange={handlePageChange}
+          onSelect={handleSelectCustomer}
+          onEdit={openEdit}
+          onDelete={handleDelete}
+        />
+      </div>
+
+      <Drawer
+        placement="right"
+        open={!!selectedCustomerId}
+        width="100%"
+        onClose={() => setSelectedCustomerId(null)}
+        title="Chi tiết khách hàng"
+      >
+        <CustomerOverviewPanel
+          data={overviewData}
+          loading={overviewLoading}
+          customerId={selectedCustomerId}
+        />
+      </Drawer>
+
+      {upsertOpen && (
         <CustomerUpsertOverlay
-          mode="edit"
-          id={editId}
-          open={!!editId}
-          onClose={() => setEditId(null)}
+          mode={upsertMode}
+          open={upsertOpen}
+          customerId={
+            upsertMode === "edit" ? upsertCustomerId || undefined : undefined
+          }
+          onClose={closeUpsert}
+          onSuccess={handleUpsertSuccess}
         />
       )}
-      {/* </Card> */}
-    </>
+    </div>
   );
-}
+};

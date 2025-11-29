@@ -1,18 +1,6 @@
 import React, { useMemo, useState, useCallback } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import {
-  Layout,
-  Menu,
-  Dropdown,
-  Avatar,
-  Typography,
-  Breadcrumb,
-  Drawer,
-  Grid,
-  Badge,
-  Tooltip,
-  Input,
-} from "antd";
+import { Layout, Menu, Dropdown, Avatar, Breadcrumb, Drawer, Grid } from "antd";
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -21,10 +9,10 @@ import {
   DatabaseOutlined,
   UserOutlined,
   LogoutOutlined,
-  BellOutlined,
-  MailOutlined,
-  SearchOutlined,
-  UngroupOutlined,
+  TeamOutlined,
+  SolutionOutlined,
+  ApartmentOutlined,
+  UnorderedListOutlined,
 } from "@ant-design/icons";
 import "./AppLayout.css";
 import { useLogout, useMe } from "../../../features/auth/hooks";
@@ -54,16 +42,21 @@ const NAV: NavItem[] = [
   { key: "/orders", label: "Đơn hàng", icon: <ShoppingCartOutlined /> },
   { key: "/inventory", label: "Kho hàng", icon: <DatabaseOutlined /> },
   { key: "/users", label: "Nhân viên", icon: <UserOutlined /> },
-  { key: "/department", label: "Phòng ban", icon: <UngroupOutlined /> },
+  { key: "/department", label: "Phòng ban", icon: <ApartmentOutlined /> },
   {
     key: "/customers",
     label: "Khách hàng",
-    icon: <UserOutlined />,
+    icon: <TeamOutlined />,
   },
   {
     key: "/contracts",
     label: "Hợp đồng",
-    icon: <ShoppingCartOutlined />,
+    icon: <SolutionOutlined />,
+  },
+  {
+    key: "/contractTypes",
+    label: "Loại hợp đồng",
+    icon: <UnorderedListOutlined />,
   },
 ];
 const FLAT_KEYS = NAV.flatMap((i) =>

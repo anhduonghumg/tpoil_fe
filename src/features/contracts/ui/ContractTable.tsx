@@ -1,0 +1,307 @@
+// features/contracts/ui/ContractTable.tsx
+import React from "react";
+import { Table, Tag, Space, Tooltip, Popconfirm } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { FileOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
+import type { ContractListItem } from "../types";
+import ActionButtons from "../../../shared/ui/ActionButtons";
+
+interface ContractTableProps {
+  loading: boolean;
+  items: ContractListItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number, pageSize?: number) => void;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+  onRowClick?: (id: string) => void;
+  onViewAttachments?: (id: string) => void;
+}
+
+export const ContractTable: React.FC<ContractTableProps> = ({
+  loading,
+  items,
+  page,
+  pageSize,
+  total,
+  onPageChange,
+  onEdit,
+  onDelete,
+  onRowClick,
+  onViewAttachments,
+}) => {
+  const columns: ColumnsType<ContractListItem> = [
+    {
+      title: "Mã HĐ",
+      dataIndex: "code",
+      key: "code",
+      width: 140,
+      ellipsis: true,
+      render: (value, record) => (
+        <Tooltip title={value}>
+          <span
+            style={{ cursor: onRowClick ? "pointer" : "default" }}
+            onClick={() => onRowClick?.(record.id)}
+          >
+            {value}
+          </span>
+        </Tooltip>
+      ),
+    },
+    {
+      title: "Tên hợp đồng",
+      dataIndex: "name",
+      key: "name",
+      width: 220,
+      ellipsis: true,
+      render: (value: string) => (
+        <Tooltip title={value}>
+          <span>{value}</span>
+        </Tooltip>
+      ),
+    },
+    {
+      // 🔹 Hiển thị mã KH, hover thấy tên
+      title: "Khách hàng",
+      key: "customer",
+      width: 150,
+      ellipsis: true,
+      render: (_, record) => {
+        const code =
+          record.customerCode ||
+          (record.customerId ? `#${record.customerId}` : "—");
+        const name = record.customerName || code;
+        return (
+          <Tooltip title={name}>
+            <span>{code}</span>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: "Loại HĐ",
+      key: "contractType",
+      width: 180,
+      ellipsis: true,
+      render: (_, record) => {
+        const label =
+          record.contractTypeName ||
+          record.contractTypeCode ||
+          record.contractTypeId;
+        return (
+          <Tooltip title={label}>
+            <span>{label}</span>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: "Hiệu lực",
+      key: "duration",
+      width: 180,
+      render: (_, record) => {
+        const from = dayjs(record.startDate).format("DD/MM/YYYY");
+        const to = dayjs(record.endDate).format("DD/MM/YYYY");
+        return (
+          <span>
+            {from} – {to}
+          </span>
+        );
+      },
+    },
+    {
+      title: "Còn lại (ngày)",
+      key: "remainingDays",
+      width: 100,
+      render: (_, record) => {
+        const today = dayjs().startOf("day");
+        const start = dayjs(record.startDate).startOf("day");
+        const end = dayjs(record.endDate).startOf("day");
+
+        if (today.isBefore(start)) {
+          const diff = start.diff(today, "day");
+          return <Tag>Chưa hiệu lực ({diff})</Tag>;
+        }
+
+        const diff = end.diff(today, "day");
+        if (diff < 0) return <Tag>Hết hạn</Tag>;
+        if (diff === 0) return <Tag color="red">Hết hạn hôm nay</Tag>;
+        return <span>{diff}</span>;
+      },
+    },
+    {
+      // 🔹 trạng thái tiếng Việt
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
+      width: 120,
+      render: (status) => {
+        let color: string = "default";
+        let label = status;
+
+        switch (status) {
+          case "Active":
+            color = "green";
+            label = "Đang hiệu lực";
+            break;
+          case "Pending":
+            color = "gold";
+            label = "Chờ duyệt";
+            break;
+          case "Draft":
+            color = "default";
+            label = "Nháp";
+            break;
+          case "Terminated":
+            color = "red";
+            label = "Đã chấm dứt";
+            break;
+          case "Cancelled":
+            color = "red";
+            label = "Đã hủy";
+            break;
+        }
+
+        return <Tag color={color}>{label}</Tag>;
+      },
+    },
+    {
+      // 🔹 Kinh doanh
+      title: "Kinh doanh",
+      key: "salesOwner",
+      width: 120,
+      ellipsis: true,
+      render: (_, record) => {
+        const name = record.salesOwnerName || "—";
+        return (
+          <Tooltip title={name}>
+            <span>{name}</span>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      // 🔹 Kế toán
+      title: "Kế toán",
+      key: "accountingOwner",
+      width: 120,
+      ellipsis: true,
+      render: (_, record) => {
+        const name = record.accountingOwnerName || "—";
+        return (
+          <Tooltip title={name}>
+            <span>{name}</span>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      // 🔹 File – click để xem
+      title: "File",
+      key: "attachments",
+      width: 90,
+      align: "center",
+      render: (_, record) => {
+        const count = record.attachments?.length ?? 0;
+        if (!count) return <span>–</span>;
+
+        const label = `${count} tệp đính kèm`;
+
+        return (
+          <Tooltip title={label}>
+            <a
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewAttachments?.(record.id);
+              }}
+            >
+              <Space size={4}>
+                <FileOutlined />
+                <span>{count}</span>
+              </Space>
+            </a>
+          </Tooltip>
+        );
+      },
+    },
+    // {
+    //   title: "Thao tác",
+    //   key: "actions",
+    //   width: 110,
+    //   fixed: "right",
+    //   render: (_, record) => (
+    //     <Space size="small">
+    //       <Tooltip title="Sửa">
+    //         <a
+    //           onClick={(e) => {
+    //             e.stopPropagation();
+    //             onEdit(record.id);
+    //           }}
+    //         >
+    //           <EditOutlined />
+    //         </a>
+    //       </Tooltip>
+    //       <Tooltip title="Xóa">
+    //         <Popconfirm
+    //           title="Xóa hợp đồng"
+    //           description="Bạn chắc chắn muốn xóa hợp đồng này?"
+    //           okText="Xóa"
+    //           cancelText="Hủy"
+    //           onConfirm={() => onDelete(record.id)}
+    //           onClick={(e) => e?.stopPropagation?.()}
+    //         >
+    //           <a
+    //             onClick={(e) => {
+    //               e.stopPropagation();
+    //             }}
+    //           >
+    //             <DeleteOutlined />
+    //           </a>
+    //         </Popconfirm>
+    //       </Tooltip>
+    //     </Space>
+    //   ),
+    // },
+    {
+      title: "Thao tác",
+      key: "actions",
+      fixed: "right",
+      align: "center",
+      width: 100,
+      render: (_, record) => (
+        <ActionButtons
+          onEdit={() => onEdit(record.id)}
+          onDelete={() => onDelete(record.id)}
+          confirmDelete
+          size="small"
+        />
+      ),
+    },
+  ];
+
+  return (
+    <Table<ContractListItem>
+      rowKey="id"
+      size="small"
+      loading={loading}
+      columns={columns}
+      dataSource={items}
+      pagination={{
+        current: page,
+        pageSize,
+        total,
+        showSizeChanger: true,
+        showTotal: (t, range) => `${range[0]}-${range[1]} / ${t} hợp đồng`,
+        onChange: onPageChange,
+      }}
+      onRow={(record) => ({
+        onClick: () => onRowClick?.(record.id),
+      })}
+      scroll={{ x: 1300 }}
+    />
+  );
+};
+
+export default ContractTable;

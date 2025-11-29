@@ -29,3 +29,32 @@ export async function uploadImage(
   const json = await res.json();
   return json?.data?.url || json?.url;
 }
+
+export async function uploadFile(
+  blob: Blob,
+  folder: string,
+  filename = "file"
+): Promise<string> {
+  const fd = new FormData();
+  // const ext =
+  //   blob.type === "application/pdf"
+  //     ? "pdf"
+  //     : blob.type ===
+  //       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  //     ? "docx"
+  //     : "bin";
+  // fd.append("file", blob, `${filename}.${ext}`);
+  fd.append("file", blob, filename);
+  fd.append("folder", folder);
+  const res = await fetch("/api/uploads/file", {
+    method: "POST",
+    body: fd,
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Upload failed: ${res.status} ${text}`);
+  }
+  const json = await res.json();
+  return json?.data?.url || json?.url;
+}

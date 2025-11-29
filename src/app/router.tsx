@@ -6,8 +6,9 @@ import { loadUserFromCache } from "../features/auth/session";
 import UsersList from "../features/users/page/UsersList";
 import UserDetail from "../features/users/page/UserDetail";
 import DepartmentsPage from "../features/departments/page/DepartmentsPage";
-import CustomersPage from "../features/customers/page/CustomersPage";
 import ContractsPage from "../features/contracts/page/ContractsPage";
+import ContractTypesPage from "../features/contract-types/page/ContractTypesPage";
+import { CustomerPage } from "../features/customers/page/CustomersPage";
 // import { Test } from "../page/Test";
 
 const requireAuth = async () => {
@@ -32,8 +33,9 @@ export const router = createBrowserRouter([
       { path: "users", element: <UsersList /> },
       { path: "users/:id", element: <UserDetail /> },
       { path: "department", element: <DepartmentsPage /> },
-      { path: "customers", element: <CustomersPage /> },
+      { path: "customers", element: <CustomerPage /> },
       { path: "contracts", element: <ContractsPage /> },
+      { path: "contractTypes", element: <ContractTypesPage /> },
     ],
   },
   // {

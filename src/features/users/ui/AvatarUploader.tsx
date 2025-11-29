@@ -50,11 +50,11 @@ export default function AvatarUploader({
   const beforeUpload = useCallback(
     async (file: File) => {
       if (!file.type.startsWith("image/")) {
-        message.error("Vui lòng chọn tập tin ảnh");
+        notify.error("Vui lòng chọn tập tin ảnh");
         return Upload.LIST_IGNORE;
       }
       if (file.size > 10 * 1024 * 1024) {
-        message.error("Ảnh quá lớn (>10MB)");
+        notify.error("Ảnh quá lớn (>10MB)");
         return Upload.LIST_IGNORE;
       }
       const dataURL = await fileToDataURL(file);
@@ -70,7 +70,7 @@ export default function AvatarUploader({
 
   const handleConfirm = useCallback(async () => {
     if (!imgSrc || !croppedPixels) {
-      message.warning("Vui lòng chọn ảnh và crop trước");
+      notify.warning("Vui lòng chọn ảnh và crop trước");
       return;
     }
     setSubmitting(true);
