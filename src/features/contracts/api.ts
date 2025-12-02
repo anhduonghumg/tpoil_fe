@@ -6,6 +6,8 @@ import type {
   ContractListQuery,
   ContractAttachment,
   ContractUpsertPayload,
+  ContractExpiryListResult,
+  ContractExpiryReportQuery,
 } from "./types";
 
 import type { Paged } from "../../shared/lib/types";
@@ -75,5 +77,20 @@ export const ContractsApi = {
   deleteAttachment: (id: string) =>
     apiCall<ApiResponse<boolean>>("contractAttachments.delete", {
       params: { id },
+    }).then((r) => r.data!),
+
+  // Báo cáo hợp đòng hết hạn
+  getContractExpiryReport: (
+    params: ContractExpiryReportQuery
+  ): Promise<ContractExpiryListResult[]> =>
+    apiCall<ApiResponse<ContractExpiryListResult[]>>("contracts.expiryReport", {
+      query: params,
+    }).then((r) => r.data!.data!),
+
+  exportContractExpiryReport: (
+    params: ContractExpiryReportQuery
+  ): Promise<Blob> =>
+    apiCall<Blob>("contracts.expiryReportExport", {
+      query: params,
     }).then((r) => r.data!),
 };

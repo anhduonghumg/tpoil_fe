@@ -72,6 +72,14 @@ button:focus-visible {
   background-color: #a8a8a8;
 }
 
+.app-card {
+  padding: 10px !important;
+}
+.ant-tabs-nav {
+  margin-bottom: 2px !important;
+  height: 25px !important;
+}
+
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;

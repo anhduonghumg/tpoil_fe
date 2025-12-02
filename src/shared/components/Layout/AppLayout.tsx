@@ -58,6 +58,11 @@ const NAV: NavItem[] = [
     label: "Loại hợp đồng",
     icon: <UnorderedListOutlined />,
   },
+  {
+    key: "/cron",
+    label: "Công việc định kỳ",
+    icon: <UnorderedListOutlined />,
+  },
 ];
 const FLAT_KEYS = NAV.flatMap((i) =>
   i.children ? [i.key, ...i.children.map((c) => c.key)] : [i.key]

@@ -4,6 +4,8 @@ import { ContractsApi } from "./api";
 import type {
   Contract,
   ContractAttachment,
+  ContractExpiryListResult,
+  ContractExpiryReportQuery,
   ContractListQuery,
   ContractUpsertPayload,
 } from "./types";
@@ -60,8 +62,10 @@ export function useUpdateContract(id: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: { id: string; body: Partial<ContractUpsertPayload> }) =>
-      ContractsApi.update(payload.id, payload.body),
+    mutationFn: (payload: {
+      id: string;
+      body: Partial<ContractUpsertPayload>;
+    }) => ContractsApi.update(payload.id, payload.body),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [CONTRACTS_QUERY_KEY, "list"],
@@ -143,5 +147,21 @@ export function useDeleteContractAttachment() {
         queryKey: [CONTRACT_ATTACHMENTS_QUERY_KEY, variables.contractId],
       });
     },
+  });
+}
+
+// ===== CONTRACT EXPIRY REPORT =====
+export function useContractsExpiryReport(filters: ContractExpiryReportQuery) {
+  return useQuery<ContractExpiryListResult[]>({
+    queryKey: [CONTRACTS_QUERY_KEY, "expiryReport", filters],
+    queryFn: () => ContractsApi.getContractExpiryReport(filters),
+  });
+}
+
+export function useExportContractsExpiryReport(
+  filters: ContractExpiryReportQuery
+) {
+  return useMutation({
+    mutationFn: () => ContractsApi.exportContractExpiryReport(filters),
   });
 }

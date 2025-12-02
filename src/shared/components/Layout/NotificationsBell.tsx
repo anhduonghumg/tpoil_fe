@@ -67,7 +67,7 @@ export default function NotificationsBell({
         icon: <FileTextOutlined style={{ color: "#1890ff" }} />,
         label: `Có ${expiringCount} hợp đồng sắp hết hạn, ${expiredCount} hợp đồng đã quá hạn`,
         onClick: () => {
-          navigate("/reports/contracts-expiry");
+          navigate("/contracts/expiry-report");
         },
       });
     }

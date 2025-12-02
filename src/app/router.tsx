@@ -9,6 +9,9 @@ import DepartmentsPage from "../features/departments/page/DepartmentsPage";
 import ContractsPage from "../features/contracts/page/ContractsPage";
 import ContractTypesPage from "../features/contract-types/page/ContractTypesPage";
 import { CustomerPage } from "../features/customers/page/CustomersPage";
+import { ContractsExpiryReportPage } from "../features/contracts/ui/ContractsExpiryReportPage";
+import { ContractsModuleLayout } from "../features/contracts/ui/ContractsModuleLayout";
+import CronJobsPage from "../features/cron/page/CronJobsPage";
 // import { Test } from "../page/Test";
 
 const requireAuth = async () => {
@@ -34,8 +37,22 @@ export const router = createBrowserRouter([
       { path: "users/:id", element: <UserDetail /> },
       { path: "department", element: <DepartmentsPage /> },
       { path: "customers", element: <CustomerPage /> },
-      { path: "contracts", element: <ContractsPage /> },
+      {
+        path: "contracts",
+        element: <ContractsModuleLayout />,
+        children: [
+          {
+            index: true, // /contracts
+            element: <ContractsPage />,
+          },
+          {
+            path: "expiry-report", // /contracts/expiry-report
+            element: <ContractsExpiryReportPage />,
+          },
+        ],
+      },
       { path: "contractTypes", element: <ContractTypesPage /> },
+      { path: "cron", element: <CronJobsPage /> },
     ],
   },
   // {

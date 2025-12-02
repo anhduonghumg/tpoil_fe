@@ -67,6 +67,11 @@ export const ROUTES = {
     create: ["POST", "/contracts"] as RouteTuple,
     update: ["PATCH", "/contracts/:id"] as RouteTuple,
     delete: ["DELETE", "/contracts/:id"] as RouteTuple,
+    expiryReport: ["GET", "/contracts/expiry-report"] as RouteTuple,
+    expiryReportExport: [
+      "GET",
+      "/contracts/expiry-report/export",
+    ] as RouteTuple,
   },
 
   contractAttachments: {
@@ -85,6 +90,10 @@ export const ROUTES = {
     update: ["PATCH", "/contract-types/:id"] as RouteTuple,
     delete: ["DELETE", "/contract-types/:id"] as RouteTuple,
     deleteMultiple: ["POST", "/contract-types/delete-multiple"] as RouteTuple,
+  },
+  cron: {
+    listJobs: ["GET", "/cron-jobs"] as RouteTuple,
+    listRuns: ["GET", "/cron-jobs/:id/runs"] as RouteTuple,
   },
   lookups: {
     // getContractTypes: ["GET", "/contract-types"] as RouteTuple,
