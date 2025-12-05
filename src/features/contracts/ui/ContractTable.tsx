@@ -114,7 +114,7 @@ export const ContractTable: React.FC<ContractTableProps> = ({
     {
       title: "Còn lại (ngày)",
       key: "remainingDays",
-      width: 100,
+      width: 120,
       render: (_, record) => {
         const today = dayjs().startOf("day");
         const start = dayjs(record.startDate).startOf("day");
@@ -171,7 +171,7 @@ export const ContractTable: React.FC<ContractTableProps> = ({
       // 🔹 Kinh doanh
       title: "Kinh doanh",
       key: "salesOwner",
-      width: 120,
+      width: 150,
       ellipsis: true,
       render: (_, record) => {
         const name = record.salesOwnerName || "—";
@@ -186,7 +186,7 @@ export const ContractTable: React.FC<ContractTableProps> = ({
       // 🔹 Kế toán
       title: "Kế toán",
       key: "accountingOwner",
-      width: 120,
+      width: 150,
       ellipsis: true,
       render: (_, record) => {
         const name = record.accountingOwnerName || "—";
@@ -206,7 +206,6 @@ export const ContractTable: React.FC<ContractTableProps> = ({
       render: (_, record) => {
         const count = record.attachments?.length ?? 0;
         if (!count) return <span>–</span>;
-
         const label = `${count} tệp đính kèm`;
 
         return (
@@ -226,44 +225,6 @@ export const ContractTable: React.FC<ContractTableProps> = ({
         );
       },
     },
-    // {
-    //   title: "Thao tác",
-    //   key: "actions",
-    //   width: 110,
-    //   fixed: "right",
-    //   render: (_, record) => (
-    //     <Space size="small">
-    //       <Tooltip title="Sửa">
-    //         <a
-    //           onClick={(e) => {
-    //             e.stopPropagation();
-    //             onEdit(record.id);
-    //           }}
-    //         >
-    //           <EditOutlined />
-    //         </a>
-    //       </Tooltip>
-    //       <Tooltip title="Xóa">
-    //         <Popconfirm
-    //           title="Xóa hợp đồng"
-    //           description="Bạn chắc chắn muốn xóa hợp đồng này?"
-    //           okText="Xóa"
-    //           cancelText="Hủy"
-    //           onConfirm={() => onDelete(record.id)}
-    //           onClick={(e) => e?.stopPropagation?.()}
-    //         >
-    //           <a
-    //             onClick={(e) => {
-    //               e.stopPropagation();
-    //             }}
-    //           >
-    //             <DeleteOutlined />
-    //           </a>
-    //         </Popconfirm>
-    //       </Tooltip>
-    //     </Space>
-    //   ),
-    // },
     {
       title: "Thao tác",
       key: "actions",
@@ -280,6 +241,8 @@ export const ContractTable: React.FC<ContractTableProps> = ({
       ),
     },
   ];
+
+  // console.log("items", items);
 
   return (
     <Table<ContractListItem>

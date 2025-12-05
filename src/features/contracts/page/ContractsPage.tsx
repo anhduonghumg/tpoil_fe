@@ -99,21 +99,24 @@ export const ContractsPage: React.FC = () => {
 
   return (
     <Flex vertical gap={16} style={{ height: "100%", padding: 16 }}>
-      <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <Space direction="vertical" size="small" style={{ width: "100%" }}>
         {/* Filters */}
-        <ContractFilters
-          value={query}
-          onChange={handleFilterChange}
-          // nếu cần thêm props khác (options, enum list, ...) bạn bổ sung sau
-        />
-        <Button
-          size="small"
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={handleCreate}
-        >
-          Thêm mới
-        </Button>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <ContractFilters
+            value={query}
+            onChange={handleFilterChange}
+            // nếu cần thêm props khác (options, enum list, ...) bạn bổ sung sau
+          />
+          <Button
+            style={{ marginTop: "5px" }}
+            size="small"
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleCreate}
+          >
+            Thêm mới
+          </Button>
+        </div>
 
         <ContractTable
           loading={loadingTable}

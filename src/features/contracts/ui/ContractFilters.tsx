@@ -10,11 +10,13 @@ const { RangePicker } = DatePicker;
 interface ContractFiltersProps {
   value: ContractListQuery;
   onChange: (next: Omit<ContractListQuery, "page" | "pageSize">) => void;
+  onCreate?: () => void; // <-- thêm props này để bấm + Thêm mới
 }
 
 export const ContractFilters: React.FC<ContractFiltersProps> = ({
   value,
   onChange,
+  onCreate,
 }) => {
   const [form] = Form.useForm();
 
@@ -37,7 +39,6 @@ export const ContractFilters: React.FC<ContractFiltersProps> = ({
       riskLevel: vals.riskLevel || undefined,
       startFrom,
       startTo,
-      // hiện tại bạn không dùng endFrom/endTo nữa nên để undefined
       endFrom: undefined,
       endTo: undefined,
     });
@@ -75,21 +76,35 @@ export const ContractFilters: React.FC<ContractFiltersProps> = ({
               ]
             : undefined,
       }}
+      className="compact-filter-bar"
       style={{
         display: "flex",
-        justifyContent: "space-between",
-        gap: 8,
-        marginBottom: 8,
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 4,
+        marginBottom: 0,
       }}
-      className="compact-filter-bar"
     >
-      <Space wrap size={8}>
+      {/* LEFT: + Thêm mới + filter */}
+      <Space
+        wrap
+        size={4} // giảm khoảng cách giữa các ô
+        style={{ flex: 1, minWidth: 0 }}
+      >
+        {onCreate && (
+          <Form.Item>
+            <Button size="small" type="primary" onClick={onCreate}>
+              + Thêm mới
+            </Button>
+          </Form.Item>
+        )}
+
         <Form.Item name="keyword">
           <Input
             size="small"
             allowClear
             placeholder="Tìm theo mã, tên, KH..."
-            style={{ width: 260 }}
+            style={{ width: 240, maxWidth: "100%" }}
           />
         </Form.Item>
 
@@ -97,7 +112,7 @@ export const ContractFilters: React.FC<ContractFiltersProps> = ({
           <CustomerSelect
             allowClear
             placeholder="Khách hàng"
-            style={{ width: 220 }}
+            style={{ width: 200, maxWidth: "100%" }}
           />
         </Form.Item>
 
@@ -106,7 +121,7 @@ export const ContractFilters: React.FC<ContractFiltersProps> = ({
             size="small"
             allowClear
             placeholder="Trạng thái"
-            style={{ width: 140 }}
+            style={{ width: 130 }}
           >
             <Select.Option value="Draft">Nháp</Select.Option>
             <Select.Option value="Pending">Chờ duyệt</Select.Option>
@@ -121,7 +136,7 @@ export const ContractFilters: React.FC<ContractFiltersProps> = ({
             size="small"
             allowClear
             placeholder="Rủi ro"
-            style={{ width: 120 }}
+            style={{ width: 110 }}
           >
             <Select.Option value="Low">Thấp</Select.Option>
             <Select.Option value="Medium">Trung bình</Select.Option>
@@ -135,11 +150,9 @@ export const ContractFilters: React.FC<ContractFiltersProps> = ({
             allowEmpty={[true, true]}
             placeholder={["Từ ngày", "Đến ngày"]}
             format="DD/MM/YYYY"
+            style={{ width: 210 }} // thu nhỏ để đủ chỗ cho nút
           />
         </Form.Item>
-      </Space>
-
-      <Space>
         <Button size="small" htmlType="button" onClick={handleReset}>
           Xóa lọc
         </Button>
@@ -147,6 +160,8 @@ export const ContractFilters: React.FC<ContractFiltersProps> = ({
           Tìm kiếm
         </Button>
       </Space>
+      {/* RIGHT: nút hành động */}
+      {/* <Space size={4} style={{ flexShrink: 0 }}></Space> */}
     </Form>
   );
 };

@@ -1,7 +1,15 @@
 // features/customers/api.ts
 import { apiCall } from "../../shared/lib/api";
 import { ApiResponse, Paged } from "../../shared/lib/types";
-import type { Customer, CustomerListQuery, CustomerOverview } from "./types";
+import { Contract } from "../contracts/types";
+import type {
+  AssignContractsResult,
+  AttachableContractBrief,
+  Customer,
+  CustomerContractBrief,
+  CustomerListQuery,
+  CustomerOverview,
+} from "./types";
 
 export const CustomersApi = {
   list: (query: CustomerListQuery) =>
@@ -45,15 +53,59 @@ export const CustomersApi = {
       params: { id: customerId },
     }).then((r) => r.data),
 
-  assignContracts: (customerId: string, contractIds: string[]) =>
-    apiCall<ApiResponse<any>>("customer.assignContracts", {
-      id: customerId,
-      data: { contractIds },
-    }).then((r) => r.data),
+  /** Lấy danh sách HĐ đã gán cho 1 khách (sidebar) */
+  getCustomerContracts(customerId: string): Promise<CustomerContractBrief[]> {
+    return apiCall<ApiResponse<CustomerContractBrief[]>>(
+      "contracts.byCustomer",
+      { params: { customerId } }
+    ).then((r) => r.data.data ?? []);
+  },
 
-  unassignContract: (customerId: string, contractId: string) =>
-    apiCall<ApiResponse<any>>("customer.unassignContract", {
-      id: customerId,
-      params: { contractId },
-    }).then((r) => r.data),
+  /** Lấy danh sách HĐ có thể gán cho khách (modal) */
+  getAttachableContracts(opts: {
+    customerId: string;
+    keyword?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<Paged<AttachableContractBrief>> {
+    return apiCall<ApiResponse<Paged<AttachableContractBrief>>>(
+      "contracts.attachable",
+      {
+        query: {
+          customerId: opts.customerId,
+          keyword: opts.keyword ?? "",
+          page: opts.page ?? 1,
+          pageSize: opts.pageSize ?? 10,
+        },
+      }
+    ).then((r) => r.data!.data as Paged<AttachableContractBrief>);
+  },
+
+  /** Gán nhiều HĐ cho 1 khách */
+  assignContracts(
+    customerId: string,
+    contractIds: string[]
+  ): Promise<AssignContractsResult> {
+    return apiCall<ApiResponse<AssignContractsResult>>(
+      "customer.assignContracts",
+      {
+        params: { id: customerId },
+        data: { contractIds },
+      }
+    ).then((r) => r.data!.data as AssignContractsResult);
+  },
+
+  /** Gỡ gán 1 HĐ khỏi 1 khách */
+  unassignContracts(
+    customerId: string,
+    contractIds: string[]
+  ): Promise<AssignContractsResult> {
+    return apiCall<ApiResponse<AssignContractsResult>>(
+      "customer.unassignContract",
+      {
+        params: { id: customerId },
+        data: { contractIds },
+      }
+    ).then((r) => r.data!.data as AssignContractsResult);
+  },
 };

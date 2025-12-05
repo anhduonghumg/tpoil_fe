@@ -57,8 +57,8 @@ export const ROUTES = {
     delete: ["DELETE", "/customers/:id"] as RouteTuple,
     generateCode: ["GET", "/customers/generate-code"] as RouteTuple,
     contracts: ["GET", "/customers/:id/contracts"],
-    assignContracts: ["POST", "/customers/:id/assign-contracts"],
-    unassignContract: ["DELETE", "/customers/:id/contracts/:contractId"],
+    assignContracts: ["POST", "/customers/:id/contracts/assign"],
+    unassignContract: ["POST", "/customers/:id/contracts/unassign"],
     select: ["GET", "/customers/select"] as RouteTuple,
   },
   contracts: {
@@ -72,6 +72,16 @@ export const ROUTES = {
       "GET",
       "/contracts/expiry-report/export",
     ] as RouteTuple,
+    attachable: ["GET", "/contracts/attachable"] as RouteTuple,
+    byCustomer: ["GET", "/contracts/by-customer/:customerId"] as RouteTuple,
+    // assignToCustomer: [
+    //   "POST",
+    //   "/contracts/assign-to-customer/:customerId",
+    // ] as RouteTuple,
+    // unassignFromCustomer: [
+    //   "POST",
+    //   "/:id/contracts/unassign-bulk",
+    // ] as RouteTuple,
   },
 
   contractAttachments: {

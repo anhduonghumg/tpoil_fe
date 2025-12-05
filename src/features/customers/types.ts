@@ -88,11 +88,17 @@ export interface AssignableContract {
    (bổ sung thêm `contracts`)
 ------------------------------------------------------ */
 
+export interface CustomerContractGroups {
+  active: CustomerContractOverviewItem[];
+  expired: CustomerContractOverviewItem[];
+  upcoming: CustomerContractOverviewItem[];
+  cancelled: CustomerContractOverviewItem[];
+  terminated: CustomerContractOverviewItem[];
+}
+
 export interface CustomerOverview {
   customer: Customer;
-
-  // thêm block hợp đồng (không ảnh hưởng BE cũ, chỉ FE dùng)
-  contracts?: CustomerContractOverviewItem[] | null;
+  contracts: CustomerContractGroups;
 
   debtSummary?: {
     totalReceivable: number;
@@ -113,4 +119,59 @@ export interface CustomerListQuery {
   status?: CustomerStatus;
   page?: number;
   pageSize?: number;
+}
+
+export interface CustomerContract {
+  id: string;
+  code: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  riskLevel: string;
+}
+
+export interface AttachableContract {
+  id: string;
+  code: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  contractType: { name: string };
+  riskLevel: string;
+  status: string;
+}
+
+export interface Paged<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface CustomerContractBrief {
+  id: string;
+  code: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  riskLevel: string;
+}
+
+export interface AttachableContractBrief {
+  id: string;
+  code: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  riskLevel: string;
+  contractType: { name: string };
+}
+
+export interface AssignContractsResult {
+  customerId: string;
+  assigned: string[];
+  failed: { contractId: string; code: string; reason: string }[];
 }

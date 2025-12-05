@@ -83,23 +83,22 @@ export const ContractUpsertOverlay: React.FC<ContractUpsertOverlayProps> = ({
 
             const created = await createMutation.mutateAsync(payload);
 
-            // if (attachments.length) {
-            //   // tạo attachments sau khi tạo hợp đồng
-            //   await Promise.all(
-            //     attachments.map((att) =>
-            //       window.__CONTRACT_ATTACH_API__({
-            //         contractId: created?.data?.id,
-            //         fileName: att.fileName,
-            //         fileUrl: att.fileUrl,
-            //         category: att.category,
-            //         externalUrl: att.externalUrl,
-            //       })
-            //     )
-            //   );
-            // }
+            if (attachments.length) {
+              // tạo attachments sau khi tạo hợp đồng
+              await Promise.all(
+                attachments.map((att) =>
+                  window.__CONTRACT_ATTACH_API__({
+                    contractId: created?.data?.id,
+                    fileName: att.fileName,
+                    fileUrl: att.fileUrl,
+                    category: att.category,
+                    externalUrl: att.externalUrl,
+                  })
+                )
+              );
+            }
 
             setPendingAttachments([]);
-            // notify.success("Đã tạo hợp đồng");
             onSuccess?.(created?.data?.id);
             handleClose();
           }}

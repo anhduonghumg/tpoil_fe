@@ -1,7 +1,16 @@
 // features/customers/hooks.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CustomersApi } from "./api";
-import type { Customer, CustomerListQuery, CustomerOverview } from "./types";
+import type {
+  AssignContractsResult,
+  AttachableContractBrief,
+  Customer,
+  CustomerContractBrief,
+  CustomerListQuery,
+  CustomerOverview,
+  Paged,
+} from "./types";
+import { message } from "antd";
 
 export const useCustomerList = (params: CustomerListQuery) =>
   useQuery({
@@ -71,35 +80,93 @@ export const useGenerateCustomerCode = () => {
   });
 };
 
-export const useCustomerContracts = (customerId: string) =>
-  useQuery({
-    queryKey: ["customers", "contracts", customerId],
-    queryFn: () => CustomersApi.contracts(customerId),
+export function useCustomerContracts(customerId: string | null) {
+  return useQuery<CustomerContractBrief[]>({
+    queryKey: ["customers", customerId, "contracts"],
     enabled: !!customerId,
+    queryFn: () => CustomersApi.getCustomerContracts(customerId!),
   });
+}
 
-export const useAssignContracts = (customerId: string) => {
+export function useAttachableContracts(
+  customerId: string | null,
+  keyword: string,
+  page: number,
+  pageSize: number
+) {
+  return useQuery<Paged<AttachableContractBrief>>({
+    queryKey: ["contracts", "attachable", customerId, keyword, page, pageSize],
+    enabled: !!customerId,
+    queryFn: () =>
+      CustomersApi.getAttachableContracts({
+        customerId: customerId!,
+        keyword,
+        page,
+        pageSize,
+      }),
+  });
+}
+
+export function useAssignContracts(customerId: string | null) {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (contractIds: string[]) =>
-      CustomersApi.assignContracts(customerId, contractIds),
-    onSuccess: () => {
-      qc.invalidateQueries({
-        queryKey: ["customers", "contracts", customerId],
-      });
+
+  return useMutation<AssignContractsResult, Error, string[]>({
+    mutationKey: ["customers", "assignContracts", customerId],
+    mutationFn: (contractIds) => {
+      if (!customerId) {
+        return Promise.reject(new Error("Missing customerId"));
+      }
+      return CustomersApi.assignContracts(customerId, contractIds);
+    },
+    onSuccess: (res) => {
+      const ok = res.assigned.length;
+      const fail = res.failed.length;
+
+      if (ok > 0) {
+        message.success(`Đã gán ${ok} hợp đồng cho khách hàng.`);
+      }
+      if (fail > 0) {
+        message.error(
+          `Không gán được ${fail} hợp đồng. Vui lòng kiểm tra lại.`
+        );
+      }
+
+      qc.invalidateQueries({ queryKey: ["customers", "overview", customerId] });
+      qc.invalidateQueries({ queryKey: ["contracts", "attachable"] });
+    },
+    onError: () => {
+      message.error("Không gán được hợp đồng. Vui lòng thử lại.");
     },
   });
-};
+}
 
-export const useUnassignContract = (customerId: string) => {
+export function useUnassignContracts(customerId: string | null) {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (contractId: string) =>
-      CustomersApi.unassignContract(customerId, contractId),
-    onSuccess: () => {
-      qc.invalidateQueries({
-        queryKey: ["customers", "contracts", customerId],
-      });
+
+  return useMutation<AssignContractsResult, Error, string[]>({
+    mutationKey: ["customers", "unassignContracts", customerId],
+    mutationFn: (contractIds) => {
+      if (!customerId) {
+        return Promise.reject(new Error("Missing customerId"));
+      }
+      return CustomersApi.unassignContracts(customerId, contractIds);
+    },
+    onSuccess: (res) => {
+      const ok = res.assigned.length;
+      const fail = res.failed.length;
+
+      if (ok > 0) {
+        message.success(`Đã gỡ ${ok} hợp đồng khỏi khách hàng.`);
+      }
+      if (fail > 0) {
+        message.error(`Không gỡ được ${fail} hợp đồng. Vui lòng kiểm tra lại.`);
+      }
+
+      qc.invalidateQueries({ queryKey: ["customers", "overview", customerId] });
+      qc.invalidateQueries({ queryKey: ["contracts", "attachable"] });
+    },
+    onError: () => {
+      message.error("Không gỡ được hợp đồng. Vui lòng thử lại.");
     },
   });
-};
+}

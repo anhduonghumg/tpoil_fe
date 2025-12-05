@@ -1,134 +1,101 @@
-// features/customers/ui/CustomerContractsBlock.tsx
-import { Button, List, Tag, Typography } from "antd";
+import { Button, List, Tag, Typography, Popconfirm } from "antd";
 import dayjs from "dayjs";
-
-import { CustomerContractOverviewItem } from "../types";
+import type { CustomerContractOverviewItem } from "../types";
+import { useUnassignContract } from "../hooks";
 
 const { Text } = Typography;
 
-interface CustomerContractsBlockProps {
+interface Props {
   contracts: CustomerContractOverviewItem[];
+  customerId: string;
   onOpenAssignModal: () => void;
-}
-
-function renderContractStatus(status: string) {
-  switch (status) {
-    case "Draft":
-      return <Tag color="default">Nháp</Tag>;
-    case "Pending":
-      return <Tag color="gold">Chờ duyệt</Tag>;
-    case "Active":
-      return <Tag color="green">Hiệu lực</Tag>;
-    case "Terminated":
-      return <Tag color="red">Đã chấm dứt</Tag>;
-    case "Cancelled":
-      return <Tag color="gray">Đã huỷ</Tag>;
-    default:
-      return <Tag>{status}</Tag>;
-  }
-}
-
-function renderRiskTag(risk: string) {
-  switch (risk) {
-    case "High":
-      return <Tag color="red">Rủi ro cao</Tag>;
-    case "Medium":
-      return <Tag color="orange">Rủi ro TB</Tag>;
-    case "Low":
-    default:
-      return <Tag color="green">Rủi ro thấp</Tag>;
-  }
 }
 
 export default function CustomerContractsBlock({
   contracts,
+  customerId,
   onOpenAssignModal,
-}: CustomerContractsBlockProps) {
+}: Props) {
+  const unassignMutation = useUnassignContract(customerId);
+  const count = contracts.length;
+
   return (
-    <div style={{ marginTop: 12 }}>
+    <div style={{ marginTop: 16 }}>
       <div
         style={{
-          marginBottom: 4,
+          marginBottom: 8,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           gap: 8,
         }}
       >
-        <Text strong style={{ fontSize: 12 }}>
-          Hợp đồng của khách hàng ({contracts.length})
+        <Text strong>Hợp đồng của khách hàng</Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          ({count} hợp đồng)
         </Text>
-
-        <Button
-          size="small"
-          type="link"
-          onClick={onOpenAssignModal}
-          style={{ paddingRight: 0 }}
-        >
-          Gán hợp đồng có sẵn
-        </Button>
       </div>
 
-      {contracts.length === 0 ? (
+      <Button
+        type="link"
+        size="small"
+        style={{ paddingLeft: 0, marginBottom: 8 }}
+        onClick={onOpenAssignModal}
+      >
+        + Gán hợp đồng có sẵn
+      </Button>
+
+      {count === 0 ? (
         <Text type="secondary" style={{ fontSize: 12 }}>
-          Chưa có hợp đồng nào gán cho khách hàng này.
+          Chưa có hợp đồng nào được gán.
         </Text>
       ) : (
         <List
           size="small"
           dataSource={contracts}
-          style={{ marginTop: 4, maxHeight: 260, overflow: "auto" }}
-          renderItem={(c) => {
-            const start = c.startDate
-              ? dayjs(c.startDate).format("DD/MM/YYYY")
-              : "";
-            const end = c.endDate ? dayjs(c.endDate).format("DD/MM/YYYY") : "";
-
-            return (
-              <List.Item style={{ padding: "6px 0" }}>
-                <div style={{ width: "100%" }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
+          renderItem={(item) => (
+            <List.Item
+              style={{ padding: "4px 0" }}
+              actions={[
+                <Popconfirm
+                  key="unassign"
+                  title="Gỡ hợp đồng khỏi khách hàng?"
+                  onConfirm={() => unassignMutation.mutate(item.id)}
+                >
+                  <a style={{ fontSize: 12, color: "#f97373" }}>Gỡ</a>
+                </Popconfirm>,
+              ]}
+            >
+              <div style={{ width: "100%" }}>
+                <div
+                  style={{ display: "flex", justifyContent: "space-between" }}
+                >
+                  <Text strong style={{ fontSize: 13 }}>
+                    {item.code}
+                  </Text>
+                  <Tag
+                    color={
+                      item.status === "Active"
+                        ? "green"
+                        : item.status === "Draft"
+                        ? "default"
+                        : "red"
+                    }
+                    style={{ marginLeft: 8 }}
                   >
-                    <Text style={{ fontSize: 12 }} strong>
-                      {c.code}
-                    </Text>
-                    {renderContractStatus(c.status)}
-                  </div>
-
-                  <div style={{ fontSize: 11, marginTop: 2 }}>
-                    <Text type="secondary">{c.name}</Text>
-                  </div>
-
-                  <div style={{ fontSize: 11, marginTop: 2 }}>
-                    {start && end && (
-                      <span>
-                        Hiệu lực: {start} → {end}
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ fontSize: 11, marginTop: 2 }}>
-                    {renderRiskTag(c.riskLevel)}
-                    {typeof c.paymentTermDays === "number" &&
-                      ` • TT ${c.paymentTermDays} ngày`}
-                    {c.creditLimitOverride && (
-                      <>
-                        {" "}
-                        • HM riêng:{" "}
-                        {Number(c.creditLimitOverride).toLocaleString("vi-VN")}
-                      </>
-                    )}
-                    {c.renewalOfId && <> • Gia hạn từ HĐ trước</>}
-                  </div>
+                    {item.status}
+                  </Tag>
                 </div>
-              </List.Item>
-            );
-          }}
+                <div style={{ fontSize: 12 }}>
+                  <Text>{item.name}</Text>
+                </div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                  Hiệu lực: {dayjs(item.startDate).format("DD/MM/YYYY")} –{" "}
+                  {dayjs(item.endDate).format("DD/MM/YYYY")}
+                </div>
+              </div>
+            </List.Item>
+          )}
         />
       )}
     </div>

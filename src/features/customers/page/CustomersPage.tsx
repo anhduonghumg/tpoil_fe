@@ -1,6 +1,7 @@
 // features/customers/page/CustomerPage.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Drawer, Grid } from "antd";
+import { useSearchParams } from "react-router-dom";
 import { CustomerFilters } from "../ui/CustomerFilters";
 import { CustomerTable } from "../ui/CustomerTable";
 import { CustomerOverviewPanel } from "../ui/CustomerOverviewPanel";
@@ -15,7 +16,7 @@ import { notify } from "../../../shared/lib/notification";
 import CustomerOverviewSidebar from "../ui/CustomerOverviewSidebar";
 
 const { useBreakpoint } = Grid;
-const SIDEBAR_WIDTH = 380;
+const SIDEBAR_WIDTH = 350;
 
 export const CustomerPage: React.FC = () => {
   const [filters, setFilters] = useState<CustomerListQuery>({
@@ -26,8 +27,12 @@ export const CustomerPage: React.FC = () => {
     pageSize: 20,
   });
 
+  // ====== URL state để giữ khách đã chọn sau reload ======
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSelectedId = searchParams.get("customerId");
+
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
-    null
+    urlSelectedId
   );
 
   const [upsertMode, setUpsertMode] = useState<"create" | "edit">("create");
@@ -41,6 +46,42 @@ export const CustomerPage: React.FC = () => {
   const { data: overviewData, isLoading: overviewLoading } =
     useCustomerOverview(selectedCustomerId || undefined);
   const deleteMutation = useDeleteCustomer();
+
+  // Đồng bộ state selectedCustomerId với URL nếu user đổi tab / back/forward
+  useEffect(() => {
+    if (urlSelectedId && urlSelectedId !== selectedCustomerId) {
+      setSelectedCustomerId(urlSelectedId);
+    }
+    if (!urlSelectedId && selectedCustomerId === null) {
+      // không làm gì – case lần đầu vào màn
+    }
+  }, [urlSelectedId, selectedCustomerId]);
+
+  // Auto chọn khách đầu tiên nếu:
+  // - Không có customerId trên URL
+  // - Chưa có selectedCustomerId
+  // - Danh sách có phần tử
+  useEffect(() => {
+    if (listData?.items?.length && !urlSelectedId && !selectedCustomerId) {
+      const firstId = listData.items[0].id;
+      setSelectedCustomerId(firstId);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("customerId", firstId);
+        return next;
+      });
+    }
+
+    // Nếu list rỗng -> clear chọn
+    if (!listData?.items?.length) {
+      setSelectedCustomerId(null);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("customerId");
+        return next;
+      });
+    }
+  }, [listData, urlSelectedId, selectedCustomerId, setSearchParams]);
 
   const handlePageChange = (page: number, pageSize: number) => {
     setFilters((prev) => ({ ...prev, page, pageSize }));
@@ -60,6 +101,12 @@ export const CustomerPage: React.FC = () => {
 
   const handleSelectCustomer = (id: string) => {
     setSelectedCustomerId(id);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (id) next.set("customerId", id);
+      else next.delete("customerId");
+      return next;
+    });
   };
 
   const openCreate = () => {
@@ -94,6 +141,11 @@ export const CustomerPage: React.FC = () => {
         notify.success("Xóa khách hàng thành công");
         if (selectedCustomerId === id) {
           setSelectedCustomerId(null);
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete("customerId");
+            return next;
+          });
         }
       },
     });
@@ -173,11 +225,6 @@ export const CustomerPage: React.FC = () => {
             overflowY: "auto",
           }}
         >
-          {/* <CustomerOverviewPanel
-            data={overviewData}
-            loading={overviewLoading}
-            customerId={selectedCustomerId}
-          /> */}
           <CustomerOverviewSidebar customerId={selectedCustomerId} />
         </div>
 
@@ -196,7 +243,7 @@ export const CustomerPage: React.FC = () => {
     );
   }
 
-  // layout mobile (giữ Drawer như cũ, nhưng filter/header cũng đã compact lại)
+  // layout mobile
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <CustomerFilters
@@ -229,7 +276,7 @@ export const CustomerPage: React.FC = () => {
         placement="right"
         open={!!selectedCustomerId}
         width="100%"
-        onClose={() => setSelectedCustomerId(null)}
+        onClose={() => handleSelectCustomer("")}
         title="Chi tiết khách hàng"
       >
         <CustomerOverviewPanel
