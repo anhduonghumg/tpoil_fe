@@ -47,6 +47,7 @@ export interface Contract {
   approvalRequestId?: string | null;
 
   renewalOfId?: string | null;
+  renewalOfCode?: string | null;
 
   createdAt: string;
   updatedAt: string;
@@ -114,6 +115,9 @@ export interface ContractListItem {
 
   salesOwnerName?: string | null;
   accountingOwnerName?: string | null;
+
+  renewalOfId?: string | null;
+  renewalOfCode?: string | null;
 }
 
 // ===== Query & payload types =====

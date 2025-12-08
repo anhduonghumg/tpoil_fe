@@ -27,6 +27,11 @@ export interface UpdateContractAttachmentPayload {
   category?: string;
 }
 
+export interface CreateContractAttachmentsPayload {
+  contractId: string;
+  items: UpdateContractAttachmentPayload[];
+}
+
 export const ContractsApi = {
   list: (query: ContractListQuery): Promise<Paged<Contract>> =>
     apiCall<ApiResponse<Paged<Contract>>>("contracts.list", {
@@ -93,4 +98,10 @@ export const ContractsApi = {
     apiCall<Blob>("contracts.expiryReportExport", {
       query: params,
     }).then((r) => r.data!),
+
+  createContractAttachments: (payload: CreateContractAttachmentsPayload) => {
+    apiCall<ApiResponse<boolean>>("contractAttachments.createMany", {
+      data: payload,
+    }).then((r) => r.data!);
+  },
 };

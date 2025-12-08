@@ -1,10 +1,10 @@
 // features/contracts/ui/ContractTable.tsx
-import React from "react";
-import { Table, Tag, Space, Tooltip, Popconfirm } from "antd";
+import React, { useMemo } from "react";
+import { Space, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { FileOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import type { ContractListItem } from "../types";
+import type { Contract, ContractListItem } from "../types";
 import ActionButtons from "../../../shared/ui/ActionButtons";
 
 interface ContractTableProps {
@@ -17,8 +17,24 @@ interface ContractTableProps {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onRowClick?: (id: string) => void;
-  onViewAttachments?: (id: string) => void;
+  onOpenFiles?: (id: string) => void;
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  Draft: "Nháp",
+  Pending: "Chờ duyệt",
+  Active: "Đang hiệu lực",
+  Terminated: "Kết thúc",
+  Cancelled: "Hủy",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  Draft: "default",
+  Pending: "gold",
+  Active: "green",
+  Terminated: "volcano",
+  Cancelled: "red",
+};
 
 export const ContractTable: React.FC<ContractTableProps> = ({
   loading,
@@ -30,8 +46,21 @@ export const ContractTable: React.FC<ContractTableProps> = ({
   onEdit,
   onDelete,
   onRowClick,
-  onViewAttachments,
+  onOpenFiles,
 }) => {
+  const renewalChildCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    items.forEach((c) => {
+      if (c.renewalOfId) {
+        const current = m.get(c.renewalOfId) ?? 0;
+        m.set(c.renewalOfId, current + 1);
+      }
+    });
+    return m;
+  }, [items]);
+
+  // console.log(items);
+
   const columns: ColumnsType<ContractListItem> = [
     {
       title: "Mã HĐ",
@@ -132,39 +161,34 @@ export const ContractTable: React.FC<ContractTableProps> = ({
       },
     },
     {
-      // 🔹 trạng thái tiếng Việt
       title: "Trạng thái",
       dataIndex: "status",
       key: "status",
-      width: 120,
-      render: (status) => {
-        let color: string = "default";
-        let label = status;
+      width: 230,
+      render: (status: Contract["status"], record: ContractListItem) => {
+        const isRenewChild = !!record.renewalOfId;
+        const hasRenewChildren = (renewalChildCounts.get(record.id) ?? 0) > 0;
 
-        switch (status) {
-          case "Active":
-            color = "green";
-            label = "Đang hiệu lực";
-            break;
-          case "Pending":
-            color = "gold";
-            label = "Chờ duyệt";
-            break;
-          case "Draft":
-            color = "default";
-            label = "Nháp";
-            break;
-          case "Terminated":
-            color = "red";
-            label = "Đã chấm dứt";
-            break;
-          case "Cancelled":
-            color = "red";
-            label = "Đã hủy";
-            break;
-        }
+        return (
+          <Space size={4} wrap>
+            {/* Trạng thái gốc theo hệ thống */}
+            <Tag color={STATUS_COLORS[status] ?? "default"}>
+              {STATUS_LABELS[status] ?? status}
+            </Tag>
 
-        return <Tag color={color}>{label}</Tag>;
+            {/* HĐ mới = gia hạn từ HĐ khác */}
+            {isRenewChild && (
+              <Tag color="blue">
+                Gia hạn từ: {record.renewalOfCode || "HĐ cũ"}
+              </Tag>
+            )}
+
+            {/* HĐ gốc đã bị thay thế */}
+            {hasRenewChildren && !isRenewChild && (
+              <Tag color="purple">Đã được gia hạn</Tag>
+            )}
+          </Space>
+        );
       },
     },
     {
@@ -201,27 +225,23 @@ export const ContractTable: React.FC<ContractTableProps> = ({
       // 🔹 File – click để xem
       title: "File",
       key: "attachments",
-      width: 90,
+      width: 80,
       align: "center",
       render: (_, record) => {
         const count = record.attachments?.length ?? 0;
         if (!count) return <span>–</span>;
-        const label = `${count} tệp đính kèm`;
-
+        // const label = `${count} tệp đính kèm`;
         return (
-          <Tooltip title={label}>
-            <a
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewAttachments?.(record.id);
-              }}
-            >
-              <Space size={4}>
-                <FileOutlined />
-                <span>{count}</span>
-              </Space>
-            </a>
-          </Tooltip>
+          <a
+            onClick={() => onOpenFiles?.(record.id)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            {count} <FileOutlined />
+          </a>
         );
       },
     },

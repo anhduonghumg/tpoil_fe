@@ -1,16 +1,15 @@
 // features/contracts/page/ContractsPage.tsx
 import React, { useState } from "react";
-import { Button, Card, Flex, Space, Typography } from "antd";
+import { Button, Flex, Space, Typography } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { useContractList, useDeleteContract } from "../hooks";
 import type { ContractListQuery } from "../types";
 import { ContractUpsertOverlay } from "../ui/ContractUpsertOverlay";
-// Bạn sẽ tự tạo 2 component này theo props gợi ý
+
 import { ContractFilters } from "../ui/ContractFilters";
 import { ContractTable } from "../ui/ContractTable";
 import { notify } from "../../../shared/lib/notification";
-
-const { Title } = Typography;
+import ContractFilesModal from "../ui/ContractFilesModal";
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -29,6 +28,9 @@ export const ContractsPage: React.FC = () => {
   const [overlayMode, setOverlayMode] = useState<"create" | "edit">("create");
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
 
+  const [filePreviewContractId, setFilePreviewContractId] = useState<
+    string | null
+  >(null);
   // ===== Data helpers =====
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -127,6 +129,7 @@ export const ContractsPage: React.FC = () => {
           onPageChange={handlePageChange}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onOpenFiles={(id) => setFilePreviewContractId(id)}
           // onRowClick={...} // sau này bạn có thể dùng để set selectedId cho Overview
         />
       </Space>
@@ -140,6 +143,12 @@ export const ContractsPage: React.FC = () => {
           setEditingId(undefined);
         }}
         onSuccess={handleUpsertSuccess}
+      />
+
+      <ContractFilesModal
+        contractId={filePreviewContractId || undefined}
+        open={!!filePreviewContractId}
+        onClose={() => setFilePreviewContractId(null)}
       />
     </Flex>
   );

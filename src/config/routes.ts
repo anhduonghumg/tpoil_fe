@@ -74,14 +74,7 @@ export const ROUTES = {
     ] as RouteTuple,
     attachable: ["GET", "/contracts/attachable"] as RouteTuple,
     byCustomer: ["GET", "/contracts/by-customer/:customerId"] as RouteTuple,
-    // assignToCustomer: [
-    //   "POST",
-    //   "/contracts/assign-to-customer/:customerId",
-    // ] as RouteTuple,
-    // unassignFromCustomer: [
-    //   "POST",
-    //   "/:id/contracts/unassign-bulk",
-    // ] as RouteTuple,
+    // createAttachment: ["POST, "" ]
   },
 
   contractAttachments: {
@@ -92,6 +85,7 @@ export const ROUTES = {
     create: ["POST", "/contract-attachments"] as RouteTuple,
     update: ["PATCH", "/contract-attachments/:id"] as RouteTuple,
     delete: ["DELETE", "/contract-attachments/:id"] as RouteTuple,
+
   },
   contractTypes: {
     list: ["GET", "/contract-types"] as RouteTuple,

@@ -165,3 +165,25 @@ export function useExportContractsExpiryReport(
     mutationFn: () => ContractsApi.exportContractExpiryReport(filters),
   });
 }
+
+export function useContractsForRenewal(
+  customerId?: string | null,
+  excludeId?: string
+) {
+  return useQuery({
+    queryKey: ["contracts", "for-renewal", { customerId, excludeId }],
+    enabled: !!customerId,
+    queryFn: async () => {
+      const res = await ContractsApi.list({
+        customerId: customerId!,
+        status: "Active",
+        page: 1,
+        pageSize: 100,
+      });
+      // console.log(res);
+
+      const items: Contract[] = res?.items || [];
+      return excludeId ? items.filter((c) => c.id !== excludeId) : items;
+    },
+  });
+}

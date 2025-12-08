@@ -1,11 +1,14 @@
 // features/contracts/ui/ContractUpsertOverlay.tsx
 import React, { useEffect, useState } from "react";
+import { Form } from "antd";
 import type { FormInstance } from "antd";
 import dayjs from "dayjs";
 import {
   useContractDetail,
   useCreateContract,
   useUpdateContract,
+  useContractsForRenewal,
+  useCreateContractAttachment, // <-- NEW
 } from "../hooks";
 import type { Contract, ContractFormValues } from "../types";
 import type { ContractUpsertPayload } from "../types";
@@ -16,6 +19,7 @@ import {
   PendingContractAttachment,
 } from "./ContractAttachmentsSection";
 import { ContractCompactForm } from "./ContractFormCompact";
+// import { createContractAttachment } from "../api";
 
 type Mode = "create" | "edit";
 
@@ -44,6 +48,7 @@ export const ContractUpsertOverlay: React.FC<ContractUpsertOverlayProps> = ({
 
   const createMutation = useCreateContract();
   const updateMutation = useUpdateContract(contractId || "");
+  const createAttachmentMutation = useCreateContractAttachment();
 
   const loading =
     detailLoading || createMutation.isPending || updateMutation.isPending;
@@ -82,38 +87,35 @@ export const ContractUpsertOverlay: React.FC<ContractUpsertOverlayProps> = ({
             const payload = mapFormToPayload(values);
 
             const created = await createMutation.mutateAsync(payload);
+            const contractIdCreated = created?.data?.id;
 
-            if (attachments.length) {
-              // tạo attachments sau khi tạo hợp đồng
+            // ====== TẠO ATTACHMENTS SAU KHI TẠO HĐ ======
+            if (contractIdCreated && attachments.length) {
               await Promise.all(
                 attachments.map((att) =>
-                  window.__CONTRACT_ATTACH_API__({
-                    contractId: created?.data?.id,
+                  createAttachmentMutation.mutateAsync({
+                    contractId: contractIdCreated,
                     fileName: att.fileName,
                     fileUrl: att.fileUrl,
-                    category: att.category,
-                    externalUrl: att.externalUrl,
+                    category: att.category ?? null,
+                    externalUrl: att.externalUrl ?? undefined,
                   })
                 )
               );
             }
 
             setPendingAttachments([]);
-            onSuccess?.(created?.data?.id);
+            onSuccess?.(contractIdCreated as string);
             handleClose();
           }}
           onUpdate={async (values) => {
-            // console.log("updating contract...", values);
-            // console.log("contractId:", contractId);
             if (!contractId) return;
             const payload = mapFormToPayload(values);
-            // console.log("payload:", payload);
             const updated = await updateMutation.mutateAsync({
               id: contractId,
               body: payload,
             });
 
-            // notify.success("Đã cập nhật hợp đồng");
             onSuccess?.(updated?.data?.id);
             handleClose();
           }}
@@ -183,6 +185,13 @@ const ContractUpsertFormContent: React.FC<ContractUpsertFormContentProps> = ({
 }) => {
   const isEdit = mode === "edit";
 
+  // ====== WATCH customerId để load HĐ có thể chọn làm HĐ gốc ======
+  const watchedCustomerId =
+    Form.useWatch("customerId", form) ?? defaultCustomerId ?? null;
+
+  const { data: renewalContracts = [], isLoading: renewalLoading } =
+    useContractsForRenewal(watchedCustomerId ?? undefined, detail?.id);
+
   useEffect(() => {
     if (!open) {
       form.resetFields();
@@ -190,7 +199,6 @@ const ContractUpsertFormContent: React.FC<ContractUpsertFormContentProps> = ({
     }
 
     if (isEdit && detail) {
-      // console.log("aaa");
       form.setFieldsValue({
         customerId: detail.customerId ?? defaultCustomerId,
         contractTypeId: detail.contractTypeId,
@@ -246,7 +254,6 @@ const ContractUpsertFormContent: React.FC<ContractUpsertFormContentProps> = ({
       approvalRequestId: values.approvalRequestId ?? null,
     };
     if (isEdit) {
-      // console.log("update", payload);
       onUpdate({ id: detail?.id, ...payload });
     } else {
       onCreate(payload, pendingAttachments);
@@ -255,7 +262,12 @@ const ContractUpsertFormContent: React.FC<ContractUpsertFormContentProps> = ({
 
   return (
     <>
-      <ContractCompactForm form={form} onFinish={handleFinish} />
+      <ContractCompactForm
+        form={form}
+        onFinish={handleFinish}
+        renewalOptions={renewalContracts}
+        renewalLoading={renewalLoading}
+      />
 
       {mode === "create" && (
         <ContractAttachmentsCreateSection

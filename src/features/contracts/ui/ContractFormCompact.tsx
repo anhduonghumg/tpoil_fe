@@ -45,11 +45,17 @@ export interface ContractFormValues {
 interface ContractCompactFormProps {
   form: FormInstance<ContractFormValues>;
   onFinish: (values: ContractFormValues) => void;
+
+  // === NEW: options cho "Gia hạn từ HĐ"
+  renewalOptions?: { id: string; name: string; code?: string }[];
+  renewalLoading?: boolean;
 }
 
 export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
   form,
   onFinish,
+  renewalOptions = [],
+  renewalLoading = false,
 }) => {
   return (
     <Form<ContractFormValues>
@@ -70,7 +76,7 @@ export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
             name="code"
             rules={[{ required: true, message: "Vui lòng nhập mã hợp đồng" }]}
           >
-            <Input  size="small" placeholder="VD: HD2025-0001" />
+            <Input size="small" placeholder="VD: HD2025-0001" />
           </Form.Item>
         </Col>
 
@@ -90,7 +96,7 @@ export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
             name="status"
             rules={[{ required: true, message: "Vui lòng chọn trạng thái" }]}
           >
-            <Select  size="small" placeholder="Chọn trạng thái">
+            <Select size="small" placeholder="Chọn trạng thái">
               <Select.Option value="Draft">Nháp</Select.Option>
               <Select.Option value="Pending">Đang chờ</Select.Option>
               <Select.Option value="Active">Hiệu lực</Select.Option>
@@ -114,7 +120,7 @@ export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
             name="name"
             rules={[{ required: true, message: "Vui lòng nhập tên hợp đồng" }]}
           >
-            <Input  size="small" placeholder="Tên hiển thị trên hợp đồng" />
+            <Input size="small" placeholder="Tên hiển thị trên hợp đồng" />
           </Form.Item>
         </Col>
       </Row>
@@ -130,7 +136,11 @@ export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
             name="startDate"
             rules={[{ required: true, message: "Chọn ngày bắt đầu" }]}
           >
-            <DatePicker  size="small" style={{ width: "100%" }} format="DD/MM/YYYY" />
+            <DatePicker
+              size="small"
+              style={{ width: "100%" }}
+              format="DD/MM/YYYY"
+            />
           </Form.Item>
         </Col>
         <Col xs={24} md={6}>
@@ -139,17 +149,21 @@ export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
             name="endDate"
             rules={[{ required: true, message: "Chọn ngày kết thúc" }]}
           >
-            <DatePicker  size="small" style={{ width: "100%" }} format="DD/MM/YYYY" />
+            <DatePicker
+              size="small"
+              style={{ width: "100%" }}
+              format="DD/MM/YYYY"
+            />
           </Form.Item>
         </Col>
         <Col xs={24} md={6}>
           <Form.Item label="Điều khoản (ngày)" name="paymentTermDays">
-            <InputNumber  size="small" min={0} style={{ width: "100%" }} />
+            <InputNumber size="small" min={0} style={{ width: "100%" }} />
           </Form.Item>
         </Col>
         <Col xs={24} md={6}>
           <Form.Item label="Hạn mức override" name="creditLimitOverride">
-            <InputNumber  size="small" min={0} style={{ width: "100%" }} />
+            <InputNumber size="small" min={0} style={{ width: "100%" }} />
           </Form.Item>
         </Col>
       </Row>
@@ -174,7 +188,23 @@ export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
         </Col>
         <Col xs={24} md={9}>
           <Form.Item label="Gia hạn từ HĐ" name="renewalOfId">
-            <Select size="small" allowClear showSearch placeholder="Chọn HĐ gốc (nếu có)" />
+            <Select
+              size="small"
+              allowClear
+              showSearch
+              placeholder={
+                renewalLoading ? "Đang tải HĐ gốc..." : "Chọn HĐ gốc (nếu có)"
+              }
+              loading={renewalLoading}
+              disabled={!renewalOptions.length && !renewalLoading}
+              optionFilterProp="children"
+            >
+              {renewalOptions.map((c) => (
+                <Select.Option key={c.id} value={c.id}>
+                  {c.code ? `${c.code} - ${c.name}` : c.name}
+                </Select.Option>
+              ))}
+            </Select>
           </Form.Item>
         </Col>
         <Col xs={24} md={9}>
