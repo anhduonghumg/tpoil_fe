@@ -16,10 +16,12 @@ export const MODAL_WIDTH_PERCENT = {
   sm: "40%",
   md: "50%",
   lg: "60%",
+  xtra: "100%"
 } as const;
 
 export const MODAL_MAX_WIDTH = {
   sm: 400,
   md: 600,
   lg: 800,
+  xtra: 1200,
 } as const;

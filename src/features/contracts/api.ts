@@ -8,6 +8,7 @@ import type {
   ContractUpsertPayload,
   ContractExpiryListResult,
   ContractExpiryReportQuery,
+  ContractImportRow,
 } from "./types";
 
 import type { Paged } from "../../shared/lib/types";
@@ -99,9 +100,16 @@ export const ContractsApi = {
       query: params,
     }).then((r) => r.data!),
 
-  createContractAttachments: (payload: CreateContractAttachmentsPayload) => {
-    apiCall<ApiResponse<boolean>>("contractAttachments.createMany", {
-      data: payload,
-    }).then((r) => r.data!);
-  },
+  importFromExcel: (rows: ContractImportRow[]): Promise<void> =>
+    apiCall<ApiResponse<void>>("contracts.importExcel", {
+      data: {
+        items: rows,
+      },
+    }).then((r) => r.data!.data!),
+
+  // createContractAttachments: (payload: CreateContractAttachmentsPayload) => {
+  //   apiCall<ApiResponse<boolean>>("contractAttachments.createMany", {
+  //     data: payload,
+  //   }).then((r) => r.data!);
+  // },
 };

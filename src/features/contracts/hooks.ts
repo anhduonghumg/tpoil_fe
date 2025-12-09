@@ -6,6 +6,7 @@ import type {
   ContractAttachment,
   ContractExpiryListResult,
   ContractExpiryReportQuery,
+  ContractImportRow,
   ContractListQuery,
   ContractUpsertPayload,
 } from "./types";
@@ -17,6 +18,7 @@ import type {
 
 const CONTRACTS_QUERY_KEY = "contracts";
 const CONTRACT_ATTACHMENTS_QUERY_KEY = "contractAttachments";
+const CONTRACTS_LIST_QUERY_KEY = ["contracts", "list"];
 
 // ===== LIST =====
 
@@ -184,6 +186,18 @@ export function useContractsForRenewal(
 
       const items: Contract[] = res?.items || [];
       return excludeId ? items.filter((c) => c.id !== excludeId) : items;
+    },
+  });
+}
+
+export function useImportContracts() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (rows: ContractImportRow[]) =>
+      ContractsApi.importFromExcel(rows),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CONTRACTS_LIST_QUERY_KEY });
     },
   });
 }

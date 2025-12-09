@@ -233,3 +233,19 @@ export interface ContractExpiryReportQuery {
   page?: number;
   pageSize?: number;
 }
+
+export interface ContractImportRow {
+  code: string;
+  name: string;
+  customerCode: string;
+  contractTypeCode: string;
+  startDate: string;
+  endDate: string;
+  status: "Draft" | "Pending" | "Active" | "Terminated" | "Cancelled";
+  paymentTermDays?: number | null;
+  creditLimitOverride?: number | null;
+  riskLevel: "Low" | "Medium" | "High";
+  sla?: string | null;
+  deliveryScope?: string | null;
+  renewalOfCode?: string | null;
+}
