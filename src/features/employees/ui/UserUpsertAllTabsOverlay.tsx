@@ -6,11 +6,11 @@ import dayjs from "dayjs";
 import { CloseCircleOutlined, SaveOutlined } from "@ant-design/icons";
 
 import OverlayForm from "./OverlayForm";
-import PersonalForm from "../ui/PersonalForm";
-import CitizenForm from "../ui/CitizenForm";
-import ContactForm from "../ui/ContactForm";
-import EmploymentForm from "../ui/EmploymentForm";
-import FinanceForm from "../ui/FinanceForm";
+import PersonalForm from "./PersonalForm";
+import CitizenForm from "./CitizenForm";
+import ContactForm from "./ContactForm";
+import EmploymentForm from "./EmploymentForm";
+import FinanceForm from "./FinanceForm";
 
 import { UsersApi } from "../api";
 import type { Employee, User } from "../types";

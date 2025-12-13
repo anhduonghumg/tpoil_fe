@@ -103,13 +103,7 @@ export const ContractsApi = {
   importFromExcel: (rows: ContractImportRow[]): Promise<void> =>
     apiCall<ApiResponse<void>>("contracts.importExcel", {
       data: {
-        items: rows,
+        rows,
       },
     }).then((r) => r.data!.data!),
-
-  // createContractAttachments: (payload: CreateContractAttachmentsPayload) => {
-  //   apiCall<ApiResponse<boolean>>("contractAttachments.createMany", {
-  //     data: payload,
-  //   }).then((r) => r.data!);
-  // },
 };

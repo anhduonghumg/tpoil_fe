@@ -8,7 +8,7 @@ import {
   useUpdateContractType,
 } from "../hooks";
 import { notify } from "../../../shared/lib/notification";
-import OverlayForm from "../../users/ui/OverlayForm";
+import OverlayForm from "../../employees/ui/OverlayForm";
 
 type Mode = "create" | "edit";
 

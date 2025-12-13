@@ -22,8 +22,8 @@ import type { CustomerRole, CustomerType } from "../types";
 import { notify } from "../../../shared/lib/notification";
 import { normalizeCode } from "../../../shared/lib/helper";
 import { useGenerateCustomerCode } from "../hooks";
-import EmployeeSelect from "../../../shared/ui/EmployeeSelect";
 import TextArea from "antd/es/input/TextArea";
+import { EmployeeSelect } from "../../../shared/ui/EmployeeSelect";
 
 const ROLE_OPTIONS: { label: string; value: CustomerRole }[] = [
   { label: "Đại lý", value: "Agent" },

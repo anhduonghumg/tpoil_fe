@@ -12,7 +12,7 @@ import {
 } from "../hooks";
 import type { Contract, ContractFormValues } from "../types";
 import type { ContractUpsertPayload } from "../types";
-import OverlayForm from "../../users/ui/OverlayForm";
+import OverlayForm from "../../employees/ui/OverlayForm";
 import {
   ContractAttachmentsCreateSection,
   ContractAttachmentsEditSection,

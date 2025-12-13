@@ -1,6 +1,6 @@
 // features/cron/page/CronJobsPage.tsx
 import { useState } from "react";
-import { Card, Table, Tag, Typography, Modal } from "antd";
+import {  Table, Tag, Typography, Modal } from "antd";
 import dayjs from "dayjs";
 import { useCronJobsList, useCronJobRuns } from "../hooks";
 import { CronJobSummary } from "../types";
@@ -24,8 +24,8 @@ export default function CronJobsPage() {
   const runsRows = runsData?.items ?? [];
   const runsTotal = runsData?.total ?? 0;
 
-  console.log("jobsRows", jobsRows);
-  console.log("runsRows", runsRows);
+  // console.log("jobsRows", jobsRows);
+  // console.log("runsRows", runsRows);
 
   const handleOpenRuns = (job: CronJobSummary) => {
     setSelectedJob(job);

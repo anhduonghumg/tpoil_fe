@@ -22,9 +22,10 @@ export const ROUTES = {
     detail: ["GET", "/users/:id"] as RouteTuple,
     update: ["PUT", "/users/:id"] as RouteTuple,
     delete: ["DELETE", "/users/:id"] as RouteTuple,
-
     departments: ["GET", "/users/departments"] as RouteTuple,
     roles: ["GET", "/users/roles"] as RouteTuple,
+    setRoles: ["PUT", "/users/:id/roles"] as RouteTuple,
+    setEmployee: ["PUT", "/users/:id/employee"] as RouteTuple,
   },
   department: {
     list: ["GET", "/departments"] as RouteTuple,
@@ -74,7 +75,7 @@ export const ROUTES = {
     ] as RouteTuple,
     attachable: ["GET", "/contracts/attachable"] as RouteTuple,
     byCustomer: ["GET", "/contracts/by-customer/:customerId"] as RouteTuple,
-    // createAttachment: ["POST, "" ]
+    importExcel: ["POST", "/contracts/import"] as RouteTuple,
   },
 
   contractAttachments: {
@@ -85,7 +86,6 @@ export const ROUTES = {
     create: ["POST", "/contract-attachments"] as RouteTuple,
     update: ["PATCH", "/contract-attachments/:id"] as RouteTuple,
     delete: ["DELETE", "/contract-attachments/:id"] as RouteTuple,
-
   },
   contractTypes: {
     list: ["GET", "/contract-types"] as RouteTuple,
@@ -102,6 +102,18 @@ export const ROUTES = {
   lookups: {
     // getContractTypes: ["GET", "/contract-types"] as RouteTuple,
     contractTypes: ["GET", "/lookups/contract-types"] as RouteTuple,
+  },
+  rbacAdmin: {
+    getRoles: ["GET", "/rbac/admin/roles"],
+    getRoleDetail: ["GET", "/rbac/admin/roles/:id"] as RouteTuple,
+    listPermissions: ["GET", "/rbac/admin/permissions"] as RouteTuple,
+    updateRolePermissions: [
+      "PUT",
+      "/rbac/admin/roles/:id/permissions",
+    ] as RouteTuple,
+    createRole: ["POST", "/rbac/admin/roles"] as RouteTuple,
+    updateRole: ["PATCH", "/rbac/admin/roles/:id"] as RouteTuple,
+    deleteRole: ["DELETE", "/rbac/admin/roles/:id"] as RouteTuple,
   },
 };
 

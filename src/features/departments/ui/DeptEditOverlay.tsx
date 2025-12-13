@@ -1,7 +1,7 @@
 import DepartmentForm from "./DepartmentForm";
 import { Form, Skeleton } from "antd";
 import { useDeptDetail, useUpdateDept } from "../hooks";
-import OverlayForm from "../../users/ui/OverlayForm";
+import OverlayForm from "../../employees/ui/OverlayForm";
 import { notify } from "../../../shared/lib/notification";
 
 export default function DeptEditOverlay({

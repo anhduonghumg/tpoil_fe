@@ -1,82 +1,77 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UsersApi } from "./api";
-import type { User } from "./types";
+import type { UsersListParams } from "./types";
 
-export const useUsers = (filters: any) =>
-  useQuery({
-    queryKey: ["employees", "list", filters],
-    queryFn: () => UsersApi.list(filters),
-    // keepPreviousData: true,
-  });
-
-export function useUserDetail(id?: string, enabled = true) {
+export function useUsersList(params: UsersListParams) {
   return useQuery({
-    queryKey: ["employees", "detail", id],
-    queryFn: () => UsersApi.detail(id!),
-    enabled: !!id && enabled,
+    queryKey: ["users", "list", params],
+    queryFn: () => UsersApi.list(params).then((r: any) => r.data!.data),
   });
 }
 
+export function useUserDetail(userId?: string) {
+  return useQuery({
+    enabled: !!userId,
+    queryKey: ["users", "detail", userId],
+    queryFn: async () => {
+      const res: any = await UsersApi.detail(userId!);
+      return res.data; // theo chuẩn apiCall/axios của bạn
+    },
+  });
+}
+
+// export function useRolesAll() {
+//   return useQuery({
+//     queryKey: ["users", "roles"],
+//     queryFn: () => UsersApi.roles().then((r: any) => r.data),
+//     staleTime: 5 * 60 * 1000,
+//   });
+// }
+
 export function useCreateUser() {
-  const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Partial<User>) => UsersApi.create(payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["employees", "list"] });
+    mutationFn: async (payload: any) => {
+      const res: any = await UsersApi.create(payload);
+      return res.data;
     },
   });
 }
 
 export function useUpdateUser() {
-  const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Partial<User> }) =>
-      UsersApi.update(id, payload),
-    onSuccess: (_res, vars) => {
-      qc.invalidateQueries({ queryKey: ["employees", "list"] });
-      qc.invalidateQueries({ queryKey: ["employees", "detail", vars.id] });
+    mutationFn: async (payload: { id: string } & any) => {
+      const { id, ...data } = payload;
+      const res: any = await UsersApi.update(id, data);
+      return res.data;
     },
   });
 }
 
-export function useDeleteUser() {
+export function useSetUserRoles() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => UsersApi.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["employees", "list"] }),
+    mutationFn: ({ id, roleIds }: { id: string; roleIds: string[] }) =>
+      UsersApi.setRoles(id, roleIds).then((r: any) => r.data),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["users", "list"] });
+      qc.invalidateQueries({ queryKey: ["users", "detail", vars.id] });
+    },
   });
 }
 
-export function useDeleteManyUsers() {
+export function useSetUserEmployee() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (ids: string[]) => UsersApi.deleteMany(ids),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["employees", "list"] }),
+    mutationFn: ({
+      id,
+      employeeId,
+    }: {
+      id: string;
+      employeeId: string | null;
+    }) => UsersApi.setEmployee(id, employeeId).then((r: any) => r.data),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["users", "list"] });
+      qc.invalidateQueries({ queryKey: ["users", "detail", vars.id] });
+    },
   });
 }
-
-export const useDepartments = () =>
-  useQuery({
-    queryKey: ["meta", "departments"],
-    queryFn: UsersApi.departments,
-  });
-
-export const useRoles = () =>
-  useQuery({ queryKey: ["meta", "roles"], queryFn: UsersApi.roles });
-
-export const useLeaders = () =>
-  useQuery({
-    queryKey: ["employees", "roles"],
-    queryFn: UsersApi.roles,
-  });
-
-export const useBirthday = (month: number) =>
-  useQuery({
-    queryKey: ["employees", "birthdays", month],
-    queryFn: () => UsersApi.birthdays(month),
-    staleTime: 1000 * 60 * 60 * 24,
-    gcTime: 1000 * 60 * 60 * 24,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    retry: 1,
-  });

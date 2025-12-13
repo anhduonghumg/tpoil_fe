@@ -13,7 +13,7 @@ import {
 import dayjs from "dayjs";
 import type { User } from "../types";
 import { useEffect, useRef, useState } from "react";
-import AvatarUploader from "../ui/AvatarUploader";
+import AvatarUploader from "./AvatarUploader";
 import { notify } from "../../../shared/lib/notification";
 import { toAbsUrl } from "../../../shared/lib/url";
 

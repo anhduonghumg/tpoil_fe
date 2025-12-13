@@ -1,10 +1,20 @@
 // shared/ui/ExcelImportOverlay.tsx
 import React, { useEffect, useState } from "react";
-import { Upload, Button, Table, Tag, Space, Typography, Progress } from "antd";
+import {
+  Upload,
+  Button,
+  Table,
+  Tag,
+  Space,
+  Typography,
+  Progress,
+  message,
+} from "antd";
 import type { UploadProps } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 import * as XLSX from "xlsx";
 import CommonModal from "./CommonModal";
+import { notify } from "../lib/notification";
 
 const { Dragger } = Upload;
 const { Text } = Typography;
@@ -28,6 +38,7 @@ export interface ExcelImportConfig<T> {
   onSubmit: (rows: T[]) => Promise<void>;
   chunkSize?: number;
   helperText?: React.ReactNode;
+  templateUrl?: string;
 }
 
 export interface ExcelImportOverlayProps<T> {
@@ -47,6 +58,7 @@ export function ExcelImportOverlay<T>({
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
 
   const hasData = parsedRows.length > 0;
 
@@ -55,6 +67,7 @@ export function ExcelImportOverlay<T>({
     setProgress(0);
     setLoading(false);
     setImporting(false);
+    setDownloadingTemplate(false);
   };
 
   const handleCloseInternal = () => {
@@ -63,7 +76,6 @@ export function ExcelImportOverlay<T>({
     onClose();
   };
 
-  // đảm bảo khi parent set open = false bằng code thì cũng reset
   useEffect(() => {
     if (!open) {
       resetState();
@@ -82,7 +94,7 @@ export function ExcelImportOverlay<T>({
       });
 
       const rows: ParsedRow<T>[] = json.map((row, idx) => {
-        const excelIndex = idx + 2; // dòng 1 là header
+        const excelIndex = idx + 2;
         const data = config.parseRow(row, excelIndex);
         let errors: string[] = [];
 
@@ -101,11 +113,12 @@ export function ExcelImportOverlay<T>({
       setParsedRows(rows);
     } catch (e) {
       console.error(e);
+      notify.error("Không đọc được file Excel. Vui lòng kiểm tra lại.");
     } finally {
       setLoading(false);
     }
 
-    return false; // chặn upload lên server của antd
+    return false;
   };
 
   const uploadProps: UploadProps = {
@@ -146,7 +159,10 @@ export function ExcelImportOverlay<T>({
 
       // Xong
       handleCloseInternal();
-    } finally {
+      notify.success(`Đã nhập ${validRows.length} dòng hợp lệ.`);
+    } catch (e) {
+      console.error(e);
+      notify.error("Có lỗi xảy ra khi nhập dữ liệu. Vui lòng thử lại.");
       setImporting(false);
     }
   };
@@ -155,6 +171,34 @@ export function ExcelImportOverlay<T>({
     (r) => r.errors && r.errors.length > 0
   ).length;
   const validCount = parsedRows.length - errorCount;
+
+  const handleDownloadTemplate = async () => {
+    // if (!config.templateUrl) return;
+    try {
+      setDownloadingTemplate(true);
+      const res = await fetch("/api/contracts/import/template", {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        throw new Error(`Download failed with status ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "import-template.xlsx";
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      notify.error("Không tải được file mẫu. Vui lòng thử lại.");
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
 
   return (
     <CommonModal
@@ -169,10 +213,28 @@ export function ExcelImportOverlay<T>({
       footer={null}
     >
       <Space direction="vertical" style={{ width: "100%" }} size={12}>
+        {/* {config.templateUrl && ( */}
+        <Space
+          style={{ width: "100%", justifyContent: "space-between" }}
+          size={8}
+        >
+          <Text type="secondary">
+            Nên sử dụng file mẫu của hệ thống để cột và định dạng chính xác.
+          </Text>
+          <Button
+            type="link"
+            onClick={handleDownloadTemplate}
+            loading={downloadingTemplate}
+          >
+            Tải file mẫu Excel
+          </Button>
+        </Space>
+        {/* )} */}
+
         <Dragger
           {...uploadProps}
           disabled={loading || importing}
-          style={{ padding: 12 }} // thu nhỏ vùng kéo thả
+          style={{ padding: 12 }}
         >
           <p className="ant-upload-drag-icon">
             <InboxOutlined />

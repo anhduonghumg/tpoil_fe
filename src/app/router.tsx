@@ -3,8 +3,8 @@ import Login from "../features/auth/pages/Login";
 import Dashboard from "../features/dashboard/pages/Dashboard";
 import AppLayout from "../shared/components/Layout/AppLayout";
 import { loadUserFromCache } from "../features/auth/session";
-import UsersList from "../features/users/page/UsersList";
-import UserDetail from "../features/users/page/UserDetail";
+import UsersList from "../features/employees/page/UsersList";
+import UserDetail from "../features/employees/page/UserDetail";
 import DepartmentsPage from "../features/departments/page/DepartmentsPage";
 import ContractsPage from "../features/contracts/page/ContractsPage";
 import ContractTypesPage from "../features/contract-types/page/ContractTypesPage";
@@ -12,6 +12,8 @@ import { CustomerPage } from "../features/customers/page/CustomersPage";
 import { ContractsExpiryReportPage } from "../features/contracts/ui/ContractsExpiryReportPage";
 import { ContractsModuleLayout } from "../features/contracts/ui/ContractsModuleLayout";
 import CronJobsPage from "../features/cron/page/CronJobsPage";
+import RolesPage from "../features/rbac/roles/page/RolesPage";
+import UsersPage from "../features/users/page/UsersPage";
 // import { Test } from "../page/Test";
 
 const requireAuth = async () => {
@@ -33,8 +35,9 @@ export const router = createBrowserRouter([
       { path: "dashboard", element: <Dashboard /> },
       { path: "orders", element: <div>Đơn hàng</div> },
       { path: "inventory", element: <div>Kho hàng</div> },
-      { path: "users", element: <UsersList /> },
-      { path: "users/:id", element: <UserDetail /> },
+      { path: "users", element: <UsersPage /> },
+      { path: "employees", element: <UsersList /> },
+      { path: "employees/:id", element: <UserDetail /> },
       { path: "department", element: <DepartmentsPage /> },
       { path: "customers", element: <CustomerPage /> },
       {
@@ -53,6 +56,7 @@ export const router = createBrowserRouter([
       },
       { path: "contractTypes", element: <ContractTypesPage /> },
       { path: "cron", element: <CronJobsPage /> },
+      { path: "settings/roles", element: <RolesPage /> },
     ],
   },
   // {

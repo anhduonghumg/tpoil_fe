@@ -7,7 +7,7 @@ import {
 } from "../hooks";
 import type { Customer, CustomerRole, CustomerType } from "../types";
 import CustomerCompactForm from "./CustomerCompactForm";
-import OverlayForm from "../../users/ui/OverlayForm";
+import OverlayForm from "../../employees/ui/OverlayForm";
 
 type Mode = "create" | "edit";
 

@@ -2,7 +2,7 @@
 import { Form } from "antd";
 import DepartmentForm from "./DepartmentForm";
 import { useCreateDept } from "../hooks";
-import OverlayForm from "../../users/ui/OverlayForm";
+import OverlayForm from "../../employees/ui/OverlayForm";
 import { notify } from "../../../shared/lib/notification";
 
 export default function DeptCreateOverlay({

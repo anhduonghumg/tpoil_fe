@@ -1,107 +1,66 @@
-export type EmploymentStatus =
-  | "active"
-  | "inactive"
-  | "suspended"
-  | "probation"
-  | "terminated";
-export type IdentityDocType = "CCCD" | "CMND" | "PASSPORT";
+export type RoleLite = { id: string; code: string; name: string };
 
-export type Address = {
-  province?: string;
-  district?: string;
-  ward?: string;
-  street?: string;
-};
-
-export type EmergencyContact = {
-  name: string;
-  relation?: string;
-  phone: string;
-};
-
-export type CitizenDoc = {
-  type: IdentityDocType;
-  number: string;
-  issuedDate?: string;
-  issuedPlace?: string;
-  expiryDate?: string;
-  frontImageUrl?: string;
-  backImageUrl?: string;
-};
-
-export type Banking = {
-  bankName?: string;
-  branch?: string;
-  accountNumber?: string;
-  accountHolder?: string;
-};
-
-export type InsuranceTax = {
-  pitCode?: string;
-  siNumber?: string;
-  hiNumber?: string;
-};
-
-export type User = {
+export type EmployeeLite = {
   id: string;
-  code?: string;
-  fullName: string;
-  gender?: "male" | "female" | "other";
-  dob: string;
-  nationality?: string;
-  maritalStatus?: "single" | "married" | "divorced" | "widowed";
-  avatarUrl?: string;
-
-  citizen?: CitizenDoc;
-
-  workEmail: string;
-  personalEmail?: string;
-  phone: string;
-  addressPermanent?: Address;
-  addressTemp?: Address;
-  emergency?: EmergencyContact;
-
-  departmentId?: string;
-  departmentName?: string;
-  title?: string;
-  grade?: string;
-  status: EmploymentStatus;
-  joinedAt: string;
-  leftAt?: string;
-  managerId?: string;
-  managerName?: string;
-
-  siteId?: string;
-  floor?: string;
-  area?: string;
-  desk?: string;
-  accessCard?: string;
-
-  tax?: InsuranceTax;
-  banking?: Banking;
-
-  createdAt?: string;
-  updatedAt?: string;
-  createdBy?: string;
-  updatedBy?: string;
+  code: string;
+  fullName?: string | null;
+  status: string;
 };
 
-export type Employee = User & {
-  memberships: Array<{
-    departmentId: string;
-    departmentName: string;
-  }>;
-};
-
-export type Birthday = {
-  count: number;
-  items: BirthdayItem[];
-  month: number;
-};
-export type BirthdayItem = {
+export type UserDetail = {
   id: string;
-  fullName: string;
-  dob: string;
+  username: string;
+  email: string;
+  name?: string | null;
+  isActive: boolean;
+  lastLoginAt?: string | null;
+  createdAt?: string | null;
+
+  employee?: EmployeeLite | null;
+  rolesGlobal?: RoleLite[];
 };
 
-export type Paged<T> = { items: T[]; total: number };
+export type CreateUserPayload = {
+  username: string;
+  email: string;
+  name?: string | null;
+  isActive?: boolean;
+  password: string;
+
+  // V1: gán ngay trong form nhưng gọi API riêng
+  employeeId?: string | null;
+  roleIds?: string[];
+};
+
+export type UpdateUserPayload = {
+  email: string;
+  name?: string | null;
+  isActive?: boolean;
+
+  // đổi mật khẩu (optional)
+  password?: string;
+
+  // V1: gán ngay trong form nhưng gọi API riêng
+  employeeId?: string | null;
+  roleIds?: string[];
+};
+
+export type UserRow = {
+  id: string;
+  username: string;
+  email: string;
+  name?: string | null;
+  isActive: boolean;
+  lastLoginAt?: string | null;
+  createdAt: string;
+  employee?: EmployeeLite | null;
+  rolesGlobal: RoleLite[];
+};
+
+export type UsersListParams = {
+  keyword?: string;
+  isActive?: 0 | 1;
+  hasEmployee?: 0 | 1;
+  page?: number;
+  limit?: number;
+};

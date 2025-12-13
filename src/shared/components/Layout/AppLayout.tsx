@@ -41,7 +41,8 @@ const NAV: NavItem[] = [
   { key: "/", label: "Dashboard", icon: <DashboardOutlined /> },
   { key: "/orders", label: "Đơn hàng", icon: <ShoppingCartOutlined /> },
   { key: "/inventory", label: "Kho hàng", icon: <DatabaseOutlined /> },
-  { key: "/users", label: "Nhân viên", icon: <UserOutlined /> },
+  { key: "/users", label: "Người dùng", icon: <UserOutlined /> },
+  { key: "/employees", label: "Nhân viên", icon: <UserOutlined /> },
   { key: "/department", label: "Phòng ban", icon: <ApartmentOutlined /> },
   {
     key: "/customers",
@@ -61,6 +62,11 @@ const NAV: NavItem[] = [
   {
     key: "/cron",
     label: "Công việc định kỳ",
+    icon: <UnorderedListOutlined />,
+  },
+  {
+    key: "/settings/roles",
+    label: "Phân quyền",
     icon: <UnorderedListOutlined />,
   },
 ];
@@ -135,22 +141,6 @@ const HeaderRight = React.memo(function HeaderRight({
 
   return (
     <div className="app-header-right">
-      {/* <Input
-        allowClear
-        prefix={<SearchOutlined />}
-        placeholder="Tìm kiếm..."
-        className="app-search"
-      /> */}
-      {/* <Tooltip title="Thông báo">
-        <Badge count={3} size="small">
-          <BellOutlined className="icon-btn" />
-        </Badge>
-      </Tooltip> */}
-      {/* <Tooltip title="Tin nhắn">
-        <Badge dot>
-          <MailOutlined className="icon-btn" />
-        </Badge>
-      </Tooltip> */}
       <NotificationsBell />
       <Dropdown menu={userMenu} trigger={["click"]} placement="bottomRight">
         <div className="app-user">
