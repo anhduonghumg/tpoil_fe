@@ -1,5 +1,5 @@
 // features/customers/ui/CustomerFilters.tsx
-import React, { useEffect } from "react";
+import React, { useEffect, memo } from "react"; // 1. Import memo
 import { Button, Form, Grid, Input, Select, Space } from "antd";
 import {
   SearchOutlined,
@@ -13,7 +13,7 @@ export interface CustomerFiltersValues
 
 interface CustomerFiltersProps {
   value: CustomerFiltersValues;
-  onChange: (next: CustomerFiltersValues) => void; // chỉ gọi khi bấm Tìm kiếm / Xóa lọc
+  onChange: (next: CustomerFiltersValues) => void;
   onCreate?: () => void;
   loading?: boolean;
 }
@@ -33,7 +33,7 @@ const CUSTOMER_STATUS_OPTIONS: { label: string; value: CustomerStatus }[] = [
   { label: "Danh sách đen", value: "Blacklisted" },
 ];
 
-export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
+const CustomerFiltersBase: React.FC<CustomerFiltersProps> = ({
   value,
   onChange,
   onCreate,
@@ -94,7 +94,6 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
                 size="small"
                 allowClear
                 placeholder="Tìm theo mã, tên, MST, SĐT..."
-                // onPressEnter={() => form.submit()}
               />
             </Form.Item>
 
@@ -151,3 +150,5 @@ export const CustomerFilters: React.FC<CustomerFiltersProps> = ({
     </div>
   );
 };
+
+export const CustomerFilters = memo(CustomerFiltersBase);

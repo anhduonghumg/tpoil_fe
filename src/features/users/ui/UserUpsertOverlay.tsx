@@ -155,7 +155,7 @@ const UserUpsertFormContent: React.FC<UserUpsertFormContentProps> = ({
     if (!open) return;
     form.resetFields();
 
-    if (isEdit && detail) {
+    if (isEdit) {
       form.setFieldsValue({
         username: detail.username,
         email: detail.email,
@@ -173,12 +173,5 @@ const UserUpsertFormContent: React.FC<UserUpsertFormContentProps> = ({
     }
   }, [open, isEdit, detail, form]);
 
-  return (
-    <UserCompactForm
-      form={form}
-      mode={mode}
-      onFinish={handleFinish}
-      detail={detail}
-    />
-  );
+  return <UserCompactForm form={form} mode={mode} onFinish={handleFinish} />;
 };

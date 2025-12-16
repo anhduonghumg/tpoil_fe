@@ -5,6 +5,14 @@ import { UsersFilters, UsersFilterValue } from "../ui/UsersFilters";
 import { UsersTable } from "../ui/UsersTable";
 import { UserUpsertOverlay } from "../ui/UserUpsertOverlay";
 import { useUsersList } from "../hooks";
+import { ActionKey } from "../../../shared/ui/CommonActionMenu";
+
+type ActionModal =
+  | { type: "view"; userId: string }
+  | { type: "resetPassword"; userId: string }
+  | { type: "assignEmployee"; userId: string }
+  | { type: "assignRoles"; userId: string }
+  | null;
 
 export default function UsersPage() {
   const [filter, setFilter] = useState<UsersFilterValue>({
@@ -20,6 +28,7 @@ export default function UsersPage() {
   const [upsertOpen, setUpsertOpen] = useState(false);
   const [mode, setMode] = useState<"create" | "edit">("create");
   const [selectedUserId, setSelectedUserId] = useState<string | undefined>();
+  const [actionModal, setActionModal] = useState<ActionModal>(null);
 
   const queryParams = useMemo(
     () => ({
@@ -47,6 +56,20 @@ export default function UsersPage() {
     setMode("edit");
     setSelectedUserId(id);
     setUpsertOpen(true);
+  };
+
+  const onDelete = (id: string) => {};
+
+  const onAction = (id: string, action: ActionKey) => {
+    if (action === "edit") return onEdit(id);
+    if (action === "view") return setActionModal({ type: "view", userId: id });
+    if (action === "resetPassword")
+      return setActionModal({ type: "resetPassword", userId: id });
+    if (action === "assignEmployee")
+      return setActionModal({ type: "assignEmployee", userId: id });
+    if (action === "assignRoles")
+      return setActionModal({ type: "assignRoles", userId: id });
+    if (action === "delete") return onDelete(id);
   };
 
   return (
@@ -81,6 +104,7 @@ export default function UsersPage() {
         pageSize={data?.pageSize ?? paging.pageSize}
         onChangePage={(page, pageSize) => setPaging({ page, pageSize })}
         onEdit={onEdit}
+        onAction={onAction}
       />
 
       {/* Upsert */}

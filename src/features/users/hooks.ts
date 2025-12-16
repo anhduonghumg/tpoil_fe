@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UsersApi } from "./api";
 import type { UsersListParams } from "./types";
+import { ApiResponse } from "../../shared/lib/types";
 
 export function useUsersList(params: UsersListParams) {
   return useQuery({
@@ -19,15 +20,6 @@ export function useUserDetail(userId?: string) {
     },
   });
 }
-
-// export function useRolesAll() {
-//   return useQuery({
-//     queryKey: ["users", "roles"],
-//     queryFn: () => UsersApi.roles().then((r: any) => r.data),
-//     staleTime: 5 * 60 * 1000,
-//   });
-// }
-
 export function useCreateUser() {
   return useMutation({
     mutationFn: async (payload: any) => {
@@ -73,5 +65,27 @@ export function useSetUserEmployee() {
       qc.invalidateQueries({ queryKey: ["users", "list"] });
       qc.invalidateQueries({ queryKey: ["users", "detail", vars.id] });
     },
+  });
+}
+
+export function useResetUserPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { id: string; password: string }) => {
+      const res = await UsersApi.resetPassword(payload.id, payload.password);
+      return (res.data as ApiResponse<any>).data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["users", "list"] }),
+  });
+}
+
+export function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await UsersApi.delete(id);
+      return (res.data as ApiResponse<any>).data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["users", "list"] }),
   });
 }

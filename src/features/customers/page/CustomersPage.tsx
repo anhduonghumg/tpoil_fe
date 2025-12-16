@@ -1,5 +1,5 @@
 // features/customers/page/CustomerPage.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { Drawer, Grid } from "antd";
 import { useSearchParams } from "react-router-dom";
 import { CustomerFilters } from "../ui/CustomerFilters";
@@ -18,7 +18,15 @@ import CustomerOverviewSidebar from "../ui/CustomerOverviewSidebar";
 const { useBreakpoint } = Grid;
 const SIDEBAR_WIDTH = 350;
 
+const EMPTY_ARRAY: any[] = [];
+
 export const CustomerPage: React.FC = () => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.lg;
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedCustomerId = searchParams.get("customerId");
+
   const [filters, setFilters] = useState<CustomerListQuery>({
     keyword: "",
     type: undefined,
@@ -27,213 +35,158 @@ export const CustomerPage: React.FC = () => {
     pageSize: 20,
   });
 
-  // ====== URL state để giữ khách đã chọn sau reload ======
-  const [searchParams, setSearchParams] = useSearchParams();
-  const urlSelectedId = searchParams.get("customerId");
-
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
-    urlSelectedId
-  );
-
-  const [upsertMode, setUpsertMode] = useState<"create" | "edit">("create");
-  const [upsertCustomerId, setUpsertCustomerId] = useState<string | null>(null);
-  const [upsertOpen, setUpsertOpen] = useState(false);
-
-  const screens = useBreakpoint();
-  const isMobile = !screens.lg;
+  // State cho Modal Upsert (Create/Edit)
+  const [upsertState, setUpsertState] = useState<{
+    open: boolean;
+    mode: "create" | "edit";
+    id: string | null;
+  }>({
+    open: false,
+    mode: "create",
+    id: null,
+  });
 
   const { data: listData, isLoading: listLoading } = useCustomerList(filters);
   const { data: overviewData, isLoading: overviewLoading } =
     useCustomerOverview(selectedCustomerId || undefined);
+
   const deleteMutation = useDeleteCustomer();
 
-  // Đồng bộ state selectedCustomerId với URL nếu user đổi tab / back/forward
   useEffect(() => {
-    if (urlSelectedId && urlSelectedId !== selectedCustomerId) {
-      setSelectedCustomerId(urlSelectedId);
-    }
-    if (!urlSelectedId && selectedCustomerId === null) {
-      // không làm gì – case lần đầu vào màn
-    }
-  }, [urlSelectedId, selectedCustomerId]);
-
-  // Auto chọn khách đầu tiên nếu:
-  // - Không có customerId trên URL
-  // - Chưa có selectedCustomerId
-  // - Danh sách có phần tử
-  useEffect(() => {
-    if (listData?.items?.length && !urlSelectedId && !selectedCustomerId) {
+    if (
+      !listLoading &&
+      listData?.items?.length &&
+      !selectedCustomerId &&
+      !isMobile
+    ) {
       const firstId = listData.items[0].id;
-      setSelectedCustomerId(firstId);
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set("customerId", firstId);
         return next;
       });
     }
+  }, [listData, listLoading, selectedCustomerId, isMobile, setSearchParams]);
 
-    // Nếu list rỗng -> clear chọn
-    if (!listData?.items?.length) {
-      setSelectedCustomerId(null);
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete("customerId");
-        return next;
-      });
-    }
-  }, [listData, urlSelectedId, selectedCustomerId, setSearchParams]);
-
-  const handlePageChange = (page: number, pageSize: number) => {
+  const handlePageChange = useCallback((page: number, pageSize: number) => {
     setFilters((prev) => ({ ...prev, page, pageSize }));
-  };
+  }, []);
 
-  const handleFilterChange = (next: {
-    keyword?: string;
-    type?: CustomerListQuery["type"];
-    status?: CustomerListQuery["status"];
-  }) => {
+  const handleFilterChange = useCallback((next: Partial<CustomerListQuery>) => {
     setFilters((prev) => ({
       ...prev,
       ...next,
       page: 1,
     }));
-  };
+  }, []);
 
-  const handleSelectCustomer = (id: string) => {
-    setSelectedCustomerId(id);
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (id) next.set("customerId", id);
-      else next.delete("customerId");
-      return next;
-    });
-  };
+  const handleSelectCustomer = useCallback(
+    (id: string) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (id) next.set("customerId", id);
+        else next.delete("customerId");
+        return next;
+      });
+    },
+    [setSearchParams]
+  );
 
-  const openCreate = () => {
-    setUpsertMode("create");
-    setUpsertCustomerId(null);
-    setUpsertOpen(true);
-  };
+  const openCreate = useCallback(() => {
+    setUpsertState({ open: true, mode: "create", id: null });
+  }, []);
 
-  const openEdit = (id: string) => {
-    setUpsertMode("edit");
-    setUpsertCustomerId(id);
-    setUpsertOpen(true);
-  };
+  const openEdit = useCallback((id: string) => {
+    setUpsertState({ open: true, mode: "edit", id: id });
+  }, []);
 
-  const closeUpsert = () => {
-    setUpsertOpen(false);
-    setUpsertCustomerId(null);
-  };
+  const closeUpsert = useCallback(() => {
+    setUpsertState((prev) => ({ ...prev, open: false }));
+  }, []);
 
-  const handleUpsertSuccess = () => {
+  const handleUpsertSuccess = useCallback(() => {
     notify.success(
-      upsertMode === "create"
+      upsertState.mode === "create"
         ? "Tạo khách hàng thành công"
         : "Cập nhật khách hàng thành công"
     );
-    setUpsertOpen(false);
+    closeUpsert();
+  }, [upsertState.mode, closeUpsert]);
+
+  const handleDelete = useCallback(
+    (id: string) => {
+      deleteMutation.mutate(id, {
+        onSuccess: () => {
+          notify.success("Xóa khách hàng thành công");
+          if (selectedCustomerId === id) {
+            handleSelectCustomer("");
+          }
+        },
+      });
+    },
+    [deleteMutation, selectedCustomerId, handleSelectCustomer]
+  );
+
+  const filterProps = useMemo(
+    () => ({
+      keyword: filters.keyword,
+      type: filters.type,
+      status: filters.status,
+    }),
+    [filters.keyword, filters.type, filters.status]
+  );
+
+  // --- RENDER ---
+
+  const tableProps = {
+    data: listData?.items ?? EMPTY_ARRAY,
+    loading: listLoading,
+    total: listData?.total ?? 0,
+    page: filters.page ?? 1,
+    pageSize: filters.pageSize ?? 20,
+    selectedCustomerId: selectedCustomerId ?? undefined,
+    onPageChange: handlePageChange,
+    onSelect: handleSelectCustomer,
+    onEdit: openEdit,
+    onDelete: handleDelete,
   };
 
-  const handleDelete = (id: string) => {
-    deleteMutation.mutate(id, {
-      onSuccess: () => {
-        notify.success("Xóa khách hàng thành công");
-        if (selectedCustomerId === id) {
-          setSelectedCustomerId(null);
-          setSearchParams((prev) => {
-            const next = new URLSearchParams(prev);
-            next.delete("customerId");
-            return next;
-          });
-        }
-      },
-    });
-  };
-
-  // layout desktop: card lớn bên trái + sidebar phải cố định
-  if (!isMobile) {
+  if (isMobile) {
     return (
-      <div
-        style={{
-          display: "flex",
-          height: "100%",
-          padding: 12,
-          background: "#f5f5f5",
-          boxSizing: "border-box",
-        }}
-      >
-        {/* LEFT: card list */}
-        <div
-          style={{
-            flex: 1,
-            marginRight: 12,
-            background: "#fff",
-            borderRadius: 12,
-            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)",
-            display: "flex",
-            flexDirection: "column",
-            minWidth: 0,
-          }}
-        >
-          <CustomerFilters
-            value={{
-              keyword: filters.keyword,
-              type: filters.type,
-              status: filters.status,
-            }}
-            onChange={handleFilterChange}
-            onCreate={openCreate}
-            loading={listLoading}
-          />
-
-          <div style={{ flex: 1, padding: "4px 8px 8px" }}>
-            <CustomerTable
-              data={listData?.items ?? []}
-              loading={listLoading}
-              total={listData?.total ?? 0}
-              page={filters.page ?? 1}
-              pageSize={filters.pageSize ?? 20}
-              selectedCustomerId={selectedCustomerId ?? undefined}
-              onPageChange={handlePageChange}
-              onSelect={handleSelectCustomer}
-              onEdit={openEdit}
-              onDelete={handleDelete}
-            />
-          </div>
-        </div>
-
-        {/* VERTICAL DIVIDER */}
-        <div
-          style={{
-            width: 1,
-            background: "#e5e7eb",
-            margin: "4px 4px",
-          }}
+      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <CustomerFilters
+          value={filterProps}
+          onChange={handleFilterChange}
+          onCreate={openCreate}
+          loading={listLoading}
         />
 
-        {/* RIGHT: fixed sidebar overview */}
-        <div
-          style={{
-            width: SIDEBAR_WIDTH,
-            flex: `0 0 ${SIDEBAR_WIDTH}px`,
-            background: "#fff",
-            borderRadius: 12,
-            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)",
-            padding: 12,
-            boxSizing: "border-box",
-            overflowY: "auto",
-          }}
-        >
-          <CustomerOverviewSidebar customerId={selectedCustomerId} />
+        <div style={{ flex: 1 }}>
+          <CustomerTable {...tableProps} />
         </div>
 
-        {upsertOpen && (
+        <Drawer
+          placement="right"
+          open={!!selectedCustomerId}
+          width="100%"
+          onClose={() => handleSelectCustomer("")}
+          title="Chi tiết khách hàng"
+        >
+          <CustomerOverviewPanel
+            data={overviewData}
+            loading={overviewLoading}
+            customerId={selectedCustomerId}
+          />
+        </Drawer>
+
+        {upsertState.open && (
           <CustomerUpsertOverlay
-            mode={upsertMode}
-            open={upsertOpen}
+            mode={upsertState.mode}
+            open={upsertState.open}
             customerId={
-              upsertMode === "edit" ? upsertCustomerId || undefined : undefined
+              upsertState.mode === "edit"
+                ? upsertState.id || undefined
+                : undefined
             }
             onClose={closeUpsert}
             onSuccess={handleUpsertSuccess}
@@ -243,55 +196,65 @@ export const CustomerPage: React.FC = () => {
     );
   }
 
-  // layout mobile
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <CustomerFilters
-        value={{
-          keyword: filters.keyword,
-          type: filters.type,
-          status: filters.status,
+    <div
+      style={{
+        display: "flex",
+        height: "100%",
+        padding: 12,
+        background: "#f5f5f5",
+        boxSizing: "border-box",
+      }}
+    >
+      {/* LEFT: card list */}
+      <div
+        style={{
+          flex: 1,
+          marginRight: 12,
+          background: "#fff",
+          borderRadius: 12,
+          boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)",
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 0,
         }}
-        onChange={handleFilterChange}
-        onCreate={openCreate}
-        loading={listLoading}
-      />
-
-      <div style={{ flex: 1 }}>
-        <CustomerTable
-          data={listData?.items ?? []}
+      >
+        <CustomerFilters
+          value={filterProps}
+          onChange={handleFilterChange}
+          onCreate={openCreate}
           loading={listLoading}
-          total={listData?.total ?? 0}
-          page={filters.page ?? 1}
-          pageSize={filters.pageSize ?? 20}
-          selectedCustomerId={selectedCustomerId ?? undefined}
-          onPageChange={handlePageChange}
-          onSelect={handleSelectCustomer}
-          onEdit={openEdit}
-          onDelete={handleDelete}
         />
+
+        <div style={{ flex: 1, padding: "4px 8px 8px" }}>
+          <CustomerTable {...tableProps} />
+        </div>
       </div>
 
-      <Drawer
-        placement="right"
-        open={!!selectedCustomerId}
-        width="100%"
-        onClose={() => handleSelectCustomer("")}
-        title="Chi tiết khách hàng"
+      <div style={{ width: 1, background: "#e5e7eb", margin: "4px 4px" }} />
+      <div
+        style={{
+          width: SIDEBAR_WIDTH,
+          flex: `0 0 ${SIDEBAR_WIDTH}px`,
+          background: "#fff",
+          borderRadius: 12,
+          boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)",
+          padding: 12,
+          boxSizing: "border-box",
+          overflowY: "auto",
+        }}
       >
-        <CustomerOverviewPanel
-          data={overviewData}
-          loading={overviewLoading}
-          customerId={selectedCustomerId}
-        />
-      </Drawer>
+        <CustomerOverviewSidebar customerId={selectedCustomerId} />
+      </div>
 
-      {upsertOpen && (
+      {upsertState.open && (
         <CustomerUpsertOverlay
-          mode={upsertMode}
-          open={upsertOpen}
+          mode={upsertState.mode}
+          open={upsertState.open}
           customerId={
-            upsertMode === "edit" ? upsertCustomerId || undefined : undefined
+            upsertState.mode === "edit"
+              ? upsertState.id || undefined
+              : undefined
           }
           onClose={closeUpsert}
           onSuccess={handleUpsertSuccess}

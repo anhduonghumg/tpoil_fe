@@ -1,10 +1,10 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Modal, Form } from "antd";
-import { useSetUserRoles, useUserDetailRaw } from "../hooks";
+import { useSetUserEmployee, useUserDetailRaw } from "../hooks";
+import { EmployeeSelect } from "../../../shared/ui/EmployeeSelect";
 import { notify } from "../../../shared/lib/notification";
-import { RoleSelect } from "../../../shared/ui/RoleSelect";
 
-export function AssignRolesModal({
+export function AssignEmployeeModal({
   open,
   userId,
   onClose,
@@ -15,36 +15,34 @@ export function AssignRolesModal({
 }) {
   const [form] = Form.useForm();
   const { data } = useUserDetailRaw(userId);
-  const setRoles = useSetUserRoles();
+  const setEmp = useSetUserEmployee();
 
   useEffect(() => {
     if (!open) return;
     form.resetFields();
-    form.setFieldsValue({
-      roleIds: (data?.rolesGlobal ?? []).map((r: any) => r.id),
-    });
+    form.setFieldsValue({ employeeId: data?.employee?.id ?? null });
   }, [open, data, form]);
 
   const onOk = async () => {
     const v = await form.validateFields();
-    await setRoles.mutateAsync({ id: userId, roleIds: v.roleIds ?? [] });
-    notify.success("Đã cập nhật quyền");
+    await setEmp.mutateAsync({ id: userId, employeeId: v.employeeId ?? null });
+    notify.success("Đã cập nhật nhân viên");
     onClose();
   };
 
   return (
     <Modal
       open={open}
-      title="Gán quyền"
+      title="Gán nhân viên"
       onCancel={onClose}
       onOk={onOk}
       okText="Lưu"
-      confirmLoading={setRoles.isPending}
+      confirmLoading={setEmp.isPending}
       destroyOnClose
     >
       <Form form={form} layout="vertical">
-        <Form.Item name="roleIds" label="Quyền (global)">
-          <RoleSelect mode="multiple" placeholder="Chọn quyền..." />
+        <Form.Item name="employeeId" label="Nhân viên">
+          <EmployeeSelect placeholder="Chọn nhân viên..." />
         </Form.Item>
       </Form>
     </Modal>

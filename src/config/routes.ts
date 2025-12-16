@@ -26,6 +26,7 @@ export const ROUTES = {
     roles: ["GET", "/users/roles"] as RouteTuple,
     setRoles: ["PUT", "/users/:id/roles"] as RouteTuple,
     setEmployee: ["PUT", "/users/:id/employee"] as RouteTuple,
+    resetPassword: ["PUT", "/users/:id/password"] as RouteTuple,
   },
   department: {
     list: ["GET", "/departments"] as RouteTuple,

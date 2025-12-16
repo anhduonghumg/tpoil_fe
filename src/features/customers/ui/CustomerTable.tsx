@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { Table, Tag, Button, Space, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
@@ -46,8 +46,7 @@ const typeTag = (type: Customer["type"]) => {
       return <Tag>{type}</Tag>;
   }
 };
-
-export const CustomerTable: React.FC<CustomerTableProps> = ({
+const CustomerTableBase: React.FC<CustomerTableProps> = ({
   data,
   loading,
   page,
@@ -184,3 +183,5 @@ export const CustomerTable: React.FC<CustomerTableProps> = ({
     />
   );
 };
+
+export const CustomerTable = memo(CustomerTableBase);

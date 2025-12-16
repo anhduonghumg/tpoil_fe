@@ -242,7 +242,7 @@ export default function Login() {
           <Form.Item
             className="label-login"
             style={{ fontWeight: 600 }}
-            name="email"
+            name="identifier"
             label="Tên đăng nhập"
             rules={[
               {

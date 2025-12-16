@@ -1,4 +1,5 @@
 import { apiCall } from "../../shared/lib/api";
+import { ApiResponse } from "../../shared/lib/types";
 import type { UsersListParams } from "./types";
 
 export const UsersApi = {
@@ -16,4 +17,10 @@ export const UsersApi = {
 
   setRoles: (id: string, roleIds: string[]) =>
     apiCall("user.setRoles", { params: { id }, data: { roleIds } }),
+
+  resetPassword: (id: string, password: string) =>
+    apiCall<ApiResponse<any>>("user.resetPassword", {
+      params: { id },
+      data: { password },
+    }),
 };

@@ -9,8 +9,11 @@ type MeResponse = {
 type LoginResp = { user: User } | { data: { user: User } };
 
 export const AuthApi = {
-  login: (payload: { email?: string; username?: string; password: string }) =>
-    apiCall("auth.login", { data: payload }).then((r) => r.data),
+  login: (payload: {
+    identifier?: string;
+    username?: string;
+    password: string;
+  }) => apiCall("auth.login", { data: payload }).then((r) => r.data),
   logout: () => apiCall("auth.logout").then((r) => r.data),
   me: async () => {
     // console.log("Calling me api");

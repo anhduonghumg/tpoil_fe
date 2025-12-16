@@ -1,5 +1,5 @@
 import React from "react";
-import { Table, Tag, Button, Space } from "antd";
+import { Table, Tag, Space } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   ActionKey,
@@ -46,6 +46,7 @@ export const UsersTable: React.FC<Props> = ({
   pageSize,
   onChangePage,
   onEdit,
+  onAction,
 }) => {
   const columns: ColumnsType<UserRow> = [
     {
@@ -122,10 +123,10 @@ export const UsersTable: React.FC<Props> = ({
               key: "delete",
               label: "Xóa",
               icon: <DeleteOutlined />,
-              danger: true
+              danger: true,
             },
           ]}
-          onAction={(act) => props.onAction(row.id, act)}
+          onAction={(act) => onAction(row.id, act)}
         />
       ),
     },
