@@ -13,6 +13,7 @@ import {
   SafetyCertificateOutlined,
   UserSwitchOutlined,
 } from "@ant-design/icons";
+import { PERMS } from "../../../shared/authz/perms";
 
 interface UserRow {
   id: string;
@@ -102,28 +103,42 @@ export const UsersTable: React.FC<Props> = ({
       render: (_, row) => (
         <CommonActionMenu
           items={[
-            { key: "view", label: "Xem thông tin", icon: <EyeOutlined /> },
-            { key: "edit", label: "Sửa thông tin", icon: <EditOutlined /> },
+            {
+              key: "view",
+              label: "Xem thông tin",
+              icon: <EyeOutlined />,
+              need: PERMS.USERS_VIEW,
+            },
+            {
+              key: "edit",
+              label: "Sửa thông tin",
+              icon: <EditOutlined />,
+              need: PERMS.USERS_UPDATE,
+            },
             {
               key: "resetPassword",
               label: "Cấp mật khẩu mới",
               icon: <KeyOutlined />,
+              need: PERMS.USERS_RESET_PASSWORD,
             },
             {
               key: "assignEmployee",
               label: "Gán nhân viên",
               icon: <UserSwitchOutlined />,
+              need: PERMS.USERS_ASSIGN_EMPLOYEE,
             },
             {
               key: "assignRoles",
               label: "Gán quyền",
               icon: <SafetyCertificateOutlined />,
+              need: PERMS.USERS_ASSIGN_ROLES,
             },
             {
               key: "delete",
               label: "Xóa",
               icon: <DeleteOutlined />,
               danger: true,
+              need: PERMS.USERS_DELETE,
             },
           ]}
           onAction={(act) => onAction(row.id, act)}

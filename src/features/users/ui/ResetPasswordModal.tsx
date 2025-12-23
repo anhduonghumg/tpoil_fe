@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { Modal, Input, Space, Button } from "antd";
 import { CopyOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useResetUserPassword } from "../hooks";
@@ -24,8 +24,6 @@ export function ResetPasswordModal({
   const resetMut = useResetUserPassword();
   const [pwd, setPwd] = useState(() => genPassword(10));
 
-  const loading = resetMut.isPending;
-
   const onOk = async () => {
     await resetMut.mutateAsync({ id: userId, password: pwd });
     notify.success("Đã cấp mật khẩu mới");
@@ -44,7 +42,7 @@ export function ResetPasswordModal({
       onCancel={onClose}
       onOk={onOk}
       okText="Cấp mật khẩu"
-      confirmLoading={loading}
+      confirmLoading={resetMut.isPending}
       destroyOnClose
     >
       <Space direction="vertical" style={{ width: "100%" }}>
@@ -52,7 +50,6 @@ export function ResetPasswordModal({
           size="small"
           value={pwd}
           onChange={(e) => setPwd(e.target.value)}
-          placeholder="Mật khẩu mới"
         />
         <Space>
           <Button

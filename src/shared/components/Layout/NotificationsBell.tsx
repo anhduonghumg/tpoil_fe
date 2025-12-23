@@ -1,4 +1,3 @@
-// layout/NotificationsBell.tsx
 import { useMemo, useState } from "react";
 import {
   Badge,
@@ -16,7 +15,7 @@ import {
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
-import { useAppBootstrap } from "../../../features/app/hooks";
+import { useAppSession } from "../../authz/AppSessionProvider";
 
 export default function NotificationsBell({
   extraCount = 0,
@@ -25,32 +24,26 @@ export default function NotificationsBell({
 }) {
   const navigate = useNavigate();
   const [openModal, setOpenModal] = useState(false);
+  const { ready, bootstrap } = useAppSession();
 
-  // === Lấy dữ liệu notifications từ /app/bootstrap ===
-  const { data, isLoading } = useAppBootstrap();
+  const birthdays = bootstrap?.data?.notifications?.birthdays;
+  const contracts = bootstrap?.data?.notifications?.contracts;
 
-  const birthdays = data?.notifications?.birthdays;
-  const contracts = data?.notifications?.contracts;
-
-  // console.log("NotificationsBell data", { birthdays, contracts });
-
-  // --- Sinh nhật ---
   const bdayCount = birthdays?.count ?? 0;
   const hasBirthday = bdayCount > 0;
   const month = birthdays?.month ?? new Date().getMonth() + 1;
 
-  // --- Hợp đồng ---
   const expiringCount = contracts?.expiringCount ?? 0;
   const expiredCount = contracts?.expiredCount ?? 0;
   const hasContracts = expiringCount + expiredCount > 0;
 
-  // Tổng badge: mỗi loại thông báo +1, cộng thêm extraCount nếu bạn muốn
   const badgeCount =
     extraCount + (hasBirthday ? 1 : 0) + (hasContracts ? 1 : 0);
 
-  // Menu dropdown
   const dropdownItems: MenuProps["items"] = useMemo(() => {
     const items: MenuProps["items"] = [];
+    if (!ready)
+      return [{ key: "loading", disabled: true, label: "Đang tải..." }];
 
     if (hasBirthday) {
       items.push({
@@ -60,28 +53,19 @@ export default function NotificationsBell({
         onClick: () => setOpenModal(true),
       });
     }
-
     if (hasContracts) {
       items.push({
         key: "contracts-expiry",
         icon: <FileTextOutlined style={{ color: "#1890ff" }} />,
-        label: `Có ${expiringCount} hợp đồng sắp hết hạn, ${expiredCount} hợp đồng đã quá hạn`,
-        onClick: () => {
-          navigate("/contracts/expiry-report");
-        },
+        label: `Có ${expiringCount} sắp hết hạn, ${expiredCount} quá hạn`,
+        onClick: () => navigate("/contracts/expiry-report"),
       });
     }
-
-    if (!items.length) {
-      items.push({
-        key: "empty",
-        disabled: true,
-        label: "Không có thông báo",
-      });
-    }
-
+    if (!items.length)
+      items.push({ key: "empty", disabled: true, label: "Không có thông báo" });
     return items;
   }, [
+    ready,
     hasBirthday,
     hasContracts,
     bdayCount,
@@ -90,36 +74,17 @@ export default function NotificationsBell({
     navigate,
   ]);
 
-  // Dữ liệu bảng sinh nhật lấy từ bootstrap.notifications.birthdays.items
   const today = dayjs().date();
   const rows =
-    birthdays?.items?.map((u) => {
+    birthdays?.items?.map((u: any) => {
       const dob = dayjs(u.dob);
       return {
         ...u,
         day: dob.date(),
-        month: dob.month() + 1,
-        isToday: dob.date() === today,
         dobFmt: dob.format("DD/MM/YYYY"),
+        isToday: dob.date() === today,
       };
     }) ?? [];
-
-  const columns = [
-    {
-      title: "Nhân viên",
-      dataIndex: "fullName",
-      key: "fullName",
-    },
-    {
-      title: "Ngày sinh",
-      dataIndex: "dobFmt",
-      key: "dobFmt",
-      width: "auto",
-      sorter: (a: any, b: any) => a.day - b.day,
-      defaultSortOrder: "ascend" as const,
-      align: "center" as const,
-    },
-  ];
 
   return (
     <>
@@ -134,7 +99,6 @@ export default function NotificationsBell({
         </Badge>
       </Dropdown>
 
-      {/* Modal danh sách sinh nhật */}
       <Modal
         title={
           <Space style={{ alignItems: "center" }}>
@@ -148,12 +112,21 @@ export default function NotificationsBell({
         onCancel={() => setOpenModal(false)}
         footer={null}
         width={560}
-        confirmLoading={isLoading}
       >
         <Table
           rowKey="id"
           size="small"
-          columns={columns as any}
+          columns={
+            [
+              { title: "Nhân viên", dataIndex: "fullName", key: "fullName" },
+              {
+                title: "Ngày sinh",
+                dataIndex: "dobFmt",
+                key: "dobFmt",
+                align: "center" as const,
+              },
+            ] as any
+          }
           dataSource={rows}
           pagination={{ pageSize: 8, hideOnSinglePage: true }}
           locale={{ emptyText: "Tháng này chưa có sinh nhật." }}

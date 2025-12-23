@@ -163,7 +163,18 @@ export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
         </Col>
         <Col xs={24} md={6}>
           <Form.Item label="Hạn mức override" name="creditLimitOverride">
-            <InputNumber size="small" min={0} style={{ width: "100%" }} />
+            <InputNumber
+              size="small"
+              min={0}
+              style={{ width: "100%" }}
+              stringMode
+              formatter={(value) =>
+                `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+              }
+              // parser={(value) =>
+              //   value?.replace(/\$\s?|(,*)/g, "") as unknown as number
+              // }
+            />
           </Form.Item>
         </Col>
       </Row>
@@ -195,15 +206,25 @@ export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
               placeholder={
                 renewalLoading ? "Đang tải HĐ gốc..." : "Chọn HĐ gốc (nếu có)"
               }
+              filterOption={(input, option) =>
+                (option?.label ?? "")
+                  .toString()
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              options={renewalOptions.map((c) => ({
+                value: c.id,
+                label: c.code ? `${c.code} - ${c.name}` : c.name,
+              }))}
               loading={renewalLoading}
               disabled={!renewalOptions.length && !renewalLoading}
               optionFilterProp="children"
             >
-              {renewalOptions.map((c) => (
+              {/* {renewalOptions.map((c) => (
                 <Select.Option key={c.id} value={c.id}>
                   {c.code ? `${c.code} - ${c.name}` : c.name}
                 </Select.Option>
-              ))}
+              ))} */}
             </Select>
           </Form.Item>
         </Col>

@@ -1,12 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UsersApi } from "./api";
-import type { UsersListParams } from "./types";
 import { ApiResponse } from "../../shared/lib/types";
 
-export function useUsersList(params: UsersListParams) {
+export function useUsersList(params: {
+  page: number;
+  pageSize: number;
+  keyword?: string;
+}) {
   return useQuery({
     queryKey: ["users", "list", params],
-    queryFn: () => UsersApi.list(params).then((r: any) => r.data!.data),
+    queryFn: async () => {
+      const res = await UsersApi.list(params);
+      return (res.data as ApiResponse<any>).data;
+    },
+    staleTime: 30_000,
   });
 }
 
@@ -15,26 +22,36 @@ export function useUserDetail(userId?: string) {
     enabled: !!userId,
     queryKey: ["users", "detail", userId],
     queryFn: async () => {
-      const res: any = await UsersApi.detail(userId!);
-      return res.data; // theo chuẩn apiCall/axios của bạn
+      const res = await UsersApi.detail(userId!);
+      return (res.data as ApiResponse<any>).data;
     },
   });
 }
+
 export function useCreateUser() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: any) => {
       const res: any = await UsersApi.create(payload);
       return res.data;
     },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["users", "list"] });
+    },
   });
 }
 
 export function useUpdateUser() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { id: string } & any) => {
       const { id, ...data } = payload;
       const res: any = await UsersApi.update(id, data);
       return res.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["users", "list"] });
+      await qc.invalidateQueries({ queryKey: ["users", "detail"] });
     },
   });
 }
@@ -42,11 +59,14 @@ export function useUpdateUser() {
 export function useSetUserRoles() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, roleIds }: { id: string; roleIds: string[] }) =>
-      UsersApi.setRoles(id, roleIds).then((r: any) => r.data),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["users", "list"] });
-      qc.invalidateQueries({ queryKey: ["users", "detail", vars.id] });
+    mutationFn: async (p: { id: string; roleIds: string[] }) => {
+      const res = await UsersApi.setRoles(p.id, p.roleIds);
+      return (res.data as ApiResponse<any>).data;
+    },
+    onSuccess: async (res, vars) => {
+      await qc.invalidateQueries({ queryKey: ["users", "list"], exact: false });
+      await qc.invalidateQueries({ queryKey: ["users", "detail", vars.id] });
+      await qc.refetchQueries({ queryKey: ["users", "detail", vars.id] });
     },
   });
 }
@@ -54,16 +74,14 @@ export function useSetUserRoles() {
 export function useSetUserEmployee() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      employeeId,
-    }: {
-      id: string;
-      employeeId: string | null;
-    }) => UsersApi.setEmployee(id, employeeId).then((r: any) => r.data),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["users", "list"] });
-      qc.invalidateQueries({ queryKey: ["users", "detail", vars.id] });
+    mutationFn: async (p: { id: string; employeeId: string | null }) => {
+      const res = await UsersApi.setEmployee(p.id, p.employeeId);
+      return (res.data as ApiResponse<any>).data;
+    },
+    onSuccess: async (_res, vars) => {
+      await qc.invalidateQueries({ queryKey: ["users", "list"], exact: false });
+      await qc.invalidateQueries({ queryKey: ["users", "detail", vars.id] });
+      await qc.refetchQueries({ queryKey: ["users", "detail", vars.id] });
     },
   });
 }
@@ -71,11 +89,13 @@ export function useSetUserEmployee() {
 export function useResetUserPassword() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; password: string }) => {
-      const res = await UsersApi.resetPassword(payload.id, payload.password);
+    mutationFn: async (p: { id: string; password: string }) => {
+      const res = await UsersApi.resetPassword(p.id, p.password);
       return (res.data as ApiResponse<any>).data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["users", "list"] }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["users", "list"] });
+    },
   });
 }
 
@@ -86,6 +106,8 @@ export function useDeleteUser() {
       const res = await UsersApi.delete(id);
       return (res.data as ApiResponse<any>).data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["users", "list"] }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["users", "list"] });
+    },
   });
 }

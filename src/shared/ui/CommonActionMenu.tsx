@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Dropdown, Button } from "antd";
 import type { MenuProps } from "antd";
 import { MoreOutlined } from "@ant-design/icons";
+import { useCan } from "../authz/useCan";
+import { hasPerm, type Need } from "../authz/authz";
 
 export type ActionKey =
   | "view"
@@ -17,6 +19,7 @@ export type ActionItem = {
   icon?: React.ReactNode;
   danger?: boolean;
   disabled?: boolean;
+  need?: Need;
 };
 
 export function CommonActionMenu({
@@ -26,7 +29,14 @@ export function CommonActionMenu({
   items: ActionItem[];
   onAction: (key: ActionKey) => void;
 }) {
-  const menuItems: MenuProps["items"] = items.map((x) => ({
+  const { permissions, ready } = useCan();
+
+  const allowedItems = useMemo(() => {
+    if (!ready) return [];
+    return items.filter((x) => !x.need || hasPerm({ permissions }, x.need));
+  }, [items, permissions, ready]);
+
+  const menuItems: MenuProps["items"] = allowedItems.map((x) => ({
     key: x.key,
     label: x.label,
     icon: x.icon,
@@ -42,7 +52,11 @@ export function CommonActionMenu({
         onClick: (info) => onAction(info.key as ActionKey),
       }}
     >
-      <Button size="small" icon={<MoreOutlined />}>
+      <Button
+        size="small"
+        icon={<MoreOutlined />}
+        disabled={!ready || menuItems.length === 0}
+      >
         Chức năng
       </Button>
     </Dropdown>

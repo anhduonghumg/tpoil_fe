@@ -14,54 +14,48 @@ import { ContractsModuleLayout } from "../features/contracts/ui/ContractsModuleL
 import CronJobsPage from "../features/cron/page/CronJobsPage";
 import RolesPage from "../features/rbac/roles/page/RolesPage";
 import UsersPage from "../features/users/page/UsersPage";
+import { PrivateShell } from "./PrivateShell";
 // import { Test } from "../page/Test";
 
-const requireAuth = async () => {
-  const cached = loadUserFromCache();
-  if (!cached) {
-    throw redirect("/login");
-  }
-  return null;
-};
+// const requireAuth = async () => {
+//   const cached = loadUserFromCache();
+//   if (!cached) {
+//     throw redirect("/login");
+//   }
+//   return null;
+// };
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
   {
     path: "/",
-    loader: requireAuth,
-    element: <AppLayout />,
+    element: <PrivateShell />,
     children: [
-      { index: true, element: <Dashboard /> },
-      { path: "dashboard", element: <Dashboard /> },
-      { path: "orders", element: <div>Đơn hàng</div> },
-      { path: "inventory", element: <div>Kho hàng</div> },
-      { path: "users", element: <UsersPage /> },
-      { path: "employees", element: <UsersList /> },
-      { path: "employees/:id", element: <UserDetail /> },
-      { path: "department", element: <DepartmentsPage /> },
-      { path: "customers", element: <CustomerPage /> },
       {
-        path: "contracts",
-        element: <ContractsModuleLayout />,
+        element: <AppLayout />,
         children: [
+          { index: true, element: <Dashboard /> },
+          { path: "dashboard", element: <Dashboard /> },
+          { path: "orders", element: <div>Đơn hàng</div> },
+          { path: "inventory", element: <div>Kho hàng</div> },
+          { path: "users", element: <UsersPage /> },
+          { path: "employees", element: <UsersList /> },
+          { path: "employees/:id", element: <UserDetail /> },
+          { path: "department", element: <DepartmentsPage /> },
+          { path: "customers", element: <CustomerPage /> },
           {
-            index: true, // /contracts
-            element: <ContractsPage />,
+            path: "contracts",
+            element: <ContractsModuleLayout />,
+            children: [
+              { index: true, element: <ContractsPage /> },
+              { path: "expiry-report", element: <ContractsExpiryReportPage /> },
+            ],
           },
-          {
-            path: "expiry-report", // /contracts/expiry-report
-            element: <ContractsExpiryReportPage />,
-          },
+          { path: "contractTypes", element: <ContractTypesPage /> },
+          { path: "cron", element: <CronJobsPage /> },
+          { path: "settings/roles", element: <RolesPage /> },
         ],
       },
-      { path: "contractTypes", element: <ContractTypesPage /> },
-      { path: "cron", element: <CronJobsPage /> },
-      { path: "settings/roles", element: <RolesPage /> },
     ],
   },
-  // {
-  //   path: "/test",
-  //   // loader: requireAuth,
-  //   element: <Test />,
-  // },
 ]);

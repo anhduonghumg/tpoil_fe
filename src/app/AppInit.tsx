@@ -3,6 +3,7 @@ import SplashScreen from "./SplashScreen";
 import { RouterProvider } from "react-router-dom";
 import { router } from "./router";
 import { loadUserFromCache } from "../features/auth/session";
+import { AuthzProvider } from "../shared/authz/AuthzProvider";
 
 export default function AppInit() {
   const [ready, setReady] = useState(false);
@@ -16,5 +17,9 @@ export default function AppInit() {
   }, []);
 
   if (!ready) return <SplashScreen />;
-  return <RouterProvider router={router} />;
+  return (
+    <AuthzProvider>
+      <RouterProvider router={router} />
+    </AuthzProvider>
+  );
 }

@@ -2,6 +2,7 @@ import { ConfigProvider, theme } from "antd";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "./App.css";
 import AppInit from "./app/AppInit";
+import { AuthzProvider } from "./shared/authz/AuthzProvider";
 
 const themeTokens = {
   token: {
@@ -26,9 +27,9 @@ const queryClient = new QueryClient();
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider theme={themeTokens}>
-        <AppInit />
-      </ConfigProvider>
+        <ConfigProvider theme={themeTokens}>
+          <AppInit />
+        </ConfigProvider>
     </QueryClientProvider>
   );
 }

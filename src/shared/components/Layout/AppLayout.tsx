@@ -18,6 +18,7 @@ import "./AppLayout.css";
 import { useLogout, useMe } from "../../../features/auth/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  clearUserCache,
   loadUserFromCache,
   saveUserToCache,
 } from "../../../features/auth/session";
@@ -26,6 +27,7 @@ import {
 import logo from "../../../assets/logo_200.png";
 import { confirmDialog } from "../../lib/confirm";
 import NotificationsBell from "./NotificationsBell";
+import { useAppSession } from "../../authz/AppSessionProvider";
 
 const { Header, Sider, Content } = Layout;
 const { useBreakpoint } = Grid;
@@ -163,8 +165,7 @@ export default function AppLayout() {
   const nav = useNavigate();
   const { pathname } = useLocation();
 
-  const cachedUser = loadUserFromCache();
-  const me = cachedUser ? useMe() : undefined;
+  const { me } = useAppSession();
   const logout = useLogout();
   const qc = useQueryClient();
 
@@ -181,24 +182,24 @@ export default function AppLayout() {
     else setCollapsed((c) => !c);
   }, [isMobile]);
 
-  const handleLogout = () => {
+  const onLogout = useCallback(async () => {
+    try {
+      await logout.mutateAsync();
+    } finally {
+      clearUserCache();
+      await qc.cancelQueries();
+      qc.clear();
+      nav("/login", { replace: true });
+    }
+  }, [logout, qc, nav]);
+
+  const handleLogout = useCallback(() => {
     confirmDialog.confirm(
       "Xác nhận",
       "Bạn có chắc chắn muốn đăng xuất khỏi phiên làm việc hiện tại?",
       onLogout
     );
-  };
-
-  const onLogout = async () => {
-    try {
-      await logout.mutateAsync();
-    } finally {
-      qc.removeQueries({ queryKey: ["auth", "me"], exact: true });
-      qc.clear();
-      saveUserToCache(null);
-      nav("/login", { replace: true });
-    }
-  };
+  }, [onLogout]);
 
   const selectedKeys = useMemo(() => {
     const best = FLAT_KEYS.filter(
@@ -222,7 +223,7 @@ export default function AppLayout() {
     }));
   }, [pathname]);
 
-  const userName = (me?.data?.name || me?.data?.email || "User") as string;
+  const userName = (me?.name || me?.email || "User") as string;
 
   return (
     <Layout className="app-root">

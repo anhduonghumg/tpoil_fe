@@ -1,22 +1,27 @@
 import { apiCall } from "../../shared/lib/api";
 import { ApiResponse } from "../../shared/lib/types";
-import type { UsersListParams } from "./types";
 
 export const UsersApi = {
-  list: (query: UsersListParams) => apiCall("user.list", { query }),
-  detail: (id: string) => apiCall("user.detail", { params: { id } }),
-  create: (data: any) => apiCall("user.create", { data }),
+  list: (query: any) => apiCall<ApiResponse<any>>("user.list", { query }),
+  detail: (id: string) =>
+    apiCall<ApiResponse<any>>("user.detail", { params: { id } }),
+  create: (data: any) => apiCall<ApiResponse<any>>("user.create", { data }),
   update: (id: string, data: any) =>
-    apiCall("user.update", { params: { id }, data }),
-  delete: (id: string) => apiCall("user.delete", { params: { id } }),
-
-  rolesSelect: () => apiCall("user.roles"),
+    apiCall<ApiResponse<any>>("user.update", { params: { id }, data }),
+  delete: (id: string) =>
+    apiCall<ApiResponse<any>>("user.delete", { params: { id } }),
 
   setEmployee: (id: string, employeeId: string | null) =>
-    apiCall("user.setEmployee", { params: { id }, data: { employeeId } }),
+    apiCall<ApiResponse<any>>("user.setEmployee", {
+      params: { id },
+      data: { employeeId },
+    }),
 
   setRoles: (id: string, roleIds: string[]) =>
-    apiCall("user.setRoles", { params: { id }, data: { roleIds } }),
+    apiCall<ApiResponse<any>>("user.setRoles", {
+      params: { id },
+      data: { roleIds },
+    }),
 
   resetPassword: (id: string, password: string) =>
     apiCall<ApiResponse<any>>("user.resetPassword", {

@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
 import type { FormInstance } from "antd";
-import { message } from "antd";
 import OverlayForm from "../../employees/ui/OverlayForm";
 import { useCreateUser, useUpdateUser, useUserDetail } from "../hooks";
 import UserCompactForm from "./UserCompactForm";
@@ -30,8 +29,9 @@ export const UserUpsertOverlay: React.FC<UserUpsertOverlayProps> = ({
     isEdit ? userId : undefined
   );
 
-  const detail =
-    detailRes?.data ?? detailRes?.data?.data ?? detailRes?.data?.data?.data;
+  // console.log(detailRes);
+
+  const detail = detailRes ?? [];
 
   const createMutation = useCreateUser();
   const updateMutation = useUpdateUser();
@@ -60,23 +60,11 @@ export const UserUpsertOverlay: React.FC<UserUpsertOverlayProps> = ({
           userId={userId}
           detail={detail}
           onCreate={async (payload) => {
-            const res: any = await createMutation.mutateAsync(payload.user);
-            const newId =
-              res?.data?.id ??
-              res?.data?.data?.id ??
-              res?.id ??
-              res?.data?.data?.data?.id;
-
-            if (!newId) {
-              notify.error("Không lấy được userId sau khi tạo");
-              return;
-            }
-
-            // 2) set employee + roles
-            await Promise.all([
-              UsersApi.setEmployee(newId, payload.employeeId ?? null),
-              UsersApi.setRoles(newId, payload.roleIds ?? []),
-            ]);
+            await createMutation.mutateAsync({
+              ...payload.user,
+              employeeId: payload.employeeId ?? null,
+              roleIds: payload.roleIds ?? [],
+            });
 
             onSuccess?.();
             onClose();
@@ -84,12 +72,12 @@ export const UserUpsertOverlay: React.FC<UserUpsertOverlayProps> = ({
           onUpdate={async (payload) => {
             if (!userId) return;
 
-            await updateMutation.mutateAsync({ id: userId, ...payload.user });
-
-            await Promise.all([
-              UsersApi.setEmployee(userId, payload.employeeId ?? null),
-              UsersApi.setRoles(userId, payload.roleIds ?? []),
-            ]);
+            await updateMutation.mutateAsync({
+              id: userId,
+              ...payload.user,
+              employeeId: payload.employeeId ?? null,
+              roleIds: payload.roleIds ?? [],
+            });
 
             onSuccess?.();
             onClose();
@@ -132,14 +120,22 @@ const UserUpsertFormContent: React.FC<UserUpsertFormContentProps> = ({
   const isEdit = mode === "edit";
 
   const handleFinish = (values: any) => {
+    const isEditMode = mode === "edit";
+
     const userPayload: any = {
-      username: values.username,
-      email: values.email,
-      name: values.name || null,
-      isActive: !!values.isActive,
+      email: values?.email?.trim(),
+      name: values?.name?.trim() || null,
+      isActive: !!values?.isActive,
     };
 
-    if (values.passwordNew) userPayload.password = values.passwordNew;
+    if (!isEditMode) {
+      userPayload.username = values?.username?.trim();
+      userPayload.password = values?.password;
+    }
+
+    if (isEditMode && values?.passwordNew) {
+      userPayload.password = values.passwordNew;
+    }
 
     const payload = {
       user: userPayload,
@@ -147,7 +143,7 @@ const UserUpsertFormContent: React.FC<UserUpsertFormContentProps> = ({
       roleIds: values.roleIds ?? [],
     };
 
-    if (isEdit && userId) onUpdate(payload);
+    if (isEditMode && userId) onUpdate(payload);
     else onCreate(payload);
   };
 
@@ -157,10 +153,10 @@ const UserUpsertFormContent: React.FC<UserUpsertFormContentProps> = ({
 
     if (isEdit) {
       form.setFieldsValue({
-        username: detail.username,
-        email: detail.email,
-        name: detail.name ?? "",
-        isActive: !!detail.isActive,
+        username: detail?.username,
+        email: detail?.email,
+        name: detail?.name ?? "",
+        isActive: !!detail?.isActive,
         employeeId: detail?.employee?.id ?? null,
         roleIds: (detail?.rolesGlobal ?? []).map((r: any) => r.id),
       });

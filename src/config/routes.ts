@@ -2,9 +2,6 @@ import type { Method } from "axios";
 type RouteTuple = readonly [Method, string];
 
 export const ROUTES = {
-  // app: {
-  //   bootstrap: ["GET", "/app/bootstrap"],
-  // },
   app: {
     bootstrap: ["GET", "/app/bootstrap"] as RouteTuple,
   },
@@ -78,7 +75,6 @@ export const ROUTES = {
     byCustomer: ["GET", "/contracts/by-customer/:customerId"] as RouteTuple,
     importExcel: ["POST", "/contracts/import"] as RouteTuple,
   },
-
   contractAttachments: {
     byContract: [
       "GET",

@@ -1,6 +1,5 @@
-import React from "react";
 import { Drawer, Descriptions, Spin, Tag } from "antd";
-import { useUserDetailRaw } from "../hooks";
+import { useUserDetail } from "../hooks";
 
 export function UserInfoDrawer({
   open,
@@ -11,14 +10,14 @@ export function UserInfoDrawer({
   userId: string;
   onClose: () => void;
 }) {
-  const { data, isLoading } = useUserDetailRaw(userId);
+  const { data, isLoading } = useUserDetail(userId);
 
   return (
     <Drawer
+      title="Thông tin user"
       open={open}
       onClose={onClose}
       width={520}
-      title="Thông tin user"
       destroyOnClose
     >
       {isLoading ? (

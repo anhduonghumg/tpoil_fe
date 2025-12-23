@@ -20,6 +20,11 @@ export interface NotificationsPayload {
   contracts: ContractsNotifications;
 }
 
+export interface AuthBootstrapPayload {
+  permissions: string[];
+}
+
 export interface AppBootstrapResponse {
   notifications: NotificationsPayload;
+  auth: AuthBootstrapPayload;
 }

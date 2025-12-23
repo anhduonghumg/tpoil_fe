@@ -1,33 +1,32 @@
-import React, { useEffect } from "react";
 import { Modal, Form } from "antd";
-import { useSetUserRoles, useUserDetailRaw } from "../hooks";
-import { notify } from "../../../shared/lib/notification";
 import { RoleSelect } from "../../../shared/ui/RoleSelect";
+import { useSetUserRoles, useUserDetail } from "../hooks";
+import { useEffect } from "react";
+import { notify } from "../../../shared/lib/notification";
 
-export function AssignRolesModal({
-  open,
-  userId,
-  onClose,
-}: {
-  open: boolean;
-  userId: string;
-  onClose: () => void;
-}) {
+export function AssignRolesModal({ open, userId, onClose }: any) {
   const [form] = Form.useForm();
-  const { data } = useUserDetailRaw(userId);
-  const setRoles = useSetUserRoles();
+  const { data: detailRes } = useUserDetail(userId);
+  const detail = detailRes;
+
+  const setRolesMut = useSetUserRoles();
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      form.resetFields();
+      return;
+    }
     form.resetFields();
     form.setFieldsValue({
-      roleIds: (data?.rolesGlobal ?? []).map((r: any) => r.id),
+      roleIds: (detail?.rolesGlobal ?? []).map((r: any) => r.id),
     });
-  }, [open, data, form]);
+  }, [open, detail, form]);
 
   const onOk = async () => {
     const v = await form.validateFields();
-    await setRoles.mutateAsync({ id: userId, roleIds: v.roleIds ?? [] });
+    // console.log("v", v);
+    // console.log("id", userId);
+    await setRolesMut.mutateAsync({ id: userId, roleIds: v.roleIds ?? [] });
     notify.success("Đã cập nhật quyền");
     onClose();
   };
@@ -38,8 +37,7 @@ export function AssignRolesModal({
       title="Gán quyền"
       onCancel={onClose}
       onOk={onOk}
-      okText="Lưu"
-      confirmLoading={setRoles.isPending}
+      confirmLoading={setRolesMut.isPending}
       destroyOnClose
     >
       <Form form={form} layout="vertical">
