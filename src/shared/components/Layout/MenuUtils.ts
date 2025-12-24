@@ -5,9 +5,20 @@ import { NavItem } from "./MenuConfig";
 export function getAuthorizedMenu(
   items: NavItem[],
   userPermissions: Set<PermCode>
-): any[] {
-  return items.reduce((acc: any[], item: any) => {
-    if (item.need && !hasPerm({ permissions: userPermissions }, item.need)) {
+) {
+  return items.reduce<any[]>((acc, item) => {
+    if (
+      item.need &&
+      !hasPerm({ permissions: userPermissions }, item.need as PermCode)
+    ) {
+      return acc;
+    }
+
+    const visibleChildren = item.children
+      ? getAuthorizedMenu(item.children, userPermissions)
+      : undefined;
+
+    if (item.children && (!visibleChildren || visibleChildren.length === 0)) {
       return acc;
     }
 
@@ -17,13 +28,8 @@ export function getAuthorizedMenu(
       label: item.label,
     };
 
-    if (item.children) {
-      const visibleChildren = getAuthorizedMenu(item.children, userPermissions);
-      if (visibleChildren.length > 0) {
-        mappedItem.children = visibleChildren;
-      } else {
-        delete mappedItem.children;
-      }
+    if (visibleChildren && visibleChildren.length > 0) {
+      mappedItem.children = visibleChildren;
     }
 
     acc.push(mappedItem);

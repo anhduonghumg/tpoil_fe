@@ -8,26 +8,24 @@ import {
   ShoppingCartOutlined,
   DatabaseOutlined,
   UserOutlined,
-  LogoutOutlined,
+  ApartmentOutlined,
   TeamOutlined,
   SolutionOutlined,
-  ApartmentOutlined,
   UnorderedListOutlined,
+  LogoutOutlined,
 } from "@ant-design/icons";
 import "./AppLayout.css";
-import { useLogout, useMe } from "../../../features/auth/hooks";
+import { useLogout } from "../../../features/auth/hooks";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  clearUserCache,
-  loadUserFromCache,
-  saveUserToCache,
-} from "../../../features/auth/session";
+import { clearUserCache } from "../../../features/auth/session";
 
 // @ts-ignore
 import logo from "../../../assets/logo_200.png";
 import { confirmDialog } from "../../lib/confirm";
 import NotificationsBell from "./NotificationsBell";
 import { useAppSession } from "../../authz/AppSessionProvider";
+import { PERMS } from "../../authz/perms";
+import { getAuthorizedMenu } from "./MenuUtils";
 
 const { Header, Sider, Content } = Layout;
 const { useBreakpoint } = Grid;
@@ -37,14 +35,24 @@ type NavItem = {
   label: string;
   icon?: JSX.Element;
   children?: NavItem[];
+  need?: string;
 };
 
 const NAV: NavItem[] = [
   { key: "/", label: "Dashboard", icon: <DashboardOutlined /> },
   { key: "/orders", label: "Đơn hàng", icon: <ShoppingCartOutlined /> },
   { key: "/inventory", label: "Kho hàng", icon: <DatabaseOutlined /> },
-  { key: "/users", label: "Người dùng", icon: <UserOutlined /> },
-  { key: "/employees", label: "Nhân viên", icon: <UserOutlined /> },
+  {
+    key: "/users",
+    label: "Người dùng",
+    icon: <UserOutlined />,
+    need: PERMS.USERS_VIEW,
+  },
+  {
+    key: "/employees",
+    label: "Nhân viên",
+    icon: <UserOutlined />,
+  },
   { key: "/department", label: "Phòng ban", icon: <ApartmentOutlined /> },
   {
     key: "/customers",
@@ -65,38 +73,40 @@ const NAV: NavItem[] = [
     key: "/cron",
     label: "Công việc định kỳ",
     icon: <UnorderedListOutlined />,
+    need: PERMS.SYSTEM_RBAC_ADMIN,
   },
   {
     key: "/settings/roles",
     label: "Phân quyền",
     icon: <UnorderedListOutlined />,
+    need: PERMS.SYSTEM_RBAC_ADMIN,
   },
 ];
-const FLAT_KEYS = NAV.flatMap((i) =>
-  i.children ? [i.key, ...i.children.map((c) => c.key)] : [i.key]
-);
-const MENU_ITEMS = NAV.map((n) => ({
-  key: n.key,
-  icon: n.icon,
-  label: n.label,
-  children: n.children?.map((c) => ({
-    key: c.key,
-    icon: c.icon,
-    label: c.label,
-  })),
-}));
+
 const BREADCRUMB: Record<string, string> = {
   "/": "Dashboard",
   "/orders": "Đơn hàng",
   "/inventory": "Kho hàng",
+  "/users": "Người dùng",
+  "/employees": "Nhân viên",
+  "/department": "Phòng ban",
+  "/customers": "Khách hàng",
+  "/contracts": "Hợp đồng",
+  "/contractTypes": "Loại hợp đồng",
+  "/cron": "Công việc định kỳ",
+  "/settings/roles": "Phân quyền",
 };
 
 const SiderMenu = React.memo(function SiderMenu({
   collapsed,
   onNavigate,
+  items,
+  selectedKeys,
 }: {
   collapsed: boolean;
   onNavigate: (key: string) => void;
+  items: any[];
+  selectedKeys: string[];
 }) {
   return (
     <>
@@ -106,7 +116,8 @@ const SiderMenu = React.memo(function SiderMenu({
       <Menu
         theme="dark"
         mode="inline"
-        items={MENU_ITEMS}
+        items={items}
+        selectedKeys={selectedKeys}
         onClick={({ key }) => onNavigate(String(key))}
       />
     </>
@@ -165,9 +176,23 @@ export default function AppLayout() {
   const nav = useNavigate();
   const { pathname } = useLocation();
 
-  const { me } = useAppSession();
+  const { me, ready, permissions } = useAppSession();
   const logout = useLogout();
   const qc = useQueryClient();
+
+  if (!ready) return null;
+
+  const menuItems = useMemo(() => {
+    return getAuthorizedMenu(NAV, permissions);
+  }, [permissions]);
+
+  const flatKeys = useMemo(() => {
+    const collect = (items: any[]): string[] =>
+      items.flatMap((i) =>
+        i.children ? [i.key, ...collect(i.children)] : [i.key]
+      );
+    return collect(menuItems);
+  }, [menuItems]);
 
   const onNavigate = useCallback(
     (key: string) => {
@@ -202,11 +227,11 @@ export default function AppLayout() {
   }, [onLogout]);
 
   const selectedKeys = useMemo(() => {
-    const best = FLAT_KEYS.filter(
-      (k) => pathname === k || pathname.startsWith(k + "/")
-    ).sort((a, b) => b.length - a.length)[0];
+    const best = flatKeys
+      .filter((k) => pathname === k || pathname.startsWith(k + "/"))
+      .sort((a, b) => b.length - a.length)[0];
     return [best || "/"];
-  }, [pathname]);
+  }, [pathname, flatKeys]);
 
   const breadcrumbItems = useMemo(() => {
     const segs = pathname.split("/").filter(Boolean);
@@ -236,7 +261,12 @@ export default function AppLayout() {
           width={220}
           className="app-sider"
         >
-          <SiderMenu collapsed={collapsed} onNavigate={onNavigate} />
+          <SiderMenu
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+            items={menuItems}
+            selectedKeys={selectedKeys}
+          />
         </Sider>
       )}
 
@@ -290,7 +320,12 @@ export default function AppLayout() {
           style={{ padding: 0 }}
           width={220}
         >
-          <SiderMenu collapsed={false} onNavigate={onNavigate} />
+          <SiderMenu
+            collapsed={false}
+            onNavigate={onNavigate}
+            items={menuItems}
+            selectedKeys={selectedKeys}
+          />
         </Drawer>
       )}
     </Layout>

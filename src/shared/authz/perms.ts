@@ -8,6 +8,13 @@ export const PERMS = {
   USERS_ASSIGN_EMPLOYEE: "users.assign_employee",
   USERS_RESET_PASSWORD: "users.reset_password",
 
+  // RBAC
+  RBAC_ROLES_VIEW: "rbac.roles.view",
+  RBAC_ROLES_CREATE: "rbac.roles.create",
+  RBAC_ROLES_UPDATE: "rbac.roles.update",
+  RBAC_ROLES_DELETE: "rbac.roles.delete",
+  RBAC_PERMS_VIEW: "rbac.perms.view",
+
   // System
   SYSTEM_RBAC_ADMIN: "system.rbac.admin",
 } as const;
