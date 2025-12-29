@@ -6,7 +6,9 @@ import type {
   AssignContractsResult,
   AttachableContractBrief,
   Customer,
+  CustomerAddress,
   CustomerContractBrief,
+  CustomerGroupOption,
   CustomerListQuery,
   CustomerOverview,
 } from "./types";
@@ -108,4 +110,51 @@ export const CustomersApi = {
       }
     ).then((r) => r.data!.data as AssignContractsResult);
   },
+
+  customerGroupsSelect(keyword?: string): Promise<CustomerGroupOption[]> {
+    return apiCall<ApiResponse<CustomerGroupOption[]>>(
+      "customerGroups.select",
+      {
+        query: { keyword: keyword ?? "" },
+      }
+    ).then((r) => (r.data.data ?? []) as CustomerGroupOption[]);
+  },
+
+  // ---- Addresses ----
+  listAddresses: (customerId: string): Promise<CustomerAddress[]> =>
+    apiCall<ApiResponse<CustomerAddress[]>>("customerAddresses.list", {
+      params: { customerId },
+    }).then((r) => (r.data!.data ?? []) as CustomerAddress[]),
+
+  createAddress: (
+    customerId: string,
+    data: Pick<CustomerAddress, "validFrom" | "addressLine"> & {
+      validTo?: string | null;
+      note?: string | null;
+    }
+  ): Promise<CustomerAddress> =>
+    apiCall<ApiResponse<CustomerAddress>>("customerAddresses.create", {
+      params: { customerId },
+      data,
+    }).then((r) => r.data!.data as CustomerAddress),
+
+  updateAddress: (
+    customerId: string,
+    addressId: string,
+    data: Partial<
+      Pick<CustomerAddress, "validFrom" | "addressLine" | "validTo" | "note">
+    >
+  ): Promise<CustomerAddress> =>
+    apiCall<ApiResponse<CustomerAddress>>("customerAddresses.update", {
+      params: { customerId, addressId },
+      data,
+    }).then((r) => r.data!.data as CustomerAddress),
+
+  deleteAddress: (
+    customerId: string,
+    addressId: string
+  ): Promise<CustomerAddress> =>
+    apiCall<ApiResponse<CustomerAddress>>("customerAddresses.delete", {
+      params: { customerId, addressId },
+    }).then((r) => r.data!.data as CustomerAddress),
 };

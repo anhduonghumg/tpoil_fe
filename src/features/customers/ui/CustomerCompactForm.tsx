@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Button,
+  Checkbox,
   Col,
   ConfigProvider,
   Divider,
@@ -18,12 +19,13 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import type { FormInstance } from "antd";
-import type { CustomerRole, CustomerType } from "../types";
+import type { CustomerRole, CustomerType, PartyType } from "../types";
 import { notify } from "../../../shared/lib/notification";
 import { normalizeCode } from "../../../shared/lib/helper";
 import { useGenerateCustomerCode } from "../hooks";
 import TextArea from "antd/es/input/TextArea";
 import { EmployeeSelect } from "../../../shared/ui/EmployeeSelect";
+import CustomerGroupSelect from "./CustomerGroupSelect";
 
 const ROLE_OPTIONS: { label: string; value: CustomerRole }[] = [
   { label: "Đại lý", value: "Agent" },
@@ -31,12 +33,21 @@ const ROLE_OPTIONS: { label: string; value: CustomerRole }[] = [
   { label: "Bán buôn", value: "Wholesale" },
   { label: "Khác", value: "Other" },
 ];
+
 const TYPE_OPTIONS: { label: string; value: CustomerType }[] = [
   { label: "B2B", value: "B2B" },
   { label: "B2C", value: "B2C" },
   { label: "Nhà phân phối", value: "Distributor" },
   { label: "Khác", value: "Other" },
 ];
+
+const PARTNER_ROLE_OPTIONS = [
+  { label: "Khách hàng", value: "CUSTOMER" },
+  { label: "Nhà cung cấp", value: "SUPPLIER" },
+  { label: "Nội bộ", value: "INTERNAL" },
+] as const;
+
+type PartnerRoleValue = (typeof PARTNER_ROLE_OPTIONS)[number]["value"];
 
 const VIETQR_TAX_ENDPOINT = "https://api.vietqr.io/v2/business/{taxCode}";
 
@@ -58,18 +69,26 @@ async function vietqrFetchByTax(taxCode: string) {
 interface CustomerCompactFormProps {
   form: FormInstance;
   onFinish?: (values: any) => void;
+  partyTypeDefault?: PartyType;
 }
 
 export default function CustomerCompactForm({
   form,
   onFinish,
+  partyTypeDefault = "CUSTOMER",
 }: CustomerCompactFormProps) {
   const gen = useGenerateCustomerCode();
+
+  const defaultPartnerRole: PartnerRoleValue =
+    partyTypeDefault === "SUPPLIER"
+      ? "SUPPLIER"
+      : partyTypeDefault === "INTERNAL"
+      ? "INTERNAL"
+      : "CUSTOMER";
 
   const handleGenerateCode = async () => {
     try {
       const code: any = await gen.mutateAsync();
-      // console.log("code:", code);
       form.setFieldsValue({ code: code?.code });
       notify.success("Đã tạo mã tự động");
     } catch (e: any) {
@@ -82,7 +101,7 @@ export default function CustomerCompactForm({
     if (!taxCode) return notify.warning("Nhập mã số thuế trước");
     try {
       const json = await vietqrFetchByTax(taxCode);
-      if (json?.code == "00") {
+      if (json?.code === "00") {
         const name = json?.data?.name;
         const address = json?.data?.address;
         if (name) form.setFieldsValue({ name });
@@ -109,6 +128,7 @@ export default function CustomerCompactForm({
           InputNumber: { controlHeight: 32 },
           Button: { controlHeight: 32 },
           Divider: { marginLG: 12, marginSM: 8 },
+          Checkbox: { borderRadius: 8 },
         },
       }}
     >
@@ -116,20 +136,41 @@ export default function CustomerCompactForm({
         form={form}
         layout="vertical"
         className="form-compact"
-        initialValues={{ roles: ["Retail"], type: "B2B" }}
+        initialValues={{
+          roles: ["Retail"],
+          type: "B2B",
+          partnerRoles: [defaultPartnerRole],
+        }}
         onFinish={onFinish}
       >
+        {/* CSS nhỏ để 3 nút cân đều + đẹp */}
+        <style>{`
+          .partner-role-group {
+            display: flex;
+            width: 100%;
+            gap: 8px;
+          }
+          .partner-role-group .ant-checkbox-button-wrapper {
+            flex: 1;
+            text-align: center;
+            justify-content: center;
+            padding-inline: 0;
+            border-radius: 10px;
+          }
+        `}</style>
+
         <Divider style={{ borderColor: "#ddedbb" }} orientation="center">
           Thông tin định danh
         </Divider>
+
         <Row gutter={[12, 8]}>
-          <Col xs={24} md={12} lg={8}>
+          <Col xs={24} md={6} lg={6}>
             <Form.Item
               name="code"
               rules={[{ required: true, message: "Nhập mã khách hàng" }]}
               label={
                 <Space>
-                  Mã khách hàng{" "}
+                  Mã khách hàng
                   <Tooltip title="In hoa, viết liền, không dấu. Có thể để trống để hệ thống tạo.">
                     <InfoCircleOutlined />
                   </Tooltip>
@@ -154,7 +195,8 @@ export default function CustomerCompactForm({
               />
             </Form.Item>
           </Col>
-          <Col xs={24} md={12} lg={8}>
+
+          <Col xs={24} md={6} lg={6}>
             <Form.Item
               name="taxCode"
               label="Mã số thuế"
@@ -175,13 +217,20 @@ export default function CustomerCompactForm({
               />
             </Form.Item>
           </Col>
-          <Col xs={24} md={24} lg={8}>
+
+          <Col xs={24} md={6} lg={6}>
             <Form.Item
               name="name"
               label="Tên khách hàng"
               rules={[{ required: true, message: "Nhập tên khách hàng" }]}
             >
               <Input placeholder="Tên đối tác/khách hàng" />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={6}>
+            <Form.Item name="groupId" label="Nhóm khách hàng">
+              <CustomerGroupSelect placeholder="Chọn nhóm" />
             </Form.Item>
           </Col>
         </Row>
@@ -195,6 +244,7 @@ export default function CustomerCompactForm({
               />
             </Form.Item>
           </Col>
+
           <Col xs={24} md={12}>
             <Form.Item name="shippingAddress" label="Địa chỉ giao hàng">
               <Input.TextArea
@@ -208,6 +258,7 @@ export default function CustomerCompactForm({
         <Divider style={{ borderColor: "#ddedbb" }} orientation="center">
           Liên hệ
         </Divider>
+
         <Row gutter={[12, 8]}>
           <Col xs={24} md={8}>
             <Form.Item
@@ -218,20 +269,19 @@ export default function CustomerCompactForm({
               <Input size="small" placeholder="name@company.com" />
             </Form.Item>
           </Col>
+
           <Col xs={24} md={8}>
             <Form.Item
               name="contactPhone"
               label="Điện thoại"
               rules={[
-                {
-                  pattern: /^0\d{9}$/,
-                  message: "Số điện thoại không hợp lệ",
-                },
+                { pattern: /^0\d{9}$/, message: "Số điện thoại không hợp lệ" },
               ]}
             >
               <Input size="small" placeholder="0967699999" />
             </Form.Item>
           </Col>
+
           <Col xs={24} md={8}>
             <Form.Item name="roles" label="Vai trò">
               <Select
@@ -248,8 +298,47 @@ export default function CustomerCompactForm({
         <Divider style={{ borderColor: "#ddedbb" }} orientation="center">
           Phân loại & Tín dụng
         </Divider>
+
         <Row gutter={[12, 8]}>
-          <Col xs={24} md={8}>
+          <Col xs={24} md={6}>
+            <Form.Item
+              name="partnerRoles"
+              label="Vai trò đối tác"
+              required
+              rules={[
+                {
+                  validator: async (_, v) => {
+                    if (Array.isArray(v) && v.length > 0) return;
+                    // notify.error("Chọn ít nhất 1 vai trò đối tác");
+                    throw new Error("Chọn ít nhất 1 vai trò");
+                  },
+                },
+              ]}
+            >
+              <Select
+                size="small"
+                mode="multiple"
+                allowClear
+                placeholder="Chọn vai trò (có thể chọn nhiều)"
+                options={PARTNER_ROLE_OPTIONS as any}
+                maxTagCount="responsive"
+                optionFilterProp="label"
+                showSearch
+                onClear={() => {
+                  const fallback =
+                    partyTypeDefault === "SUPPLIER"
+                      ? ["SUPPLIER"]
+                      : partyTypeDefault === "INTERNAL"
+                      ? ["INTERNAL"]
+                      : ["CUSTOMER"];
+                  form.setFieldsValue({ partnerRoles: fallback });
+                }}
+                // dropdownStyle={{ borderRadius: 10 }}
+              />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={6}>
             <Form.Item name="type" label="Loại hình">
               <Select
                 size="small"
@@ -258,7 +347,8 @@ export default function CustomerCompactForm({
               />
             </Form.Item>
           </Col>
-          <Col xs={24} md={8}>
+
+          <Col xs={24} md={6}>
             <Form.Item name="creditLimit" label="Hạn mức (VND)">
               <InputNumber
                 size="small"
@@ -269,12 +359,13 @@ export default function CustomerCompactForm({
               />
             </Form.Item>
           </Col>
-          <Col xs={24} md={8}>
+
+          <Col xs={24} md={6}>
             <Form.Item
               name="paymentTermDays"
               label={
                 <Space>
-                  Điều khoản (ngày){" "}
+                  Điều khoản (ngày)
                   <Tooltip title="Số ngày từ ngày xuất HĐ đến hạn thanh toán.">
                     <InfoCircleOutlined />
                   </Tooltip>
@@ -301,23 +392,31 @@ export default function CustomerCompactForm({
             </Form.Item>
           </Col>
         </Row>
+
         <Divider style={{ borderColor: "#ddedbb" }} orientation="center">
           Phụ trách & Quản lý
         </Divider>
+
         <Row gutter={12}>
-          <Col span={8}>
+          <Col span={6}>
             <Form.Item label="Kinh doanh" name="salesOwnerEmpId">
               <EmployeeSelect placeholder="Chọn nhân viên kinh doanh" />
             </Form.Item>
           </Col>
 
-          <Col span={8}>
+          <Col span={6}>
             <Form.Item label="Kế toán" name="accountingOwnerEmpId">
               <EmployeeSelect placeholder="Chọn nhân viên kế toán" />
             </Form.Item>
           </Col>
 
-          <Col span={8}>
+          <Col span={6}>
+            <Form.Item label="Chứng từ" name="documentOwnerEmpId">
+              <EmployeeSelect allowClear />
+            </Form.Item>
+          </Col>
+
+          <Col span={6}>
             <Form.Item label="Pháp chế" name="legalOwnerEmpId">
               <EmployeeSelect placeholder="Chọn nhân viên pháp lý" />
             </Form.Item>

@@ -5,7 +5,7 @@ import CommonModal from "../../../shared/ui/CommonModal";
 import CommonDrawer from "../../../shared/ui/CommonDrawer";
 
 type Variant = "modal" | "drawer";
-type Size = "sm" | "md" | "lg" | "xl";
+type Size = "sm" | "md" | "lg" | "xl" | "xtra";
 
 export interface OverlayFormProps {
   title: string;
@@ -72,7 +72,6 @@ export default function OverlayForm({
       title={title}
       open={open}
       onClose={close}
-      size={size}
       confirmClose={confirmClose}
       fullHeight={fullHeight}
       loading={!!loading}

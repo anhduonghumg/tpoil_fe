@@ -16,6 +16,7 @@ import UsersPage from "../features/users/page/UsersPage";
 import { PrivateShell } from "./PrivateShell";
 import { RouteGuard } from "../shared/authz/RouteGuard";
 import { PERMS } from "../shared/authz/perms";
+import { CustomerGroupsPage } from "../features/customer-groups/page/CustomerGroupsPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -41,7 +42,18 @@ export const router = createBrowserRouter([
           { path: "employees", element: <UsersList /> },
           { path: "employees/:id", element: <UserDetail /> },
           { path: "department", element: <DepartmentsPage /> },
-          { path: "customers", element: <CustomerPage /> },
+          {
+            path: "customers",
+            element: <CustomerPage partyTypeDefault="CUSTOMER" />,
+          },
+          {
+            path: "customer-groups",
+            element: <CustomerGroupsPage />,
+          },
+          {
+            path: "suppliers",
+            element: <CustomerPage partyTypeDefault="SUPPLIER" />,
+          },
           {
             path: "contracts",
             element: <ContractsModuleLayout />,
@@ -53,6 +65,7 @@ export const router = createBrowserRouter([
           { path: "contractTypes", element: <ContractTypesPage /> },
           { path: "cron", element: <CronJobsPage /> },
           { path: "settings/roles", element: <RolesPage /> },
+          { path: "settings/customer-groups", element: <CustomerGroupsPage /> },
         ],
       },
     ],

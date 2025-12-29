@@ -7,9 +7,17 @@ import {
   PlusOutlined,
 } from "@ant-design/icons";
 import type { CustomerListQuery, CustomerStatus, CustomerType } from "../types";
+import { EmployeeSelect } from "../../../shared/ui/EmployeeSelect";
 
 export interface CustomerFiltersValues
-  extends Pick<CustomerListQuery, "keyword" | "type" | "status"> {}
+  extends Pick<
+    CustomerListQuery,
+    | "keyword"
+    | "status"
+    | "salesOwnerEmpId"
+    | "accountingOwnerEmpId"
+    | "documentOwnerEmpId"
+  > {}
 
 interface CustomerFiltersProps {
   value: CustomerFiltersValues;
@@ -54,8 +62,10 @@ const CustomerFiltersBase: React.FC<CustomerFiltersProps> = ({
   const handleReset = () => {
     const next: CustomerFiltersValues = {
       keyword: undefined,
-      type: undefined,
       status: undefined,
+      salesOwnerEmpId: undefined,
+      accountingOwnerEmpId: undefined,
+      documentOwnerEmpId: undefined,
     };
     form.setFieldsValue(next);
     onChange(next);
@@ -64,88 +74,83 @@ const CustomerFiltersBase: React.FC<CustomerFiltersProps> = ({
   return (
     <div
       style={{
-        padding: "8px 12px",
+        padding: "12px 16px", // Tăng padding một chút để thoáng hơn
         borderBottom: "1px solid #f0f0f0",
         background: "#fff",
       }}
     >
       <Form<CustomerFiltersValues>
         form={form}
-        layout={isMobile ? "vertical" : "inline"}
-        autoComplete="off"
+        layout="inline"
         onFinish={handleSearch}
+        style={{ gap: "8px" }}
       >
-        <Space
-          direction={isMobile ? "vertical" : "horizontal"}
-          style={{ width: "100%", justifyContent: "space-between" }}
-          size={isMobile ? 6 : 10}
+        {/* Nhóm Inputs */}
+        <Form.Item name="keyword" style={{ marginBottom: 0, marginRight: 0 }}>
+          <Input
+            style={{ width: 180 }}
+            size="small"
+            allowClear
+            placeholder="Tìm theo mã, tên, MST..."
+          />
+        </Form.Item>
+
+        <Form.Item name="status" style={{ marginBottom: 0, marginRight: 0 }}>
+          <Select
+            style={{ width: 130 }}
+            size="small"
+            allowClear
+            placeholder="Trạng thái"
+            options={CUSTOMER_STATUS_OPTIONS}
+          />
+        </Form.Item>
+
+        <Form.Item
+          name="salesOwnerEmpId"
+          style={{ marginBottom: 0, marginRight: 0 }}
         >
-          <Space
-            direction={isMobile ? "vertical" : "horizontal"}
-            wrap
-            style={{ flex: 1, minWidth: 0 }}
-            size={isMobile ? 6 : 8}
+          <EmployeeSelect style={{ width: 160 }} placeholder="Kinh doanh" />
+        </Form.Item>
+
+        <Form.Item
+          name="accountingOwnerEmpId"
+          style={{ marginBottom: 0, marginRight: 0 }}
+        >
+          <EmployeeSelect style={{ width: 160 }} placeholder="Kế toán" />
+        </Form.Item>
+
+        <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+          <Button
+            icon={<SearchOutlined />}
+            type="primary"
+            htmlType="submit"
+            size="small"
+            loading={loading}
+            style={{ borderRadius: "4px" }}
           >
-            <Form.Item
-              name="keyword"
-              style={{ marginBottom: 0, flex: 1, minWidth: 200 }}
-            >
-              <Input
-                size="small"
-                allowClear
-                placeholder="Tìm theo mã, tên, MST, SĐT..."
-              />
-            </Form.Item>
+            Tìm kiếm
+          </Button>
 
-            <Form.Item name="type" style={{ marginBottom: 0, minWidth: 160 }}>
-              <Select
-                size="small"
-                allowClear
-                placeholder="Loại khách hàng"
-                options={CUSTOMER_TYPE_OPTIONS}
-              />
-            </Form.Item>
+          <Button
+            icon={<ReloadOutlined />}
+            size="small"
+            onClick={handleReset}
+            disabled={loading}
+          >
+            Xóa lọc
+          </Button>
 
-            <Form.Item name="status" style={{ marginBottom: 0, minWidth: 140 }}>
-              <Select
-                size="small"
-                allowClear
-                placeholder="Trạng thái"
-                options={CUSTOMER_STATUS_OPTIONS}
-              />
-            </Form.Item>
+          {onCreate && (
             <Button
-              icon={<SearchOutlined />}
-              type="primary"
-              htmlType="submit"
+              icon={<PlusOutlined />}
               size="small"
-              loading={loading}
+              onClick={onCreate}
+              style={{ marginLeft: "4px" }}
             >
-              Tìm kiếm
+              Thêm mới
             </Button>
-          </Space>
-
-          <Space direction="horizontal" size={6} style={{ flexShrink: 0 }}>
-            <Button
-              icon={<ReloadOutlined />}
-              size="small"
-              onClick={handleReset}
-              disabled={loading}
-            >
-              Xóa lọc
-            </Button>
-            {onCreate && (
-              <Button
-                icon={<PlusOutlined />}
-                size="small"
-                type="default"
-                onClick={onCreate}
-              >
-                Thêm mới
-              </Button>
-            )}
-          </Space>
-        </Space>
+          )}
+        </div>
       </Form>
     </div>
   );

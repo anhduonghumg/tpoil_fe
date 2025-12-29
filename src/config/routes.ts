@@ -60,6 +60,21 @@ export const ROUTES = {
     unassignContract: ["POST", "/customers/:id/contracts/unassign"],
     select: ["GET", "/customers/select"] as RouteTuple,
   },
+  customerGroups: {
+    select: ["GET", "/customer-groups/select"] as RouteTuple,
+    list: ["GET", "/customer-groups"] as RouteTuple,
+    detail: ["GET", "/customer-groups/:id"] as RouteTuple,
+    create: ["POST", "/customer-groups"] as RouteTuple,
+    update: ["PATCH", "/customer-groups/:id"] as RouteTuple,
+    delete: ["DELETE", "/customer-groups/:id"] as RouteTuple,
+  },
+
+  customerAddresses: {
+    list: ["GET", "/customers/:customerId/addresses"] as const,
+    create: ["POST", "/customers/:customerId/addresses"] as const,
+    update: ["PATCH", "/customers/:customerId/addresses/:addressId"] as const,
+    delete: ["DELETE", "/customers/:customerId/addresses/:addressId"] as const,
+  },
   contracts: {
     list: ["GET", "/contracts"] as RouteTuple,
     detail: ["GET", "/contracts/:id"] as RouteTuple,

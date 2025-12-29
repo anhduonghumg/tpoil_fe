@@ -60,6 +60,11 @@ const NAV: NavItem[] = [
     icon: <TeamOutlined />,
   },
   {
+    key: "/suppliers",
+    label: "Nhà cung cấp",
+    icon: <TeamOutlined />,
+  },
+  {
     key: "/contracts",
     label: "Hợp đồng",
     icon: <SolutionOutlined />,
@@ -81,6 +86,18 @@ const NAV: NavItem[] = [
     icon: <UnorderedListOutlined />,
     need: PERMS.SYSTEM_RBAC_ADMIN,
   },
+  {
+    key: "master",
+    label: "Danh mục",
+    icon: <UnorderedListOutlined />,
+    children: [
+      {
+        key: "/settings/customer-groups",
+        label: "Nhóm khách hàng",
+        icon: <TeamOutlined />,
+      },
+    ],
+  },
 ];
 
 const BREADCRUMB: Record<string, string> = {
@@ -95,6 +112,7 @@ const BREADCRUMB: Record<string, string> = {
   "/contractTypes": "Loại hợp đồng",
   "/cron": "Công việc định kỳ",
   "/settings/roles": "Phân quyền",
+  "/settings/customer-groups": "Nhóm khách hàng",
 };
 
 const SiderMenu = React.memo(function SiderMenu({
@@ -187,15 +205,16 @@ export default function AppLayout() {
   }, [permissions]);
 
   const flatKeys = useMemo(() => {
-    const collect = (items: any[]): string[] =>
+    const walk = (items: any[]): string[] =>
       items.flatMap((i) =>
-        i.children ? [i.key, ...collect(i.children)] : [i.key]
+        i.children?.length ? [i.key, ...walk(i.children)] : [i.key]
       );
-    return collect(menuItems);
+    return walk(menuItems);
   }, [menuItems]);
 
   const onNavigate = useCallback(
     (key: string) => {
+      if (!key.startsWith("/")) return;
       if (pathname !== key) nav(key);
       if (open) setOpen(false);
     },

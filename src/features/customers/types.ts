@@ -2,6 +2,7 @@
 export type CustomerType = "B2B" | "B2C" | "Distributor" | "Other";
 export type CustomerStatus = "Active" | "Inactive" | "Blacklisted";
 export type CustomerRole = "Agent" | "Retail" | "Wholesale" | "Other";
+export type PartyType = "SUPPLIER" | "CUSTOMER" | "INTERNAL";
 
 export interface Customer {
   id: string;
@@ -9,6 +10,7 @@ export interface Customer {
   name: string;
 
   type: CustomerType;
+  partyType: PartyType;
   roles?: CustomerRole[];
 
   status: CustomerStatus;
@@ -29,6 +31,16 @@ export interface Customer {
   salesOwnerEmpId?: string | null;
   accountingOwnerEmpId?: string | null;
   legalOwnerEmpId?: string | null;
+  groupId?: string | null;
+  documentOwnerEmpId?: string | null;
+
+  salesOwnerName?: string | null;
+  accountingOwnerName?: string | null;
+  documentOwnerName?: string | null;
+
+  isCustomer: boolean;
+  isSupplier: boolean;
+  isInternal: boolean;
 
   note?: string | null;
 
@@ -37,9 +49,21 @@ export interface Customer {
   deletedAt?: string | null;
 }
 
-/* ------------------------------------------------------
-   CONTRACT TYPES — thêm hoàn toàn mới, không đụng Customer
------------------------------------------------------- */
+export interface CustomerGroupOption {
+  id: string;
+  code: string;
+  name?: string | null;
+}
+export interface CustomerAddress {
+  id: string;
+  customerId: string;
+  validFrom: string;
+  validTo?: string | null;
+  addressLine: string;
+  note?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export type ContractStatus =
   | "Draft"
@@ -50,7 +74,6 @@ export type ContractStatus =
 
 export type RiskLevel = "Low" | "Medium" | "High";
 
-// Hợp đồng đã gán cho customer (sidebar hiển thị)
 export interface CustomerContractOverviewItem {
   id: string;
   code: string;
@@ -68,7 +91,6 @@ export interface CustomerContractOverviewItem {
   renewalOfId?: string | null;
 }
 
-// Modal gán hợp đồng
 export interface AssignableContract {
   id: string;
   code: string;
@@ -82,11 +104,6 @@ export interface AssignableContract {
   status: ContractStatus;
   riskLevel: RiskLevel;
 }
-
-/* ------------------------------------------------------
-   CUSTOMER OVERVIEW BACKEND TRẢ VỀ
-   (bổ sung thêm `contracts`)
------------------------------------------------------- */
 
 export interface CustomerContractGroups {
   active: CustomerContractOverviewItem[];
@@ -115,8 +132,12 @@ export interface CustomerOverview {
 
 export interface CustomerListQuery {
   keyword?: string;
-  type?: CustomerType;
   status?: CustomerStatus;
+  // partyType?: PartyType;
+  role?: PartyType;
+  salesOwnerEmpId?: string;
+  accountingOwnerEmpId?: string;
+  documentOwnerEmpId?: string;
   page?: number;
   pageSize?: number;
 }

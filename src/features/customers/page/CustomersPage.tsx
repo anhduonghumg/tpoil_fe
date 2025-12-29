@@ -11,31 +11,46 @@ import {
   useCustomerOverview,
   useDeleteCustomer,
 } from "../hooks";
-import type { CustomerListQuery } from "../types";
+import type { CustomerListQuery, PartyType } from "../types";
 import { notify } from "../../../shared/lib/notification";
 import CustomerOverviewSidebar from "../ui/CustomerOverviewSidebar";
+import CustomerAddressHistoryModal from "../ui/CustomerAddressHistoryModal";
 
 const { useBreakpoint } = Grid;
 const SIDEBAR_WIDTH = 350;
 
 const EMPTY_ARRAY: any[] = [];
 
-export const CustomerPage: React.FC = () => {
+export const CustomerPage: React.FC<{
+  partyTypeDefault?: PartyType;
+}> = ({ partyTypeDefault }) => {
   const screens = useBreakpoint();
   const isMobile = !screens.lg;
 
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedCustomerId = searchParams.get("customerId");
 
+  // ✅ Router tách đôi: KH / NCC -> role filter cố định theo trang
+  const listRole: CustomerListQuery["role"] =
+    partyTypeDefault === "SUPPLIER" ? "SUPPLIER" : "CUSTOMER";
+
+  const [addrModal, setAddrModal] = useState<{
+    open: boolean;
+    customerId: string | null;
+    customerName?: string;
+  }>({ open: false, customerId: null, customerName: undefined });
+
   const [filters, setFilters] = useState<CustomerListQuery>({
     keyword: "",
-    type: undefined,
     status: undefined,
     page: 1,
     pageSize: 20,
+    role: listRole,
+    salesOwnerEmpId: undefined,
+    accountingOwnerEmpId: undefined,
+    documentOwnerEmpId: undefined,
   });
 
-  // State cho Modal Upsert (Create/Edit)
   const [upsertState, setUpsertState] = useState<{
     open: boolean;
     mode: "create" | "edit";
@@ -51,6 +66,20 @@ export const CustomerPage: React.FC = () => {
     useCustomerOverview(selectedCustomerId || undefined);
 
   const deleteMutation = useDeleteCustomer();
+
+  useEffect(() => {
+    setFilters((prev) => ({
+      ...prev,
+      role: listRole,
+      page: 1,
+    }));
+
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("customerId");
+      return next;
+    });
+  }, [listRole]);
 
   useEffect(() => {
     if (
@@ -73,9 +102,16 @@ export const CustomerPage: React.FC = () => {
   }, []);
 
   const handleFilterChange = useCallback((next: Partial<CustomerListQuery>) => {
+    const {
+      role: _ignoreRole,
+      partyType: _ignorePartyType,
+      ...safe
+    } = (next as any) ?? {};
+
     setFilters((prev) => ({
       ...prev,
-      ...next,
+      ...safe,
+      role: prev.role,
       page: 1,
     }));
   }, []);
@@ -107,36 +143,50 @@ export const CustomerPage: React.FC = () => {
   const handleUpsertSuccess = useCallback(() => {
     notify.success(
       upsertState.mode === "create"
-        ? "Tạo khách hàng thành công"
+        ? partyTypeDefault === "SUPPLIER"
+          ? "Tạo nhà cung cấp thành công"
+          : "Tạo khách hàng thành công"
+        : partyTypeDefault === "SUPPLIER"
+        ? "Cập nhật nhà cung cấp thành công"
         : "Cập nhật khách hàng thành công"
     );
     closeUpsert();
-  }, [upsertState.mode, closeUpsert]);
+  }, [upsertState.mode, closeUpsert, partyTypeDefault]);
 
   const handleDelete = useCallback(
     (id: string) => {
       deleteMutation.mutate(id, {
         onSuccess: () => {
-          notify.success("Xóa khách hàng thành công");
+          notify.success(
+            partyTypeDefault === "SUPPLIER"
+              ? "Xóa nhà cung cấp thành công"
+              : "Xóa khách hàng thành công"
+          );
           if (selectedCustomerId === id) {
             handleSelectCustomer("");
           }
         },
       });
     },
-    [deleteMutation, selectedCustomerId, handleSelectCustomer]
+    [deleteMutation, selectedCustomerId, handleSelectCustomer, partyTypeDefault]
   );
 
   const filterProps = useMemo(
     () => ({
       keyword: filters.keyword,
-      type: filters.type,
       status: filters.status,
+      salesOwnerEmpId: filters.salesOwnerEmpId,
+      accountingOwnerEmpId: filters.accountingOwnerEmpId,
+      documentOwnerEmpId: filters.documentOwnerEmpId,
     }),
-    [filters.keyword, filters.type, filters.status]
+    [
+      filters.keyword,
+      filters.status,
+      filters.salesOwnerEmpId,
+      filters.accountingOwnerEmpId,
+      filters.documentOwnerEmpId,
+    ]
   );
-
-  // --- RENDER ---
 
   const tableProps = {
     data: listData?.items ?? EMPTY_ARRAY,
@@ -149,7 +199,13 @@ export const CustomerPage: React.FC = () => {
     onSelect: handleSelectCustomer,
     onEdit: openEdit,
     onDelete: handleDelete,
+    onOpenAddressHistory: (id: string, name: string) => {
+      setAddrModal({ open: true, customerId: id, customerName: name });
+    },
   };
+
+  const pageTitle =
+    partyTypeDefault === "SUPPLIER" ? "Nhà cung cấp" : "Khách hàng";
 
   if (isMobile) {
     return (
@@ -170,7 +226,7 @@ export const CustomerPage: React.FC = () => {
           open={!!selectedCustomerId}
           width="100%"
           onClose={() => handleSelectCustomer("")}
-          title="Chi tiết khách hàng"
+          title={`Chi tiết ${pageTitle.toLowerCase()}`}
         >
           <CustomerOverviewPanel
             data={overviewData}
@@ -190,6 +246,7 @@ export const CustomerPage: React.FC = () => {
             }
             onClose={closeUpsert}
             onSuccess={handleUpsertSuccess}
+            partyTypeDefault={partyTypeDefault}
           />
         )}
       </div>
@@ -206,7 +263,7 @@ export const CustomerPage: React.FC = () => {
         boxSizing: "border-box",
       }}
     >
-      {/* LEFT: card list */}
+      {/* LEFT */}
       <div
         style={{
           flex: 1,
@@ -232,6 +289,8 @@ export const CustomerPage: React.FC = () => {
       </div>
 
       <div style={{ width: 1, background: "#e5e7eb", margin: "4px 4px" }} />
+
+      {/* RIGHT SIDEBAR */}
       <div
         style={{
           width: SIDEBAR_WIDTH,
@@ -258,8 +317,22 @@ export const CustomerPage: React.FC = () => {
           }
           onClose={closeUpsert}
           onSuccess={handleUpsertSuccess}
+          partyTypeDefault={partyTypeDefault}
         />
       )}
+
+      <CustomerAddressHistoryModal
+        open={addrModal.open}
+        onClose={() =>
+          setAddrModal({
+            open: false,
+            customerId: null,
+            customerName: undefined,
+          })
+        }
+        customerId={addrModal.customerId || ""}
+        customerName={addrModal.customerName}
+      />
     </div>
   );
 };

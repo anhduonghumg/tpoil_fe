@@ -11,6 +11,7 @@ import {
   getCroppedCanvas,
   resizeAndCompress,
 } from "../utils/image";
+import { notify } from "../lib/notification";
 
 type Props = {
   open: boolean;
@@ -41,11 +42,11 @@ export default function DocImageUploader({
   const beforeUpload = useCallback(
     async (file: File) => {
       if (!file.type.startsWith("image/")) {
-        message.error("Vui lòng chọn tập tin ảnh");
+        notify.error("Vui lòng chọn tập tin ảnh");
         return Upload.LIST_IGNORE;
       }
       if (file.size > 20 * 1024 * 1024) {
-        message.error("Ảnh quá lớn (>20MB)");
+        notify.error("Ảnh quá lớn (>20MB)");
         return Upload.LIST_IGNORE;
       }
       const dataURL = await fileToDataURL(file);
@@ -62,7 +63,7 @@ export default function DocImageUploader({
 
   const handleOk = useCallback(async () => {
     if (!imgSrc || !croppedPixels) {
-      message.warning("Vui lòng chọn ảnh và crop trước");
+      notify.warning("Vui lòng chọn ảnh và crop trước");
       return;
     }
     setLoading(true);
@@ -87,7 +88,7 @@ export default function DocImageUploader({
       onClose();
     } catch (e) {
       console.error(e);
-      message.error("Xử lý ảnh thất bại");
+      notify.error("Xử lý ảnh thất bại");
     } finally {
       setLoading(false);
     }

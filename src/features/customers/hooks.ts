@@ -5,7 +5,9 @@ import type {
   AssignContractsResult,
   AttachableContractBrief,
   Customer,
+  CustomerAddress,
   CustomerContractBrief,
+  CustomerGroupOption,
   CustomerListQuery,
   CustomerOverview,
   Paged,
@@ -169,4 +171,67 @@ export function useUnassignContracts(customerId: string | null) {
       message.error("Không gỡ được hợp đồng. Vui lòng thử lại.");
     },
   });
+}
+
+export const useCustomerGroupsSelect = (keyword: string) =>
+  useQuery<CustomerGroupOption[]>({
+    queryKey: ["customerGroups", "select", keyword],
+    queryFn: () => CustomersApi.customerGroupsSelect(keyword),
+    staleTime: 60_000,
+  });
+export function useCustomerAddresses(customerId: string | null) {
+  const qc = useQueryClient();
+
+  const list = useQuery<CustomerAddress[]>({
+    queryKey: ["customers", customerId, "addresses"],
+    enabled: !!customerId,
+    queryFn: () => CustomersApi.listAddresses(customerId!),
+  });
+
+  const create = useMutation({
+    mutationKey: ["customers", customerId, "addresses", "create"],
+    mutationFn: (d: {
+      validFrom: string;
+      addressLine: string;
+      validTo?: string | null;
+      note?: string | null;
+    }) => CustomersApi.createAddress(customerId!, d),
+    onSuccess: async () => {
+      await qc.invalidateQueries({
+        queryKey: ["customers", customerId, "addresses"],
+      });
+      qc.invalidateQueries({ queryKey: ["customers", "detail", customerId] });
+      qc.invalidateQueries({ queryKey: ["customers", "overview", customerId] });
+    },
+  });
+
+  const update = useMutation({
+    mutationKey: ["customers", customerId, "addresses", "update"],
+    mutationFn: (args: {
+      addressId: string;
+      data: Partial<
+        Pick<CustomerAddress, "validFrom" | "validTo" | "addressLine" | "note">
+      >;
+    }) => CustomersApi.updateAddress(customerId!, args.addressId, args.data),
+    onSuccess: async () => {
+      await qc.invalidateQueries({
+        queryKey: ["customers", customerId, "addresses"],
+      });
+      qc.invalidateQueries({ queryKey: ["customers", "detail", customerId] });
+      qc.invalidateQueries({ queryKey: ["customers", "overview", customerId] });
+    },
+  });
+
+  const remove = useMutation({
+    mutationKey: ["customers", customerId, "addresses", "delete"],
+    mutationFn: (addressId: string) =>
+      CustomersApi.deleteAddress(customerId!, addressId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({
+        queryKey: ["customers", customerId, "addresses"],
+      });
+    },
+  });
+
+  return { list, create, update, remove };
 }

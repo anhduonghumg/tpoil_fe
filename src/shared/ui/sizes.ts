@@ -23,5 +23,5 @@ export const MODAL_MAX_WIDTH = {
   sm: 400,
   md: 600,
   lg: 800,
-  xtra: 1200,
+  xtra: 1000,
 } as const;

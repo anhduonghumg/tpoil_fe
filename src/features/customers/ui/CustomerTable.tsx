@@ -1,8 +1,10 @@
 import React, { memo } from "react";
-import { Table, Tag, Button, Space, Tooltip } from "antd";
+import { Table, Tag, Button, Space, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { Customer } from "../types";
+
+const { Link, Text } = Typography;
 
 export interface CustomerTableProps {
   data: Customer[];
@@ -10,13 +12,12 @@ export interface CustomerTableProps {
   page: number;
   pageSize: number;
   total: number;
-
   selectedCustomerId?: string | null;
-
   onPageChange?: (page: number, pageSize: number) => void;
   onSelect?: (customerId: string) => void;
   onEdit?: (customerId: string) => void;
   onDelete?: (customerId: string, customer: Customer) => void;
+  onOpenAddressHistory?: (customerId: string, customerName: string) => void;
 }
 
 const statusTag = (status: Customer["status"]) => {
@@ -32,20 +33,6 @@ const statusTag = (status: Customer["status"]) => {
   }
 };
 
-const typeTag = (type: Customer["type"]) => {
-  switch (type) {
-    case "B2B":
-      return <Tag color="blue">B2B</Tag>;
-    case "B2C":
-      return <Tag color="purple">B2C</Tag>;
-    case "Distributor":
-      return <Tag color="geekblue">Nhà phân phối</Tag>;
-    case "Other":
-      return <Tag color="default">Khác</Tag>;
-    default:
-      return <Tag>{type}</Tag>;
-  }
-};
 const CustomerTableBase: React.FC<CustomerTableProps> = ({
   data,
   loading,
@@ -57,32 +44,99 @@ const CustomerTableBase: React.FC<CustomerTableProps> = ({
   onSelect,
   onEdit,
   onDelete,
+  onOpenAddressHistory,
 }) => {
   const columns: ColumnsType<Customer> = [
     {
-      title: "Mã KH",
-      dataIndex: "code",
-      key: "code",
-      width: 120,
+      title: "Khách hàng",
+      key: "customerInfo",
+      width: 220,
       ellipsis: true,
-      render: (value: string) => (
-        <span style={{ fontWeight: 500 }}>{value}</span>
+      render: (_, r) => (
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontWeight: 600,
+              lineHeight: 1.25,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={r.code}
+          >
+            {r.code}
+          </div>
+
+          <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.25 }}>
+            {r.taxCode ? (
+              <span title={r.taxCode}>MST: {r.taxCode}</span>
+            ) : (
+              <span>—</span>
+            )}
+          </div>
+
+          <div
+            style={{
+              fontSize: 13,
+              color: "#6b7280",
+              lineHeight: 1.25,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={r.contactEmail ?? ""}
+          >
+            {r.contactEmail ? `Email: ${r.contactEmail}` : "—"}
+          </div>
+        </div>
       ),
-      fixed: "left",
     },
     {
       title: "Tên khách hàng",
       dataIndex: "name",
       key: "name",
       ellipsis: true,
-      width: 220,
+      width: 280,
     },
     {
-      title: "Loại",
-      dataIndex: "type",
-      key: "type",
-      width: 110,
-      render: (_, record) => typeTag(record.type),
+      title: "Địa chỉ",
+      key: "address",
+      ellipsis: true,
+      width: 320,
+      render: (_, r) => {
+        const text = (r.billingAddress || "").trim();
+        const label = text ? text : "Quản lý lịch sử địa chỉ";
+        return (
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onOpenAddressHistory?.(r.id, r.name);
+            }}
+            title={text || "Mở lịch sử địa chỉ"}
+            style={{ display: "inline-block", maxWidth: "100%" }}
+          >
+            {label}
+          </a>
+        );
+      },
+      responsive: ["md"],
+    },
+    {
+      title: "Phụ trách",
+      key: "owners",
+      width: 220,
+      render: (_, r) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ fontSize: 14, lineHeight: 1.25 }}>
+            KD: {r?.salesOwnerName || "—"}
+          </div>
+          <div style={{ fontSize: 14, lineHeight: 1.25 }}>
+            KT: {r?.accountingOwnerName || "—"}
+          </div>
+        </div>
+      ),
       responsive: ["sm"],
     },
     {
@@ -92,30 +146,6 @@ const CustomerTableBase: React.FC<CustomerTableProps> = ({
       width: 130,
       render: (_, record) => statusTag(record.status),
       responsive: ["sm"],
-    },
-    {
-      title: "SĐT",
-      dataIndex: "contactPhone",
-      key: "contactPhone",
-      width: 140,
-      ellipsis: true,
-      responsive: ["md"],
-    },
-    {
-      title: "Email",
-      dataIndex: "contactEmail",
-      key: "contactEmail",
-      width: 200,
-      ellipsis: true,
-      responsive: ["lg"],
-    },
-    {
-      title: "MST",
-      dataIndex: "taxCode",
-      key: "taxCode",
-      width: 140,
-      ellipsis: true,
-      responsive: ["lg"],
     },
     {
       title: "Thao tác",
@@ -156,6 +186,7 @@ const CustomerTableBase: React.FC<CustomerTableProps> = ({
     },
   ];
 
+  // console.log("Render CustomerTable", data);
   return (
     <Table<Customer>
       rowKey="id"
@@ -168,13 +199,10 @@ const CustomerTableBase: React.FC<CustomerTableProps> = ({
         pageSize,
         total,
         showSizeChanger: true,
-        // showTotal: (t) => `${t} khách hàng`,
         onChange: (p, ps) => onPageChange?.(p, ps),
       }}
       onRow={(record) => ({
-        onClick: () => {
-          onSelect?.(record.id);
-        },
+        onClick: () => onSelect?.(record.id),
       })}
       rowClassName={(record) =>
         record.id === selectedCustomerId ? "ant-table-row-selected" : ""

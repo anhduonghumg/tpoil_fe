@@ -53,6 +53,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Khách hàng",
     icon: <TeamOutlined />,
   },
+  { key: "/suppliers", label: "Nhà cung cấp", icon: <TeamOutlined /> },
   {
     key: "/contracts",
     label: "Hợp đồng",
@@ -74,5 +75,10 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Phân quyền",
     icon: <UnorderedListOutlined />,
     need: PERMS.SYSTEM_RBAC_ADMIN,
+  },
+  {
+    key: "/settings/customer-groups",
+    label: "Nhóm khách hàng",
+    icon: <TeamOutlined />,
   },
 ];
