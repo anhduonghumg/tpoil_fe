@@ -11,7 +11,10 @@ export type ActionKey =
   | "resetPassword"
   | "assignEmployee"
   | "assignRoles"
-  | "delete";
+  | "delete"
+  | "public"
+  | "void"
+  | "draft";
 
 export type ActionItem = {
   key: ActionKey;

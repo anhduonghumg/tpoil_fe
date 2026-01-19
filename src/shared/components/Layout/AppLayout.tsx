@@ -40,8 +40,11 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { key: "/", label: "Dashboard", icon: <DashboardOutlined /> },
-  { key: "/orders", label: "Đơn hàng", icon: <ShoppingCartOutlined /> },
-  { key: "/inventory", label: "Kho hàng", icon: <DatabaseOutlined /> },
+  {
+    key: "/purchase-orders",
+    label: "Đơn mua hàng",
+    icon: <ShoppingCartOutlined />,
+  },
   {
     key: "/users",
     label: "Người dùng",
@@ -96,6 +99,21 @@ const NAV: NavItem[] = [
         label: "Nhóm khách hàng",
         icon: <TeamOutlined />,
       },
+      {
+        key: "/settings/products",
+        label: "Sản phẩm",
+        icon: <TeamOutlined />,
+      },
+      {
+        key: "/settings/inventory",
+        label: "Kho hàng",
+        icon: <TeamOutlined />,
+      },
+      {
+        key: "/settings/price-bulletins",
+        label: "Giá sản phẩm",
+        icon: <TeamOutlined />,
+      },
     ],
   },
 ];
@@ -113,6 +131,9 @@ const BREADCRUMB: Record<string, string> = {
   "/cron": "Công việc định kỳ",
   "/settings/roles": "Phân quyền",
   "/settings/customer-groups": "Nhóm khách hàng",
+  "/settings/products": "Sản phẩm",
+  "/settings/inventory": "Kho hàng",
+  "/settings/price-bullentins": "Giá sản phẩm",
 };
 
 const SiderMenu = React.memo(function SiderMenu({
@@ -131,13 +152,15 @@ const SiderMenu = React.memo(function SiderMenu({
       <div className="app-brand" onClick={() => onNavigate("/")}>
         <img style={{ width: "64px" }} src={logo} className="" alt="Logo" />
       </div>
-      <Menu
-        theme="dark"
-        mode="inline"
-        items={items}
-        selectedKeys={selectedKeys}
-        onClick={({ key }) => onNavigate(String(key))}
-      />
+      <div className="app-menu-scroll">
+        <Menu
+          theme="dark"
+          mode="inline"
+          items={items}
+          selectedKeys={selectedKeys}
+          onClick={({ key }) => onNavigate(String(key))}
+        />
+      </div>
     </>
   );
 });
@@ -323,7 +346,6 @@ export default function AppLayout() {
 
           <HeaderRight userName={userName} onLogout={handleLogout} />
         </Header>
-
         <Content className="app-content">
           <div className="app-card">
             <Outlet />

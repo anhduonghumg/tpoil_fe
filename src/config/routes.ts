@@ -107,6 +107,54 @@ export const ROUTES = {
     delete: ["DELETE", "/contract-types/:id"] as RouteTuple,
     deleteMultiple: ["POST", "/contract-types/delete-multiple"] as RouteTuple,
   },
+  purchaseOrders: {
+    list: ["GET", "/purchase-orders"] as RouteTuple,
+    detail: ["GET", "/purchase-orders/:id"] as RouteTuple,
+    create: ["POST", "/purchase-orders"] as RouteTuple,
+    update: ["PATCH", "/purchase-orders/:id"] as RouteTuple,
+    delete: ["DELETE", "/purchase-orders/:id"] as RouteTuple,
+    approve: ["POST", "/purchase-orders/:id/approve"] as RouteTuple,
+  },
+  products: {
+    select: ["GET", "/products/select"] as RouteTuple,
+    list: ["GET", "/products"] as RouteTuple,
+    detail: ["GET", "/products/:id"] as RouteTuple,
+    create: ["POST", "/products"] as RouteTuple,
+    update: ["PUT", "/products/:id"] as RouteTuple,
+  },
+  supplierLocations: {
+    select: ["GET", "/supplier-locations/select"] as RouteTuple,
+    list: ["GET", "/supplier-locations"] as RouteTuple,
+    detail: ["GET", "/supplier-locations/:id"] as RouteTuple,
+    create: ["POST", "/supplier-locations"] as RouteTuple,
+    update: ["PATCH", "/supplier-locations/:id"] as RouteTuple,
+    deactivate: ["PATCH", "/supplier-locations/:id/deactivate"] as RouteTuple,
+    activate: ["PATCH", "/supplier-locations/:id/activate"] as RouteTuple,
+    batchUpdate: ["PATCH", "/supplier-locations/:id/batch"] as RouteTuple,
+  },
+  priceBulletins: {
+    list: ["GET", "/price-bulletins"] as RouteTuple,
+    listPriceItems: ["GET", "/price-bulletins/items"] as RouteTuple,
+    detail: ["GET", "/price-bulletins/:id"] as RouteTuple,
+    create: ["POST", "/price-bulletins"] as RouteTuple,
+    update: ["PATCH", "/price-bulletins/:id"] as RouteTuple,
+    publish: ["POST", "/price-bulletins/:id/publish"] as RouteTuple,
+    void: ["POST", "/price-bulletins/:id/void"] as RouteTuple,
+
+    regionsSelect: ["GET", "/price-bulletins/regions/select"] as RouteTuple,
+    quote: ["GET", "/price-bulletins/quote"] as RouteTuple,
+
+    importPdfPreview: ["POST", "/price-bulletins/import-pdf/preview"] as const,
+    importPdfStatus: [
+      "GET",
+      "/price-bulletins/import-pdf/status/:runId",
+    ] as const,
+    importPdfPreviewData: [
+      "GET",
+      "/price-bulletins/import-pdf/preview/:runId",
+    ] as const,
+    importPdfCommit: ["POST", "/price-bulletins/import-pdf/commit"] as const,
+  },
   cron: {
     listJobs: ["GET", "/cron-jobs"] as RouteTuple,
     listRuns: ["GET", "/cron-jobs/:id/runs"] as RouteTuple,
@@ -131,10 +179,10 @@ export const ROUTES = {
 
 export function buildPath(
   path: string,
-  params?: Record<string, string | number>
+  params?: Record<string, string | number>,
 ) {
   if (!params) return path;
   return path.replace(/:([A-Za-z0-9_]+)/g, (_, k) =>
-    encodeURIComponent(String(params[k] ?? ""))
+    encodeURIComponent(String(params[k] ?? "")),
   );
 }

@@ -7,6 +7,13 @@
   min-height: 100vh;
 }
 
+/* Make sider a column so the brand stays at top and menu can scroll */
+.app-sider {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
 /* Logo + thương hiệu */
 .app-sider .app-brand {
   /* display: flex; */
@@ -18,6 +25,30 @@
   padding: 12px;
   cursor: pointer;
   margin-bottom: 20px;
+}
+.app-sider .app-brand {
+  flex: 0 0 auto;
+}
+
+/* Scroll container for the menu */
+.app-menu-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 12px;
+}
+
+/* Ensure Ant Design internal sider child uses full height so flex works */
+.app-sider > .ant-layout-sider-children,
+.app-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Drawer body: allow menu to scroll inside the drawer on mobile */
+.ant-drawer-body .app-menu-scroll {
+  max-height: calc(100vh - 56px);
 }
 .app-logo {
   width: 180px;

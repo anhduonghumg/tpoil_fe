@@ -17,6 +17,10 @@ import { PrivateShell } from "./PrivateShell";
 import { RouteGuard } from "../shared/authz/RouteGuard";
 import { PERMS } from "../shared/authz/perms";
 import { CustomerGroupsPage } from "../features/customer-groups/page/CustomerGroupsPage";
+import PurchaseOrdersPage from "../features/purchases/page/PurchaseOrdersPage";
+import { ProductsPage } from "../features/products/page/ProductsPage";
+import { SupplierLocationsPage } from "../features/supplierLocations/page/SupplierLocationsPage";
+import { PriceBulletinsPage } from "../features/price-bulletins/page/PriceBulletinsPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -29,7 +33,10 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Dashboard /> },
           { path: "dashboard", element: <Dashboard /> },
-          { path: "orders", element: <div>Đơn hàng</div> },
+          {
+            path: "purchase-orders",
+            element: <PurchaseOrdersPage />,
+          },
           { path: "inventory", element: <div>Kho hàng</div> },
           {
             path: "users",
@@ -66,6 +73,9 @@ export const router = createBrowserRouter([
           { path: "cron", element: <CronJobsPage /> },
           { path: "settings/roles", element: <RolesPage /> },
           { path: "settings/customer-groups", element: <CustomerGroupsPage /> },
+          { path: "settings/products", element: <ProductsPage /> },
+          { path: "settings/inventory", element: <SupplierLocationsPage /> },
+          { path: "settings/price-bulletins", element: <PriceBulletinsPage /> },
         ],
       },
     ],

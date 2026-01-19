@@ -127,7 +127,6 @@ export const ContractUpsertOverlay: React.FC<ContractUpsertOverlayProps> = ({
   );
 };
 
-// map từ form values → payload gửi backend
 function mapFormToPayload(values: ContractFormValues): ContractUpsertPayload {
   return {
     customerId: values.customerId ?? null,
@@ -185,7 +184,6 @@ const ContractUpsertFormContent: React.FC<ContractUpsertFormContentProps> = ({
 }) => {
   const isEdit = mode === "edit";
 
-  // ====== WATCH customerId để load HĐ có thể chọn làm HĐ gốc ======
   const watchedCustomerId =
     Form.useWatch("customerId", form) ?? defaultCustomerId ?? null;
 

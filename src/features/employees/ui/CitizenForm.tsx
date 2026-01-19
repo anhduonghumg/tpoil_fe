@@ -172,7 +172,7 @@ export default function CitizenForm({
           </Col>
           <Col xs={12} md={6}>
             <Form.Item label="Ngày cấp" name="issuedDate">
-              <DatePicker style={{ width: "100%" }} format="DD-MM-YYYY" />
+              <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
             </Form.Item>
           </Col>
           <Col xs={12} md={6}>
@@ -183,7 +183,7 @@ export default function CitizenForm({
 
           <Col xs={12} md={6}>
             <Form.Item label="Ngày hết hạn" name="expiryDate">
-              <DatePicker style={{ width: "100%" }} format="DD-MM-YYYY" />
+              <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
             </Form.Item>
           </Col>
 

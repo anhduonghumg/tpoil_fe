@@ -308,7 +308,6 @@ export const ContractsPage: React.FC = () => {
         >
           <ContractFilters value={query} onChange={handleFilterChange} />
 
-          {/* Nút hành động: Thêm mới / Nhập từ Excel */}
           <Dropdown
             menu={{ items: actionMenuItems, onClick: handleActionClick }}
             trigger={["click"]}

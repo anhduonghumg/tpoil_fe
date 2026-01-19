@@ -1,31 +1,38 @@
-// shared/ui/selects/CustomerSelect.tsx
 import React, { useMemo, useState } from "react";
-import { Select, Spin } from "antd";
+import { Select, Spin, Tag, Space } from "antd";
 import type { SelectProps } from "antd";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { apiCall } from "../lib/api";
-import { ApiResponse } from "../lib/types";
+import type { ApiResponse } from "../lib/types";
 
 type OptionValue = string;
 
-interface CustomerSelectItem {
+type PartyRole = "CUSTOMER" | "SUPPLIER" | "ALL";
+
+interface PartySelectItem {
   id: string;
   code: string;
   name: string;
   taxCode?: string | null;
+
+  isCustomer?: boolean;
+  isSupplier?: boolean;
+  isInternal?: boolean;
 }
 
-interface CustomerSelectResponse {
-  items: CustomerSelectItem[];
+interface PartySelectResponse {
+  items: PartySelectItem[];
   total: number;
   page: number;
   pageSize: number;
 }
 
-export interface CustomerSelectProps
+export interface PartySelectProps
   extends Omit<SelectProps<OptionValue>, "options" | "loading" | "onChange"> {
   value?: OptionValue | null;
   onChange?: (value: OptionValue | null) => void;
+  partyRole?: PartyRole;
+  pageSize?: number;
 }
 
 function useDebouncedValue<T>(value: T, delay = 300): T {
@@ -39,45 +46,59 @@ function useDebouncedValue<T>(value: T, delay = 300): T {
   return debounced;
 }
 
-async function fetchCustomerOptions(params: {
+async function fetchPartyOptions(params: {
   keyword?: string;
   page: number;
   pageSize: number;
-}): Promise<CustomerSelectResponse> {
-  const res = await apiCall<ApiResponse<CustomerSelectResponse>>(
+  partyRole: PartyRole;
+}): Promise<PartySelectResponse> {
+  const res = await apiCall<ApiResponse<PartySelectResponse>>(
     "customer.select",
     {
       query: {
         keyword: params.keyword,
         page: params.page,
         pageSize: params.pageSize,
+        role: params.partyRole,
       },
     }
   );
+
   return res.data!.data!;
 }
 
-export const CustomerSelect: React.FC<CustomerSelectProps> = ({
+function getRoleLabel(
+  item: PartySelectItem
+): "KH" | "NCC" | "Nội bộ" | "ALL" | null {
+  if (item.isInternal) return "Nội bộ";
+  if (item.isSupplier && !item.isCustomer) return "NCC";
+  if (item.isCustomer && !item.isSupplier) return "KH";
+  if (item.isCustomer && item.isSupplier) return "ALL";
+  return null;
+}
+
+export const PartySelect: React.FC<PartySelectProps> = ({
   value,
   onChange,
-  placeholder = "Chọn khách hàng",
+  placeholder,
   allowClear = true,
   disabled,
+  partyRole = "ALL",
+  pageSize = 50,
   ...rest
 }) => {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
 
-  const PAGE_SIZE = 50;
-
   const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage } =
     useInfiniteQuery({
-      queryKey: ["customer", "select", debouncedSearch],
+      queryKey: ["party", "select", partyRole, debouncedSearch],
       queryFn: ({ pageParam }) =>
-        fetchCustomerOptions({
+        fetchPartyOptions({
           keyword: debouncedSearch || undefined,
           page: pageParam as number,
-          pageSize: PAGE_SIZE,
+          pageSize,
+          partyRole,
         }),
       initialPageParam: 1,
       getNextPageParam: (lastPage) => {
@@ -85,33 +106,51 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
         const hasMore = page * pageSize < total;
         return hasMore ? page + 1 : undefined;
       },
-      staleTime: 5 * 60 * 1000,
+      staleTime: 10 * 60 * 1000,
       gcTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       enabled: !disabled,
     });
 
-  const options = useMemo(
-    () =>
-      (data?.pages ?? [])
-        .flatMap((p) => p.items)
-        .map((c) => ({
-          label: c.code ? `${c.code} — ${c.name}` : c.name,
-          value: c.id,
-          customer: c,
-        })),
-    [data]
-  );
+  const options = useMemo(() => {
+    const rows = (data?.pages ?? []).flatMap((p) => p.items);
+
+    return rows.map((p) => {
+      const roleLabel = getRoleLabel(p);
+
+      return {
+        value: p.id,
+        label: (
+          <Space size={8}>
+            <span style={{ fontWeight: 500 }}>
+              {p.code ? `${p.code} — ${p.name}` : p.name}
+            </span>
+            {roleLabel ? (
+              <Tag style={{ marginInlineStart: 0 }}>{roleLabel}</Tag>
+            ) : null}
+          </Space>
+        ),
+        raw: p,
+      };
+    });
+  }, [data]);
 
   const handleScroll: React.UIEventHandler<HTMLDivElement> = async (e) => {
     const target = e.target as HTMLDivElement;
     if (!hasNextPage || isFetchingNextPage) return;
-
     if (target.scrollTop + target.clientHeight >= target.scrollHeight - 40) {
       await fetchNextPage();
     }
   };
+
+  const finalPlaceholder =
+    placeholder ??
+    (partyRole === "CUSTOMER"
+      ? "Chọn khách hàng"
+      : partyRole === "SUPPLIER"
+      ? "Chọn nhà cung cấp"
+      : "Chọn đối tác");
 
   return (
     <Select<OptionValue>
@@ -119,14 +158,14 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
       showSearch
       allowClear={allowClear}
       disabled={disabled}
-      placeholder={placeholder}
+      placeholder={finalPlaceholder}
       value={value ?? undefined}
       onChange={(val) => onChange?.(val ?? null)}
       filterOption={false}
       onSearch={(val) => setSearch(val)}
       onPopupScroll={handleScroll}
       notFoundContent={isFetching ? <Spin size="small" /> : "Không tìm thấy"}
-      options={options}
+      options={options as any}
       loading={isFetching && !isFetchingNextPage}
       {...rest}
     />

@@ -81,4 +81,14 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Nhóm khách hàng",
     icon: <TeamOutlined />,
   },
+  {
+    key: "/settings/products",
+    label: "Sản phẩm",
+    icon: <TeamOutlined />,
+  },
+  {
+    key: "/settings/supplierLocations",
+    label: "Kho hàng",
+    icon: <TeamOutlined />,
+  },
 ];
