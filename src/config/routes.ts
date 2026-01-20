@@ -144,16 +144,26 @@ export const ROUTES = {
     regionsSelect: ["GET", "/price-bulletins/regions/select"] as RouteTuple,
     quote: ["GET", "/price-bulletins/quote"] as RouteTuple,
 
-    importPdfPreview: ["POST", "/price-bulletins/import-pdf/preview"] as const,
+    importPdfPreview: [
+      "POST",
+      "/price-bulletins/import-pdf/preview",
+    ] as RouteTuple,
     importPdfStatus: [
       "GET",
       "/price-bulletins/import-pdf/status/:runId",
-    ] as const,
-    importPdfPreviewData: [
+    ] as RouteTuple,
+    getImportPreviewData: [
       "GET",
       "/price-bulletins/import-pdf/preview/:runId",
-    ] as const,
-    importPdfCommit: ["POST", "/price-bulletins/import-pdf/commit"] as const,
+    ] as RouteTuple,
+    updatePreviewLine: [
+      "PATCH",
+      "/price-bulletins/import-pdf/preview/:runId/line/:rowNo",
+    ] as RouteTuple,
+    importPdfCommit: [
+      "POST",
+      "/price-bulletins/import-pdf/commit",
+    ] as RouteTuple,
   },
   cron: {
     listJobs: ["GET", "/cron-jobs"] as RouteTuple,

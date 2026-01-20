@@ -201,7 +201,7 @@ export const PriceBulletinsTable: React.FC<{
       dataSource={data}
       pagination={false}
       size="small"
-      scroll={{ x: 1100 }}
+      scroll={{ x: 1100, y: 580}}
     />
   );
 };

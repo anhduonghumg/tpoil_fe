@@ -58,25 +58,41 @@ export const PriceBulletinsApi = {
   // PDF Import
   // =========================
   importPdfPreview: (file: File) => {
-    const form = new FormData();
-    form.append("file", file);
-    return apiCall<ApiResponse<any>>("priceBulletins.importPdfPreview", {
-      data: form,
-    }).then((r) => r.data!.data);
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiCall<ApiResponse<{ runId: string }>>(
+      "priceBulletins.importPdfPreview",
+      {
+        data: formData,
+      },
+    ).then((r) => r.data!.data);
   },
 
   importPdfStatus: (runId: string) =>
-    apiCall<ApiResponse<any>>("priceBulletins.importPdfStatus", {
+    apiCall<ApiResponse<{ status: string; error?: string }>>(
+      "priceBulletins.importPdfStatus",
+      {
+        params: { runId },
+      },
+    ).then((r) => r.data!.data),
+
+  getImportPreviewData: (runId: string) =>
+    apiCall<ApiResponse<any>>("priceBulletins.getImportPreviewData", {
       params: { runId },
     }).then((r) => r.data!.data),
 
-  importPdfPreviewData: (runId: string) =>
-    apiCall<ApiResponse<any>>("priceBulletins.importPdfPreviewData", {
-      params: { runId },
+  updatePreviewLine: (runId: string, rowNo: number, data: any) =>
+    apiCall<ApiResponse<any>>("priceBulletins.updatePreviewLine", {
+      params: { runId, rowNo },
+      data,
     }).then((r) => r.data!.data),
 
-  importPdfCommit: (payload: any) =>
+  importPdfCommit: (data: {
+    effectiveFrom: string;
+    isOverride: boolean;
+    lines: any[];
+  }) =>
     apiCall<ApiResponse<any>>("priceBulletins.importPdfCommit", {
-      data: payload,
+      data,
     }).then((r) => r.data!.data),
 };

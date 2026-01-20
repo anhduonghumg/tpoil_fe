@@ -61,7 +61,6 @@ export function useVoidPriceBulletin() {
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
   });
 }
-
 export function useImportPdfPreview() {
   return useMutation({
     mutationFn: (file: File) => PriceBulletinsApi.importPdfPreview(file),
@@ -70,42 +69,42 @@ export function useImportPdfPreview() {
 
 export function useImportPdfStatus(runId?: string) {
   return useQuery({
-    queryKey: ["priceBulletins", "importPdf", "status", runId],
+    queryKey: ["priceBulletins", "import-status", runId],
     queryFn: () => PriceBulletinsApi.importPdfStatus(runId!),
     enabled: !!runId,
-    refetchInterval: (q) => {
-      const d: any = q.state.data;
-      if (!d) return 1500;
-      if (d.status === "SUCCESS" || d.status === "FAILED") return false;
-      return 1500;
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "SUCCESS" || status === "FAILED" ? false : 2000;
     },
   });
 }
 
-// export function useImportPdfPreviewData(runId?: string, enabled?: boolean) {
-//   return useQuery({
-//     queryKey: ["priceBulletins", "importPdf", "preview", runId],
-//     queryFn: () => PriceBulletinsApi.importPdfPreviewData(runId!),
-//     enabled: !!runId && !!enabled,
-//   });
-// }
-
-export function useImportPdfPreviewData(runId?: string, enabled?: boolean) {
+export function useImportPdfPreviewData(runId?: string, enabled = false) {
   return useQuery({
-    queryKey: ["priceBulletins", "importPdf", "preview", runId],
-    queryFn: () => PriceBulletinsApi.importPdfPreviewData(runId!),
-    enabled: !!runId && !!enabled,
-    staleTime: Infinity,
-    gcTime: 1000 * 60 * 5,
+    queryKey: ["priceBulletins", "import-preview", runId],
+    queryFn: () => PriceBulletinsApi.getImportPreviewData(runId!),
+    enabled: !!runId && enabled,
+  });
+}
+
+export function useUpdatePreviewLine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { runId: string; rowNo: number; data: any }) =>
+      PriceBulletinsApi.updatePreviewLine(args.runId, args.rowNo, args.data),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({
+        queryKey: ["priceBulletins", "import-preview", variables.runId],
+      });
+      qc.refetchQueries({
+        queryKey: ["priceBulletins", "import-preview", variables.runId],
+      });
+    },
   });
 }
 
 export function useImportPdfCommit() {
   return useMutation({
-    mutationFn: (payload: {
-      effectiveFrom: string;
-      isOverride: boolean;
-      lines: Array<{ productId: string; regionId: string; price: number }>;
-    }) => PriceBulletinsApi.importPdfCommit(payload),
+    mutationFn: (data: any) => PriceBulletinsApi.importPdfCommit(data),
   });
 }
