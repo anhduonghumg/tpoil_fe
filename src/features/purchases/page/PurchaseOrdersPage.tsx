@@ -6,6 +6,7 @@ import PurchaseOrderUpsertOverlay from "../ui/PurchaseOrderUpsertOverlay";
 import PurchaseOrderDetailDrawer from "../ui/PurchaseOrderDetailDrawer";
 import { usePurchaseOrderList } from "../hooks";
 import type { PurchaseOrderListQuery, UUID } from "../types";
+import { useProductSelect } from "../../products/hooks";
 type ProductOption = { id: UUID; name: string; code?: string | null };
 
 export default function PurchaseOrdersPage() {
@@ -21,9 +22,14 @@ export default function PurchaseOrdersPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
 
-  const [products, setProducts] = useState<ProductOption[]>([]);
+  const [productKeyword, setProductKeyword] = useState("");
+  const productQ = useProductSelect(productKeyword);
+  const products: ProductOption[] = productQ.data ?? [];
 
-  const onSearchProducts = async (keyword: string) => {};
+  const onSearchProducts = async (keyword: string) => {
+    setProductKeyword(keyword);
+    await productQ.refetch();
+  };
 
   useEffect(() => {
     if (!listQ.data?.items?.length) return;
@@ -53,7 +59,7 @@ export default function PurchaseOrdersPage() {
         </Button>
       </Space>
     ),
-    []
+    [],
   );
 
   return (

@@ -1,12 +1,13 @@
 // features/purchases/hooks.ts
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { message } from "antd";
 import { PurchasesApi } from "./api";
 import type {
   PriceRegionOption,
   PurchaseOrderListQuery,
+  SupplierLocationOption,
   UpsertPurchaseOrderPayload,
 } from "./types";
+import { notify } from "../../shared/lib/notification";
 
 export const usePurchaseOrderList = (params: PurchaseOrderListQuery) =>
   useQuery({
@@ -27,7 +28,7 @@ export const useCreatePurchaseOrder = () => {
     mutationFn: (payload: UpsertPurchaseOrderPayload) =>
       PurchasesApi.createPO(payload),
     onSuccess: () => {
-      message.success("Đã tạo đơn mua hàng");
+      notify.success("Đã tạo đơn mua hàng");
       qc.invalidateQueries({ queryKey: ["purchaseOrders", "list"] });
     },
   });
@@ -38,7 +39,7 @@ export const useApprovePurchaseOrder = () => {
   return useMutation({
     mutationFn: (id: string) => PurchasesApi.approvePO(id),
     onSuccess: (_, id) => {
-      message.success("Đã duyệt đơn");
+      notify.success("Đã duyệt đơn");
       qc.invalidateQueries({ queryKey: ["purchaseOrders", "detail", id] });
       qc.invalidateQueries({ queryKey: ["purchaseOrders", "list"] });
     },
@@ -62,8 +63,38 @@ export const useCancelPurchaseOrder = () => {
       await qc.invalidateQueries({
         queryKey: ["purchaseOrders", "detail", id],
       });
-      message.success("Đã huỷ đơn");
+      notify.success("Đã huỷ đơn");
     },
-    onError: () => message.error("Không huỷ được đơn"),
+    onError: () => notify.error("Không huỷ được đơn"),
+  });
+};
+
+export const useSupplierLocationsSelect = (
+  supplierCustomerId?: string,
+  keyword: string = "",
+) =>
+  useQuery<SupplierLocationOption[]>({
+    queryKey: ["supplierLocations", "select", supplierCustomerId, keyword],
+    enabled: !!supplierCustomerId,
+    queryFn: () =>
+      PurchasesApi.supplierLocationsSelect({
+        supplierCustomerId: supplierCustomerId!,
+        keyword,
+        isActive: true,
+      }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+export const useCreateGoodsReceipt = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: any) =>
+      PurchasesApi.createGoodsReceiptAutoConfirm(payload),
+    onSuccess: (_res, payload) => {
+      qc.invalidateQueries({
+        queryKey: ["purchaseOrders", "detail", payload.purchaseOrderId],
+      });
+      qc.invalidateQueries({ queryKey: ["purchaseOrders", "list"] });
+    },
   });
 };

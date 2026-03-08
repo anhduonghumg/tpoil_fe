@@ -4,7 +4,6 @@ export type UUID = string;
 
 export type PriceBulletinStatus = "DRAFT" | "PUBLISHED" | "VOID";
 
-
 export type PurchasePaymentMode = "PREPAID" | "POSTPAID";
 export type PurchaseOrderType = "SINGLE" | "LOT";
 export type PurchaseOrderStatus =
@@ -52,19 +51,16 @@ export type PriceQuoteBatchResult = {
   bulletin: PriceBulletinBrief;
   items: Array<{ productId: UUID; price: string | null }>;
 };
-
 export type PurchaseOrderLine = {
   id: UUID;
   purchaseOrderId: UUID;
   productId: UUID;
-
+  supplierLocationId: UUID;
   orderedQty: string;
   unitPrice?: string | null;
   taxRate?: string | null;
-
   withdrawnQty: string;
-
-  discount?: string | null;
+  discountAmount?: string | null;
 };
 
 export type SupplierBrief = {
@@ -82,9 +78,10 @@ export type PaymentPlanLine = {
 
 export type UpsertPurchaseOrderLinePayload = {
   productId: UUID;
+  supplierLocationId: UUID;
   orderedQty: number;
   unitPrice?: number | null;
-  discount?: number | null;
+  discountAmount?: number | null;
   taxRate?: number | null;
 };
 
@@ -93,14 +90,13 @@ export type UpsertPurchaseOrderPayload = {
   supplierCustomerId: UUID;
   orderType: PurchaseOrderType;
   paymentMode: PurchasePaymentMode;
-
   priceRegionCode: string;
   orderDate: any;
   expectedDate?: string | null;
   note?: string | null;
-
   paymentPlans?: PaymentPlanLine[];
-
+  paymentTermType?: "SAME_DAY" | "NET_DAYS";
+  paymentTermDays?: number | null;
   lines: UpsertPurchaseOrderLinePayload[];
 };
 
@@ -169,4 +165,26 @@ export type PurchaseOrderListQuery = {
   dateTo?: string;
   page?: number;
   limit?: number;
+};
+
+export type SupplierLocationOption = {
+  id: UUID;
+  code: string;
+  name: string;
+  label: string;
+};
+
+export type CreateGoodsReceiptPayload = {
+  purchaseOrderId: UUID;
+  purchaseOrderLineId: UUID;
+  receiptNo: string;
+  receiptDate: string;
+  qty: number;
+  supplierLocationId?: UUID;
+  vehicleId?: UUID;
+  driverId?: UUID;
+  shippingFee?: number;
+  tempC?: number;
+  density?: number;
+  standardQtyV15?: number;
 };

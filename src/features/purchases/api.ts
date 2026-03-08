@@ -4,6 +4,7 @@ import { apiCall } from "../../shared/lib/api";
 import { Paged } from "../../shared/lib/types";
 import { ApiResponse } from "../departments/types";
 import type {
+  CreateGoodsReceiptPayload,
   CreatePurchaseOrderResponse,
   PriceQuoteBatchResult,
   PriceQuoteResult,
@@ -11,7 +12,9 @@ import type {
   PurchaseOrderDetail,
   PurchaseOrderListItem,
   PurchaseOrderListQuery,
+  SupplierLocationOption,
   UpsertPurchaseOrderPayload,
+  UUID,
 } from "./types";
 
 export const PurchasesApi = {
@@ -35,7 +38,7 @@ export const PurchasesApi = {
       "purchaseOrders.approve",
       {
         params: { id },
-      }
+      },
     ).then((r) => (r.data!.data ?? r.data) as any),
 
   cancelPO: (id: string) =>
@@ -63,6 +66,39 @@ export const PurchasesApi = {
     onDate?: string;
   }) =>
     apiCall<ApiResponse<PriceQuoteBatchResult>>("priceBulletins.quoteBatch", {
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  supplierLocationsSelect: (query: {
+    supplierCustomerId: string;
+    keyword?: string;
+    limit?: number;
+    isActive?: boolean;
+  }) =>
+    apiCall<ApiResponse<SupplierLocationOption[]>>("supplierLocations.select", {
+      query,
+    }).then((r) => r.data!.data ?? []),
+
+  createGoodsReceipt: (data: CreateGoodsReceiptPayload) =>
+    apiCall<ApiResponse<{ receipt: any }>>("goodsReceipts.create", {
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  createGoodsReceiptAutoConfirm: (data: {
+    purchaseOrderId: string;
+    purchaseOrderLineId: string;
+    receiptNo: string;
+    receiptDate: string;
+    qty: number;
+    supplierLocationId?: string;
+    vehicleId?: string;
+    driverId?: string;
+    shippingFee?: number;
+    tempC?: number;
+    density?: number;
+    standardQtyV15?: number;
+  }) =>
+    apiCall<ApiResponse<{ receipt: any }>>("goodsReceipts.createAutoConfirm", {
       data,
     }).then((r) => (r.data!.data ?? r.data) as any),
 };

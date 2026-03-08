@@ -68,7 +68,6 @@ export const ROUTES = {
     update: ["PATCH", "/customer-groups/:id"] as RouteTuple,
     delete: ["DELETE", "/customer-groups/:id"] as RouteTuple,
   },
-
   customerAddresses: {
     list: ["GET", "/customers/:customerId/addresses"] as const,
     create: ["POST", "/customers/:customerId/addresses"] as const,
@@ -115,6 +114,15 @@ export const ROUTES = {
     delete: ["DELETE", "/purchase-orders/:id"] as RouteTuple,
     approve: ["POST", "/purchase-orders/:id/approve"] as RouteTuple,
   },
+  goodsReceipts: {
+    list: ["GET", "/goods-receipts"] as RouteTuple,
+    detail: ["GET", "/goods-receipts/:id"] as RouteTuple,
+    create: ["POST", "/goods-receipts"] as RouteTuple,
+    update: ["PATCH", "/goods-receipts/:id"] as RouteTuple,
+    delete: ["DELETE", "/goods-receipts/:id"] as RouteTuple,
+
+    createAutoConfirm: ["POST", "/goods-receipts/auto-confirm"] as RouteTuple,
+  },
   products: {
     select: ["GET", "/products/select"] as RouteTuple,
     list: ["GET", "/products"] as RouteTuple,
@@ -143,6 +151,7 @@ export const ROUTES = {
 
     regionsSelect: ["GET", "/price-bulletins/regions/select"] as RouteTuple,
     quote: ["GET", "/price-bulletins/quote"] as RouteTuple,
+    quoteBatch: ["POST", "/price-bulletins/quote-batch"] as RouteTuple,
 
     importPdfPreview: [
       "POST",

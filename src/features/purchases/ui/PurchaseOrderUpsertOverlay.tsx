@@ -11,10 +11,9 @@ import {
   Typography,
   Divider,
 } from "antd";
-import dayjs, { Dayjs } from "dayjs";
+import dayjs from "dayjs";
 import type {
   PriceRegionOption,
-  PurchaseOrderType,
   PurchasePaymentMode,
   UpsertPurchaseOrderPayload,
   UUID,
@@ -26,6 +25,7 @@ import { notify } from "../../../shared/lib/notification";
 import { PartySelect } from "../../../shared/ui/PartySelect";
 
 type ProductOption = { id: UUID; name: string; code?: string | null };
+type PaymentTermType = "SAME_DAY" | "NET_DAYS";
 
 export type PurchaseOrderUpsertOverlayProps = {
   open: boolean;
@@ -37,7 +37,7 @@ export type PurchaseOrderUpsertOverlayProps = {
 };
 
 export default function PurchaseOrderUpsertOverlay(
-  props: PurchaseOrderUpsertOverlayProps
+  props: PurchaseOrderUpsertOverlayProps,
 ) {
   const {
     open,
@@ -52,7 +52,6 @@ export default function PurchaseOrderUpsertOverlay(
 
   const [regionKeyword, setRegionKeyword] = useState("");
   const regionsQuery = usePriceRegionsSelect(regionKeyword);
-
   const createMut = useCreatePurchaseOrder();
 
   const regions: PriceRegionOption[] = regionsQuery.data ?? [];
@@ -64,6 +63,7 @@ export default function PurchaseOrderUpsertOverlay(
 
   useEffect(() => {
     if (!open) return;
+
     form.setFieldsValue({
       orderNo: defaultOrderNo ?? "",
       orderType: "SINGLE",
@@ -73,26 +73,35 @@ export default function PurchaseOrderUpsertOverlay(
       expectedDate: null,
       note: null,
       paymentPlans: [],
+      supplierCustomerId: null as any,
+      paymentTermType: "SAME_DAY" as PaymentTermType,
+      paymentTermDays: null,
       lines: [
         {
           productId: "" as any,
+          supplierLocationId: null as any,
           orderedQty: 0,
           unitPrice: null,
-          discount: 0,
+          discountAmount: 0,
           taxRate: null,
         },
       ],
-      supplierCustomerId: null as any,
     });
   }, [open, regionDefault, defaultOrderNo]);
 
   const paymentMode = Form.useWatch("paymentMode", form) as
     | PurchasePaymentMode
     | undefined;
+
   const regionCode = Form.useWatch("priceRegionCode", form) as
     | string
     | undefined;
-  const orderDate = Form.useWatch("orderDate", form) as string | undefined;
+
+  const orderDate = Form.useWatch("orderDate", form) as any;
+
+  const supplierCustomerId = Form.useWatch("supplierCustomerId", form) as
+    | UUID
+    | undefined;
 
   const lines = Form.useWatch("lines", form) ?? [];
   const paymentPlans = Form.useWatch("paymentPlans", form) ?? [];
@@ -106,9 +115,17 @@ export default function PurchaseOrderUpsertOverlay(
     if (!v.lines?.length) return false;
 
     const hasValidLine = v.lines.some(
-      (l) => l.productId && (Number(l.orderedQty) || 0) > 0
+      (l: any) =>
+        l.productId &&
+        (Number(l.orderedQty) || 0) > 0 &&
+        !!l.supplierLocationId,
     );
     if (!hasValidLine) return false;
+
+    if (v.paymentMode === "POSTPAID") {
+      if (v.paymentTermType !== "NET_DAYS") return false;
+      if (!v.paymentTermDays || Number(v.paymentTermDays) <= 0) return false;
+    }
 
     return true;
   }, [form, lines]);
@@ -116,8 +133,12 @@ export default function PurchaseOrderUpsertOverlay(
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
+
       const cleanLines = (values.lines || []).filter(
-        (l) => l.productId && (Number(l.orderedQty) || 0) > 0
+        (l: any) =>
+          l.productId &&
+          (Number(l.orderedQty) || 0) > 0 &&
+          !!l.supplierLocationId,
       );
 
       const payload: UpsertPurchaseOrderPayload = {
@@ -125,11 +146,21 @@ export default function PurchaseOrderUpsertOverlay(
         orderNo: values.orderNo.trim(),
         expectedDate: values.expectedDate ?? null,
         note: values.note ?? null,
-        lines: cleanLines.map((l) => ({
+        orderDate: dayjs(values.orderDate).format("YYYY-MM-DD"),
+        paymentTermType:
+          values.paymentMode === "POSTPAID" ? "NET_DAYS" : "SAME_DAY",
+        paymentTermDays:
+          values.paymentMode === "POSTPAID"
+            ? Number(values.paymentTermDays) || 7
+            : null,
+
+        lines: cleanLines.map((l: any) => ({
           productId: l.productId,
+          supplierLocationId: l.supplierLocationId,
           orderedQty: Number(l.orderedQty) || 0,
           unitPrice: l.unitPrice == null ? null : Number(l.unitPrice),
-          discount: l.discount == null ? 0 : Number(l.discount),
+          discountAmount:
+            l.discountAmount == null ? 0 : Number(l.discountAmount),
           taxRate: l.taxRate == null ? null : Number(l.taxRate),
         })),
         paymentPlans: paymentMode === "POSTPAID" ? paymentPlans || [] : [],
@@ -182,14 +213,10 @@ export default function PurchaseOrderUpsertOverlay(
             rules={[{ required: true, message: "Chọn nhà cung cấp" }]}
             style={{ marginBottom: 0 }}
           >
-            <PartySelect
-              partyRole="SUPPLIER"
-              placeholder="Chọn nhà cung cấp"
-              value={form.getFieldValue("supplierCustomerId")}
-              onChange={(v) => form.setFieldValue("supplierCustomerId", v)}
-            />
+            <PartySelect partyRole="SUPPLIER" placeholder="Chọn nhà cung cấp" />
           </Form.Item>
         </div>
+
         <div
           style={{
             display: "grid",
@@ -217,6 +244,7 @@ export default function PurchaseOrderUpsertOverlay(
               }))}
             />
           </Form.Item>
+
           <Form.Item
             name="orderDate"
             label="Ngày chứng từ"
@@ -229,6 +257,7 @@ export default function PurchaseOrderUpsertOverlay(
               format="DD/MM/YYYY"
             />
           </Form.Item>
+
           <Form.Item
             name="orderType"
             label="Loại đơn"
@@ -240,6 +269,7 @@ export default function PurchaseOrderUpsertOverlay(
               <Radio.Button value="LOT">Mua lô</Radio.Button>
             </Radio.Group>
           </Form.Item>
+
           <Form.Item
             name="paymentMode"
             label="Thanh toán"
@@ -252,12 +282,14 @@ export default function PurchaseOrderUpsertOverlay(
             </Radio.Group>
           </Form.Item>
         </div>
+
         <Form.Item name="note" label="Ghi chú" style={{ marginBottom: 10 }}>
           <Input.TextArea
             placeholder="Ghi chú cho NCC hoặc nội bộ"
             autoSize={{ minRows: 2, maxRows: 3 }}
           />
         </Form.Item>
+
         <Divider style={{ margin: "10px 0" }} />
 
         <Typography.Title level={5} style={{ margin: "0 0 6px 0" }}>
@@ -268,8 +300,13 @@ export default function PurchaseOrderUpsertOverlay(
           <PurchaseOrderLinesEditor
             value={lines}
             onChange={(next) => form.setFieldValue("lines", next)}
+            supplierCustomerId={supplierCustomerId}
             regionCode={regionCode || "VUNG_I"}
-            onDate={orderDate || dayjs().format("YYYY-MM-DD")}
+            onDate={
+              orderDate
+                ? dayjs(orderDate).format("YYYY-MM-DD")
+                : dayjs().format("YYYY-MM-DD")
+            }
             products={products}
             onSearchProducts={onSearchProducts}
           />
@@ -288,11 +325,6 @@ export default function PurchaseOrderUpsertOverlay(
                 onChange={(next) => form.setFieldValue("paymentPlans", next)}
               />
             </Form.Item>
-
-            <Typography.Text type="secondary">
-              Bạn có thể để trống và nhập sau. Phần này chủ yếu để in PO gửi nhà
-              cung cấp.
-            </Typography.Text>
           </>
         )}
 
@@ -311,9 +343,10 @@ export default function PurchaseOrderUpsertOverlay(
                   ...cur,
                   {
                     productId: "" as any,
+                    supplierLocationId: null as any,
                     orderedQty: 0,
                     unitPrice: null,
-                    discount: 0,
+                    discountAmount: 0,
                     taxRate: null,
                   },
                 ]);

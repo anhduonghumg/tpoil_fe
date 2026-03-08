@@ -13,6 +13,7 @@ import {
 } from "../hooks";
 import type { CustomerListQuery, PartyType } from "../types";
 import { notify } from "../../../shared/lib/notification";
+import { confirmDialog } from "../../../shared/lib/confirm";
 import CustomerOverviewSidebar from "../ui/CustomerOverviewSidebar";
 import CustomerAddressHistoryModal from "../ui/CustomerAddressHistoryModal";
 
@@ -30,7 +31,6 @@ export const CustomerPage: React.FC<{
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedCustomerId = searchParams.get("customerId");
 
-  // ✅ Router tách đôi: KH / NCC -> role filter cố định theo trang
   const listRole: CustomerListQuery["role"] =
     partyTypeDefault === "SUPPLIER" ? "SUPPLIER" : "CUSTOMER";
 
@@ -125,7 +125,7 @@ export const CustomerPage: React.FC<{
         return next;
       });
     },
-    [setSearchParams]
+    [setSearchParams],
   );
 
   const openCreate = useCallback(() => {
@@ -148,27 +148,41 @@ export const CustomerPage: React.FC<{
           : "Tạo khách hàng thành công"
         : partyTypeDefault === "SUPPLIER"
         ? "Cập nhật nhà cung cấp thành công"
-        : "Cập nhật khách hàng thành công"
+        : "Cập nhật khách hàng thành công",
     );
     closeUpsert();
   }, [upsertState.mode, closeUpsert, partyTypeDefault]);
 
   const handleDelete = useCallback(
     (id: string) => {
-      deleteMutation.mutate(id, {
-        onSuccess: () => {
-          notify.success(
-            partyTypeDefault === "SUPPLIER"
-              ? "Xóa nhà cung cấp thành công"
-              : "Xóa khách hàng thành công"
-          );
-          if (selectedCustomerId === id) {
-            handleSelectCustomer("");
-          }
-        },
+      const title =
+        partyTypeDefault === "SUPPLIER" ? "Xóa nhà cung cấp" : "Xóa khách hàng";
+      const content =
+        partyTypeDefault === "SUPPLIER"
+          ? "Bạn có chắc chắn muốn xóa nhà cung cấp này?"
+          : "Bạn có chắc chắn muốn xóa khách hàng này?";
+
+      confirmDialog.delete(title, content, () => {
+        deleteMutation.mutate(id, {
+          onSuccess: () => {
+            notify.success(
+              partyTypeDefault === "SUPPLIER"
+                ? "Xóa nhà cung cấp thành công"
+                : "Xóa khách hàng thành công",
+            );
+            if (selectedCustomerId === id) {
+              handleSelectCustomer("");
+            }
+          },
+        });
       });
     },
-    [deleteMutation, selectedCustomerId, handleSelectCustomer, partyTypeDefault]
+    [
+      deleteMutation,
+      selectedCustomerId,
+      handleSelectCustomer,
+      partyTypeDefault,
+    ],
   );
 
   const filterProps = useMemo(
@@ -185,7 +199,7 @@ export const CustomerPage: React.FC<{
       filters.salesOwnerEmpId,
       filters.accountingOwnerEmpId,
       filters.documentOwnerEmpId,
-    ]
+    ],
   );
 
   const tableProps = {

@@ -21,7 +21,7 @@ export const PriceBulletinsFilters: React.FC<{
 }) => {
   const [draftKeyword, setDraftKeyword] = useState(defaultKeyword ?? "");
   const [status, setStatus] = useState<PriceBulletinStatus | undefined>(
-    defaultStatus
+    defaultStatus,
   );
 
   useEffect(() => setDraftKeyword(defaultKeyword ?? ""), [defaultKeyword]);
