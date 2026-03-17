@@ -21,6 +21,7 @@ import PurchaseOrdersPage from "../features/purchases/page/PurchaseOrdersPage";
 import { ProductsPage } from "../features/products/page/ProductsPage";
 import { SupplierLocationsPage } from "../features/supplierLocations/page/SupplierLocationsPage";
 import { PriceBulletinsPage } from "../features/price-bulletins/page/PriceBulletinsPage";
+import PurchaseOrderDetailPage from "../features/purchases/page/PurchaseOrderDetailPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -35,7 +36,11 @@ export const router = createBrowserRouter([
           { path: "dashboard", element: <Dashboard /> },
           {
             path: "purchase-orders",
-            element: <PurchaseOrdersPage />,
+            children: [
+              { index: true, element: <PurchaseOrdersPage /> },
+              { path: "/purchase-orders/:id", element: <PurchaseOrderDetailPage  /> },
+            ],
+            // element: <PurchaseOrdersPage />,
           },
           { path: "inventory", element: <div>Kho hàng</div> },
           {

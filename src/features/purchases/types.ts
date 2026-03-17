@@ -97,6 +97,8 @@ export type UpsertPurchaseOrderPayload = {
   paymentPlans?: PaymentPlanLine[];
   paymentTermType?: "SAME_DAY" | "NET_DAYS";
   paymentTermDays?: number | null;
+  totalAmount?: number | null;
+  totalQty?: number | null;
   lines: UpsertPurchaseOrderLinePayload[];
 };
 
@@ -161,6 +163,7 @@ export type PurchaseOrderListQuery = {
   supplierCustomerId?: UUID;
   orderType?: PurchaseOrderType;
   paymentMode?: PurchasePaymentMode;
+  status?: PurchaseOrderStatus;
   dateFrom?: string;
   dateTo?: string;
   page?: number;

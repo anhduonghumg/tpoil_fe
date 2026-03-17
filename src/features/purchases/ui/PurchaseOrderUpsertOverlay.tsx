@@ -153,6 +153,16 @@ export default function PurchaseOrderUpsertOverlay(
           values.paymentMode === "POSTPAID"
             ? Number(values.paymentTermDays) || 7
             : null,
+        totalAmount: cleanLines.reduce((s: number, l: any) => {
+          const lineTotal =
+            (Number(l.orderedQty) || 0) *
+            (Number(l.unitPrice) || 0 - (Number(l.discountAmount) || 0)) *
+            (1 + (Number(l.taxRate) || 0) / 100);
+          return s + lineTotal;
+        }, 0),
+        totalQty: cleanLines.reduce((s: number, l: any) => {
+          return s + (Number(l.orderedQty) || 0);
+        }, 0),
 
         lines: cleanLines.map((l: any) => ({
           productId: l.productId,

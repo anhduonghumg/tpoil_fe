@@ -5,7 +5,9 @@ import type {
   PurchaseOrderListQuery,
   PurchaseOrderType,
   PurchasePaymentMode,
+  PurchaseOrderStatus,
 } from "../types";
+import { SearchOutlined } from "@ant-design/icons";
 
 export type PurchaseOrderFiltersProps = {
   value: PurchaseOrderListQuery;
@@ -25,20 +27,40 @@ export default function PurchaseOrderFilters({
 
   return (
     <Space wrap style={{ width: "100%", justifyContent: "space-between" }}>
-      <Space wrap>
+      <Space wrap size={8}>
         <Input
+          size="small"
           value={draftKeyword}
-          placeholder="Tìm số đơn hoặc tên NCC"
-          style={{ width: 280 }}
+          placeholder="Tìm mã đơn hoặc tên NCC"
+          style={{ width: 260 }}
           onChange={(e) => setDraftKeyword(e.target.value)}
           onPressEnter={apply}
           allowClear
         />
 
+        <Select<PurchaseOrderStatus>
+          size="small"
+          value={value.status}
+          placeholder="Trạng thái"
+          style={{ width: 150 }}
+          allowClear
+          options={[
+            { value: "DRAFT", label: "Nháp" },
+            { value: "APPROVED", label: "Đã duyệt" },
+            { value: "IN_PROGRESS", label: "Đang thực hiện" },
+            { value: "COMPLETED", label: "Hoàn tất" },
+            { value: "CANCELLED", label: "Đã huỷ" },
+          ]}
+          onChange={(v) =>
+            onChange({ ...value, status: v ?? undefined, page: 1 })
+          }
+        />
+
         <Select<PurchaseOrderType>
+          size="small"
           value={value.orderType}
           placeholder="Loại đơn"
-          style={{ width: 140 }}
+          style={{ width: 130 }}
           allowClear
           options={[
             { value: "SINGLE", label: "Mua lẻ" },
@@ -50,9 +72,10 @@ export default function PurchaseOrderFilters({
         />
 
         <Select<PurchasePaymentMode>
+          size="small"
           value={value.paymentMode}
           placeholder="Thanh toán"
-          style={{ width: 150 }}
+          style={{ width: 140 }}
           allowClear
           options={[
             { value: "PREPAID", label: "Trong ngày" },
@@ -64,6 +87,7 @@ export default function PurchaseOrderFilters({
         />
 
         <DatePicker
+          size="small"
           value={value.dateFrom ? dayjs(value.dateFrom) : null}
           placeholder="Từ ngày"
           format="YYYY-MM-DD"
@@ -75,7 +99,9 @@ export default function PurchaseOrderFilters({
             })
           }
         />
+
         <DatePicker
+          size="small"
           value={value.dateTo ? dayjs(value.dateTo) : null}
           placeholder="Đến ngày"
           format="YYYY-MM-DD"
@@ -88,28 +114,33 @@ export default function PurchaseOrderFilters({
           }
         />
 
-        <Button type="primary" onClick={apply}>
+        <Button
+          size="small"
+          type="primary"
+          onClick={apply}
+          icon={<SearchOutlined />}
+        >
           Tìm kiếm
         </Button>
       </Space>
 
-      <Space>
-        <Button
-          onClick={() =>
-            onChange({
-              keyword: "",
-              orderType: undefined,
-              paymentMode: undefined,
-              dateFrom: undefined,
-              dateTo: undefined,
-              page: 1,
-              limit: value.limit ?? 20,
-            })
-          }
-        >
-          Reset
-        </Button>
-      </Space>
+      <Button
+        size="small"
+        onClick={() =>
+          onChange({
+            keyword: "",
+            status: undefined,
+            orderType: undefined,
+            paymentMode: undefined,
+            dateFrom: undefined,
+            dateTo: undefined,
+            page: 1,
+            limit: value.limit ?? 20,
+          })
+        }
+      >
+        Reset
+      </Button>
     </Space>
   );
 }
