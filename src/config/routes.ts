@@ -113,7 +113,27 @@ export const ROUTES = {
     update: ["PATCH", "/purchase-orders/:id"] as RouteTuple,
     delete: ["DELETE", "/purchase-orders/:id"] as RouteTuple,
     approve: ["POST", "/purchase-orders/:id/approve"] as RouteTuple,
+    cancel: ["POST", "/purchase-orders/:id/cancel"] as RouteTuple,
   },
+
+  // supplierInvoices: {
+  //   create: ["POST", "/supplier-invoices"] as RouteTuple,
+  //   importPdf: ["POST", "/supplier-invoices/import-pdf"] as RouteTuple,
+  //   detail: ["GET", "/supplier-invoices/:id"] as RouteTuple,
+  //   post: ["POST", "/supplier-invoices/:id/post"] as RouteTuple,
+  // },
+
+  supplierInvoices: {
+    create: ["POST", "/supplier-invoices"] as RouteTuple,
+    importPdf: ["POST", "/supplier-invoices/import-pdf"] as RouteTuple,
+    importPdfResult: [
+      "GET",
+      "/supplier-invoices/import-pdf/result/:runId",
+    ] as RouteTuple,
+    detail: ["GET", "/supplier-invoices"] as RouteTuple,
+    post: ["POST", "/supplier-invoices/:id/post"] as RouteTuple,
+  },
+
   goodsReceipts: {
     list: ["GET", "/goods-receipts"] as RouteTuple,
     detail: ["GET", "/goods-receipts/:id"] as RouteTuple,

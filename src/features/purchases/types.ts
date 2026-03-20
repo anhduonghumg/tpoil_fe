@@ -13,6 +13,13 @@ export type PurchaseOrderStatus =
   | "COMPLETED"
   | "CANCELLED";
 
+export type SupplierInvoiceImportMode = "sync" | "async";
+export type SupplierInvoiceImportStatus =
+  | "SUCCESS"
+  | "QUEUED"
+  | "PROCESSING"
+  | "FAILED";
+
 export type PriceRegionOption = {
   id: UUID;
   code: string;
@@ -130,6 +137,15 @@ export type PurchaseOrderListItem = {
   totalQty?: string | null;
   totalAmount?: string | null;
 
+  receipts?: Array<{
+    id: string;
+  }>;
+
+  supplierInvoices?: Array<{
+    id: string;
+    status: "DRAFT" | "POSTED" | "VOID";
+  }>;
+
   createdAt: string;
   updatedAt: string;
 };
@@ -149,13 +165,38 @@ export type PurchaseOrderDetail = {
   orderDate: string; // ISO
   expectedDate?: string | null;
   note?: string | null;
-
   lines: PurchaseOrderLine[];
 
   createdAt: string;
   updatedAt: string;
 
   paymentPlans?: PaymentPlanLine[];
+
+  receipts?: Array<{
+    id: UUID;
+    receiptNo: string;
+    receiptDate: string;
+    qty: string;
+    supplierLocationId?: UUID;
+    supplierLocation?: {
+      id: UUID;
+      code?: string | null;
+      name: string;
+    } | null;
+    vehicleId?: UUID;
+    driverId?: UUID;
+    shippingFee?: string;
+  }>;
+
+  supplierInvoices?: Array<{
+    id: string;
+    invoiceNo: string;
+    status: "DRAFT" | "POSTED" | "VOID";
+    createdAt: string;
+    sourceFileName?: string | null;
+    sourceFileUrl?: string | null;
+    sourceFileChecksum?: string | null;
+  }>;
 };
 
 export type PurchaseOrderListQuery = {
@@ -190,4 +231,142 @@ export type CreateGoodsReceiptPayload = {
   tempC?: number;
   density?: number;
   standardQtyV15?: number;
+};
+
+export type SupplierInvoiceStatus = "DRAFT" | "POSTED" | "VOID";
+
+export type SupplierInvoiceDetail = {
+  id: UUID;
+  supplierCustomerId: UUID;
+  purchaseOrderId?: UUID | null;
+
+  invoiceNo: string;
+  invoiceSymbol?: string | null;
+  invoiceTemplate?: string | null;
+  invoiceDate: string;
+  status: SupplierInvoiceStatus;
+  postedAt?: string | null;
+
+  totalAmount?: number | string | null;
+  note?: string | null;
+
+  sourceFileId?: string | null;
+  sourceFileUrl?: string | null;
+  sourceFileName?: string | null;
+  sourceFileChecksum?: string | null;
+
+  supplier?: {
+    id: UUID;
+    code?: string | null;
+    name: string;
+  } | null;
+
+  purchaseOrder?: {
+    id: UUID;
+    orderNo?: string | null;
+  } | null;
+
+  payableSettlement?: {
+    id: UUID;
+    status: string;
+    amountTotal?: number | string | null;
+    amountSettled?: number | string | null;
+  } | null;
+
+  lines: Array<{
+    id: UUID;
+    supplierLocationId: UUID;
+    productId: UUID;
+    qty: number | string;
+    tempC?: number | string | null;
+    density?: number | string | null;
+    standardQtyV15?: number | string | null;
+    unitPrice?: number | string | null;
+    taxRate?: number | string | null;
+    goodsReceiptId?: UUID | null;
+
+    product?: {
+      id: UUID;
+      code?: string | null;
+      name: string;
+    } | null;
+
+    supplierLocation?: {
+      id: UUID;
+      code?: string | null;
+      name: string;
+    } | null;
+  }>;
+
+  // supplierInvoices?: Array<{
+  //   id: string;
+  //   invoiceNo: string;
+  //   status: "DRAFT" | "POSTED" | "VOID";
+  //   createdAt: string;
+  //   sourceFileName?: string | null;
+  //   sourceFileUrl?: string | null;
+  //   sourceFileChecksum?: string | null;
+  // }>;
+};
+
+export type SupplierInvoicePdfExtracted = {
+  invoiceNo?: string | null;
+  invoiceSymbol?: string | null;
+  invoiceDate?: string | null;
+  subTotal?: number | null;
+  vatAmount?: number | null;
+  totalAmount?: number | null;
+};
+
+export type SupplierInvoicePdfImportResponse = {
+  mode: SupplierInvoiceImportMode;
+  status: SupplierInvoiceImportStatus;
+  runId?: string;
+  sourceFileId?: string | null;
+  sourceFileUrl?: string | null;
+  sourceFileName?: string | null;
+  sourceFileChecksum?: string | null;
+  extracted?: SupplierInvoicePdfExtracted | null;
+  warnings?: string[];
+};
+
+export type SupplierInvoicePdfImportResultResponse = {
+  mode: "async";
+  status: SupplierInvoiceImportStatus;
+  runId: string;
+  sourceFileId?: string | null;
+  sourceFileUrl?: string | null;
+  sourceFileName?: string | null;
+  sourceFileChecksum?: string | null;
+  extracted?: SupplierInvoicePdfExtracted | null;
+  warnings?: string[];
+  error?: string | null;
+  metrics?: any;
+};
+
+export type CreateSupplierInvoicePayload = {
+  supplierCustomerId: string;
+  purchaseOrderId?: string;
+  invoiceNo: string;
+  invoiceSymbol?: string;
+  invoiceTemplate?: string;
+  invoiceDate: string;
+  note?: string;
+
+  sourceFileId?: string;
+  sourceFileUrl?: string;
+  sourceFileName?: string;
+  sourceFileChecksum?: string;
+
+  lines: Array<{
+    supplierLocationId: string;
+    productId: string;
+    qty: number;
+    tempC?: number;
+    density?: number;
+    standardQtyV15?: number;
+    unitPrice?: number;
+    taxRate?: number;
+    goodsReceiptId?: string;
+  }>;
 };

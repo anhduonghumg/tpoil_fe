@@ -6,12 +6,16 @@ import { ApiResponse } from "../departments/types";
 import type {
   CreateGoodsReceiptPayload,
   CreatePurchaseOrderResponse,
+  CreateSupplierInvoicePayload,
   PriceQuoteBatchResult,
   PriceQuoteResult,
   PriceRegionOption,
   PurchaseOrderDetail,
   PurchaseOrderListItem,
   PurchaseOrderListQuery,
+  SupplierInvoiceDetail,
+  SupplierInvoicePdfImportResponse,
+  SupplierInvoicePdfImportResultResponse,
   SupplierLocationOption,
   UpsertPurchaseOrderPayload,
   UUID,
@@ -101,4 +105,49 @@ export const PurchasesApi = {
     apiCall<ApiResponse<{ receipt: any }>>("goodsReceipts.createAutoConfirm", {
       data,
     }).then((r) => (r.data!.data ?? r.data) as any),
+
+  // ===== Supplier Invoice =====
+  importSupplierInvoicePdf: (formData: FormData) =>
+    apiCall<ApiResponse<SupplierInvoicePdfImportResponse>>(
+      "supplierInvoices.importPdf",
+      {
+        data: formData,
+      },
+    ).then(
+      (r) =>
+        (r.data!.data ?? (r.data as any)) as SupplierInvoicePdfImportResponse,
+    ),
+
+  getSupplierInvoiceImportPdfResult: (runId: string) =>
+    apiCall<ApiResponse<SupplierInvoicePdfImportResultResponse>>(
+      "supplierInvoices.importPdfResult",
+      {
+        query: { runId },
+      },
+    ).then(
+      (r) =>
+        (r.data!.data ??
+          (r.data as any)) as SupplierInvoicePdfImportResultResponse,
+    ),
+
+  createSupplierInvoice: (payload: CreateSupplierInvoicePayload) =>
+    apiCall<ApiResponse<SupplierInvoiceDetail>>("supplierInvoices.create", {
+      data: payload,
+    }).then((r) => (r.data!.data ?? (r.data as any)) as SupplierInvoiceDetail),
+
+  // getSupplierInvoiceDetail: (id: string) =>
+  //   apiCall<ApiResponse<SupplierInvoiceDetail>>("supplierInvoices.detail", {
+  //     query: { id },
+  //   }).then((r) => (r.data!.data ?? (r.data as any)) as SupplierInvoiceDetail),
+
+  getSupplierInvoiceDetail: (id: string) =>
+    apiCall<ApiResponse<SupplierInvoiceDetail>>("supplierInvoices.detail", {
+      query: { id },
+    }).then((r) => (r.data!.data ?? (r.data as any)) as SupplierInvoiceDetail),
+
+  postSupplierInvoice: (id: string, payload?: { note?: string }) =>
+    apiCall<ApiResponse<SupplierInvoiceDetail>>("supplierInvoices.post", {
+      query: { id },
+      data: payload ?? {},
+    }).then((r) => (r.data!.data ?? (r.data as any)) as SupplierInvoiceDetail),
 };

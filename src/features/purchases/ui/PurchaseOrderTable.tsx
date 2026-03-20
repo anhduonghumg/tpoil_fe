@@ -3,6 +3,7 @@ import { Button, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { PurchaseOrderListItem, PurchaseOrderStatus } from "../types";
 import { Paged } from "../../../shared/lib/types";
+import dayjs from "dayjs";
 
 function money(n: number): string {
   return new Intl.NumberFormat("vi-VN").format(Math.round(n));
@@ -34,67 +35,104 @@ function statusTag(s: PurchaseOrderStatus) {
   }
 }
 
-function renderWorkflow(status: PurchaseOrderStatus) {
-  const steps = [
-    { key: "create", label: "Tạo đơn" },
-    { key: "approve", label: "Duyệt" },
-    { key: "receipt", label: "Nhận hàng" },
-    { key: "invoice", label: "Hóa đơn NCC" },
-    { key: "payment", label: "Thanh toán" },
-  ];
+function getWorkflowState(row: PurchaseOrderListItem) {
+  const hasReceipt = (row.receipts?.length ?? 0) > 0;
+  const hasInvoice =
+    (row.supplierInvoices?.some((x) => x.status !== "VOID") ?? false) === true;
 
-  const doneMap: Record<PurchaseOrderStatus, number> = {
-    DRAFT: 1,
-    APPROVED: 2,
-    IN_PROGRESS: 3,
-    COMPLETED: 5,
-    CANCELLED: 0,
+  return {
+    hasReceipt,
+    hasInvoice,
+    createDone: row.status !== "CANCELLED" || !!row.orderNo,
+    approveDone:
+      row.status === "APPROVED" ||
+      row.status === "IN_PROGRESS" ||
+      row.status === "COMPLETED",
+    receiptDone: hasReceipt,
+    invoiceDone: hasInvoice,
+    paymentDone: row.status === "COMPLETED",
   };
+}
 
-  const done = doneMap[status] ?? 0;
+function renderWorkflow(row: PurchaseOrderListItem) {
+  const wf = getWorkflowState(row);
+
+  const steps = [
+    { key: "create", label: "Tạo đơn", done: wf.createDone, icon: "✓" },
+    { key: "approve", label: "Duyệt", done: wf.approveDone, icon: "✓" },
+    { key: "receipt", label: "Nhận hàng", done: wf.receiptDone, icon: "📦" },
+    { key: "invoice", label: "Hóa đơn NCC", done: wf.invoiceDone, icon: "📄" },
+    { key: "payment", label: "Thanh toán", done: wf.paymentDone, icon: "₫" },
+  ];
 
   return (
     <Space size={8}>
-      {steps.map((step, index) => {
-        const active = index < done;
-        return (
-          <Tooltip key={step.key} title={step.label}>
-            <span
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 999,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: active ? "#f6ffed" : "#f5f5f5",
-                border: `1px solid ${active ? "#b7eb8f" : "#d9d9d9"}`,
-                color: active ? "#389e0d" : "#bfbfbf",
-                fontSize: 13,
-                fontWeight: 600,
-              }}
-            >
-              {index === 0
-                ? "✓"
-                : index === 1
-                ? "✓"
-                : index === 2
-                ? "📦"
-                : index === 3
-                ? "📄"
-                : "₫"}
-            </span>
-          </Tooltip>
-        );
-      })}
+      {steps.map((step) => (
+        <Tooltip key={step.key} title={step.label}>
+          <span
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 999,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: step.done ? "#f6ffed" : "#f5f5f5",
+              border: `1px solid ${step.done ? "#b7eb8f" : "#d9d9d9"}`,
+              color: step.done ? "#389e0d" : "#bfbfbf",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            {step.icon}
+          </span>
+        </Tooltip>
+      ))}
     </Space>
   );
+}
+
+function renderProgressTag(row: PurchaseOrderListItem) {
+  const { hasReceipt, hasInvoice } = getWorkflowState(row);
+
+  if (row.status === "CANCELLED") {
+    return <Tag color="red">Đã huỷ</Tag>;
+  }
+
+  if (row.status === "DRAFT") {
+    return <Tag>Chờ duyệt</Tag>;
+  }
+
+  if (row.status === "APPROVED" && !hasReceipt) {
+    return <Tag color="blue">Chờ nhận hàng</Tag>;
+  }
+
+  if (
+    (row.status === "APPROVED" || row.status === "IN_PROGRESS") &&
+    hasReceipt &&
+    !hasInvoice
+  ) {
+    return <Tag color="gold">Chờ hóa đơn</Tag>;
+  }
+
+  if (hasInvoice && row.status !== "COMPLETED") {
+    return <Tag color="green">Đã có hóa đơn</Tag>;
+  }
+
+  if (row.status === "COMPLETED") {
+    return <Tag color="success">Hoàn tất</Tag>;
+  }
+
+  return statusTag(row.status);
 }
 
 function renderActions(
   status: PurchaseOrderStatus,
   row: PurchaseOrderListItem,
 ) {
+  const hasInvoice =
+    (row.supplierInvoices?.some((x) => x.status !== "VOID") ?? false) === true;
+
   if (status === "DRAFT") {
     return (
       <Space size={4}>
@@ -120,7 +158,7 @@ function renderActions(
   }
 
   if (status === "IN_PROGRESS") {
-    return <Button size="small">Xem</Button>;
+    return <Button size="small">{hasInvoice ? "Xem hóa đơn" : "Xem"}</Button>;
   }
 
   if (status === "COMPLETED") {
@@ -186,7 +224,7 @@ export default function PurchaseOrderTable(props: PurchaseOrderTableProps) {
       {
         title: "Sản phẩm",
         width: 180,
-        render: (_, row) => (
+        render: () => (
           <Typography.Text type="secondary">
             Xem trong chi tiết đơn
           </Typography.Text>
@@ -196,7 +234,7 @@ export default function PurchaseOrderTable(props: PurchaseOrderTableProps) {
         title: "Ngày đặt",
         dataIndex: "orderDate",
         width: 120,
-        render: (v) => v?.slice(0, 10),
+        render: (v) => dayjs(v).format("DD/MM/YYYY"),
       },
       {
         title: "Số lượng",
@@ -226,13 +264,12 @@ export default function PurchaseOrderTable(props: PurchaseOrderTableProps) {
         title: "Trạng thái",
         dataIndex: "status",
         width: 140,
-        render: (v) => statusTag(v),
+        render: (v, row) => renderProgressTag(row),
       },
       {
         title: "Tiến độ",
-        dataIndex: "status",
         width: 180,
-        render: (v) => renderWorkflow(v),
+        render: (_, row) => renderWorkflow(row),
       },
       {
         title: "Thao tác",

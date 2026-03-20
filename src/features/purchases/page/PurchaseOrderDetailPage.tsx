@@ -29,6 +29,7 @@ import {
 } from "../hooks";
 import type { PurchaseOrderDetail } from "../types";
 import { notify } from "../../../shared/lib/notification";
+import { LeftOutlined } from "@ant-design/icons";
 
 function money(n: number): string {
   return new Intl.NumberFormat("vi-VN").format(Math.round(n));
@@ -76,6 +77,13 @@ function buildWorkflow(po?: PurchaseOrderDetail | null): WorkflowStep[] {
     ];
   }
 
+  const activeInvoice =
+    po?.supplierInvoices?.find((x: any) => x.status !== "VOID") ?? null;
+  const hasInvoice = !!activeInvoice;
+  const hasConfirmedReceipt =
+    (po?.receipts?.length ?? 0) > 0 ||
+    (po as any)?.receiptSummary?.confirmedCount > 0;
+
   if (po.status === "DRAFT") {
     return [
       { key: "create", label: "Tạo đơn", done: true },
@@ -100,9 +108,14 @@ function buildWorkflow(po?: PurchaseOrderDetail | null): WorkflowStep[] {
     return [
       { key: "create", label: "Tạo đơn", done: true },
       { key: "approve", label: "Duyệt", done: true },
-      { key: "receive", label: "Nhận hàng", done: true },
-      { key: "invoice", label: "Hóa đơn NCC", done: false, current: true },
-      { key: "payment", label: "Thanh toán", done: false },
+      { key: "receive", label: "Nhận hàng", done: hasConfirmedReceipt },
+      {
+        key: "invoice",
+        label: "Hóa đơn NCC",
+        done: hasInvoice,
+        current: hasConfirmedReceipt && !hasInvoice,
+      },
+      { key: "payment", label: "Thanh toán", done: false, current: hasInvoice },
     ];
   }
 
@@ -130,7 +143,7 @@ function WorkflowBar({ po }: { po?: PurchaseOrderDetail | null }) {
 
   return (
     <Card size="small" style={{ marginBottom: 16 }}>
-      <Space wrap size={8}>
+      <Space wrap size={12}>
         {steps.map((step, index) => {
           let color: "default" | "processing" | "success" = "default";
           if (step.done) color = "success";
@@ -138,7 +151,9 @@ function WorkflowBar({ po }: { po?: PurchaseOrderDetail | null }) {
 
           return (
             <React.Fragment key={step.key}>
-              <Tag color={color}>{step.label}</Tag>
+              <Tag color={color} style={{ fontSize: "12px" }}>
+                {step.label}
+              </Tag>
               {index < steps.length - 1 ? (
                 <Typography.Text type="secondary">→</Typography.Text>
               ) : null}
@@ -164,6 +179,13 @@ export default function PurchaseOrderDetailPage() {
 
   const [grOpen, setGrOpen] = useState(false);
   const [grForm] = Form.useForm();
+
+  const activeInvoice =
+    po?.supplierInvoices?.find((x: any) => x.status !== "VOID") ?? null;
+  const hasInvoice = !!activeInvoice;
+  const hasConfirmedReceipt =
+    (po?.receipts?.length ?? 0) > 0 ||
+    (po as any)?.receiptSummary?.confirmedCount > 0;
 
   const totals = useMemo(() => {
     if (!po) return { gross: 0, net: 0 };
@@ -324,18 +346,53 @@ export default function PurchaseOrderDetailPage() {
     }
 
     if (po.status === "IN_PROGRESS") {
+      if (hasInvoice && activeInvoice?.id) {
+        return (
+          <Button
+            block
+            onClick={() => navigate(`/purchase-invoices/${activeInvoice.id}`)}
+          >
+            Xem hóa đơn NCC
+          </Button>
+        );
+      }
+
+      if (hasConfirmedReceipt) {
+        return (
+          <Button
+            block
+            onClick={() => navigate(`/purchase-invoices/create?poId=${po.id}`)}
+          >
+            Nhập hóa đơn NCC
+          </Button>
+        );
+      }
+
+      return (
+        <Button block loading={createGRMut.isPending} onClick={openReceive}>
+          Nhận hàng
+        </Button>
+      );
+    }
+
+    if (po.status === "COMPLETED" && hasInvoice && activeInvoice?.id) {
       return (
         <Button
           block
-          onClick={() => notify.info("Bước tiếp theo: nhập hóa đơn NCC")}
+          onClick={() => navigate(`/purchase-invoices/${activeInvoice.id}`)}
         >
-          Nhập hóa đơn NCC
+          Xem hóa đơn NCC
         </Button>
       );
     }
 
     return (
-      <Button block onClick={() => navigate("/purchase-orders")}>
+      <Button
+        block
+        onClick={() => navigate("/purchase-orders")}
+        size="small"
+        icon={<LeftOutlined />}
+      >
         Quay lại danh sách
       </Button>
     );
@@ -353,7 +410,15 @@ export default function PurchaseOrderDetailPage() {
     }
 
     if (po.status === "IN_PROGRESS") {
-      return "Đơn đã nhận hàng. Bước tiếp theo là nhập hóa đơn nhà cung cấp.";
+      if (hasInvoice) {
+        return "Đơn đã có hóa đơn nhà cung cấp. Bước tiếp theo là theo dõi và xử lý thanh toán.";
+      }
+
+      if (hasConfirmedReceipt) {
+        return "Đơn đã nhận hàng. Bước tiếp theo là nhập hóa đơn nhà cung cấp.";
+      }
+
+      return "Đơn đang thực hiện. Bước tiếp theo là ghi nhận nhận hàng.";
     }
 
     if (po.status === "COMPLETED") {
@@ -382,7 +447,11 @@ export default function PurchaseOrderDetailPage() {
       <div style={{ padding: 16 }}>
         <Empty description="Không tìm thấy đơn mua hàng" />
         <div style={{ marginTop: 12 }}>
-          <Button onClick={() => navigate("/purchases/orders")}>
+          <Button
+            onClick={() => navigate("/purchases/orders")}
+            size="small"
+            icon={<LeftOutlined />}
+          >
             Quay lại
           </Button>
         </div>
@@ -391,13 +460,13 @@ export default function PurchaseOrderDetailPage() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
+    <div style={{ padding: 0 }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          marginBottom: 16,
+          marginBottom: 10,
           gap: 12,
         }}
       >
@@ -413,7 +482,13 @@ export default function PurchaseOrderDetailPage() {
           </Typography.Text>
         </div>
 
-        <Button onClick={() => navigate("/purchase-orders")}>Quay lại</Button>
+        <Button
+          onClick={() => navigate("/purchase-orders")}
+          size="small"
+          icon={<LeftOutlined />}
+        >
+          Quay lại
+        </Button>
       </div>
 
       <WorkflowBar po={po} />
@@ -432,14 +507,14 @@ export default function PurchaseOrderDetailPage() {
               </Descriptions.Item>
 
               <Descriptions.Item label="Loại đơn">
-                {po.orderType}
+                {po.orderType === "SINGLE" ? "Đơn lẻ" : "Đơn lô"}
               </Descriptions.Item>
               <Descriptions.Item label="Thanh toán">
-                {po.paymentMode}
+                {po.paymentMode === "PREPAID" ? "Trả trước" : "Trả sau"}
               </Descriptions.Item>
 
               <Descriptions.Item label="Ngày chứng từ">
-                {po.orderDate}
+                {po.orderDate ? dayjs(po.orderDate).format("DD/MM/YYYY") : "-"}
               </Descriptions.Item>
               <Descriptions.Item label="Ghi chú">
                 {po.note ?? "-"}

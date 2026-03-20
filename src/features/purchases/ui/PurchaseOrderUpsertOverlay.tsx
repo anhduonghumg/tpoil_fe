@@ -122,10 +122,10 @@ export default function PurchaseOrderUpsertOverlay(
     );
     if (!hasValidLine) return false;
 
-    if (v.paymentMode === "POSTPAID") {
-      if (v.paymentTermType !== "NET_DAYS") return false;
-      if (!v.paymentTermDays || Number(v.paymentTermDays) <= 0) return false;
-    }
+    // if (v.paymentMode === "POSTPAID") {
+    //   if (v.paymentTermType !== "NET_DAYS") return false;
+    //   if (!v.paymentTermDays || Number(v.paymentTermDays) <= 0) return false;
+    // }
 
     return true;
   }, [form, lines]);

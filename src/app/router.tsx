@@ -22,6 +22,8 @@ import { ProductsPage } from "../features/products/page/ProductsPage";
 import { SupplierLocationsPage } from "../features/supplierLocations/page/SupplierLocationsPage";
 import { PriceBulletinsPage } from "../features/price-bulletins/page/PriceBulletinsPage";
 import PurchaseOrderDetailPage from "../features/purchases/page/PurchaseOrderDetailPage";
+import PurchaseInvoiceUpsertPage from "../features/purchases/page/PurchaseInvoiceUpsertPage";
+import PurchaseInvoiceDetailPage from "../features/purchases/page/PurchaseInvoiceDetailPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -38,9 +40,20 @@ export const router = createBrowserRouter([
             path: "purchase-orders",
             children: [
               { index: true, element: <PurchaseOrdersPage /> },
-              { path: "/purchase-orders/:id", element: <PurchaseOrderDetailPage  /> },
+              {
+                path: "/purchase-orders/:id",
+                element: <PurchaseOrderDetailPage />,
+              },
             ],
             // element: <PurchaseOrdersPage />,
+          },
+          {
+            path: "/purchase-invoices/create",
+            element: <PurchaseInvoiceUpsertPage />,
+          },
+          {
+            path: "/purchase-invoices/:id",
+            element: <PurchaseInvoiceDetailPage />,
           },
           { path: "inventory", element: <div>Kho hàng</div> },
           {

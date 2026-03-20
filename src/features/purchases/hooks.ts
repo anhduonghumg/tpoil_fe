@@ -53,6 +53,22 @@ export const usePriceRegionsSelect = (keyword: string) =>
     staleTime: 24 * 60 * 60 * 1000,
   });
 
+// export const useCancelPurchaseOrder = () => {
+//   const qc = useQueryClient();
+//   return useMutation({
+//     mutationKey: ["purchaseOrders", "cancel"],
+//     mutationFn: (id: string) => PurchasesApi.cancelPO(id),
+//     onSuccess: async (_res, id) => {
+//       await qc.invalidateQueries({ queryKey: ["purchaseOrders", "list"] });
+//       await qc.invalidateQueries({
+//         queryKey: ["purchaseOrders", "detail", id],
+//       });
+//       notify.success("Đã huỷ đơn");
+//     },
+//     onError: () => notify.error("Không huỷ được đơn"),
+//   });
+// };
+
 export const useCancelPurchaseOrder = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -98,3 +114,56 @@ export const useCreateGoodsReceipt = () => {
     },
   });
 };
+
+export const supplierInvoiceKeys = {
+  all: ["supplierInvoices"] as const,
+  detail: (id?: string) => ["supplierInvoices", "detail", id] as const,
+  importPdfResult: (runId?: string) =>
+    ["supplierInvoices", "importPdfResult", runId] as const,
+};
+
+export function useImportSupplierInvoicePdf() {
+  return useMutation({
+    mutationFn: (formData: FormData) =>
+      PurchasesApi.importSupplierInvoicePdf(formData),
+  });
+}
+
+export function useSupplierInvoiceImportPdfResult(runId?: string) {
+  return useQuery({
+    queryKey: supplierInvoiceKeys.importPdfResult(runId),
+    queryFn: () => PurchasesApi.getSupplierInvoiceImportPdfResult(runId!),
+    enabled: !!runId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (!status) return false;
+      return status === "QUEUED" || status === "PROCESSING" ? 1500 : false;
+    },
+  });
+}
+
+export function useCreateSupplierInvoice() {
+  return useMutation({
+    mutationFn: PurchasesApi.createSupplierInvoice,
+  });
+}
+
+export function useSupplierInvoiceDetail(id?: string) {
+  return useQuery({
+    queryKey: supplierInvoiceKeys.detail(id),
+    queryFn: () => PurchasesApi.getSupplierInvoiceDetail(id!),
+    enabled: !!id,
+  });
+}
+
+export function usePostSupplierInvoice() {
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload?: { note?: string };
+    }) => PurchasesApi.postSupplierInvoice(id, payload),
+  });
+}

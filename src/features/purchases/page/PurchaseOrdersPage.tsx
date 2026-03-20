@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, Space, Typography } from "antd";
 import PurchaseOrderFilters from "../ui/PurchaseOrderFilters";
 import PurchaseOrderTable from "../ui/PurchaseOrderTable";
 import PurchaseOrderUpsertOverlay from "../ui/PurchaseOrderUpsertOverlay";
-import PurchaseOrderDetailDrawer from "../ui/PurchaseOrderDetailDrawer";
 import { usePurchaseOrderList } from "../hooks";
 import type { PurchaseOrderListQuery, UUID } from "../types";
 import { useProductSelect } from "../../products/hooks";
@@ -113,12 +112,6 @@ export default function PurchaseOrdersPage() {
         onSearchProducts={onSearchProducts}
         defaultOrderNo=""
       />
-
-      {/* <PurchaseOrderDetailDrawer
-        open={detailOpen}
-        poId={selectedPoId}
-        onClose={() => setDetailOpen(false)}
-      /> */}
     </div>
   );
 }
