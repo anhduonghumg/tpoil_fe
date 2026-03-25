@@ -134,6 +134,23 @@ export const ROUTES = {
     post: ["POST", "/supplier-invoices/:id/post"] as RouteTuple,
   },
 
+  banking: {
+    transactions: ["GET", "/banking/transactions"] as RouteTuple,
+    transactionDetail: ["GET", "/banking/transactions/:id"] as RouteTuple,
+    transactionSuggestions: [
+      "GET",
+      "/banking/transactions/:id/suggestions",
+    ] as RouteTuple,
+    confirmTransaction: [
+      "POST",
+      "/banking/transactions/:id/confirm",
+    ] as RouteTuple,
+    templates: ["GET", "/banking/templates"] as RouteTuple,
+    importDetail: ["GET", "/banking/imports/:id"] as RouteTuple,
+    importPreview: ["POST", "/banking/imports/preview"] as RouteTuple,
+    importCommit: ["POST", "/banking/imports/commit"] as RouteTuple,
+  },
+
   goodsReceipts: {
     list: ["GET", "/goods-receipts"] as RouteTuple,
     detail: ["GET", "/goods-receipts/:id"] as RouteTuple,

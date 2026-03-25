@@ -45,6 +45,7 @@ const NAV: NavItem[] = [
     label: "Đơn mua hàng",
     icon: <ShoppingCartOutlined />,
   },
+  { key: "/banking", label: "Ngân hàng", icon: <DatabaseOutlined /> },
   {
     key: "/users",
     label: "Người dùng",
@@ -120,20 +121,24 @@ const NAV: NavItem[] = [
 
 const BREADCRUMB: Record<string, string> = {
   "/": "Dashboard",
-  "/orders": "Đơn hàng",
-  "/inventory": "Kho hàng",
+
+  "/purchase-orders": "Đơn mua hàng",
+  "/purchase-invoices": "Hóa đơn NCC",
+
   "/users": "Người dùng",
   "/employees": "Nhân viên",
   "/department": "Phòng ban",
   "/customers": "Khách hàng",
+  "/suppliers": "Nhà cung cấp",
   "/contracts": "Hợp đồng",
   "/contractTypes": "Loại hợp đồng",
   "/cron": "Công việc định kỳ",
+
   "/settings/roles": "Phân quyền",
   "/settings/customer-groups": "Nhóm khách hàng",
   "/settings/products": "Sản phẩm",
   "/settings/inventory": "Kho hàng",
-  "/settings/price-bullentins": "Giá sản phẩm",
+  "/settings/price-bulletins": "Giá sản phẩm",
 };
 
 const SiderMenu = React.memo(function SiderMenu({
@@ -190,7 +195,7 @@ const HeaderRight = React.memo(function HeaderRight({
         },
       ],
     }),
-    [onLogout]
+    [onLogout],
   );
 
   return (
@@ -230,7 +235,7 @@ export default function AppLayout() {
   const flatKeys = useMemo(() => {
     const walk = (items: any[]): string[] =>
       items.flatMap((i) =>
-        i.children?.length ? [i.key, ...walk(i.children)] : [i.key]
+        i.children?.length ? [i.key, ...walk(i.children)] : [i.key],
       );
     return walk(menuItems);
   }, [menuItems]);
@@ -241,7 +246,7 @@ export default function AppLayout() {
       if (pathname !== key) nav(key);
       if (open) setOpen(false);
     },
-    [nav, pathname, open]
+    [nav, pathname, open],
   );
 
   const onToggleSider = useCallback(() => {
@@ -264,7 +269,7 @@ export default function AppLayout() {
     confirmDialog.confirm(
       "Xác nhận",
       "Bạn có chắc chắn muốn đăng xuất khỏi phiên làm việc hiện tại?",
-      onLogout
+      onLogout,
     );
   }, [onLogout]);
 
@@ -275,19 +280,58 @@ export default function AppLayout() {
     return [best || "/"];
   }, [pathname, flatKeys]);
 
+  // const breadcrumbItems = useMemo(() => {
+  //   const segs = pathname.split("/").filter(Boolean);
+  //   const paths = [
+  //     "/",
+  //     ...segs.map((_, i) => "/" + segs.slice(0, i + 1).join("/")),
+  //   ];
+  //   return paths.map((p, i) => ({
+  //     title:
+  //       i === paths.length - 1
+  //         ? BREADCRUMB[p] || decodeURIComponent(p.split("/").pop() || "")
+  //         : BREADCRUMB[p] || "Home",
+  //     path: p,
+  //   }));
+  // }, [pathname]);
+
   const breadcrumbItems = useMemo(() => {
     const segs = pathname.split("/").filter(Boolean);
     const paths = [
       "/",
       ...segs.map((_, i) => "/" + segs.slice(0, i + 1).join("/")),
     ];
-    return paths.map((p, i) => ({
-      title:
-        i === paths.length - 1
-          ? BREADCRUMB[p] || decodeURIComponent(p.split("/").pop() || "")
-          : BREADCRUMB[p] || "Home",
-      path: p,
-    }));
+
+    const isUuidLike = (value: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        value,
+      );
+
+    return paths.map((p, i) => {
+      const lastSeg = p.split("/").pop() || "";
+      const prevSeg = p.split("/").filter(Boolean).slice(-2, -1)[0] || "";
+
+      let title = BREADCRUMB[p];
+
+      if (!title) {
+        if (isUuidLike(lastSeg)) {
+          if (prevSeg === "purchase-orders") {
+            title = "Chi tiết đơn mua";
+          } else if (prevSeg === "purchase-invoices") {
+            title = "Chi tiết hóa đơn NCC";
+          } else {
+            title = "Chi tiết";
+          }
+        } else {
+          title = decodeURIComponent(lastSeg || "Home");
+        }
+      }
+
+      return {
+        title,
+        path: p,
+      };
+    });
   }, [pathname]);
 
   const userName = (me?.name || me?.email || "User") as string;

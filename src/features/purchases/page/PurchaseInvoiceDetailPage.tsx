@@ -168,7 +168,7 @@ export default function PurchaseInvoiceDetailPage() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
+    <div>
       <div
         style={{
           display: "flex",
@@ -191,6 +191,7 @@ export default function PurchaseInvoiceDetailPage() {
         </div>
 
         <Button
+          size="small"
           icon={<LeftOutlined />}
           onClick={() =>
             inv.purchaseOrderId

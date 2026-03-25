@@ -24,6 +24,7 @@ import { PriceBulletinsPage } from "../features/price-bulletins/page/PriceBullet
 import PurchaseOrderDetailPage from "../features/purchases/page/PurchaseOrderDetailPage";
 import PurchaseInvoiceUpsertPage from "../features/purchases/page/PurchaseInvoiceUpsertPage";
 import PurchaseInvoiceDetailPage from "../features/purchases/page/PurchaseInvoiceDetailPage";
+import BankStatementPage from "../features/banking/page/BankStatementPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -63,6 +64,10 @@ export const router = createBrowserRouter([
                 <UsersPage />
               </RouteGuard>
             ),
+          },
+          {
+            path: "/banking",
+            element: <BankStatementPage />,
           },
           { path: "employees", element: <UsersList /> },
           { path: "employees/:id", element: <UserDetail /> },

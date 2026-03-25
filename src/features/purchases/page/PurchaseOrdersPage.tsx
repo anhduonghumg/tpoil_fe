@@ -106,7 +106,7 @@ export default function PurchaseOrdersPage() {
         //   setDetailOpen(true);
         // }}
         onCreated={(poId) => {
-          navigate(`/purchases/orders/${poId}`);
+          navigate(`/purchase-orders/${poId}`);
         }}
         products={products}
         onSearchProducts={onSearchProducts}
