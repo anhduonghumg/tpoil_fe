@@ -1,8 +1,9 @@
 import React from "react";
-import { Button, Table, Tag } from "antd";
+import { Button, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import type { BankTransactionItem } from "../types";
+import { TableRowSelection } from "antd/es/table/interface";
 
 type Props = {
   data: BankTransactionItem[];
@@ -12,22 +13,21 @@ type Props = {
   total: number;
   onChangePage: (page: number, pageSize: number) => void;
   onOpenMatch: (row: BankTransactionItem) => void;
+  selectedRowKeys?: React.Key[];
+  onChangeSelectedRowKeys?: (keys: React.Key[]) => void;
 };
 
 function money(n?: number) {
   return new Intl.NumberFormat("vi-VN").format(Number(n || 0));
 }
 
-function statusTag(row: BankTransactionItem) {
-  if (row.isConfirmed) return <Tag color="green">Đã xác nhận</Tag>;
-
-  switch (row.matchStatus) {
-    case "AUTO_MATCHED":
-      return <Tag color="blue">Gợi ý khớp</Tag>;
+function matchStatusTag(status?: string) {
+  switch (status) {
     case "MANUAL_MATCHED":
-      return <Tag color="geekblue">Đã khớp</Tag>;
+    case "AUTO_MATCHED":
+      return <Tag color="green">Đã khớp</Tag>;
     case "PARTIAL_MATCHED":
-      return <Tag color="orange">Một phần</Tag>;
+      return <Tag color="blue">Khớp một phần</Tag>;
     default:
       return <Tag>Chưa khớp</Tag>;
   }
@@ -41,18 +41,20 @@ export function StatementTable({
   total,
   onChangePage,
   onOpenMatch,
+  selectedRowKeys = [],
+  onChangeSelectedRowKeys,
 }: Props) {
   const columns: ColumnsType<BankTransactionItem> = [
     {
-      title: "Ngày GD",
+      title: "Ngày",
       dataIndex: "txnDate",
-      width: 120,
-      render: (v) => (v ? dayjs(v).format("DD/MM/YYYY") : ""),
+      width: 110,
+      render: (v) => (v ? dayjs(v).format("DD/MM/YYYY") : "-"),
     },
     {
       title: "Loại",
       dataIndex: "direction",
-      width: 90,
+      width: 80,
       render: (v) => (v === "OUT" ? "Chi" : "Thu"),
     },
     {
@@ -60,59 +62,75 @@ export function StatementTable({
       dataIndex: "amount",
       width: 140,
       align: "right",
-      render: (v) => money(v),
+      render: (v) => <Typography.Text strong>{money(v)}</Typography.Text>,
     },
     {
       title: "Nội dung",
       dataIndex: "description",
-      ellipsis: true,
-    },
-    {
-      title: "Đối tác",
-      dataIndex: "counterpartyName",
-      width: 200,
-      ellipsis: true,
-      render: (_, r) => r.counterpartyName || r.counterpartyAcc || "",
+      render: (_, row) => (
+        <div>
+          <div style={{ fontWeight: 500 }}>{row.description || "-"}</div>
+          <div style={{ color: "#8c8c8c" }}>
+            {row.counterpartyName || "-"}
+            {row.counterpartyAcc ? ` • ${row.counterpartyAcc}` : ""}
+          </div>
+        </div>
+      ),
     },
     {
       title: "Đã phân bổ",
       dataIndex: "allocatedAmount",
-      width: 130,
+      width: 140,
       align: "right",
       render: (v) => money(v),
     },
     {
       title: "Còn lại",
       dataIndex: "remainingAmount",
-      width: 130,
+      width: 140,
       align: "right",
       render: (v) => money(v),
     },
     {
       title: "Trạng thái",
+      dataIndex: "matchStatus",
       width: 130,
-      render: (_, r) => statusTag(r),
+      render: (v) => matchStatusTag(v),
     },
     {
       title: "Thao tác",
-      width: 100,
+      key: "actions",
+      width: 120,
       fixed: "right",
-      render: (_, r) => (
-        <Button type="link" onClick={() => onOpenMatch(r)}>
-          Xử lý
-        </Button>
+      render: (_, row) => (
+        <Space>
+          <Button size="small" onClick={() => onOpenMatch(row)}>
+            Xử lý
+          </Button>
+        </Space>
       ),
     },
   ];
 
+  const rowSelection: TableRowSelection<BankTransactionItem> = {
+    selectedRowKeys,
+    onChange: (keys) => onChangeSelectedRowKeys?.(keys),
+    getCheckboxProps: (record) => ({
+      disabled:
+        record.direction !== "OUT" ||
+        Number(record.remainingAmount || 0) <= 0 ||
+        record.isConfirmed === true,
+    }),
+  };
+
   return (
     <Table
       rowKey="id"
-      size="small"
+      rowSelection={rowSelection}
       loading={loading}
       columns={columns}
       dataSource={data}
-      scroll={{ x: 1200 }}
+      scroll={{ x: 1200, y: 350 }}
       pagination={{
         current: page,
         pageSize,

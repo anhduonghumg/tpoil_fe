@@ -163,7 +163,7 @@ export type CommitBankImportPayload = {
   bankAccountId: UUID;
   templateId?: UUID;
   fileChecksum: string;
-  rows: Record<string, any>[];
+  rows: BankImportPreviewRow[];
 };
 
 export type BankImportPreviewRow = {

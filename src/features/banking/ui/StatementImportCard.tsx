@@ -3,13 +3,11 @@ import {
   Button,
   Card,
   Col,
-  Form,
   Row,
   Select,
   Space,
   Typography,
   Upload,
-  message,
 } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 import type { UploadFile } from "antd/es/upload/interface";
@@ -20,6 +18,7 @@ import {
 } from "../hooks";
 import type { BankAccountOption, BankImportPreviewResponse } from "../types";
 import { ImportPreviewModal } from "./ImportPreviewModal";
+import { notify } from "../../../shared/lib/notification";
 
 type Props = {
   bankAccounts: BankAccountOption[];
@@ -50,11 +49,11 @@ export function StatementImportCard({ bankAccounts }: Props) {
 
   const handlePreview = async () => {
     if (!bankAccountId) {
-      message.warning("Vui lòng chọn tài khoản ngân hàng");
+      notify.warning("Vui lòng chọn tài khoản ngân hàng");
       return;
     }
     if (!file) {
-      message.warning("Vui lòng chọn file sao kê");
+      notify.warning("Vui lòng chọn file sao kê");
       return;
     }
 
@@ -67,7 +66,7 @@ export function StatementImportCard({ bankAccounts }: Props) {
       setPreviewData(res);
       setPreviewOpen(true);
     } catch (e: any) {
-      message.error(e?.message || "Xem trước import thất bại");
+      notify.error(e?.message || "Xem trước import thất bại");
     }
   };
 
@@ -81,12 +80,12 @@ export function StatementImportCard({ bankAccounts }: Props) {
         fileChecksum: previewData.fileChecksum,
         rows: previewData.rows,
       });
-      message.success("Import sao kê thành công");
+      notify.success("Import sao kê thành công");
       setPreviewOpen(false);
       setPreviewData(null);
       setFile(null);
     } catch (e: any) {
-      message.error(e?.message || "Import sao kê thất bại");
+      notify.error(e?.message || "Import sao kê thất bại");
     }
   };
 

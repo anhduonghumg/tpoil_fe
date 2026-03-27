@@ -151,6 +151,20 @@ export const ROUTES = {
     importCommit: ["POST", "/banking/imports/commit"] as RouteTuple,
   },
 
+  bankAccounts: {
+    list: ["GET", "/bank-accounts"],
+    detail: ["GET", "/bank-accounts/:id"],
+    create: ["POST", "/bank-accounts"],
+    update: ["PATCH", "/bank-accounts/:id"],
+  },
+
+  bankImportTemplates: {
+    list: ["GET", "/bank-import-templates"],
+    detail: ["GET", "/bank-import-templates/:id"],
+    create: ["POST", "/bank-import-templates"],
+    update: ["PATCH", "/bank-import-templates/:id"],
+  },
+
   goodsReceipts: {
     list: ["GET", "/goods-receipts"] as RouteTuple,
     detail: ["GET", "/goods-receipts/:id"] as RouteTuple,

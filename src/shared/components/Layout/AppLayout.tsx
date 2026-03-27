@@ -115,6 +115,16 @@ const NAV: NavItem[] = [
         label: "Giá sản phẩm",
         icon: <TeamOutlined />,
       },
+      {
+        key: "/bank-accounts",
+        label: "Tài khoản ngân hàng",
+        icon: <DatabaseOutlined />,
+      },
+      {
+        key: "/bank-import-templates",
+        label: "Mẫu import ngân hàng",
+        icon: <DatabaseOutlined />,
+      },
     ],
   },
 ];

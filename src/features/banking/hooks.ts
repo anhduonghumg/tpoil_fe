@@ -8,6 +8,8 @@ import type {
   Paged,
   PreviewBankImportPayload,
 } from "./types";
+import { apiCall } from "../../shared/lib/api";
+import { notify } from "../../shared/lib/notification";
 
 export const bankingKeys = {
   all: ["banking"] as const,
@@ -96,6 +98,145 @@ export function useConfirmBankTransaction() {
       qc.invalidateQueries({
         queryKey: bankingKeys.suggestions(vars.id),
       });
+    },
+  });
+}
+
+export function useBankAccountsOptions() {
+  return useQuery({
+    queryKey: ["bankAccounts", "options"],
+    queryFn: () =>
+      apiCall<any>("bankAccounts.list").then((r) => r.data?.data ?? []),
+  });
+}
+
+export function useBankTemplatesOptions(bankCode?: string) {
+  return useQuery({
+    queryKey: ["bankTemplates", bankCode],
+    queryFn: () =>
+      apiCall<any>("banking.templates", {
+        query: { bankCode },
+      }).then((r) => r.data?.data ?? []),
+    enabled: !!bankCode,
+  });
+}
+
+export function useBulkQuickMatchBankTransactions() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results: {
+        successIds: string[];
+        skipped: Array<{ id: string; reason: string }>;
+        failed: Array<{ id: string; reason: string }>;
+      } = {
+        successIds: [],
+        skipped: [],
+        failed: [],
+      };
+
+      for (const id of ids) {
+        try {
+          const res = await BankingApi.getSuggestions(id);
+          const txn = res?.transaction;
+          const suggestions = res?.suggestions ?? [];
+
+          if (!txn) {
+            results.skipped.push({ id, reason: "Không có dữ liệu giao dịch" });
+            continue;
+          }
+
+          if (txn.direction !== "OUT") {
+            results.skipped.push({ id, reason: "Chỉ hỗ trợ giao dịch chi" });
+            continue;
+          }
+
+          if ((txn.remainingAmount ?? 0) <= 0) {
+            results.skipped.push({
+              id,
+              reason: "Giao dịch không còn số tiền để phân bổ",
+            });
+            continue;
+          }
+
+          if (!suggestions.length) {
+            results.skipped.push({ id, reason: "Không có gợi ý phù hợp" });
+            continue;
+          }
+
+          const best = [...suggestions].sort((a, b) => b.score - a.score)[0];
+
+          if (!best) {
+            results.skipped.push({
+              id,
+              reason: "Không tìm được gợi ý tốt nhất",
+            });
+            continue;
+          }
+
+          const txnRemain = Number(txn.remainingAmount ?? txn.amount ?? 0);
+          const settlementRemain = Number(best.remainingAmount || 0);
+          const suggested = Number(best.suggestedAllocatedAmount || 0);
+
+          const allocatedAmount =
+            suggested > 0
+              ? Math.min(suggested, txnRemain, settlementRemain)
+              : Math.min(txnRemain, settlementRemain);
+
+          const amountDiff = Math.abs(txnRemain - settlementRemain);
+          const amountDiffRatio = txnRemain > 0 ? amountDiff / txnRemain : 999;
+
+          const isSafe =
+            best.score >= 30 && allocatedAmount > 0 && amountDiffRatio <= 0.05;
+
+          if (!isSafe) {
+            results.skipped.push({
+              id,
+              reason: `Bỏ qua do score thấp hoặc lệch tiền lớn (score=${best.score})`,
+            });
+            continue;
+          }
+
+          await BankingApi.confirmTransaction(id, {
+            allocations: [
+              {
+                settlementId: best.settlementId,
+                allocatedAmount,
+                score: best.score,
+                isAuto: true,
+                sortOrder: 0,
+              },
+            ],
+          });
+
+          results.successIds.push(id);
+        } catch (e: any) {
+          results.failed.push({
+            id,
+            reason: e?.message || "Bulk match thất bại",
+          });
+        }
+      }
+
+      return results;
+    },
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: bankingKeys.all });
+
+      const ok = res.successIds.length;
+      const skipped = res.skipped.length;
+      const failed = res.failed.length;
+
+      if (ok > 0) {
+        notify.success(`Đã khớp nhanh ${ok} giao dịch`);
+      }
+      if (skipped > 0) {
+        notify.warning(`Bỏ qua ${skipped} giao dịch chưa đủ điều kiện`);
+      }
+      if (failed > 0) {
+        notify.error(`Có ${failed} giao dịch khớp thất bại`);
+      }
     },
   });
 }
