@@ -202,6 +202,14 @@ export default function PurchaseOrderDetailPage() {
     return { gross, net };
   }, [po]);
 
+  const totalPaymentPlan = useMemo(() => {
+    if (!po?.paymentPlans?.length) return 0;
+    return po.paymentPlans.reduce(
+      (sum: number, x: any) => sum + Number(x.amount || 0),
+      0,
+    );
+  }, [po]);
+
   const cols: ColumnsType<any> = [
     {
       title: "Sản phẩm",
@@ -258,6 +266,33 @@ export default function PurchaseOrderDetailPage() {
       width: 130,
       align: "right",
       render: (v) => money(toNumber(v)),
+    },
+  ];
+
+  const paymentPlanColumns: ColumnsType<any> = [
+    {
+      title: "Đợt",
+      width: 80,
+      align: "center",
+      render: (_: any, __: any, index: number) => index + 1,
+    },
+    {
+      title: "Ngày đến hạn",
+      dataIndex: "dueDate",
+      width: 160,
+      render: (v: string) => (v ? dayjs(v).format("DD/MM/YYYY") : "-"),
+    },
+    {
+      title: "Số tiền",
+      dataIndex: "amount",
+      width: 180,
+      align: "right",
+      render: (v: any) => `${money(Number(v) || 0)} đ`,
+    },
+    {
+      title: "Ghi chú",
+      dataIndex: "note",
+      render: (v: string) => v || "-",
     },
   ];
 
@@ -493,101 +528,152 @@ export default function PurchaseOrderDetailPage() {
 
       <WorkflowBar po={po} />
 
-      <Row gutter={16} align="top">
-        <Col xs={24} xl={16}>
-          <Card
-            size="small"
-            title="Thông tin đơn hàng"
-            style={{ marginBottom: 16 }}
-          >
-            <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="Số đơn">{po.orderNo}</Descriptions.Item>
-              <Descriptions.Item label="Nhà cung cấp">
-                {po.supplier?.name ?? po.supplierCustomerId}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Loại đơn">
-                {po.orderType === "SINGLE" ? "Đơn lẻ" : "Đơn lô"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Thanh toán">
-                {po.paymentMode === "PREPAID" ? "Trả trước" : "Trả sau"}
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Ngày chứng từ">
-                {po.orderDate ? dayjs(po.orderDate).format("DD/MM/YYYY") : "-"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Ghi chú">
-                {po.note ?? "-"}
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
-
-          <Card size="small" title="Hàng hoá" style={{ marginBottom: 16 }}>
-            <Table
-              size="middle"
-              rowKey="id"
-              dataSource={po.lines}
-              columns={cols}
-              pagination={false}
-            />
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                marginTop: 12,
-              }}
+      <Row
+        gutter={16}
+        align="top"
+        style={{ flexWrap: "nowrap", alignItems: "flex-start" }}
+      >
+        <Col xs={24} xl={18} style={{ minWidth: 0 }}>
+          <div className="po-detail-scroll-left">
+            <Card
+              size="small"
+              title="Thông tin đơn hàng"
+              style={{ marginBottom: 16 }}
             >
-              <div style={{ width: 360 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginBottom: 6,
-                  }}
-                >
-                  <Typography.Text type="secondary">
-                    Tổng tiền hàng
-                  </Typography.Text>
-                  <Typography.Text>{money(totals.gross)} đ</Typography.Text>
-                </div>
+              <Descriptions bordered size="small" column={2}>
+                <Descriptions.Item label="Số đơn">
+                  {po.orderNo}
+                </Descriptions.Item>
+                <Descriptions.Item label="Nhà cung cấp">
+                  {po.supplier?.name ?? po.supplierCustomerId}
+                </Descriptions.Item>
 
-                <div
-                  style={{ display: "flex", justifyContent: "space-between" }}
-                >
-                  <Typography.Text strong>Tạm tính</Typography.Text>
-                  <Typography.Text strong>
-                    {money(totals.net)} đ
-                  </Typography.Text>
-                </div>
-              </div>
-            </div>
-          </Card>
+                <Descriptions.Item label="Loại đơn">
+                  {po.orderType === "SINGLE" ? "Đơn lẻ" : "Đơn lô"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Thanh toán">
+                  {po.paymentMode === "PREPAID" ? "Trả trước" : "Trả sau"}
+                </Descriptions.Item>
 
-          {po.paymentMode === "POSTPAID" && po.paymentPlans?.length ? (
-            <Card size="small" title="Kế hoạch thanh toán">
+                <Descriptions.Item label="Điều khoản thanh toán">
+                  {po.paymentMode === "PREPAID"
+                    ? "Trong ngày"
+                    : po.paymentTermType === "NET_DAYS"
+                    ? `Trả chậm${
+                        po.paymentTermDays ? ` ${po.paymentTermDays} ngày` : ""
+                      }`
+                    : "Trả chậm"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Cho phép trả nhiều đợt">
+                  {po.allowPartialPayment ? "Có" : "Không"}
+                </Descriptions.Item>
+
+                <Descriptions.Item label="Ngày chứng từ">
+                  {po.orderDate
+                    ? dayjs(po.orderDate).format("DD/MM/YYYY")
+                    : "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Ghi chú">
+                  {po.note ?? "-"}
+                </Descriptions.Item>
+              </Descriptions>
+            </Card>
+
+            <Card size="small" title="Hàng hoá" style={{ marginBottom: 16 }}>
               <Table
                 size="middle"
-                rowKey={(r) => `${r?.dueDate}-${r?.amount}`}
-                dataSource={po.paymentPlans}
+                rowKey="id"
+                dataSource={po.lines}
+                columns={cols}
                 pagination={false}
-                columns={[
-                  { title: "Ngày đến hạn", dataIndex: "dueDate", width: 160 },
-                  {
-                    title: "Số tiền",
-                    dataIndex: "amount",
-                    width: 180,
-                    align: "right",
-                    render: (v) => `${money(Number(v) || 0)} đ`,
-                  },
-                  { title: "Ghi chú", dataIndex: "note" },
-                ]}
               />
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginTop: 12,
+                }}
+              >
+                <div style={{ width: 360 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: 6,
+                    }}
+                  >
+                    <Typography.Text type="secondary">
+                      Tổng tiền hàng
+                    </Typography.Text>
+                    <Typography.Text>{money(totals.gross)} đ</Typography.Text>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Typography.Text strong>Tạm tính</Typography.Text>
+                    <Typography.Text strong>
+                      {money(totals.net)} đ
+                    </Typography.Text>
+                  </div>
+                </div>
+              </div>
             </Card>
-          ) : null}
+
+            {po.paymentMode === "POSTPAID" ? (
+              <Card size="small" title="Kế hoạch thanh toán">
+                {po.paymentPlans?.length ? (
+                  <>
+                    <Table
+                      size="middle"
+                      rowKey={(r: any) =>
+                        r.id ??
+                        `${r.sortOrder ?? 0}-${r.dueDate ?? ""}-${
+                          r.amount ?? 0
+                        }`
+                      }
+                      dataSource={po.paymentPlans}
+                      pagination={false}
+                      columns={paymentPlanColumns}
+                    />
+
+                    <div
+                      style={{
+                        marginTop: 12,
+                        display: "flex",
+                        justifyContent: "flex-end",
+                      }}
+                    >
+                      <div style={{ width: 320 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                          }}
+                        >
+                          <Typography.Text strong>
+                            Tổng kế hoạch
+                          </Typography.Text>
+                          <Typography.Text strong>
+                            {money(totalPaymentPlan)} đ
+                          </Typography.Text>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <Empty description="Không có kế hoạch thanh toán" />
+                )}
+              </Card>
+            ) : null}
+          </div>
         </Col>
 
-        <Col xs={24} xl={8}>
+        <Col xs={24} xl={6}>
           <Card size="small" title="Bước tiếp theo cần làm">
             <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
               {renderActionHint()}
@@ -629,7 +715,6 @@ export default function PurchaseOrderDetailPage() {
           </Card>
         </Col>
       </Row>
-
       <Modal
         open={grOpen}
         title="Nhận hàng"

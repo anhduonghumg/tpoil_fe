@@ -151,6 +151,15 @@ export const ROUTES = {
     importCommit: ["POST", "/banking/imports/commit"] as RouteTuple,
   },
 
+  bankPurposes: {
+    list: ["GET", "/bank/purposes"] as RouteTuple,
+    all: ["GET", "/bank/purposes/all"] as RouteTuple,
+    detail: ["GET", "/bank/purposes/:id"] as RouteTuple,
+    create: ["POST", "/bank/purposes"] as RouteTuple,
+    update: ["PATCH", "/bank/purposes/:id"] as RouteTuple,
+    delete: ["DELETE", "/bank/purposes/:id"] as RouteTuple,
+  },
+
   bankAccounts: {
     list: ["GET", "/bank-accounts"],
     detail: ["GET", "/bank-accounts/:id"],

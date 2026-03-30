@@ -27,6 +27,7 @@ import PurchaseInvoiceDetailPage from "../features/purchases/page/PurchaseInvoic
 import BankStatementPage from "../features/banking/page/BankStatementPage";
 import BankAccountsPage from "../features/bank-accounts/page/BankAccountsPage";
 import BankImportTemplatesPage from "../features/bank-import-templates/ui/page/BankImportTemplatesPage";
+import BankPurposesPage from "../features/bank-purposes/page/BankPurposesPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -78,6 +79,10 @@ export const router = createBrowserRouter([
           {
             path: "/bank-import-templates",
             element: <BankImportTemplatesPage />,
+          },
+          {
+            path: "/bank-purposes",
+            element: <BankPurposesPage />,
           },
           { path: "employees", element: <UsersList /> },
           { path: "employees/:id", element: <UserDetail /> },

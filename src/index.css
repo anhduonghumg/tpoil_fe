@@ -80,6 +80,35 @@ button:focus-visible {
   height: 25px !important;
 }
 
+.po-detail-scroll-left {
+  height: calc(100vh - 200px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+/* Chrome / Edge / Safari */
+.po-detail-scroll-left::-webkit-scrollbar {
+  width: 4px !important;
+}
+
+.po-detail-scroll-left::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+.po-detail-scroll-left::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.po-detail-scroll-left::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;

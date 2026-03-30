@@ -125,6 +125,11 @@ const NAV: NavItem[] = [
         label: "Mẫu import ngân hàng",
         icon: <DatabaseOutlined />,
       },
+      {
+        key: "/bank-purposes",
+        label: "Mục đích giao dịch",
+        icon: <DatabaseOutlined />,
+      },
     ],
   },
 ];

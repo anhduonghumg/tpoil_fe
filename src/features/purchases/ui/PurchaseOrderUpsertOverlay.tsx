@@ -154,14 +154,15 @@ export default function PurchaseOrderUpsertOverlay(
             ? Number(values.paymentTermDays) || 7
             : null,
         totalAmount: cleanLines.reduce((s: number, l: any) => {
-          const lineTotal =
-            (Number(l.orderedQty) || 0) *
-            (Number(l.unitPrice) || 0 - (Number(l.discountAmount) || 0)) *
-            (1 + (Number(l.taxRate) || 0) / 100);
+          const qty = Number(l.orderedQty) || 0;
+          const unitPrice = Number(l.unitPrice) || 0;
+          const unitDiscount = Number(l.discountAmount) || 0;
+          const taxRate = Number(l.taxRate) || 0;
+
+          const lineNet = qty * (unitPrice - unitDiscount);
+          const lineTotal = lineNet * (1 + taxRate / 100);
+
           return s + lineTotal;
-        }, 0),
-        totalQty: cleanLines.reduce((s: number, l: any) => {
-          return s + (Number(l.orderedQty) || 0);
         }, 0),
 
         lines: cleanLines.map((l: any) => ({
