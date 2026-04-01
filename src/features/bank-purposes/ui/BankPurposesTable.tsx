@@ -2,6 +2,7 @@ import { Button, Popconfirm, Space, Switch, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { BankTransactionPurposeItem } from "../types";
 import { useDeleteBankPurpose, useUpdateBankPurpose } from "../hooks";
+import ActionButtons from "../../../shared/ui/ActionButtons";
 
 interface Props {
   loading?: boolean;
@@ -114,26 +115,32 @@ export function BankPurposesTable({
     {
       title: "Thao tác",
       key: "actions",
-      fixed: "right",
-      width: 150,
+      // fixed: "right",
+      width: "5%",
       render: (_, row) => (
-        <Space size={6}>
-          <Button size="small" onClick={() => onEdit(row)}>
-            Sửa
-          </Button>
+        // <Space size={6}>
+        //   <Button size="small" onClick={() => onEdit(row)}>
+        //     Sửa
+        //   </Button>
 
-          <Popconfirm
-            title="Xóa mục đích giao dịch?"
-            okText="Xóa"
-            cancelText="Hủy"
-            disabled={row.isSystem}
-            onConfirm={() => deleteMut.mutate(row.id)}
-          >
-            <Button size="small" danger disabled={row.isSystem}>
-              Xóa
-            </Button>
-          </Popconfirm>
-        </Space>
+        //   <Popconfirm
+        //     title="Xóa mục đích giao dịch?"
+        //     okText="Xóa"
+        //     cancelText="Hủy"
+        //     disabled={row.isSystem}
+        //     onConfirm={() => deleteMut.mutate(row.id)}
+        //   >
+        //     <Button size="small" danger disabled={row.isSystem}>
+        //       Xóa
+        //     </Button>
+        //   </Popconfirm>
+        // </Space>
+        <ActionButtons
+          onEdit={() => onEdit(row)}
+          onDelete={() => deleteMut.mutate(row.id)}
+          confirmDelete
+          size="small"
+        />
       ),
     },
   ];
@@ -144,7 +151,7 @@ export function BankPurposesTable({
       loading={loading}
       columns={columns}
       dataSource={data}
-    //   scroll={{ y: 1400 }}
+      //   scroll={{ y: 1400 }}
       pagination={{
         current: page,
         pageSize,

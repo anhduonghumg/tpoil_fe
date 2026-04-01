@@ -33,6 +33,9 @@ function money(n?: number) {
   return new Intl.NumberFormat("vi-VN").format(Number(n || 0));
 }
 
+const getSuggestionKey = (r: MatchSuggestionItem) =>
+  r.settlementId ?? r.paymentPlanId ?? `${r.purchaseOrderId}-${r.score}`;
+
 export function StatementMatchDrawer({ open, transaction, onClose }: Props) {
   const transactionId = transaction?.id;
 
@@ -44,11 +47,12 @@ export function StatementMatchDrawer({ open, transaction, onClose }: Props) {
   const confirmMutation = useConfirmBankTransaction();
   const [allocations, setAllocations] = useState<Record<string, number>>({});
 
-  const transactionDetail = data?.data?.transaction;
+  const payload = data?.data;
+  const transactionDetail = payload?.transaction;
 
   const suggestions = useMemo<MatchSuggestionItem[]>(
-    () => data?.data?.suggestions ?? [],
-    [data?.suggestions],
+    () => payload?.suggestions ?? [],
+    [payload?.suggestions],
   );
 
   useEffect(() => {
@@ -57,9 +61,7 @@ export function StatementMatchDrawer({ open, transaction, onClose }: Props) {
       return;
     }
 
-    if (!transactionDetail) {
-      return;
-    }
+    if (!transactionDetail) return;
 
     let remain = Number(
       transactionDetail.remainingAmount ?? transactionDetail.amount ?? 0,
@@ -68,17 +70,16 @@ export function StatementMatchDrawer({ open, transaction, onClose }: Props) {
     const next: Record<string, number> = {};
 
     for (const item of suggestions) {
+      const key = getSuggestionKey(item);
       const value = Math.min(remain, Number(item?.remainingAmount || 0));
-      next[item.settlementId] = value > 0 ? value : 0;
+
+      next[key] = value > 0 ? value : 0;
+
       remain -= value;
       if (remain <= 0) remain = 0;
     }
 
-    setAllocations((prev) => {
-      const prevJson = JSON.stringify(prev);
-      const nextJson = JSON.stringify(next);
-      return prevJson === nextJson ? prev : next;
-    });
+    setAllocations(next);
   }, [open, transactionId, transactionDetail, suggestions]);
 
   const allocatedTotal = useMemo(
@@ -97,9 +98,10 @@ export function StatementMatchDrawer({ open, transaction, onClose }: Props) {
     if (!transactionId) return;
 
     const rows: ConfirmBankTransactionAllocationPayload[] = suggestions
+      .filter((x) => !!x.settlementId)
       .map((x, index) => ({
-        settlementId: x.settlementId,
-        allocatedAmount: Number(allocations[x.settlementId] || 0),
+        settlementId: x.settlementId!,
+        allocatedAmount: Number(allocations[getSuggestionKey(x)] || 0),
         score: x.score,
         isAuto: true,
         sortOrder: index,
@@ -121,6 +123,7 @@ export function StatementMatchDrawer({ open, transaction, onClose }: Props) {
         id: transactionId,
         body: { allocations: rows },
       });
+
       notify.success("Xác nhận giao dịch thành công");
       setAllocations({});
       onClose();
@@ -159,25 +162,28 @@ export function StatementMatchDrawer({ open, transaction, onClose }: Props) {
     {
       title: "Phân bổ",
       width: 160,
-      render: (_, r) => (
-        <InputNumber
-          min={0}
-          max={Number(r.remainingAmount || 0)}
-          value={allocations[r.settlementId]}
-          style={{ width: "100%" }}
-          formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-          parser={(v) => {
-            const n = Number(String(v || "").replace(/\./g, ""));
-            return Number.isFinite(n) ? n : 0;
-          }}
-          onChange={(v) =>
-            setAllocations((prev) => ({
-              ...prev,
-              [r.settlementId]: Number(v || 0),
-            }))
-          }
-        />
-      ),
+      render: (_, r) => {
+        const key = getSuggestionKey(r);
+        return (
+          <InputNumber
+            min={0}
+            max={Number(r.remainingAmount || 0)}
+            value={allocations[key]}
+            style={{ width: "100%" }}
+            formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+            parser={(v) => {
+              const n = Number(String(v || "").replace(/\./g, ""));
+              return Number.isFinite(n) ? n : 0;
+            }}
+            onChange={(v) =>
+              setAllocations((prev) => ({
+                ...prev,
+                [key]: Number(v || 0),
+              }))
+            }
+          />
+        );
+      },
     },
   ];
 
@@ -219,6 +225,7 @@ export function StatementMatchDrawer({ open, transaction, onClose }: Props) {
           gap: 16,
         }}
       >
+        {/* LEFT */}
         <div
           style={{
             border: "1px solid #f0f0f0",
@@ -262,6 +269,7 @@ export function StatementMatchDrawer({ open, transaction, onClose }: Props) {
           </Space>
         </div>
 
+        {/* RIGHT */}
         <div>
           <Typography.Title level={5} style={{ marginTop: 0 }}>
             Phân bổ
@@ -288,7 +296,7 @@ export function StatementMatchDrawer({ open, transaction, onClose }: Props) {
               </Space>
 
               <Table
-                rowKey="settlementId"
+                rowKey={getSuggestionKey}
                 size="small"
                 loading={isLoading}
                 dataSource={suggestions}

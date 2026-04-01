@@ -4,6 +4,8 @@ import dayjs from "dayjs";
 import {
   useBankTransactions,
   useBulkQuickMatchBankTransactions,
+  useDeleteBankTransaction,
+  useDeleteMultipleBankTransactions,
 } from "../hooks";
 import type {
   BankAccountOption,
@@ -41,6 +43,9 @@ export default function BankStatementPage() {
 
   const { data, isLoading, refetch } = useBankTransactions(query);
   const bulkQuickMatchMutation = useBulkQuickMatchBankTransactions();
+
+  const deleteOneMut = useDeleteBankTransaction();
+  const deleteManyMut = useDeleteMultipleBankTransactions();
 
   const rows = data?.data ?? [];
   const meta = data?.meta;
@@ -136,6 +141,13 @@ export default function BankStatementPage() {
         onOpenMatch={handleOpenMatch}
         selectedRowKeys={selectedRowKeys}
         onChangeSelectedRowKeys={setSelectedRowKeys}
+        deleting={deleteOneMut.isPending || deleteManyMut.isPending}
+        onDeleteOne={(row) => deleteOneMut.mutate(row.id)}
+        onDeleteMany={(ids) =>
+          deleteManyMut.mutate(ids as string[], {
+            onSuccess: () => setSelectedRowKeys([]),
+          })
+        }
       />
 
       <ImportStatementModal

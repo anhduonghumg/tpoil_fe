@@ -1,9 +1,10 @@
 import React from "react";
-import { Button, Space, Table, Tag, Typography } from "antd";
+import { Button, Popconfirm, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import type { BankTransactionItem } from "../types";
 import { TableRowSelection } from "antd/es/table/interface";
+import { DeleteOutlined } from "@ant-design/icons";
 
 type Props = {
   data: BankTransactionItem[];
@@ -13,8 +14,13 @@ type Props = {
   total: number;
   onChangePage: (page: number, pageSize: number) => void;
   onOpenMatch: (row: BankTransactionItem) => void;
+
   selectedRowKeys?: React.Key[];
   onChangeSelectedRowKeys?: (keys: React.Key[]) => void;
+
+  onDeleteOne: (row: BankTransactionItem) => void;
+  onDeleteMany: (ids: React.Key[]) => void;
+  deleting?: boolean;
 };
 
 function money(n?: number) {
@@ -33,6 +39,10 @@ function matchStatusTag(status?: string) {
   }
 }
 
+function canDeleteRow(row: BankTransactionItem) {
+  return row.matchStatus === "UNMATCHED" && row.isConfirmed !== true;
+}
+
 export function StatementTable({
   data,
   loading,
@@ -43,6 +53,9 @@ export function StatementTable({
   onOpenMatch,
   selectedRowKeys = [],
   onChangeSelectedRowKeys,
+  onDeleteOne,
+  onDeleteMany,
+  deleting,
 }: Props) {
   const columns: ColumnsType<BankTransactionItem> = [
     {
@@ -100,15 +113,35 @@ export function StatementTable({
     {
       title: "Thao tác",
       key: "actions",
-      width: 120,
-      fixed: "right",
-      render: (_, row) => (
-        <Space>
-          <Button size="small" onClick={() => onOpenMatch(row)}>
-            Xử lý
-          </Button>
-        </Space>
-      ),
+      width: "10%",
+      // fixed: "right",
+      render: (_, row) => {
+        const canDelete = canDeleteRow(row);
+
+        return (
+          <Space>
+            <Button size="small" onClick={() => onOpenMatch(row)}>
+              Xử lý
+            </Button>
+
+            <Popconfirm
+              title="Xóa giao dịch này?"
+              description="Chỉ có thể xóa giao dịch chưa khớp và chưa xác nhận."
+              okText="Xóa"
+              cancelText="Hủy"
+              disabled={!canDelete}
+              onConfirm={() => onDeleteOne(row)}
+            >
+              <Button
+                icon={<DeleteOutlined />}
+                size="small"
+                danger
+                disabled={!canDelete}
+              ></Button>
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -116,28 +149,54 @@ export function StatementTable({
     selectedRowKeys,
     onChange: (keys) => onChangeSelectedRowKeys?.(keys),
     getCheckboxProps: (record) => ({
-      disabled:
-        record.direction !== "OUT" ||
-        Number(record.remainingAmount || 0) <= 0 ||
-        record.isConfirmed === true,
+      disabled: !canDeleteRow(record),
     }),
   };
 
   return (
-    <Table
-      rowKey="id"
-      rowSelection={rowSelection}
-      loading={loading}
-      columns={columns}
-      dataSource={data}
-      scroll={{ x: 1200, y: 350 }}
-      pagination={{
-        current: page,
-        pageSize,
-        total,
-        showSizeChanger: true,
-        onChange: onChangePage,
-      }}
-    />
+    <div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: 12,
+        }}
+      >
+        <Popconfirm
+          title={`Xóa ${selectedRowKeys.length} giao dịch đã chọn?`}
+          description="Chỉ các giao dịch chưa khớp và chưa xác nhận mới được xóa."
+          okText="Xóa"
+          cancelText="Hủy"
+          disabled={!selectedRowKeys.length}
+          onConfirm={() => onDeleteMany(selectedRowKeys)}
+        >
+          <Button
+            icon={<DeleteOutlined />}
+            size="small"
+            danger
+            disabled={!selectedRowKeys.length}
+            loading={deleting}
+          >
+            Xóa đã chọn
+          </Button>
+        </Popconfirm>
+      </div>
+
+      <Table
+        rowKey="id"
+        rowSelection={rowSelection}
+        loading={loading}
+        columns={columns}
+        dataSource={data}
+        scroll={{ y: 350 }}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showSizeChanger: true,
+          onChange: onChangePage,
+        }}
+      />
+    </div>
   );
 }

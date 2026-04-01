@@ -36,21 +36,27 @@ function statusTag(s: PurchaseOrderStatus) {
 }
 
 function getWorkflowState(row: PurchaseOrderListItem) {
-  const hasReceipt = (row.receipts?.length ?? 0) > 0;
+  const s = row.summary;
+
+  const hasReceipt = s?.hasReceipt ?? (row.receipts?.length ?? 0) > 0;
   const hasInvoice =
-    (row.supplierInvoices?.some((x) => x.status !== "VOID") ?? false) === true;
+    s?.hasInvoice ??
+    row.supplierInvoices?.some((x) => x.status !== "VOID") ??
+    false;
+
+  const paymentStatus = s?.paymentStatus ?? "UNPAID";
 
   return {
     hasReceipt,
     hasInvoice,
-    createDone: row.status !== "CANCELLED" || !!row.orderNo,
+    createDone: true,
     approveDone:
       row.status === "APPROVED" ||
       row.status === "IN_PROGRESS" ||
       row.status === "COMPLETED",
     receiptDone: hasReceipt,
     invoiceDone: hasInvoice,
-    paymentDone: row.status === "COMPLETED",
+    paymentDone: paymentStatus === "PAID",
   };
 }
 
@@ -93,34 +99,42 @@ function renderWorkflow(row: PurchaseOrderListItem) {
 }
 
 function renderProgressTag(row: PurchaseOrderListItem) {
-  const { hasReceipt, hasInvoice } = getWorkflowState(row);
+  const s = row.summary;
+
+  const hasReceipt = s?.hasReceipt ?? (row.receipts?.length ?? 0) > 0;
+  const hasInvoice =
+    s?.hasInvoice ??
+    row.supplierInvoices?.some((x) => x.status !== "VOID") ??
+    false;
+
+  const paymentStatus = s?.paymentStatus ?? "UNPAID";
 
   if (row.status === "CANCELLED") {
     return <Tag color="red">Đã huỷ</Tag>;
+  }
+
+  if (paymentStatus === "PAID") {
+    return <Tag color="success">Đã thanh toán</Tag>;
+  }
+
+  if (paymentStatus === "PARTIALLY_PAID") {
+    return <Tag color="processing">Thanh toán một phần</Tag>;
+  }
+
+  if (hasInvoice) {
+    return <Tag color="lime">Đã có hóa đơn</Tag>;
+  }
+
+  if (hasReceipt) {
+    return <Tag color="gold">Đã nhận hàng</Tag>;
   }
 
   if (row.status === "DRAFT") {
     return <Tag>Chờ duyệt</Tag>;
   }
 
-  if (row.status === "APPROVED" && !hasReceipt) {
+  if (row.status === "APPROVED") {
     return <Tag color="blue">Chờ nhận hàng</Tag>;
-  }
-
-  if (
-    (row.status === "APPROVED" || row.status === "IN_PROGRESS") &&
-    hasReceipt &&
-    !hasInvoice
-  ) {
-    return <Tag color="gold">Chờ hóa đơn</Tag>;
-  }
-
-  if (hasInvoice && row.status !== "COMPLETED") {
-    return <Tag color="green">Đã có hóa đơn</Tag>;
-  }
-
-  if (row.status === "COMPLETED") {
-    return <Tag color="success">Hoàn tất</Tag>;
   }
 
   return statusTag(row.status);
@@ -130,8 +144,15 @@ function renderActions(
   status: PurchaseOrderStatus,
   row: PurchaseOrderListItem,
 ) {
+  const s = row.summary;
+
   const hasInvoice =
-    (row.supplierInvoices?.some((x) => x.status !== "VOID") ?? false) === true;
+    s?.hasInvoice ??
+    row.supplierInvoices?.some((x) => x.status !== "VOID") ??
+    false;
+
+  const paymentStatus = s?.paymentStatus ?? "UNPAID";
+  const isPaid = paymentStatus === "PAID";
 
   if (status === "DRAFT") {
     return (
@@ -157,11 +178,15 @@ function renderActions(
     );
   }
 
-  if (status === "IN_PROGRESS") {
-    return <Button size="small">{hasInvoice ? "Xem hóa đơn" : "Xem"}</Button>;
+  if (isPaid) {
+    return <Button size="small">Xem hóa đơn</Button>;
   }
 
-  if (status === "COMPLETED") {
+  if (hasInvoice) {
+    return <Button size="small">Xem hóa đơn</Button>;
+  }
+
+  if (status === "IN_PROGRESS") {
     return <Button size="small">Xem</Button>;
   }
 

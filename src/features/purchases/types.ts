@@ -370,3 +370,26 @@ export type CreateSupplierInvoicePayload = {
     goodsReceiptId?: string;
   }>;
 };
+
+export type PurchaseOrderPaymentStatus = "UNPAID" | "PARTIALLY_PAID" | "PAID";
+
+export type PurchaseOrderBusinessStatus =
+  | "DRAFT"
+  | "APPROVED"
+  | "RECEIVED"
+  | "INVOICED"
+  | "PARTIALLY_PAID"
+  | "PAID"
+  | "CANCELLED";
+
+export type PurchaseOrderSummary = {
+  hasReceipt: boolean;
+  hasInvoice: boolean;
+  hasPostedInvoice?: boolean;
+  paymentStatus: PurchaseOrderPaymentStatus;
+  businessStatus: PurchaseOrderBusinessStatus;
+  canCancel: boolean;
+  cancelBlockedReason?: string | null;
+  totalSettlementAmount?: number;
+  totalSettledAmount?: number;
+};

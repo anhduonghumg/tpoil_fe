@@ -149,6 +149,12 @@ export const ROUTES = {
     importDetail: ["GET", "/banking/imports/:id"] as RouteTuple,
     importPreview: ["POST", "/banking/imports/preview"] as RouteTuple,
     importCommit: ["POST", "/banking/imports/commit"] as RouteTuple,
+
+    deleteTransaction: ["DELETE", "/banking/transactions/:id"] as RouteTuple,
+    deleteMultipleTransactions: [
+      "POST",
+      "/banking/transactions/delete-multiple",
+    ] as RouteTuple,
   },
 
   bankPurposes: {

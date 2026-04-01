@@ -139,8 +139,12 @@ export function useBulkQuickMatchBankTransactions() {
       for (const id of ids) {
         try {
           const res = await BankingApi.getSuggestions(id);
-          const txn = res?.transaction;
-          const suggestions = res?.suggestions ?? [];
+
+          const payload = res?.data ?? res;
+          const txn = payload?.transaction;
+          const suggestions = payload?.suggestions ?? [];
+
+          // console.log("bulk quick match payload", { id, payload });
 
           if (!txn) {
             results.skipped.push({ id, reason: "Không có dữ liệu giao dịch" });
@@ -152,7 +156,9 @@ export function useBulkQuickMatchBankTransactions() {
             continue;
           }
 
-          if ((txn.remainingAmount ?? 0) <= 0) {
+          const txnRemain = Number(txn.remainingAmount ?? txn.amount ?? 0);
+
+          if (txnRemain <= 0) {
             results.skipped.push({
               id,
               reason: "Giao dịch không còn số tiền để phân bổ",
@@ -165,7 +171,14 @@ export function useBulkQuickMatchBankTransactions() {
             continue;
           }
 
-          const best = [...suggestions].sort((a, b) => b.score - a.score)[0];
+          const best = [...suggestions].sort((a, b) => {
+            if (a.matchedBy !== b.matchedBy) {
+              return a.matchedBy === "DOCUMENT_CODE" ? -1 : 1;
+            }
+            return b.score - a.score;
+          })[0];
+
+          // console.log("bulk quick match best", { id, txn, best });
 
           if (!best) {
             results.skipped.push({
@@ -175,7 +188,15 @@ export function useBulkQuickMatchBankTransactions() {
             continue;
           }
 
-          const txnRemain = Number(txn.remainingAmount ?? txn.amount ?? 0);
+          // hiện tại chỉ auto confirm khi có settlement thật
+          if (!best.settlementId) {
+            results.skipped.push({
+              id,
+              reason: "Gợi ý chưa có settlement để xác nhận tự động",
+            });
+            continue;
+          }
+
           const settlementRemain = Number(best.remainingAmount || 0);
           const suggested = Number(best.suggestedAllocatedAmount || 0);
 
@@ -184,19 +205,25 @@ export function useBulkQuickMatchBankTransactions() {
               ? Math.min(suggested, txnRemain, settlementRemain)
               : Math.min(txnRemain, settlementRemain);
 
-          const amountDiff = Math.abs(txnRemain - settlementRemain);
-          const amountDiffRatio = txnRemain > 0 ? amountDiff / txnRemain : 999;
-
           const isSafe =
-            best.score >= 30 && allocatedAmount > 0 && amountDiffRatio <= 0.05;
+            best.score >= 80 &&
+            allocatedAmount > 0 &&
+            best.matchedBy === "DOCUMENT_CODE";
 
           if (!isSafe) {
             results.skipped.push({
               id,
-              reason: `Bỏ qua do score thấp hoặc lệch tiền lớn (score=${best.score})`,
+              reason: `Bỏ qua do chưa đủ độ tin cậy (matchedBy=${best.matchedBy}, score=${best.score})`,
             });
             continue;
           }
+
+          // console.log("CONFIRM", {
+          //   id,
+          //   settlementId: best.settlementId,
+          //   allocatedAmount,
+          //   score: best.score,
+          // });
 
           await BankingApi.confirmTransaction(id, {
             allocations: [
@@ -212,6 +239,7 @@ export function useBulkQuickMatchBankTransactions() {
 
           results.successIds.push(id);
         } catch (e: any) {
+          // console.error("bulk quick match failed", { id, error: e });
           results.failed.push({
             id,
             reason: e?.message || "Bulk match thất bại",
@@ -221,6 +249,7 @@ export function useBulkQuickMatchBankTransactions() {
 
       return results;
     },
+
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: bankingKeys.all });
 
@@ -237,6 +266,32 @@ export function useBulkQuickMatchBankTransactions() {
       if (failed > 0) {
         notify.error(`Có ${failed} giao dịch khớp thất bại`);
       }
+
+      console.log("bulk quick match result", res);
+    },
+  });
+}
+
+export function useDeleteBankTransaction() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => BankingApi.deleteTransaction(id),
+    onSuccess: () => {
+      notify.success("Xóa giao dịch thành công");
+      qc.invalidateQueries({ queryKey: ["banking"] });
+    },
+  });
+}
+
+export function useDeleteMultipleBankTransactions() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ids: string[]) => BankingApi.deleteMultipleTransactions(ids),
+    onSuccess: (res) => {
+      notify.success(`Đã xóa ${res.count} giao dịch`);
+      qc.invalidateQueries({ queryKey: ["banking"] });
     },
   });
 }

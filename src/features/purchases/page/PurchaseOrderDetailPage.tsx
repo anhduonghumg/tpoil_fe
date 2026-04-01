@@ -40,8 +40,30 @@ function toNumber(x: any): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function statusTag(s: PurchaseOrderDetail["status"]) {
-  switch (s) {
+function statusTag(po: PurchaseOrderDetail) {
+  const businessStatus = po?.summary?.businessStatus;
+  const paymentStatus = po?.summary?.paymentStatus;
+
+  if (paymentStatus === "PAID" || businessStatus === "PAID") {
+    return <Tag color="green">Đã thanh toán</Tag>;
+  }
+
+  if (
+    paymentStatus === "PARTIALLY_PAID" ||
+    businessStatus === "PARTIALLY_PAID"
+  ) {
+    return <Tag color="blue">Thanh toán một phần</Tag>;
+  }
+
+  if (businessStatus === "INVOICED") {
+    return <Tag color="lime">Đã có hóa đơn</Tag>;
+  }
+
+  if (businessStatus === "RECEIVED") {
+    return <Tag color="gold">Đã nhận hàng</Tag>;
+  }
+
+  switch (po.status) {
     case "DRAFT":
       return <Tag>Nháp</Tag>;
     case "APPROVED":
@@ -53,7 +75,7 @@ function statusTag(s: PurchaseOrderDetail["status"]) {
     case "CANCELLED":
       return <Tag color="red">Đã huỷ</Tag>;
     default:
-      return <Tag>{s}</Tag>;
+      return <Tag>{po.status}</Tag>;
   }
 }
 
@@ -66,6 +88,78 @@ type WorkflowStep = {
   current?: boolean;
 };
 
+// function buildWorkflow(po?: PurchaseOrderDetail | null): WorkflowStep[] {
+//   if (!po) {
+//     return [
+//       { key: "create", label: "Tạo đơn", done: false },
+//       { key: "approve", label: "Duyệt", done: false },
+//       { key: "receive", label: "Nhận hàng", done: false },
+//       { key: "invoice", label: "Hóa đơn NCC", done: false },
+//       { key: "payment", label: "Thanh toán", done: false },
+//     ];
+//   }
+
+//   const activeInvoice =
+//     po?.supplierInvoices?.find((x: any) => x.status !== "VOID") ?? null;
+//   const hasInvoice = !!activeInvoice;
+//   const hasConfirmedReceipt =
+//     (po?.receipts?.length ?? 0) > 0 ||
+//     (po as any)?.receiptSummary?.confirmedCount > 0;
+
+//   if (po.status === "DRAFT") {
+//     return [
+//       { key: "create", label: "Tạo đơn", done: true },
+//       { key: "approve", label: "Duyệt", done: false, current: true },
+//       { key: "receive", label: "Nhận hàng", done: false },
+//       { key: "invoice", label: "Hóa đơn NCC", done: false },
+//       { key: "payment", label: "Thanh toán", done: false },
+//     ];
+//   }
+
+//   if (po.status === "APPROVED") {
+//     return [
+//       { key: "create", label: "Tạo đơn", done: true },
+//       { key: "approve", label: "Duyệt", done: true },
+//       { key: "receive", label: "Nhận hàng", done: false, current: true },
+//       { key: "invoice", label: "Hóa đơn NCC", done: false },
+//       { key: "payment", label: "Thanh toán", done: false },
+//     ];
+//   }
+
+//   if (po.status === "IN_PROGRESS") {
+//     return [
+//       { key: "create", label: "Tạo đơn", done: true },
+//       { key: "approve", label: "Duyệt", done: true },
+//       { key: "receive", label: "Nhận hàng", done: hasConfirmedReceipt },
+//       {
+//         key: "invoice",
+//         label: "Hóa đơn NCC",
+//         done: hasInvoice,
+//         current: hasConfirmedReceipt && !hasInvoice,
+//       },
+//       { key: "payment", label: "Thanh toán", done: false, current: hasInvoice },
+//     ];
+//   }
+
+//   if (po.status === "COMPLETED") {
+//     return [
+//       { key: "create", label: "Tạo đơn", done: true },
+//       { key: "approve", label: "Duyệt", done: true },
+//       { key: "receive", label: "Nhận hàng", done: true },
+//       { key: "invoice", label: "Hóa đơn NCC", done: true },
+//       { key: "payment", label: "Thanh toán", done: true },
+//     ];
+//   }
+
+//   return [
+//     { key: "create", label: "Tạo đơn", done: true },
+//     { key: "approve", label: "Duyệt", done: false },
+//     { key: "receive", label: "Nhận hàng", done: false },
+//     { key: "invoice", label: "Hóa đơn NCC", done: false },
+//     { key: "payment", label: "Thanh toán", done: false },
+//   ];
+// }
+
 function buildWorkflow(po?: PurchaseOrderDetail | null): WorkflowStep[] {
   if (!po) {
     return [
@@ -77,64 +171,37 @@ function buildWorkflow(po?: PurchaseOrderDetail | null): WorkflowStep[] {
     ];
   }
 
-  const activeInvoice =
-    po?.supplierInvoices?.find((x: any) => x.status !== "VOID") ?? null;
-  const hasInvoice = !!activeInvoice;
-  const hasConfirmedReceipt =
-    (po?.receipts?.length ?? 0) > 0 ||
-    (po as any)?.receiptSummary?.confirmedCount > 0;
+  const hasInvoice = !!po.summary?.hasInvoice;
+  const hasConfirmedReceipt = !!po.summary?.hasReceipt;
+  const paymentStatus = po.summary?.paymentStatus ?? "UNPAID";
+  const isPaid = paymentStatus === "PAID";
 
-  if (po.status === "DRAFT") {
+  if (po.status === "CANCELLED") {
     return [
       { key: "create", label: "Tạo đơn", done: true },
-      { key: "approve", label: "Duyệt", done: false, current: true },
+      { key: "approve", label: "Duyệt", done: false },
       { key: "receive", label: "Nhận hàng", done: false },
       { key: "invoice", label: "Hóa đơn NCC", done: false },
       { key: "payment", label: "Thanh toán", done: false },
     ];
   }
 
-  if (po.status === "APPROVED") {
-    return [
-      { key: "create", label: "Tạo đơn", done: true },
-      { key: "approve", label: "Duyệt", done: true },
-      { key: "receive", label: "Nhận hàng", done: false, current: true },
-      { key: "invoice", label: "Hóa đơn NCC", done: false },
-      { key: "payment", label: "Thanh toán", done: false },
-    ];
-  }
-
-  if (po.status === "IN_PROGRESS") {
-    return [
-      { key: "create", label: "Tạo đơn", done: true },
-      { key: "approve", label: "Duyệt", done: true },
-      { key: "receive", label: "Nhận hàng", done: hasConfirmedReceipt },
-      {
-        key: "invoice",
-        label: "Hóa đơn NCC",
-        done: hasInvoice,
-        current: hasConfirmedReceipt && !hasInvoice,
-      },
-      { key: "payment", label: "Thanh toán", done: false, current: hasInvoice },
-    ];
-  }
-
-  if (po.status === "COMPLETED") {
-    return [
-      { key: "create", label: "Tạo đơn", done: true },
-      { key: "approve", label: "Duyệt", done: true },
-      { key: "receive", label: "Nhận hàng", done: true },
-      { key: "invoice", label: "Hóa đơn NCC", done: true },
-      { key: "payment", label: "Thanh toán", done: true },
-    ];
-  }
-
   return [
     { key: "create", label: "Tạo đơn", done: true },
-    { key: "approve", label: "Duyệt", done: false },
-    { key: "receive", label: "Nhận hàng", done: false },
-    { key: "invoice", label: "Hóa đơn NCC", done: false },
-    { key: "payment", label: "Thanh toán", done: false },
+    { key: "approve", label: "Duyệt", done: po.status !== "DRAFT" },
+    { key: "receive", label: "Nhận hàng", done: hasConfirmedReceipt },
+    {
+      key: "invoice",
+      label: "Hóa đơn NCC",
+      done: hasInvoice,
+      current: hasConfirmedReceipt && !hasInvoice,
+    },
+    {
+      key: "payment",
+      label: "Thanh toán",
+      done: isPaid,
+      current: hasInvoice && !isPaid,
+    },
   ];
 }
 
@@ -175,17 +242,26 @@ export default function PurchaseOrderDetailPage() {
   const cancelMut = useCancelPurchaseOrder();
   const createGRMut = useCreateGoodsReceipt();
 
+  // console.log("PO Detail", detail.data);
+
   const po = detail.data;
 
   const [grOpen, setGrOpen] = useState(false);
   const [grForm] = Form.useForm();
 
+  // const activeInvoice =
+  //   po?.supplierInvoices?.find((x: any) => x.status !== "VOID") ?? null;
+  // const hasInvoice = !!activeInvoice;
+  // const hasConfirmedReceipt =
+  //   (po?.receipts?.length ?? 0) > 0 ||
+  //   (po as any)?.receiptSummary?.confirmedCount > 0;
+
   const activeInvoice =
     po?.supplierInvoices?.find((x: any) => x.status !== "VOID") ?? null;
-  const hasInvoice = !!activeInvoice;
-  const hasConfirmedReceipt =
-    (po?.receipts?.length ?? 0) > 0 ||
-    (po as any)?.receiptSummary?.confirmedCount > 0;
+  const hasInvoice = !!po?.summary?.hasInvoice;
+  const hasConfirmedReceipt = !!po?.summary?.hasReceipt;
+  const paymentStatus = po?.summary?.paymentStatus ?? "UNPAID";
+  const isPaid = paymentStatus === "PAID";
 
   const totals = useMemo(() => {
     if (!po) return { gross: 0, net: 0 };
@@ -195,8 +271,9 @@ export default function PurchaseOrderDetailPage() {
     po.lines.forEach((l: any) => {
       const qty = toNumber(l.orderedQty);
       const price = toNumber(l.unitPrice);
+      const discount = toNumber(l.discountAmount);
       gross += qty * price;
-      net += qty * price;
+      net += qty * price - discount * qty;
     });
 
     return { gross, net };
@@ -239,25 +316,38 @@ export default function PurchaseOrderDetailPage() {
     {
       title: "SL đặt",
       dataIndex: "orderedQty",
-      width: 120,
+      width: 80,
       align: "right",
       render: (v) => money(toNumber(v)),
     },
     {
       title: "Đơn giá",
       dataIndex: "unitPrice",
-      width: 160,
+      width: 80,
+      align: "right",
+      render: (v) => (v == null ? "-" : `${money(toNumber(v))} đ`),
+    },
+    {
+      title: "Chiết khấu",
+      dataIndex: "discountAmount",
+      width: 130,
       align: "right",
       render: (v) => (v == null ? "-" : `${money(toNumber(v))} đ`),
     },
     {
       title: "Thành tiền",
-      width: 180,
+      width: 130,
       align: "right",
       render: (_: any, r: any) => {
         const qty = toNumber(r.orderedQty);
         const price = toNumber(r.unitPrice);
-        return <Typography.Text strong>{money(qty * price)} đ</Typography.Text>;
+        const discount = toNumber(r.discountAmount);
+        const taxRate = toNumber(r.taxRate);
+
+        const lineNet = qty * Math.max(price - discount, 0);
+        const lineTotal = lineNet * (1 + taxRate / 100);
+
+        return <Typography.Text strong>{money(lineTotal)} đ</Typography.Text>;
       },
     },
     {
@@ -297,7 +387,8 @@ export default function PurchaseOrderDetailPage() {
   ];
 
   const canApprove = po?.status === "DRAFT";
-  const canCancel = po?.status !== "CANCELLED" && po?.status !== "COMPLETED";
+  // const canCancel = po?.status !== "CANCELLED" && po?.status !== "COMPLETED";
+  const canCancel = !!po?.summary?.canCancel;
   const canReceive = po?.status === "APPROVED" || po?.status === "IN_PROGRESS";
 
   const onApprove = async () => {
@@ -354,6 +445,17 @@ export default function PurchaseOrderDetailPage() {
   const renderPrimaryAction = () => {
     if (!po) return null;
 
+    if (isPaid && activeInvoice?.id) {
+      return (
+        <Button
+          block
+          onClick={() => navigate(`/purchase-invoices/${activeInvoice.id}`)}
+        >
+          Xem hóa đơn NCC
+        </Button>
+      );
+    }
+
     if (po.status === "DRAFT") {
       return (
         <Button
@@ -380,43 +482,32 @@ export default function PurchaseOrderDetailPage() {
       );
     }
 
-    if (po.status === "IN_PROGRESS") {
-      if (hasInvoice && activeInvoice?.id) {
-        return (
-          <Button
-            block
-            onClick={() => navigate(`/purchase-invoices/${activeInvoice.id}`)}
-          >
-            Xem hóa đơn NCC
-          </Button>
-        );
-      }
-
-      if (hasConfirmedReceipt) {
-        return (
-          <Button
-            block
-            onClick={() => navigate(`/purchase-invoices/create?poId=${po.id}`)}
-          >
-            Nhập hóa đơn NCC
-          </Button>
-        );
-      }
-
-      return (
-        <Button block loading={createGRMut.isPending} onClick={openReceive}>
-          Nhận hàng
-        </Button>
-      );
-    }
-
-    if (po.status === "COMPLETED" && hasInvoice && activeInvoice?.id) {
+    if (hasInvoice && activeInvoice?.id) {
       return (
         <Button
           block
           onClick={() => navigate(`/purchase-invoices/${activeInvoice.id}`)}
         >
           Xem hóa đơn NCC
+        </Button>
+      );
+    }
+
+    if (hasConfirmedReceipt) {
+      return (
+        <Button
+          block
+          onClick={() => navigate(`/purchase-invoices/create?poId=${po.id}`)}
+        >
+          Nhập hóa đơn NCC
+        </Button>
+      );
+    }
+
+    if (po.status === "IN_PROGRESS") {
+      return (
+        <Button block loading={createGRMut.isPending} onClick={openReceive}>
+          Nhận hàng
         </Button>
       );
     }
@@ -436,6 +527,18 @@ export default function PurchaseOrderDetailPage() {
   const renderActionHint = () => {
     if (!po) return "-";
 
+    if (po.status === "CANCELLED") {
+      return "Đơn đã bị huỷ và không thể xử lý tiếp.";
+    }
+
+    if (isPaid) {
+      return "Đơn đã thanh toán xong. Quy trình mua hàng đã hoàn tất.";
+    }
+
+    if (paymentStatus === "PARTIALLY_PAID") {
+      return "Đơn đã thanh toán một phần. Cần tiếp tục theo dõi và xử lý phần công nợ còn lại.";
+    }
+
     if (po.status === "DRAFT") {
       return "Đơn đang ở trạng thái nháp. Cần duyệt để chuyển sang bước nhận hàng.";
     }
@@ -444,27 +547,15 @@ export default function PurchaseOrderDetailPage() {
       return "Đơn đã duyệt. Bước tiếp theo là ghi nhận số lượng thực nhận.";
     }
 
-    if (po.status === "IN_PROGRESS") {
-      if (hasInvoice) {
-        return "Đơn đã có hóa đơn nhà cung cấp. Bước tiếp theo là theo dõi và xử lý thanh toán.";
-      }
-
-      if (hasConfirmedReceipt) {
-        return "Đơn đã nhận hàng. Bước tiếp theo là nhập hóa đơn nhà cung cấp.";
-      }
-
-      return "Đơn đang thực hiện. Bước tiếp theo là ghi nhận nhận hàng.";
+    if (hasInvoice) {
+      return "Đơn đã có hóa đơn nhà cung cấp. Bước tiếp theo là theo dõi và xử lý thanh toán.";
     }
 
-    if (po.status === "COMPLETED") {
-      return "Đơn đã hoàn tất toàn bộ quy trình.";
+    if (hasConfirmedReceipt) {
+      return "Đơn đã nhận hàng. Bước tiếp theo là nhập hóa đơn nhà cung cấp.";
     }
 
-    if (po.status === "CANCELLED") {
-      return "Đơn đã bị huỷ và không thể xử lý tiếp.";
-    }
-
-    return "-";
+    return "Đơn đang thực hiện. Bước tiếp theo là ghi nhận nhận hàng.";
   };
 
   if (detail.isLoading) {
@@ -510,7 +601,8 @@ export default function PurchaseOrderDetailPage() {
             <Typography.Title level={4} style={{ margin: 0 }}>
               {po.orderNo}
             </Typography.Title>
-            {statusTag(po.status)}
+            {/* {statusTag(po.status)} */}
+            {statusTag(po)}
           </Space>
           <Typography.Text type="secondary">
             Theo dõi và xử lý đơn mua hàng theo từng bước nghiệp vụ.
@@ -608,7 +700,20 @@ export default function PurchaseOrderDetailPage() {
                     </Typography.Text>
                     <Typography.Text>{money(totals.gross)} đ</Typography.Text>
                   </div>
-
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: 6,
+                    }}
+                  >
+                    <Typography.Text type="secondary">
+                      Chiết khấu
+                    </Typography.Text>
+                    <Typography.Text>
+                      {money(totals.gross - totals.net)} đ
+                    </Typography.Text>
+                  </div>
                   <div
                     style={{
                       display: "flex",
@@ -709,7 +814,7 @@ export default function PurchaseOrderDetailPage() {
                 loading={cancelMut.isPending}
                 onClick={onCancelPO}
               >
-                Huỷ đơn
+                Hủy đơn
               </Button>
             </Space>
           </Card>

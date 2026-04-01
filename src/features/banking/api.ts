@@ -1,4 +1,5 @@
 import { apiCall } from "../../shared/lib/api";
+import { ApiResponse } from "../../shared/lib/types";
 import type {
   BankImportDetail,
   BankImportPreviewResponse,
@@ -28,11 +29,11 @@ export const BankingApi = {
       params: { id },
     }).then((r) => r.data! ?? (r.data as any)),
 
-  confirmTransaction: (id: string, body: ConfirmBankTransactionPayload) =>
-    apiCall<BankTransactionItem>("banking.confirmTransaction", {
+  confirmTransaction: (id: string, body: any) =>
+    apiCall("banking.confirmTransaction", {
       params: { id },
       data: body,
-    }).then((r) => r.data! ?? (r.data as any)),
+    }).then((r) => r.data?.data ?? r.data),
 
   listTemplates: (bankCode?: string) =>
     apiCall<BankImportTemplateOption[]>("banking.templates", {
@@ -63,4 +64,17 @@ export const BankingApi = {
     apiCall<BankImportDetail>("banking.importCommit", {
       data: body,
     }).then((r) => r.data! ?? (r.data as any)),
+
+  deleteTransaction: (id: string) =>
+    apiCall<ApiResponse<{ success: boolean }>>("banking.deleteTransaction", {
+      params: { id },
+    }).then((r) => r.data!.data ?? (r.data as any)),
+
+  deleteMultipleTransactions: (ids: string[]) =>
+    apiCall<ApiResponse<{ success: boolean; count: number }>>(
+      "banking.deleteMultipleTransactions",
+      {
+        data: { ids },
+      },
+    ).then((r) => r.data!.data ?? (r.data as any)),
 };
