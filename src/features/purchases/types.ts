@@ -20,6 +20,23 @@ export type SupplierInvoiceImportStatus =
   | "PROCESSING"
   | "FAILED";
 
+export type PurchaseOrderBusinessTab =
+  | "ALL"
+  | "PENDING_APPROVAL"
+  | "PENDING_RECEIPT"
+  | "PENDING_INVOICE"
+  | "PENDING_PAYMENT"
+  | "PAID"
+  | "CANCELLED";
+
+export type PurchaseOrderBusinessState =
+  | "PENDING_APPROVAL"
+  | "PENDING_RECEIPT"
+  | "PENDING_INVOICE"
+  | "PENDING_PAYMENT"
+  | "PAID"
+  | "CANCELLED";
+
 export type PriceRegionOption = {
   id: UUID;
   code: string;
@@ -146,6 +163,20 @@ export type PurchaseOrderListItem = {
     status: "DRAFT" | "POSTED" | "VOID";
   }>;
 
+  lines?: Array<{
+    id: UUID;
+    orderedQty: string;
+    product?: {
+      id: UUID;
+      code?: string | null;
+      name: string;
+    } | null;
+  }>;
+
+  lineCount?: number;
+
+  summary?: PurchaseOrderSummary;
+
   createdAt: string;
   updatedAt: string;
 };
@@ -205,6 +236,7 @@ export type PurchaseOrderListQuery = {
   orderType?: PurchaseOrderType;
   paymentMode?: PurchasePaymentMode;
   status?: PurchaseOrderStatus;
+  businessState?: PurchaseOrderBusinessState;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
@@ -297,16 +329,6 @@ export type SupplierInvoiceDetail = {
       name: string;
     } | null;
   }>;
-
-  // supplierInvoices?: Array<{
-  //   id: string;
-  //   invoiceNo: string;
-  //   status: "DRAFT" | "POSTED" | "VOID";
-  //   createdAt: string;
-  //   sourceFileName?: string | null;
-  //   sourceFileUrl?: string | null;
-  //   sourceFileChecksum?: string | null;
-  // }>;
 };
 
 export type SupplierInvoicePdfExtracted = {
@@ -393,3 +415,32 @@ export type PurchaseOrderSummary = {
   totalSettlementAmount?: number;
   totalSettledAmount?: number;
 };
+
+export type BulkPurchaseOrderActionResult = {
+  successIds: string[];
+  failed: Array<{
+    id: string;
+    code: string;
+    message: string;
+  }>;
+};
+
+export interface PurchaseOrderPrintBatchResult {
+  runId: UUID;
+  status: string;
+}
+
+export interface PurchaseOrderPrintBatchStatus {
+  runId: UUID;
+  status: string;
+  error?: string | null;
+  metrics?: {
+    total?: number;
+    processed?: number;
+    success?: number;
+    failed?: number;
+    currentOrderNo?: string | null;
+  } | null;
+  fileUrl?: string | null;
+  fileName?: string | null;
+}

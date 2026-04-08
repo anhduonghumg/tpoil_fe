@@ -6,6 +6,7 @@ import type {
   PurchaseOrderListQuery,
   SupplierLocationOption,
   UpsertPurchaseOrderPayload,
+  UUID,
 } from "./types";
 import { notify } from "../../shared/lib/notification";
 
@@ -167,3 +168,64 @@ export function usePostSupplierInvoice() {
     }) => PurchasesApi.postSupplierInvoice(id, payload),
   });
 }
+
+export function usePurchaseOrderPrintBatch() {
+  return useMutation({
+    mutationFn: (ids: UUID[]) => PurchasesApi.printBatch(ids),
+  });
+}
+
+export function usePurchaseOrderPrintBatchStatus() {
+  return useMutation({
+    mutationFn: (runId: UUID) => PurchasesApi.getPrintBatchStatus(runId),
+  });
+}
+
+export const useApproveManyPurchaseOrders = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => PurchasesApi.approveManyPO(ids),
+    onSuccess: async (res) => {
+      await qc.invalidateQueries({ queryKey: ["purchaseOrders", "list"] });
+
+      if (res.failed.length === 0) {
+        notify.success(`Đã duyệt ${res.successIds.length} đơn`);
+      } else if (res.successIds.length > 0) {
+        notify.success(
+          `Đã duyệt ${res.successIds.length} đơn, lỗi ${res.failed.length} đơn`,
+        );
+      } else {
+        notify.error("Không duyệt được đơn nào");
+      }
+    },
+    onError: () => notify.error("Duyệt hàng loạt thất bại"),
+  });
+};
+
+export const useCancelManyPurchaseOrders = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => PurchasesApi.cancelManyPO(ids),
+    onSuccess: async (res) => {
+      await qc.invalidateQueries({ queryKey: ["purchaseOrders", "list"] });
+
+      if (res.failed.length === 0) {
+        notify.success(`Đã hủy ${res.successIds.length} đơn`);
+      } else if (res.successIds.length > 0) {
+        notify.success(
+          `Đã hủy ${res.successIds.length} đơn, lỗi ${res.failed.length} đơn`,
+        );
+      } else {
+        notify.error("Không hủy được đơn nào");
+      }
+    },
+    onError: () => notify.error("Hủy hàng loạt thất bại"),
+  });
+};
+
+export const usePurchaseOrderTabCounts = (params: PurchaseOrderListQuery) => {
+  return useQuery({
+    queryKey: ["purchaseOrders", "tabCounts", params],
+    queryFn: () => PurchasesApi.getTabCounts(params),
+  });
+};

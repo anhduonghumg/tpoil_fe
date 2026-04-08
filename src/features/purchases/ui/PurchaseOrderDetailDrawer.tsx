@@ -149,7 +149,8 @@ export default function PurchaseOrderDetailDrawer({
 
   const canApprove = po?.status === "DRAFT";
   const canCancel = po?.status !== "CANCELLED" && po?.status !== "COMPLETED";
-  const canReceive = po?.status === "APPROVED" || po?.status === "IN_PROGRESS";
+  const canReceive = !!po?.summary?.canReceive;
+  const receiveBlockedReason = po?.summary?.receiveBlockedReason ?? null;
 
   const onApprove = async () => {
     if (!poId) return;

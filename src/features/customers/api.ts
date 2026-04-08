@@ -11,17 +11,19 @@ import type {
   CustomerGroupOption,
   CustomerListQuery,
   CustomerOverview,
+  CustomerPurchaseDefaults,
+  UpdateCustomerPurchaseDefaultsPayload,
 } from "./types";
 
 export const CustomersApi = {
   list: (query: CustomerListQuery) =>
     apiCall<ApiResponse<Paged<Customer>>>("customer.list", { query }).then(
-      (r) => r.data!.data
+      (r) => r.data!.data,
     ),
 
   detail: (id: string) =>
     apiCall<ApiResponse<Customer>>("customer.detail", { params: { id } }).then(
-      (r) => r.data!
+      (r) => r.data!,
     ),
 
   overview: (id: string) =>
@@ -31,7 +33,7 @@ export const CustomersApi = {
 
   create: (data: Partial<Customer>) =>
     apiCall<ApiResponse<Customer>>("customer.create", { data }).then(
-      (r) => r.data!
+      (r) => r.data!,
     ),
 
   update: (id: string, data: Partial<Customer>) =>
@@ -42,12 +44,12 @@ export const CustomersApi = {
 
   delete: (id: string) =>
     apiCall<ApiResponse<null>>("customer.delete", { params: { id } }).then(
-      (r) => r.data!
+      (r) => r.data!,
     ),
   generateCode: () =>
     apiCall<ApiResponse<{ customerId: string }>>(
       "customer.generateCode",
-      {}
+      {},
     ).then((r) => r.data!.data),
 
   contracts: (customerId: string) =>
@@ -59,7 +61,7 @@ export const CustomersApi = {
   getCustomerContracts(customerId: string): Promise<CustomerContractBrief[]> {
     return apiCall<ApiResponse<CustomerContractBrief[]>>(
       "contracts.byCustomer",
-      { params: { customerId } }
+      { params: { customerId } },
     ).then((r) => r.data.data ?? []);
   },
 
@@ -79,35 +81,35 @@ export const CustomersApi = {
           page: opts.page ?? 1,
           pageSize: opts.pageSize ?? 10,
         },
-      }
+      },
     ).then((r) => r.data!.data as Paged<AttachableContractBrief>);
   },
 
   /** Gán nhiều HĐ cho 1 khách */
   assignContracts(
     customerId: string,
-    contractIds: string[]
+    contractIds: string[],
   ): Promise<AssignContractsResult> {
     return apiCall<ApiResponse<AssignContractsResult>>(
       "customer.assignContracts",
       {
         params: { id: customerId },
         data: { contractIds },
-      }
+      },
     ).then((r) => r.data!.data as AssignContractsResult);
   },
 
   /** Gỡ gán 1 HĐ khỏi 1 khách */
   unassignContracts(
     customerId: string,
-    contractIds: string[]
+    contractIds: string[],
   ): Promise<AssignContractsResult> {
     return apiCall<ApiResponse<AssignContractsResult>>(
       "customer.unassignContract",
       {
         params: { id: customerId },
         data: { contractIds },
-      }
+      },
     ).then((r) => r.data!.data as AssignContractsResult);
   },
 
@@ -116,7 +118,7 @@ export const CustomersApi = {
       "customerGroups.select",
       {
         query: { keyword: keyword ?? "" },
-      }
+      },
     ).then((r) => (r.data.data ?? []) as CustomerGroupOption[]);
   },
 
@@ -131,7 +133,7 @@ export const CustomersApi = {
     data: Pick<CustomerAddress, "validFrom" | "addressLine"> & {
       validTo?: string | null;
       note?: string | null;
-    }
+    },
   ): Promise<CustomerAddress> =>
     apiCall<ApiResponse<CustomerAddress>>("customerAddresses.create", {
       params: { customerId },
@@ -143,7 +145,7 @@ export const CustomersApi = {
     addressId: string,
     data: Partial<
       Pick<CustomerAddress, "validFrom" | "addressLine" | "validTo" | "note">
-    >
+    >,
   ): Promise<CustomerAddress> =>
     apiCall<ApiResponse<CustomerAddress>>("customerAddresses.update", {
       params: { customerId, addressId },
@@ -152,9 +154,29 @@ export const CustomersApi = {
 
   deleteAddress: (
     customerId: string,
-    addressId: string
+    addressId: string,
   ): Promise<CustomerAddress> =>
     apiCall<ApiResponse<CustomerAddress>>("customerAddresses.delete", {
       params: { customerId, addressId },
     }).then((r) => r.data!.data as CustomerAddress),
+
+  getPurchaseDefaults: (id: string) =>
+    apiCall<ApiResponse<CustomerPurchaseDefaults>>(
+      "customer.purchaseDefaults",
+      {
+        params: { id },
+      },
+    ).then((r) => r.data?.data ?? (r.data as any)),
+
+  updatePurchaseDefaults: (
+    id: string,
+    payload: UpdateCustomerPurchaseDefaultsPayload,
+  ) =>
+    apiCall<ApiResponse<CustomerPurchaseDefaults>>(
+      "customer.updatePurchaseDefaults",
+      {
+        params: { id },
+        data: payload,
+      },
+    ).then((r) => r.data?.data ?? (r.data as any)),
 };

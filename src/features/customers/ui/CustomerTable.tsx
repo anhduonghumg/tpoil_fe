@@ -1,10 +1,9 @@
 import React, { memo } from "react";
 import { Table, Tag, Button, Space, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import { EditOutlined, DeleteOutlined, LinkOutlined } from "@ant-design/icons";
 import type { Customer } from "../types";
-
-const { Link, Text } = Typography;
+import { redirect } from "react-router-dom";
 
 export interface CustomerTableProps {
   data: Customer[];
@@ -18,6 +17,7 @@ export interface CustomerTableProps {
   onEdit?: (customerId: string) => void;
   onDelete?: (customerId: string, customer: Customer) => void;
   onOpenAddressHistory?: (customerId: string, customerName: string) => void;
+  onSelectPurchaseDefaults?: (customerId: string, customerName: string) => void;
 }
 
 const statusTag = (status: Customer["status"]) => {
@@ -45,6 +45,7 @@ const CustomerTableBase: React.FC<CustomerTableProps> = ({
   onEdit,
   onDelete,
   onOpenAddressHistory,
+  onSelectPurchaseDefaults,
 }) => {
   const columns: ColumnsType<Customer> = [
     {
@@ -179,6 +180,19 @@ const CustomerTableBase: React.FC<CustomerTableProps> = ({
                   onDelete(record.id, record);
                 }}
               />
+            </Tooltip>
+          )}
+
+          {onSelectPurchaseDefaults && (
+            <Tooltip title="Cấu hình in đơn mua hàng">
+              <Button
+                type="link"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectPurchaseDefaults?.(record.id, record.name);
+                }}
+                icon={<LinkOutlined />}
+              ></Button>
             </Tooltip>
           )}
         </Space>

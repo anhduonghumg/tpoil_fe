@@ -4,6 +4,7 @@ import { apiCall } from "../../shared/lib/api";
 import { Paged } from "../../shared/lib/types";
 import { ApiResponse } from "../departments/types";
 import type {
+  BulkPurchaseOrderActionResult,
   CreateGoodsReceiptPayload,
   CreatePurchaseOrderResponse,
   CreateSupplierInvoicePayload,
@@ -13,6 +14,8 @@ import type {
   PurchaseOrderDetail,
   PurchaseOrderListItem,
   PurchaseOrderListQuery,
+  PurchaseOrderPrintBatchResult,
+  PurchaseOrderPrintBatchStatus,
   SupplierInvoiceDetail,
   SupplierInvoicePdfImportResponse,
   SupplierInvoicePdfImportResultResponse,
@@ -49,6 +52,48 @@ export const PurchasesApi = {
     apiCall<ApiResponse<null>>("purchaseOrders.cancel", {
       params: { id },
     }).then((r) => r.data!.data ?? null),
+
+  approveManyPO: (ids: string[]) =>
+    apiCall<ApiResponse<BulkPurchaseOrderActionResult>>(
+      "purchaseOrders.approveMany",
+      {
+        data: { ids },
+      },
+    ).then((r) => (r.data!.data ?? r.data) as BulkPurchaseOrderActionResult),
+
+  cancelManyPO: (ids: string[]) =>
+    apiCall<ApiResponse<BulkPurchaseOrderActionResult>>(
+      "purchaseOrders.cancelMany",
+      {
+        data: { ids },
+      },
+    ).then((r) => (r.data!.data ?? r.data) as BulkPurchaseOrderActionResult),
+
+  getTabCounts: (query: PurchaseOrderListQuery) =>
+    apiCall<ApiResponse<any>>("purchaseOrders.tabCounts", {
+      query,
+    }).then((r) => r.data!.data),
+
+  printBatch: (ids: UUID[]) =>
+    apiCall<ApiResponse<PurchaseOrderPrintBatchResult>>(
+      "purchaseOrders.printBatch",
+      {
+        data: { ids },
+      },
+    ).then((r) => r.data!.data ?? (r.data as any)),
+
+  getPrintBatchStatus: (runId: UUID) =>
+    apiCall<ApiResponse<PurchaseOrderPrintBatchStatus>>(
+      "purchaseOrders.printBatchStatus",
+      {
+        params: { runId },
+      },
+    ).then((r) => r.data!.data ?? (r.data as any)),
+
+  getPrintBatchDownloadUrl: (runId: UUID) =>
+    apiCall<ApiResponse<unknown>>("purchaseOrders.printBatchDownload", {
+      params: { runId },
+    }),
 
   regionsSelect: (keyword = "") =>
     apiCall<ApiResponse<PriceRegionOption[]>>("priceBulletins.regionsSelect", {
@@ -134,11 +179,6 @@ export const PurchasesApi = {
     apiCall<ApiResponse<SupplierInvoiceDetail>>("supplierInvoices.create", {
       data: payload,
     }).then((r) => (r.data!.data ?? (r.data as any)) as SupplierInvoiceDetail),
-
-  // getSupplierInvoiceDetail: (id: string) =>
-  //   apiCall<ApiResponse<SupplierInvoiceDetail>>("supplierInvoices.detail", {
-  //     query: { id },
-  //   }).then((r) => (r.data!.data ?? (r.data as any)) as SupplierInvoiceDetail),
 
   getSupplierInvoiceDetail: (id: string) =>
     apiCall<ApiResponse<SupplierInvoiceDetail>>("supplierInvoices.detail", {

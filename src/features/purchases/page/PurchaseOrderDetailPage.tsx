@@ -387,9 +387,9 @@ export default function PurchaseOrderDetailPage() {
   ];
 
   const canApprove = po?.status === "DRAFT";
-  // const canCancel = po?.status !== "CANCELLED" && po?.status !== "COMPLETED";
   const canCancel = !!po?.summary?.canCancel;
-  const canReceive = po?.status === "APPROVED" || po?.status === "IN_PROGRESS";
+  const canReceive = !!po?.summary?.canReceive;
+  const receiveBlockedReason = po?.summary?.receiveBlockedReason ?? null;
 
   const onApprove = async () => {
     if (!poId) return;
@@ -412,7 +412,7 @@ export default function PurchaseOrderDetailPage() {
   };
 
   const openReceive = () => {
-    if (!po) return;
+    if (!po || !po.summary?.canReceive) return;
 
     grForm.setFieldsValue({
       purchaseOrderLineId: po.lines?.[0]?.id,
@@ -469,7 +469,7 @@ export default function PurchaseOrderDetailPage() {
       );
     }
 
-    if (po.status === "APPROVED") {
+    if (po.status === "APPROVED" && canReceive) {
       return (
         <Button
           type="primary"
@@ -504,7 +504,7 @@ export default function PurchaseOrderDetailPage() {
       );
     }
 
-    if (po.status === "IN_PROGRESS") {
+    if (canReceive) {
       return (
         <Button block loading={createGRMut.isPending} onClick={openReceive}>
           Nhận hàng

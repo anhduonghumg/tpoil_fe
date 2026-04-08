@@ -196,3 +196,30 @@ export interface AssignContractsResult {
   assigned: string[];
   failed: { contractId: string; code: string; reason: string }[];
 }
+
+export interface CustomerPurchaseDefaults {
+  id: string;
+  code: string;
+  fullName: string;
+  shortName?: string | null;
+  defaultPurchaseContractNo?: string | null;
+  defaultDeliveryLocation?: string | null;
+  updatedAt: string;
+}
+
+export interface UpdateCustomerPurchaseDefaultsPayload {
+  defaultPurchaseContractNo?: string;
+  defaultDeliveryLocation?: string;
+}
+
+export interface CustomerListQuery {
+  keyword?: string;
+  status?: CustomerStatus;
+  // partyType?: PartyType;
+  role?: PartyType;
+  salesOwnerEmpId?: string;
+  accountingOwnerEmpId?: string;
+  documentOwnerEmpId?: string;
+  page?: number;
+  pageSize?: number;
+}

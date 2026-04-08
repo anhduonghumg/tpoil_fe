@@ -7,7 +7,7 @@ import type {
   PurchasePaymentMode,
   PurchaseOrderStatus,
 } from "../types";
-import { SearchOutlined } from "@ant-design/icons";
+import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 
 export type PurchaseOrderFiltersProps = {
   value: PurchaseOrderListQuery;
@@ -125,9 +125,11 @@ export default function PurchaseOrderFilters({
       </Space>
 
       <Button
+        icon={<ReloadOutlined />}
         size="small"
         onClick={() =>
           onChange({
+            ...value,
             keyword: "",
             status: undefined,
             orderType: undefined,

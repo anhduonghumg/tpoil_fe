@@ -59,6 +59,11 @@ export const ROUTES = {
     assignContracts: ["POST", "/customers/:id/contracts/assign"],
     unassignContract: ["POST", "/customers/:id/contracts/unassign"],
     select: ["GET", "/customers/select"] as RouteTuple,
+    purchaseDefaults: ["GET", "/customers/:id/purchase-defaults"] as RouteTuple,
+    updatePurchaseDefaults: [
+      "PATCH",
+      "/customers/:id/purchase-defaults",
+    ] as RouteTuple,
   },
   customerGroups: {
     select: ["GET", "/customer-groups/select"] as RouteTuple,
@@ -114,6 +119,20 @@ export const ROUTES = {
     delete: ["DELETE", "/purchase-orders/:id"] as RouteTuple,
     approve: ["POST", "/purchase-orders/:id/approve"] as RouteTuple,
     cancel: ["POST", "/purchase-orders/:id/cancel"] as RouteTuple,
+
+    approveMany: ["POST", "/purchase-orders/approve-many"] as RouteTuple,
+    cancelMany: ["POST", "/purchase-orders/cancel-many"] as RouteTuple,
+    tabCounts: ["GET", "/purchase-orders/tab-counts"] as RouteTuple,
+
+    printBatch: ["POST", "/purchase-orders/print-batch"] as RouteTuple,
+    printBatchStatus: [
+      "GET",
+      "/purchase-orders/print-batch/:runId",
+    ] as RouteTuple,
+    printBatchDownload: [
+      "GET",
+      "/purchase-orders/print-batch/:runId/download",
+    ] as RouteTuple,
   },
 
   // supplierInvoices: {

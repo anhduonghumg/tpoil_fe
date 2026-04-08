@@ -11,8 +11,9 @@ import type {
   CustomerListQuery,
   CustomerOverview,
   Paged,
+  UpdateCustomerPurchaseDefaultsPayload,
 } from "./types";
-import { message } from "antd";
+import { notify } from "../../shared/lib/notification";
 
 export const useCustomerList = (params: CustomerListQuery) =>
   useQuery({
@@ -94,7 +95,7 @@ export function useAttachableContracts(
   customerId: string | null,
   keyword: string,
   page: number,
-  pageSize: number
+  pageSize: number,
 ) {
   return useQuery<Paged<AttachableContractBrief>>({
     queryKey: ["contracts", "attachable", customerId, keyword, page, pageSize],
@@ -125,19 +126,17 @@ export function useAssignContracts(customerId: string | null) {
       const fail = res.failed.length;
 
       if (ok > 0) {
-        message.success(`Đã gán ${ok} hợp đồng cho khách hàng.`);
+        notify.success(`Đã gán ${ok} hợp đồng cho khách hàng.`);
       }
       if (fail > 0) {
-        message.error(
-          `Không gán được ${fail} hợp đồng. Vui lòng kiểm tra lại.`
-        );
+        notify.error(`Không gán được ${fail} hợp đồng. Vui lòng kiểm tra lại.`);
       }
 
       qc.invalidateQueries({ queryKey: ["customers", "overview", customerId] });
       qc.invalidateQueries({ queryKey: ["contracts", "attachable"] });
     },
     onError: () => {
-      message.error("Không gán được hợp đồng. Vui lòng thử lại.");
+      notify.error("Không gán được hợp đồng. Vui lòng thử lại.");
     },
   });
 }
@@ -158,17 +157,17 @@ export function useUnassignContracts(customerId: string | null) {
       const fail = res.failed.length;
 
       if (ok > 0) {
-        message.success(`Đã gỡ ${ok} hợp đồng khỏi khách hàng.`);
+        notify.success(`Đã gỡ ${ok} hợp đồng khỏi khách hàng.`);
       }
       if (fail > 0) {
-        message.error(`Không gỡ được ${fail} hợp đồng. Vui lòng kiểm tra lại.`);
+        notify.error(`Không gỡ được ${fail} hợp đồng. Vui lòng kiểm tra lại.`);
       }
 
       qc.invalidateQueries({ queryKey: ["customers", "overview", customerId] });
       qc.invalidateQueries({ queryKey: ["contracts", "attachable"] });
     },
     onError: () => {
-      message.error("Không gỡ được hợp đồng. Vui lòng thử lại.");
+      notify.error("Không gỡ được hợp đồng. Vui lòng thử lại.");
     },
   });
 }
@@ -234,4 +233,31 @@ export function useCustomerAddresses(customerId: string | null) {
   });
 
   return { list, create, update, remove };
+}
+
+export function useCustomerPurchaseDefaults(customerId?: string) {
+  return useQuery({
+    queryKey: ["customers", "purchase-defaults", customerId],
+    queryFn: () => CustomersApi.getPurchaseDefaults(customerId!),
+    enabled: !!customerId,
+  });
+}
+
+export function useUpdateCustomerPurchaseDefaults(customerId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: UpdateCustomerPurchaseDefaultsPayload) =>
+      CustomersApi.updatePurchaseDefaults(customerId!, payload),
+    onSuccess: (data) => {
+      queryClient.setQueryData(
+        ["customers", "purchase-defaults", customerId],
+        data,
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["customers", "detail", customerId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+    },
+  });
 }

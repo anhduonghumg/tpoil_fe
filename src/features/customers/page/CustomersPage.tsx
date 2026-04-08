@@ -16,6 +16,7 @@ import { notify } from "../../../shared/lib/notification";
 import { confirmDialog } from "../../../shared/lib/confirm";
 import CustomerOverviewSidebar from "../ui/CustomerOverviewSidebar";
 import CustomerAddressHistoryModal from "../ui/CustomerAddressHistoryModal";
+import CustomerPurchaseDefaultsModal from "../ui/CustomerPurchaseDefaultsModal";
 
 const { useBreakpoint } = Grid;
 const SIDEBAR_WIDTH = 350;
@@ -60,6 +61,11 @@ export const CustomerPage: React.FC<{
     mode: "create",
     id: null,
   });
+
+  const [selectedCustomer, setSelectedCustomer] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const { data: listData, isLoading: listLoading } = useCustomerList(filters);
   const { data: overviewData, isLoading: overviewLoading } =
@@ -185,6 +191,16 @@ export const CustomerPage: React.FC<{
     ],
   );
 
+  const handleSelectPurchaseDefaults = useCallback(
+    (customerId: string, customerName: string) => {
+      setSelectedCustomer({
+        id: customerId,
+        name: customerName,
+      });
+    },
+    [],
+  );
+
   const filterProps = useMemo(
     () => ({
       keyword: filters.keyword,
@@ -216,6 +232,7 @@ export const CustomerPage: React.FC<{
     onOpenAddressHistory: (id: string, name: string) => {
       setAddrModal({ open: true, customerId: id, customerName: name });
     },
+    onSelectPurchaseDefaults: handleSelectPurchaseDefaults,
   };
 
   const pageTitle =
@@ -346,6 +363,13 @@ export const CustomerPage: React.FC<{
         }
         customerId={addrModal.customerId || ""}
         customerName={addrModal.customerName}
+      />
+
+      <CustomerPurchaseDefaultsModal
+        open={!!selectedCustomer}
+        customerId={selectedCustomer?.id}
+        customerName={selectedCustomer?.name}
+        onClose={() => setSelectedCustomer(null)}
       />
     </div>
   );

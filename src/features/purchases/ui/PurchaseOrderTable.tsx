@@ -200,6 +200,8 @@ export type PurchaseOrderTableProps = {
   page: number;
   limit: number;
   onPageChange: (page: number, limit: number) => void;
+  selectedRowKeys?: React.Key[];
+  onSelectionChange?: (keys: React.Key[]) => void;
 };
 
 export default function PurchaseOrderTable(props: PurchaseOrderTableProps) {
@@ -232,7 +234,7 @@ export default function PurchaseOrderTable(props: PurchaseOrderTableProps) {
       {
         title: "Nhà cung cấp",
         dataIndex: "supplier",
-        width: 220,
+        width: 180,
         render: (s: any, row) => (
           <div>
             <div style={{ fontWeight: 600 }}>
@@ -248,12 +250,34 @@ export default function PurchaseOrderTable(props: PurchaseOrderTableProps) {
       },
       {
         title: "Sản phẩm",
-        width: 180,
-        render: () => (
-          <Typography.Text type="secondary">
-            Xem trong chi tiết đơn
-          </Typography.Text>
-        ),
+        width: 200,
+        render: (_, row) => {
+          const lines = row.lines ?? [];
+
+          if (!lines.length) {
+            return <Typography.Text type="secondary">-</Typography.Text>;
+          }
+
+          const visible = lines.slice(0, 2);
+
+          return (
+            <div>
+              {visible.map((l) => (
+                <div key={l.id} style={{ lineHeight: 1.5 }}>
+                  <Typography.Text>
+                    {l.product?.code ?? "SP"} - {qty(toNumber(l.orderedQty))}
+                  </Typography.Text>
+                </div>
+              ))}
+
+              {lines.length > 2 ? (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  +{lines.length - 2} sản phẩm khác
+                </Typography.Text>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         title: "Ngày đặt",
@@ -317,18 +341,25 @@ export default function PurchaseOrderTable(props: PurchaseOrderTableProps) {
       loading={loading}
       columns={columns}
       dataSource={data?.items ?? []}
+      rowSelection={{
+        selectedRowKeys: props.selectedRowKeys,
+        onChange: props.onSelectionChange,
+        
+      }}
       pagination={{
         current: page,
         pageSize: limit,
         total: data?.total ?? 0,
         showSizeChanger: true,
         onChange: onPageChange,
+        size: "small",
+        style: { margin: "2px 0" },
       }}
       onRow={(row) => ({
         onClick: () => onRowClick?.(row.id),
         style: { cursor: "pointer" },
       })}
-      scroll={{ x: 1460 }}
+      scroll={{ x: 1460, y: 380 }}
     />
   );
 }
