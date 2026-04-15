@@ -4,6 +4,18 @@ import type { ColumnsType } from "antd/es/table";
 import type { PurchaseOrderListItem, PurchaseOrderStatus } from "../types";
 import { Paged } from "../../../shared/lib/types";
 import dayjs from "dayjs";
+import {
+  CheckOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  EyeOutlined,
+  PrinterOutlined,
+  SendOutlined,
+} from "@ant-design/icons";
+import {
+  CommonActionMenu,
+  type ActionItem,
+} from "../../../shared/ui/CommonActionMenu";
 
 function money(n: number): string {
   return new Intl.NumberFormat("vi-VN").format(Math.round(n));
@@ -143,6 +155,7 @@ function renderProgressTag(row: PurchaseOrderListItem) {
 function renderActions(
   status: PurchaseOrderStatus,
   row: PurchaseOrderListItem,
+  onAction?: (action: string, row: PurchaseOrderListItem) => void,
 ) {
   const s = row.summary;
 
@@ -154,43 +167,29 @@ function renderActions(
   const paymentStatus = s?.paymentStatus ?? "UNPAID";
   const isPaid = paymentStatus === "PAID";
 
+  const items: ActionItem[] = [];
+
   if (status === "DRAFT") {
-    return (
-      <Space size={4}>
-        <Button size="small" type="text">
-          Sửa
-        </Button>
-        <Button size="small" type="text">
-          Gửi duyệt
-        </Button>
-        <Button size="small" danger type="text">
-          Xóa
-        </Button>
-      </Space>
+    items.push(
+      { key: "edit", label: "Sửa", icon: <EditOutlined /> },
+      { key: "approve", label: "Gửi duyệt", icon: <SendOutlined /> },
+      { key: "delete", label: "Xóa", icon: <DeleteOutlined />, danger: true },
     );
+  } else if (status === "APPROVED") {
+    items.push({ key: "view", label: "Xem chi tiết", icon: <EyeOutlined /> });
+  } else if (isPaid || hasInvoice) {
+    items.push({ key: "view", label: "Xem hóa đơn", icon: <EyeOutlined /> });
+  } else if (status === "IN_PROGRESS") {
+    items.push({ key: "view", label: "Xem hóa đơn", icon: <EyeOutlined /> });
+  } else {
+    items.push({ key: "view", label: "Xem hóa đơn", icon: <EyeOutlined /> });
   }
 
-  if (status === "APPROVED") {
-    return (
-      <Button size="small" type="primary">
-        Nhận hàng
-      </Button>
-    );
-  }
+  const handleAction = (key: string) => {
+    onAction?.(key, row);
+  };
 
-  if (isPaid) {
-    return <Button size="small">Xem hóa đơn</Button>;
-  }
-
-  if (hasInvoice) {
-    return <Button size="small">Xem hóa đơn</Button>;
-  }
-
-  if (status === "IN_PROGRESS") {
-    return <Button size="small">Xem</Button>;
-  }
-
-  return <Button size="small">Xem</Button>;
+  return <CommonActionMenu items={items} onAction={handleAction} />;
 }
 
 export type PurchaseOrderTableProps = {
@@ -202,10 +201,12 @@ export type PurchaseOrderTableProps = {
   onPageChange: (page: number, limit: number) => void;
   selectedRowKeys?: React.Key[];
   onSelectionChange?: (keys: React.Key[]) => void;
+  onAction?: (action: string, row: PurchaseOrderListItem) => void;
 };
 
 export default function PurchaseOrderTable(props: PurchaseOrderTableProps) {
-  const { data, loading, onRowClick, page, limit, onPageChange } = props;
+  const { data, loading, onRowClick, page, limit, onPageChange, onAction } =
+    props;
 
   const columns: ColumnsType<PurchaseOrderListItem> = useMemo(
     () => [
@@ -327,12 +328,23 @@ export default function PurchaseOrderTable(props: PurchaseOrderTableProps) {
         align: "right",
         render: (v, row) => (
           <div onClick={(e) => e.stopPropagation()}>
-            {renderActions(v, row)}
+            {renderActions(v, row, onAction)}
+
+            <Tooltip title="In đơn hàng">
+              <Button
+                size="small"
+                icon={<PrinterOutlined />}
+                onClick={() =>
+                  window.open(`/api/purchase-orders/${row.id}/print`, "_blank")
+                }
+                disabled={loading}
+              ></Button>
+            </Tooltip>
           </div>
         ),
       },
     ],
-    [onRowClick],
+    [onRowClick, onAction],
   );
 
   return (
@@ -344,7 +356,6 @@ export default function PurchaseOrderTable(props: PurchaseOrderTableProps) {
       rowSelection={{
         selectedRowKeys: props.selectedRowKeys,
         onChange: props.onSelectionChange,
-        
       }}
       pagination={{
         current: page,

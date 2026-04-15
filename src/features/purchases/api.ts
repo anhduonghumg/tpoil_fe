@@ -190,4 +190,6 @@ export const PurchasesApi = {
       query: { id },
       data: payload ?? {},
     }).then((r) => (r.data!.data ?? (r.data as any)) as SupplierInvoiceDetail),
+
+  getPrintSingleUrl: (id: UUID) => `/api/purchase-orders/${id}/print`,
 };

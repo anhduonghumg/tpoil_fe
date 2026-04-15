@@ -20,6 +20,8 @@ import type {
 import { useProductSelect } from "../../products/hooks";
 import { useNavigate } from "react-router-dom";
 import { PlusOutlined, PrinterOutlined } from "@ant-design/icons";
+import { notify } from "../../../shared/lib/notification";
+import { openPdfPreviewByPost } from "../../../shared/lib/helper";
 
 type ProductOption = { id: UUID; name: string; code?: string | null };
 
@@ -85,7 +87,7 @@ export default function PurchaseOrdersPage() {
     }
 
     if (data.status === "FAILED") {
-      message.error(data.error || "Tạo bản in thất bại");
+      notify.error(data.error || "Tạo bản in thất bại");
       setPrintModalOpen(false);
       return;
     }
@@ -99,7 +101,7 @@ export default function PurchaseOrdersPage() {
     const ids = selectedRowKeys as UUID[];
 
     if (!ids.length) {
-      message.warning("Vui lòng chọn ít nhất 1 đơn");
+      notify.warning("Vui lòng chọn ít nhất 1 đơn");
       return;
     }
 
@@ -110,7 +112,25 @@ export default function PurchaseOrdersPage() {
       setPrintMetrics(null);
       void pollPrintStatus(result.runId);
     } catch (error) {
-      message.error("Không thể tạo job in");
+      notify.error("Không thể tạo job in");
+    }
+  };
+
+  const handlePrintPaymentRequests = async () => {
+    const ids = selectedRowKeys as UUID[];
+
+    if (!ids.length) {
+      notify.warning("Vui lòng chọn ít nhất 1 đơn");
+      return;
+    }
+
+    try {
+      await openPdfPreviewByPost(
+        "/api/purchase-orders/print-payment-request-batch-sync",
+        { ids },
+      );
+    } catch {
+      notify.error("Không thể mở phiếu đề nghị thanh toán");
     }
   };
 
@@ -213,6 +233,14 @@ export default function PurchaseOrdersPage() {
                 onClick={handlePrintBatch}
               >
                 In
+              </Button>
+
+              <Button
+                size="small"
+                icon={<PrinterOutlined />}
+                onClick={handlePrintPaymentRequests}
+              >
+                In phiếu đề nghị thanh toán
               </Button>
 
               <Button

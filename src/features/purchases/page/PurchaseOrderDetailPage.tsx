@@ -287,6 +287,30 @@ export default function PurchaseOrderDetailPage() {
     );
   }, [po]);
 
+  const confirmedReceiptsByLine = useMemo(() => {
+    const map = new Map<string, Array<any>>();
+
+    (po?.receipts ?? [])
+      .filter((r: any) => r.status === "CONFIRMED")
+      .forEach((r: any) => {
+        const key = r.purchaseOrderLineId;
+        if (!key) return;
+
+        const arr = map.get(key) ?? [];
+        arr.push(r);
+        map.set(key, arr);
+      });
+
+    map.forEach((arr) => {
+      arr.sort(
+        (a, b) =>
+          dayjs(a.receiptDate).valueOf() - dayjs(b.receiptDate).valueOf(),
+      );
+    });
+
+    return map;
+  }, [po?.receipts]);
+
   const cols: ColumnsType<any> = [
     {
       title: "Sản phẩm",
@@ -308,6 +332,7 @@ export default function PurchaseOrderDetailPage() {
     {
       title: "Kho nhận",
       dataIndex: "supplierLocationId",
+      width: 100,
       render: (_: any, r: any) =>
         r?.supplierLocation?.name
           ? r.supplierLocation.name
@@ -330,13 +355,13 @@ export default function PurchaseOrderDetailPage() {
     {
       title: "Chiết khấu",
       dataIndex: "discountAmount",
-      width: 130,
+      width: 100,
       align: "right",
       render: (v) => (v == null ? "-" : `${money(toNumber(v))} đ`),
     },
     {
       title: "Thành tiền",
-      width: 130,
+      width: 120,
       align: "right",
       render: (_: any, r: any) => {
         const qty = toNumber(r.orderedQty);
@@ -351,9 +376,27 @@ export default function PurchaseOrderDetailPage() {
       },
     },
     {
+      title: "Ngày nhận",
+      // width: 130,
+      render: (_: any, r: any) => {
+        const receipts = confirmedReceiptsByLine.get(r.id) ?? [];
+        const first = receipts[0];
+        return first ? dayjs(first.receiptDate).format("DD/MM/YYYY") : "-";
+      },
+    },
+    {
+      title: "NN cuối",
+      // width: 130,
+      render: (_: any, r: any) => {
+        const receipts = confirmedReceiptsByLine.get(r.id) ?? [];
+        const last = receipts[receipts.length - 1];
+        return last ? dayjs(last.receiptDate).format("DD/MM/YYYY") : "-";
+      },
+    },
+    {
       title: "Đã nhận",
       dataIndex: "withdrawnQty",
-      width: 130,
+      width: 80,
       align: "right",
       render: (v) => money(toNumber(v)),
     },
@@ -665,8 +708,23 @@ export default function PurchaseOrderDetailPage() {
                     ? dayjs(po.orderDate).format("DD/MM/YYYY")
                     : "-"}
                 </Descriptions.Item>
+                <Descriptions.Item label="Nhận hàng lần đầu">
+                  {po.summary?.firstReceiptDate
+                    ? dayjs(po.summary.firstReceiptDate).format(
+                        "DD/MM/YYYY HH:mm",
+                      )
+                    : "-"}
+                </Descriptions.Item>
+
                 <Descriptions.Item label="Ghi chú">
                   {po.note ?? "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Nhận hàng gần nhất">
+                  {po.summary?.lastReceiptDate
+                    ? dayjs(po.summary.lastReceiptDate).format(
+                        "DD/MM/YYYY HH:mm",
+                      )
+                    : "-"}
                 </Descriptions.Item>
               </Descriptions>
             </Card>
@@ -685,9 +743,49 @@ export default function PurchaseOrderDetailPage() {
                   display: "flex",
                   justifyContent: "flex-end",
                   marginTop: 12,
+                  gap: 24,
                 }}
               >
-                <div style={{ width: 360 }}>
+                <div style={{ width: 150 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: 6,
+                    }}
+                  >
+                    <Typography.Text type="secondary">Tổng đặt</Typography.Text>
+                    <Typography.Text>
+                      {money(po.summary?.orderedQtyTotal ?? 0)}
+                    </Typography.Text>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: 6,
+                    }}
+                  >
+                    <Typography.Text type="secondary">Đã nhận</Typography.Text>
+                    <Typography.Text>
+                      {money(po.summary?.receivedQtyTotal ?? 0)}
+                    </Typography.Text>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Typography.Text type="danger">Còn lại</Typography.Text>
+                    <Typography.Text type="danger" strong>
+                      {money(po.summary?.remainingQty ?? 0)}
+                    </Typography.Text>
+                  </div>
+                </div>
+                <div style={{ width: 320 }}>
                   <div
                     style={{
                       display: "flex",

@@ -205,9 +205,11 @@ export type PurchaseOrderDetail = {
 
   receipts?: Array<{
     id: UUID;
+    purchaseOrderLineId: UUID;
     receiptNo: string;
     receiptDate: string;
     qty: string;
+    status: "DRAFT" | "CONFIRMED" | "CANCELLED";
     supplierLocationId?: UUID;
     supplierLocation?: {
       id: UUID;

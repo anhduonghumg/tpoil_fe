@@ -14,7 +14,10 @@ export type ActionKey =
   | "delete"
   | "public"
   | "void"
-  | "draft";
+  | "draft"
+  | "approve"
+  | "reject"
+  | "cancel";
 
 export type ActionItem = {
   key: ActionKey;
