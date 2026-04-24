@@ -135,6 +135,22 @@ export const ROUTES = {
     ] as RouteTuple,
   },
 
+  purchaseTerm: {
+    orders: {
+      list: ["GET", "/purchase-term/orders"] as RouteTuple,
+      detail: ["GET", "/purchase-term/orders/:id"] as RouteTuple,
+      create: ["POST", "/purchase-term/orders"] as RouteTuple,
+      update: ["PATCH", "/purchase-term/orders/:id"] as RouteTuple,
+      approve: ["POST", "/purchase-term/orders/:id/approve"] as RouteTuple,
+      cancel: ["POST", "/purchase-term/orders/:id/cancel"] as RouteTuple,
+      nextAction: [
+        "GET",
+        "/purchase-term/orders/:id/next-action",
+      ] as RouteTuple,
+      complete: ["POST", "/purchase-term/orders/:id/complete"] as RouteTuple,
+    },
+  },
+
   // supplierInvoices: {
   //   create: ["POST", "/supplier-invoices"] as RouteTuple,
   //   importPdf: ["POST", "/supplier-invoices/import-pdf"] as RouteTuple,

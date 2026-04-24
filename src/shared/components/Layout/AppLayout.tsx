@@ -42,7 +42,12 @@ const NAV: NavItem[] = [
   { key: "/", label: "Dashboard", icon: <DashboardOutlined /> },
   {
     key: "/purchase-orders",
-    label: "Đơn mua hàng",
+    label: "Đơn mua TM",
+    icon: <ShoppingCartOutlined />,
+  },
+  {
+    key: "/purchase-terms",
+    label: "Đơn mua TERM",
     icon: <ShoppingCartOutlined />,
   },
   { key: "/banking", label: "Ngân hàng", icon: <DatabaseOutlined /> },

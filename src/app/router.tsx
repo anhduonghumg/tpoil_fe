@@ -28,6 +28,8 @@ import BankStatementPage from "../features/banking/page/BankStatementPage";
 import BankAccountsPage from "../features/bank-accounts/page/BankAccountsPage";
 import BankImportTemplatesPage from "../features/bank-import-templates/ui/page/BankImportTemplatesPage";
 import BankPurposesPage from "../features/bank-purposes/page/BankPurposesPage";
+import PurchaseTermPage from "../features/purchase-term/page/PurchaseTermPage";
+import PurchaseTermCreatePage from "../features/purchase-term/ui/PurchaseTermCreatePage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -50,6 +52,14 @@ export const router = createBrowserRouter([
               },
             ],
             // element: <PurchaseOrdersPage />,
+          },
+          {
+            path: "/purchase-terms",
+            element: <PurchaseTermPage />,
+          },
+          {
+            path: "/purchase-term/create",
+            element: <PurchaseTermCreatePage />,
           },
           {
             path: "/purchase-invoices/create",
