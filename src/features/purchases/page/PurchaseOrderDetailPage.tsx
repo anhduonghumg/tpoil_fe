@@ -432,7 +432,7 @@ export default function PurchaseOrderDetailPage() {
   const canApprove = po?.status === "DRAFT";
   const canCancel = !!po?.summary?.canCancel;
   const canReceive = !!po?.summary?.canReceive;
-  const receiveBlockedReason = po?.summary?.receiveBlockedReason ?? null;
+  // const receiveBlockedReason = po?.summary?.receiveBlockedReason ?? null;
 
   const onApprove = async () => {
     if (!poId) return;

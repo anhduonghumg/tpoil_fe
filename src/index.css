@@ -109,6 +109,27 @@ button:focus-visible {
   background: transparent;
 }
 
+.platts-table .ant-table {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.platts-table .ant-table-thead > tr > th {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  font-weight: 800 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.platts-table .ant-table-tbody > tr > td {
+  padding: 6px 8px !important;
+  border-bottom: 1px solid #eef2f7 !important;
+}
+
+.platts-table .ant-table-tbody > tr:hover > td {
+  background: #f8fafc !important;
+}
+
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;

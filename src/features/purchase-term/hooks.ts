@@ -1,22 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PurchaseTermApi } from "./api";
+import { notify } from "../../shared/lib/notification";
+
 import type {
   CreateTermPurchaseOrderPayload,
   TermPurchaseOrderListQuery,
 } from "./types";
-import { notify } from "../../shared/lib/notification";
+import { TermPurchaseOrdersApi } from "./api";
 
-export const purchaseTermKeys = {
-  all: ["purchase-term"] as const,
-  lists: () => ["purchase-term", "list"] as const,
-  list: (query: TermPurchaseOrderListQuery) =>
-    ["purchase-term", "list", query] as const,
+const qk = {
+  list: (q: TermPurchaseOrderListQuery) =>
+    ["term-purchase-orders", "list", q] as const,
 };
 
-export function useTermPurchaseOrders(query: TermPurchaseOrderListQuery) {
+export function useTermPurchaseOrderList(q: TermPurchaseOrderListQuery) {
   return useQuery({
-    queryKey: purchaseTermKeys.list(query),
-    queryFn: () => PurchaseTermApi.listOrders(query),
+    queryKey: qk.list(q),
+    queryFn: () => TermPurchaseOrdersApi.list(q),
   });
 }
 
@@ -24,11 +23,13 @@ export function useCreateTermPurchaseOrder() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: CreateTermPurchaseOrderPayload) =>
-      PurchaseTermApi.createOrder(payload),
+    mutationFn: (data: CreateTermPurchaseOrderPayload) =>
+      TermPurchaseOrdersApi.create(data),
     onSuccess: () => {
-      notify.success("Tạo đơn TERM thành công");
-      qc.invalidateQueries({ queryKey: purchaseTermKeys.lists() });
+      qc.invalidateQueries({ queryKey: ["term-purchase-orders"] });
+      qc.invalidateQueries({ queryKey: ["purchase-orders"] });
     },
+    onError: (e: any) =>
+      notify.error(e?.message || "Tạo đơn mua TERM thất bại"),
   });
 }

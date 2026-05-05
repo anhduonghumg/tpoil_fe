@@ -41,6 +41,11 @@ type NavItem = {
 const NAV: NavItem[] = [
   { key: "/", label: "Dashboard", icon: <DashboardOutlined /> },
   {
+    key: "/purchase/platts-prices",
+    label: "Giá Platts",
+    icon: <DatabaseOutlined />,
+  },
+  {
     key: "/purchase-orders",
     label: "Đơn mua TM",
     icon: <ShoppingCartOutlined />,

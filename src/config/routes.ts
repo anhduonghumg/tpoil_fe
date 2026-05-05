@@ -151,6 +151,12 @@ export const ROUTES = {
     },
   },
 
+  commodityPriceQuotes: {
+    list: ["GET", "/commodity-price-quotes"] as RouteTuple,
+    upsert: ["POST", "/commodity-price-quotes/upsert"] as RouteTuple,
+    delete: ["DELETE", "/commodity-price-quotes/:id"] as RouteTuple,
+  },
+
   // supplierInvoices: {
   //   create: ["POST", "/supplier-invoices"] as RouteTuple,
   //   importPdf: ["POST", "/supplier-invoices/import-pdf"] as RouteTuple,

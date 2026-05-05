@@ -8,7 +8,6 @@ import {
   Input,
   Row,
   Space,
-  Table,
   Typography,
   Upload,
   Tag,
@@ -178,38 +177,6 @@ export default function PurchaseInvoiceUpsertPage() {
 
     return false;
   };
-
-  const columns: ColumnsType<InvoiceLineDraft> = useMemo(
-    () => [
-      { title: "Sản phẩm", dataIndex: "productLabel" },
-      { title: "Kho", dataIndex: "locationLabel" },
-      {
-        title: "SL hóa đơn",
-        dataIndex: "qty",
-        width: 140,
-        align: "right",
-        render: (v) => money(v),
-      },
-      {
-        title: "Đơn giá",
-        dataIndex: "unitPrice",
-        width: 160,
-        align: "right",
-        render: (v) => `${money(toNumber(v))} đ`,
-      },
-      {
-        title: "Thành tiền",
-        width: 180,
-        align: "right",
-        render: (_, row) => (
-          <Typography.Text strong>
-            {money(toNumber(row.qty) * toNumber(row.unitPrice))} đ
-          </Typography.Text>
-        ),
-      },
-    ],
-    [],
-  );
 
   const onSave = async () => {
     if (!po?.supplierCustomerId) {
@@ -394,7 +361,13 @@ export default function PurchaseInvoiceUpsertPage() {
               pagination={false}
             /> */}
 
-            <Space style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+            <Space
+              style={{
+                marginTop: 16,
+                display: "flex",
+                justifyContent: "flex-end",
+              }}
+            >
               <Button
                 type="primary"
                 onClick={onSave}

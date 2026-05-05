@@ -1,6 +1,7 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Button,
+  Card,
   DatePicker,
   Form,
   Input,
@@ -8,550 +9,587 @@ import {
   Select,
   Space,
   Table,
+  Tag,
   Typography,
   message,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import {
-  ArrowLeftOutlined,
-  PlusOutlined,
-  ReloadOutlined,
-  SaveOutlined,
-} from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
 import dayjs, { Dayjs } from "dayjs";
+import { useNavigate } from "react-router-dom";
+
+import { PartySelect } from "../../../shared/ui/PartySelect";
+import { useProductSelect } from "../../products/hooks";
 import { useCreateTermPurchaseOrder } from "../hooks";
-import type {
-  CreateTermPurchaseOrderLinePayload,
-  CreateTermPurchaseOrderPayload,
-} from "../types";
+import { useSupplierLocationsSelect } from "../../purchases/hooks";
 
-const { Text } = Typography;
+import type { CreateTermPurchaseOrderPayload, UUID } from "../types";
 
-type LineRow = CreateTermPurchaseOrderLinePayload & {
-  key: string;
-  productName?: string;
-  supplierLocationName?: string;
+const { Title, Text } = Typography;
+
+type TermLineForm = {
+  productId?: UUID;
+  supplierLocationId?: UUID;
+  orderedQty?: number;
+  unitPrice?: number;
+  taxRate?: number;
+  discountAmount?: number;
 };
 
 type FormValues = {
-  supplierCustomerId: string;
-  supplierLocationId?: string;
-  orderType: "SINGLE" | "LOT";
-  paymentMode: "PREPAID" | "POSTPAID";
-  paymentTermType?: "SAME_DAY" | "NET_DAYS";
-  paymentTermDays?: number;
+  supplierCustomerId: UUID;
+  supplierLocationId?: UUID;
+
   orderDate: Dayjs;
   expectedDate?: Dayjs;
+
   contractNo?: string;
   deliveryLocation?: string;
+
+  paymentNote?: string;
   note?: string;
-  lines: LineRow[];
+
+  premium?: number;
+
+  lines: TermLineForm[];
 };
 
-function newLine(): LineRow {
-  return {
-    key: crypto.randomUUID(),
-    productId: "",
-    supplierLocationId: undefined,
-    orderedQty: 0,
-    unitPrice: undefined,
-    taxRate: undefined,
-    discountAmount: 0,
-  };
+function toDate(value?: Dayjs) {
+  return value ? value.format("YYYY-MM-DD") : undefined;
 }
 
-function money(n?: number | null) {
-  if (n == null) return "-";
-  return new Intl.NumberFormat("vi-VN").format(Math.round(Number(n || 0)));
+function cleanNumber(value?: number | null) {
+  if (value === null || value === undefined) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
 }
 
-function number(n?: number | null) {
-  if (n == null) return "-";
-  return new Intl.NumberFormat("vi-VN").format(Number(n || 0));
+function money(value?: number) {
+  if (!value) return "0";
+  return new Intl.NumberFormat("vi-VN").format(value);
 }
 
-export default function PurchaseTermCreatePage() {
-  const navigate = useNavigate();
+export default function TermPurchaseOrderCreatePage() {
   const [form] = Form.useForm<FormValues>();
-  const createMutation = useCreateTermPurchaseOrder();
+  const navigate = useNavigate();
 
-  const lines = Form.useWatch("lines", form) || [];
-  const paymentMode = Form.useWatch("paymentMode", form);
+  const [locKeyword, setLocKeyword] = useState("");
+
+  const supplierCustomerId = Form.useWatch("supplierCustomerId", form);
+  const lines = Form.useWatch("lines", form) ?? [];
+  const premium = Form.useWatch("premium", form);
+
+  const createMutation = useCreateTermPurchaseOrder();
+  const productsQuery = useProductSelect("");
+  const locQuery = useSupplierLocationsSelect(supplierCustomerId, locKeyword);
+
+  const productOptions = useMemo(
+    () =>
+      (productsQuery.data ?? []).map((p: any) => ({
+        value: p.id,
+        label: p.code ? `${p.code} - ${p.name}` : p.name,
+      })),
+    [productsQuery.data],
+  );
+
+  const locationOptions = useMemo(
+    () =>
+      (locQuery.data ?? []).map((l: any) => ({
+        value: l.id,
+        label: l.label ?? l.name ?? l.code ?? l.id,
+      })),
+    [locQuery.data],
+  );
 
   const summary = useMemo(() => {
     const totalQty = lines.reduce(
-      (sum, x) => sum + Number(x?.orderedQty || 0),
+      (sum: number, line: TermLineForm) => sum + Number(line?.orderedQty || 0),
       0,
     );
-    const totalAmount = lines.reduce((sum, x) => {
-      const qty = Number(x?.orderedQty || 0);
-      const price = Number(x?.unitPrice || 0);
-      const discount = Number(x?.discountAmount || 0);
+
+    const totalAmount = lines.reduce((sum: number, line: TermLineForm) => {
+      const qty = Number(line?.orderedQty || 0);
+      const price = Number(line?.unitPrice || 0);
+      const discount = Number(line?.discountAmount || 0);
       return sum + qty * price - discount;
     }, 0);
 
-    return { totalQty, totalAmount };
+    return {
+      totalLine: lines.length,
+      totalQty,
+      totalAmount,
+    };
   }, [lines]);
 
-  const setLines = (next: LineRow[]) => form.setFieldValue("lines", next);
-
-  const updateLine = (key: string, patch: Partial<LineRow>) => {
-    const current = form.getFieldValue("lines") || [];
-    setLines(
-      current.map((line: LineRow) =>
-        line.key === key ? { ...line, ...patch } : line,
-      ),
-    );
-  };
-
-  const addLine = () => {
-    const current = form.getFieldValue("lines") || [];
-    setLines([...current, newLine()]);
-  };
-
-  const removeLine = (key: string) => {
-    const current = form.getFieldValue("lines") || [];
-    if (current.length <= 1) {
-      message.warning("Đơn TERM cần ít nhất 1 dòng hàng");
-      return;
-    }
-    setLines(current.filter((line: LineRow) => line.key !== key));
-  };
-
-  const resetForm = () => {
-    form.resetFields();
-    form.setFieldsValue({
-      orderType: "SINGLE",
-      paymentMode: "PREPAID",
-      paymentTermType: "SAME_DAY",
-      orderDate: dayjs(),
-      lines: [newLine()],
-    });
-  };
-
-  const validateBeforeSubmit = (values: FormValues) => {
-    const validLines = (values.lines || []).filter(
-      (x) => x.productId && Number(x.orderedQty || 0) > 0,
-    );
-
-    if (!validLines.length) {
-      throw new Error("Vui lòng nhập ít nhất 1 dòng hàng hợp lệ");
-    }
-
-    if (
-      values.paymentMode === "POSTPAID" &&
-      values.paymentTermType === "NET_DAYS"
-    ) {
-      if (!values.paymentTermDays || Number(values.paymentTermDays) <= 0) {
-        throw new Error("Vui lòng nhập số ngày công nợ");
-      }
-    }
-
-    return validLines;
+  const initialValues: Partial<FormValues> = {
+    orderDate: dayjs(),
+    lines: [
+      {
+        taxRate: 10,
+        discountAmount: 0,
+      },
+    ],
   };
 
   const onFinish = async (values: FormValues) => {
-    try {
-      const validLines = validateBeforeSubmit(values);
+    const linesPayload = (values.lines ?? [])
+      .filter((line) => line.productId && cleanNumber(line.orderedQty))
+      .map((line) => ({
+        productId: line.productId!,
+        supplierLocationId:
+          line.supplierLocationId || values.supplierLocationId,
+        orderedQty: Number(line.orderedQty),
+        unitPrice: cleanNumber(line.unitPrice),
+        taxRate: cleanNumber(line.taxRate),
+        discountAmount: cleanNumber(line.discountAmount) ?? 0,
+      }));
 
-      const payload: CreateTermPurchaseOrderPayload = {
-        supplierCustomerId: values.supplierCustomerId,
-        supplierLocationId: values.supplierLocationId || undefined,
-        orderType: values.orderType,
-        paymentMode: values.paymentMode,
-        paymentTermType: values.paymentTermType,
-        paymentTermDays: values.paymentTermDays,
-        orderDate: values.orderDate.format("YYYY-MM-DD"),
-        expectedDate: values.expectedDate?.format("YYYY-MM-DD"),
-        contractNo: values.contractNo?.trim() || undefined,
-        deliveryLocation: values.deliveryLocation?.trim() || undefined,
-        note: values.note?.trim() || undefined,
-        lines: validLines.map((x) => ({
-          productId: x.productId,
-          supplierLocationId:
-            x.supplierLocationId || values.supplierLocationId || undefined,
-          orderedQty: Number(x.orderedQty || 0),
-          unitPrice: x.unitPrice == null ? undefined : Number(x.unitPrice),
-          taxRate: x.taxRate == null ? undefined : Number(x.taxRate),
-          discountAmount: Number(x.discountAmount || 0),
-        })),
-      };
-
-      const created = await createMutation.mutateAsync(payload);
-      navigate(`/purchase-term/${created.id}`);
-    } catch (err: any) {
-      message.error(err?.message || "Không thể tạo đơn TERM");
+    if (!linesPayload.length) {
+      message.error("Cần ít nhất 1 dòng hàng");
+      return;
     }
+
+    const payload: CreateTermPurchaseOrderPayload = {
+      bizType: "TERM",
+      orderType: "SINGLE",
+      supplierCustomerId: values.supplierCustomerId,
+      supplierLocationId: values.supplierLocationId,
+      orderDate: toDate(values.orderDate)!,
+      expectedDate: toDate(values.expectedDate),
+      contractNo: values.contractNo?.trim() || undefined,
+      deliveryLocation: values.deliveryLocation?.trim() || undefined,
+      paymentNote: values.paymentNote?.trim() || undefined,
+      note: values.note?.trim() || undefined,
+      billInfo: {
+        premium: cleanNumber(values.premium),
+      },
+      lines: linesPayload,
+    };
+
+    const result = await createMutation.mutateAsync(payload);
+
+    message.success("Đã tạo đơn TERM");
+    navigate(`/purchase-terms/${result.id}`);
   };
 
-  const columns: ColumnsType<LineRow> = [
+  const lineColumns: ColumnsType<any> = [
     {
-      title: "MẶT HÀNG",
-      dataIndex: "productId",
-      width: 230,
-      render: (_, record) => (
-        <Input
-          value={record.productId}
-          placeholder="productId"
-          onChange={(e) =>
-            updateLine(record.key, { productId: e.target.value })
-          }
-        />
+      title: "Sản phẩm",
+      width: 240,
+      render: (_, __, index) => (
+        <Form.Item
+          name={[index, "productId"]}
+          rules={[{ required: true, message: "Chọn sản phẩm" }]}
+          style={{ margin: 0 }}
+        >
+          <Select
+            showSearch
+            placeholder="Chọn sản phẩm"
+            optionFilterProp="label"
+            loading={productsQuery.isLoading}
+            options={productOptions}
+          />
+        </Form.Item>
       ),
     },
     {
-      title: "KHO NCC",
-      dataIndex: "supplierLocationId",
+      title: "Kho nhận hàng",
       width: 220,
-      render: (_, record) => (
-        <Input
-          value={record.supplierLocationId}
-          placeholder="Theo kho mặc định nếu bỏ trống"
-          onChange={(e) =>
-            updateLine(record.key, {
-              supplierLocationId: e.target.value || undefined,
-            })
-          }
-        />
+      render: (_, __, index) => (
+        <Form.Item name={[index, "supplierLocationId"]} style={{ margin: 0 }}>
+          <Select
+            showSearch
+            allowClear
+            disabled={!supplierCustomerId}
+            placeholder="Mặc định theo đơn"
+            filterOption={false}
+            onSearch={setLocKeyword}
+            loading={locQuery.isLoading}
+            options={locationOptions}
+          />
+        </Form.Item>
       ),
     },
     {
-      title: "SL ĐẶT",
-      dataIndex: "orderedQty",
-      width: 130,
-      align: "right",
-      render: (_, record) => (
-        <InputNumber
-          min={0}
-          value={record.orderedQty}
-          style={{ width: "100%" }}
-          onChange={(v) =>
-            updateLine(record.key, { orderedQty: Number(v || 0) })
-          }
-        />
-      ),
-    },
-    {
-      title: "ĐƠN GIÁ TẠM",
-      dataIndex: "unitPrice",
+      title: "Số lượng",
       width: 150,
-      align: "right",
-      render: (_, record) => (
-        <InputNumber
-          min={0}
-          value={record.unitPrice}
-          style={{ width: "100%" }}
-          formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-          parser={(v) => Number((v || "").replace(/,/g, "")) as any}
-          onChange={(v) =>
-            updateLine(record.key, {
-              unitPrice: v == null ? undefined : Number(v),
-            })
-          }
-        />
+      render: (_, __, index) => (
+        <Form.Item
+          name={[index, "orderedQty"]}
+          rules={[{ required: true, message: "Nhập SL" }]}
+          style={{ margin: 0 }}
+        >
+          <InputNumber min={0.001} style={{ width: "100%" }} addonAfter="L" />
+        </Form.Item>
       ),
     },
     {
-      title: "VAT %",
-      dataIndex: "taxRate",
-      width: 100,
-      align: "right",
-      render: (_, record) => (
-        <InputNumber
-          min={0}
-          max={100}
-          value={record.taxRate}
-          style={{ width: "100%" }}
-          onChange={(v) =>
-            updateLine(record.key, {
-              taxRate: v == null ? undefined : Number(v),
-            })
-          }
-        />
-      ),
-    },
-    {
-      title: "CK",
-      dataIndex: "discountAmount",
-      width: 130,
-      align: "right",
-      render: (_, record) => (
-        <InputNumber
-          min={0}
-          value={record.discountAmount}
-          style={{ width: "100%" }}
-          formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-          parser={(v) => Number((v || "").replace(/,/g, "")) as any}
-          onChange={(v) =>
-            updateLine(record.key, { discountAmount: Number(v || 0) })
-          }
-        />
-      ),
-    },
-    {
-      title: "THÀNH TIỀN",
+      title: "Giá tạm",
       width: 150,
-      align: "right",
-      render: (_, record) => {
-        const amount =
-          Number(record.orderedQty || 0) * Number(record.unitPrice || 0) -
-          Number(record.discountAmount || 0);
-        return <Text strong>{money(amount)}</Text>;
-      },
+      render: (_, __, index) => (
+        <Form.Item name={[index, "unitPrice"]} style={{ margin: 0 }}>
+          <InputNumber min={0} style={{ width: "100%" }} addonAfter="đ/L" />
+        </Form.Item>
+      ),
     },
     {
-      title: "",
-      width: 70,
-      align: "center",
-      render: (_, record) => (
-        <Button danger type="link" onClick={() => removeLine(record.key)}>
-          Xóa
-        </Button>
+      title: "VAT",
+      width: 110,
+      render: (_, __, index) => (
+        <Form.Item name={[index, "taxRate"]} style={{ margin: 0 }}>
+          <InputNumber
+            min={0}
+            max={100}
+            style={{ width: "100%" }}
+            addonAfter="%"
+          />
+        </Form.Item>
+      ),
+    },
+    {
+      title: "Giảm trừ",
+      width: 140,
+      render: (_, __, index) => (
+        <Form.Item name={[index, "discountAmount"]} style={{ margin: 0 }}>
+          <InputNumber min={0} style={{ width: "100%" }} />
+        </Form.Item>
       ),
     },
   ];
 
   return (
-    <div
-      style={{
-        height: "100%",
-        background: "#fff",
-        border: "1px solid #e6edf5",
-        borderRadius: 12,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <div
-        style={{
-          height: 52,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 16px",
-          borderBottom: "1px solid #eef2f7",
-          flex: "0 0 auto",
-        }}
-      >
-        <Space size={10}>
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate("/purchase-term")}
-          >
-            Quay lại
-          </Button>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "#0f172a" }}>
-              Tạo đơn TERM
-            </div>
-            <div style={{ fontSize: 12, color: "#64748b" }}>
-              Nhập đơn mua TERM theo hướng vận hành trước, kế toán xử lý sau
-            </div>
-          </div>
-        </Space>
-
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={resetForm}>
-            Làm mới
-          </Button>
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            loading={createMutation.isPending}
-            onClick={() => form.submit()}
-          >
-            Lưu đơn
-          </Button>
-        </Space>
-      </div>
-
-      <div style={{ padding: 14, overflow: "auto", flex: "1 1 auto" }}>
-        <Form<FormValues>
-          form={form}
-          layout="vertical"
-          onFinish={onFinish}
-          initialValues={{
-            orderType: "SINGLE",
-            paymentMode: "PREPAID",
-            paymentTermType: "SAME_DAY",
-            orderDate: dayjs(),
-            lines: [newLine()],
+    <div style={{ height: "calc(100vh - 96px)", overflow: "auto" }}>
+      <div style={{ maxWidth: 1480, margin: "0 auto", height: "100%" }}>
+        <Card
+          size="small"
+          style={{
+            borderRadius: 16,
+            border: "1px solid #e5e7eb",
+            marginBottom: 10,
           }}
+          styles={{ body: { padding: 10 } }}
         >
           <div
             style={{
-              border: "1px solid #eef2f7",
-              borderRadius: 12,
-              padding: 12,
-              marginBottom: 12,
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 10 }}>
-              Thông tin chung
+            <div>
+              <Title level={4} style={{ margin: "6px 0 0" }}>
+                Tạo đơn mua TERM
+              </Title>
+
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Tạo đơn vận hành TERM. Mỗi dòng có thể chọn kho nhận hàng riêng.
+                Bảng giá, tỷ giá và bảng sếp xử lý ở màn chi tiết.
+              </Text>
             </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                gap: 12,
-              }}
-            >
-              <Form.Item
-                label="Nhà cung cấp"
-                name="supplierCustomerId"
-                rules={[{ required: true, message: "Chọn nhà cung cấp" }]}
+
+            <Space>
+              <Button onClick={() => navigate(-1)}>Quay lại</Button>
+              <Button
+                type="primary"
+                loading={createMutation.isPending}
+                onClick={() => form.submit()}
               >
-                <Input placeholder="supplierCustomerId" />
-              </Form.Item>
-
-              <Form.Item label="Kho NCC mặc định" name="supplierLocationId">
-                <Input placeholder="supplierLocationId" />
-              </Form.Item>
-
-              <Form.Item
-                label="Loại đơn"
-                name="orderType"
-                rules={[{ required: true }]}
-              >
-                <Select
-                  options={[
-                    { label: "Đơn lẻ", value: "SINGLE" },
-                    { label: "Đơn lô", value: "LOT" },
-                  ]}
-                />
-              </Form.Item>
-
-              <Form.Item
-                label="Thanh toán"
-                name="paymentMode"
-                rules={[{ required: true }]}
-              >
-                <Select
-                  options={[
-                    { label: "Trả trước", value: "PREPAID" },
-                    { label: "Trả sau", value: "POSTPAID" },
-                  ]}
-                />
-              </Form.Item>
-
-              <Form.Item
-                label="Ngày đơn"
-                name="orderDate"
-                rules={[{ required: true }]}
-              >
-                <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
-              </Form.Item>
-
-              <Form.Item label="Ngày dự kiến" name="expectedDate">
-                <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
-              </Form.Item>
-
-              <Form.Item label="Số hợp đồng" name="contractNo">
-                <Input placeholder="Tự lấy từ cấu hình NCC nếu để trống" />
-              </Form.Item>
-
-              <Form.Item label="Địa điểm giao hàng" name="deliveryLocation">
-                <Input placeholder="Tự lấy từ cấu hình NCC nếu để trống" />
-              </Form.Item>
-            </div>
-          </div>
-
-          <div
-            style={{
-              border: "1px solid #eef2f7",
-              borderRadius: 12,
-              padding: 12,
-              marginBottom: 12,
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 10 }}>Điều khoản</div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                gap: 12,
-              }}
-            >
-              <Form.Item label="Loại hạn thanh toán" name="paymentTermType">
-                <Select
-                  options={[
-                    { label: "Trong ngày", value: "SAME_DAY" },
-                    { label: "Công nợ theo ngày", value: "NET_DAYS" },
-                  ]}
-                />
-              </Form.Item>
-
-              <Form.Item label="Số ngày công nợ" name="paymentTermDays">
-                <InputNumber
-                  style={{ width: "100%" }}
-                  min={0}
-                  disabled={paymentMode !== "POSTPAID"}
-                />
-              </Form.Item>
-
-              <Form.Item
-                label="Ghi chú"
-                name="note"
-                style={{ gridColumn: "span 2" }}
-              >
-                <Input placeholder="Ghi chú ngắn cho đơn hàng" />
-              </Form.Item>
-            </div>
-          </div>
-
-          <div
-            style={{
-              border: "1px solid #eef2f7",
-              borderRadius: 12,
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                height: 44,
-                padding: "0 12px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                borderBottom: "1px solid #eef2f7",
-                background: "#fbfdff",
-              }}
-            >
-              <div style={{ fontWeight: 600 }}>Dòng hàng</div>
-              <Button size="small" icon={<PlusOutlined />} onClick={addLine}>
-                Thêm dòng
+                Lưu đơn TERM
               </Button>
-            </div>
+            </Space>
+          </div>
+        </Card>
 
-            <Table
-              rowKey="key"
-              size="small"
-              pagination={false}
-              columns={columns}
-              dataSource={lines}
-              scroll={{ x: 1220 }}
-            />
+        <Form<FormValues>
+          form={form}
+          layout="vertical"
+          size="small"
+          initialValues={initialValues}
+          onFinish={onFinish}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) 280px",
+              gap: 10,
+              alignItems: "start",
+            }}
+          >
+            <Space direction="vertical" size={10} style={{ width: "100%" }}>
+              <Card
+                size="small"
+                style={{
+                  borderRadius: 16,
+                  border: "1px solid #e5e7eb",
+                }}
+                styles={{ body: { padding: 12 } }}
+              >
+                <div
+                  style={{ fontWeight: 900, marginBottom: 10, fontSize: 14 }}
+                >
+                  1. Thông tin đơn
+                </div>
 
-            <div
-              style={{
-                padding: "10px 12px",
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 28,
-                borderTop: "1px solid #eef2f7",
-                background: "#fff",
-              }}
-            >
-              <div>
-                <span style={{ color: "#64748b" }}>Tổng SL: </span>
-                <b>{number(summary.totalQty)}</b>
-              </div>
-              <div>
-                <span style={{ color: "#64748b" }}>Tổng tiền tạm: </span>
-                <b>{money(summary.totalAmount)}</b>
-              </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                    gap: 8,
+                  }}
+                >
+                  <Form.Item
+                    name="supplierCustomerId"
+                    label="Nhà cung cấp"
+                    rules={[{ required: true, message: "Chọn nhà cung cấp" }]}
+                  >
+                    <PartySelect
+                      partyRole="SUPPLIER"
+                      placeholder="Chọn nhà cung cấp"
+                      onChange={(value) => {
+                        form.setFieldsValue({
+                          supplierCustomerId: value || undefined,
+                          supplierLocationId: undefined,
+                          lines: (form.getFieldValue("lines") ?? []).map(
+                            (line: TermLineForm) => ({
+                              ...line,
+                              supplierLocationId: undefined,
+                            }),
+                          ),
+                        });
+                        setLocKeyword("");
+                      }}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="supplierLocationId"
+                    label="Kho nhận mặc định"
+                  >
+                    <Select
+                      showSearch
+                      allowClear
+                      disabled={!supplierCustomerId}
+                      placeholder={
+                        supplierCustomerId ? "Chọn kho nhận" : "Chọn NCC trước"
+                      }
+                      filterOption={false}
+                      onSearch={setLocKeyword}
+                      loading={locQuery.isLoading}
+                      options={locationOptions}
+                      onChange={(value) => {
+                        const currentLines = form.getFieldValue("lines") ?? [];
+                        form.setFieldsValue({
+                          supplierLocationId: value,
+                          lines: currentLines.map((line: TermLineForm) => ({
+                            ...line,
+                            supplierLocationId:
+                              line.supplierLocationId || value,
+                          })),
+                        });
+                      }}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="orderDate"
+                    label="Ngày đơn"
+                    rules={[{ required: true, message: "Chọn ngày đơn" }]}
+                  >
+                    <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
+                  </Form.Item>
+
+                  <Form.Item name="expectedDate" label="Ngày dự kiến">
+                    <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
+                  </Form.Item>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                    gap: 8,
+                  }}
+                >
+                  <Form.Item name="contractNo" label="Số hợp đồng">
+                    <Input placeholder="Tự điền theo NCC nếu có" />
+                  </Form.Item>
+
+                  <Form.Item name="deliveryLocation" label="Địa điểm giao hàng">
+                    <Input placeholder="Tự điền theo NCC/kho nếu có" />
+                  </Form.Item>
+
+                  <Form.Item name="premium" label="Premium">
+                    <InputNumber
+                      style={{ width: "100%" }}
+                      addonAfter="USD/bbl"
+                      placeholder="Nếu có"
+                    />
+                  </Form.Item>
+
+                  <Form.Item label="Loại nghiệp vụ">
+                    <Input value="TERM" readOnly />
+                  </Form.Item>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "2fr 1fr",
+                    gap: 8,
+                  }}
+                >
+                  <Form.Item name="paymentNote" label="Điều khoản / Thanh toán">
+                    <Input.TextArea
+                      rows={2}
+                      placeholder="VD: Thanh toán sau khi có hóa đơn/chốt giá..."
+                    />
+                  </Form.Item>
+
+                  <Form.Item name="note" label="Ghi chú nội bộ">
+                    <Input.TextArea rows={2} />
+                  </Form.Item>
+                </div>
+              </Card>
+
+              <Card
+                size="small"
+                style={{
+                  borderRadius: 16,
+                  border: "1px solid #e5e7eb",
+                }}
+                styles={{ body: { padding: 12 } }}
+              >
+                <Form.List name="lines">
+                  {(fields, { add, remove }) => (
+                    <>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          marginBottom: 10,
+                          alignItems: "center",
+                        }}
+                      >
+                        <div style={{ fontWeight: 900, fontSize: 14 }}>
+                          2. Chi tiết hàng hóa
+                        </div>
+
+                        <Button
+                          type="primary"
+                          onClick={() =>
+                            add({
+                              supplierLocationId:
+                                form.getFieldValue("supplierLocationId"),
+                              taxRate: 10,
+                              discountAmount: 0,
+                            })
+                          }
+                        >
+                          Thêm dòng
+                        </Button>
+                      </div>
+
+                      <Form.Item noStyle shouldUpdate>
+                        {() => (
+                          <Table
+                            size="small"
+                            bordered
+                            rowKey="key"
+                            pagination={false}
+                            columns={[
+                              ...lineColumns,
+                              {
+                                title: "",
+                                width: 70,
+                                align: "center",
+                                render: (_, __, index) => (
+                                  <Button
+                                    danger
+                                    size="small"
+                                    disabled={fields.length <= 1}
+                                    onClick={() => remove(index)}
+                                  >
+                                    Xóa
+                                  </Button>
+                                ),
+                              },
+                            ]}
+                            dataSource={fields}
+                            scroll={{ x: 1120, y: 260 }}
+                          />
+                        )}
+                      </Form.Item>
+                    </>
+                  )}
+                </Form.List>
+              </Card>
+            </Space>
+
+            <div style={{ position: "sticky", top: 12 }}>
+              <Card
+                size="small"
+                style={{
+                  borderRadius: 16,
+                  border: "1px solid #e5e7eb",
+                }}
+                styles={{ body: { padding: 12 } }}
+              >
+                <div style={{ fontWeight: 900, marginBottom: 8 }}>
+                  Tóm tắt đơn
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "6px 0",
+                  }}
+                >
+                  <span style={{ color: "#64748b" }}>Số dòng</span>
+                  <b>{summary.totalLine}</b>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "6px 0",
+                  }}
+                >
+                  <span style={{ color: "#64748b" }}>Tổng lượng</span>
+                  <b>{money(summary.totalQty)} L</b>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "6px 0",
+                  }}
+                >
+                  <span style={{ color: "#64748b" }}>Tạm tính</span>
+                  <b>{money(summary.totalAmount)}</b>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "6px 0",
+                  }}
+                >
+                  <span style={{ color: "#64748b" }}>Premium</span>
+                  <b>{premium ? `${premium} USD/bbl` : "--"}</b>
+                </div>
+
+                <div style={{ marginTop: 10 }}>
+                  <Tag color="blue">TERM</Tag>
+                  <Tag color="green">1 bộ giá chung</Tag>
+                  <Tag color="gold">Nhiều dòng hàng</Tag>
+                </div>
+              </Card>
             </div>
           </div>
         </Form>

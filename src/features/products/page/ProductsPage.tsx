@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Button, Space } from "antd";
+import { Space } from "antd";
 import { ProductsFilters } from "../ui/ProductsFilters";
 import { ProductsTable } from "../ui/ProductsTable";
 import { ProductUpsertOverlay } from "../ui/ProductUpsertOverlay";
@@ -51,9 +51,6 @@ export const ProductsPage: React.FC = () => {
     if (mode === "create") return createM.mutateAsync(payload);
     return updateM.mutateAsync({ id: editing!.id, data: payload });
   };
-
-  //   console.log("paged", paged);
-  //   console.log("rows", rows);
 
   return (
     <Space direction="vertical" style={{ width: "100%" }} size={12}>

@@ -28,8 +28,9 @@ import BankStatementPage from "../features/banking/page/BankStatementPage";
 import BankAccountsPage from "../features/bank-accounts/page/BankAccountsPage";
 import BankImportTemplatesPage from "../features/bank-import-templates/ui/page/BankImportTemplatesPage";
 import BankPurposesPage from "../features/bank-purposes/page/BankPurposesPage";
-import PurchaseTermPage from "../features/purchase-term/page/PurchaseTermPage";
-import PurchaseTermCreatePage from "../features/purchase-term/ui/PurchaseTermCreatePage";
+import PlattsPricesPage from "../features/platts-prices/page/PlattsPricesPage";
+import TermPurchaseOrderCreatePage from "../features/purchase-term/ui/PurchaseTermCreatePage";
+import TermPurchaseOrdersPage from "../features/purchase-term/page/PurchaseTermPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -54,12 +55,16 @@ export const router = createBrowserRouter([
             // element: <PurchaseOrdersPage />,
           },
           {
-            path: "/purchase-terms",
-            element: <PurchaseTermPage />,
+            path: "/purchase/platts-prices",
+            element: <PlattsPricesPage />,
           },
           {
-            path: "/purchase-term/create",
-            element: <PurchaseTermCreatePage />,
+            path: "/purchase-terms",
+            element: <TermPurchaseOrdersPage />,
+          },
+          {
+            path: "/purchase-terms/create",
+            element: <TermPurchaseOrderCreatePage />,
           },
           {
             path: "/purchase-invoices/create",
