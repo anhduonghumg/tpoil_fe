@@ -135,20 +135,54 @@ export const ROUTES = {
     ] as RouteTuple,
   },
 
+  // purchaseTerm: {
+  //   orders: {
+  //     list: ["GET", "/purchase-term/orders"] as RouteTuple,
+  //     detail: ["GET", "/purchase-term/orders/:id"] as RouteTuple,
+  //     create: ["POST", "/purchase-term/orders"] as RouteTuple,
+  //     update: ["PATCH", "/purchase-term/orders/:id"] as RouteTuple,
+  //     approve: ["POST", "/purchase-term/orders/:id/approve"] as RouteTuple,
+  //     cancel: ["POST", "/purchase-term/orders/:id/cancel"] as RouteTuple,
+  //     nextAction: [
+  //       "GET",
+  //       "/purchase-term/orders/:id/next-action",
+  //     ] as RouteTuple,
+  //     complete: ["POST", "/purchase-term/orders/:id/complete"] as RouteTuple,
+  //   },
+  // },
+
   purchaseTerm: {
-    orders: {
-      list: ["GET", "/purchase-term/orders"] as RouteTuple,
-      detail: ["GET", "/purchase-term/orders/:id"] as RouteTuple,
-      create: ["POST", "/purchase-term/orders"] as RouteTuple,
-      update: ["PATCH", "/purchase-term/orders/:id"] as RouteTuple,
-      approve: ["POST", "/purchase-term/orders/:id/approve"] as RouteTuple,
-      cancel: ["POST", "/purchase-term/orders/:id/cancel"] as RouteTuple,
-      nextAction: [
-        "GET",
-        "/purchase-term/orders/:id/next-action",
-      ] as RouteTuple,
-      complete: ["POST", "/purchase-term/orders/:id/complete"] as RouteTuple,
-    },
+    list: ["GET", "/purchase-terms"] as RouteTuple,
+    detail: ["GET", "/purchase-terms/:id"] as RouteTuple,
+    create: ["POST", "/purchase-terms"] as RouteTuple,
+    update: ["PATCH", "/purchase-terms/:id"] as RouteTuple,
+    approve: ["POST", "/purchase-terms/:id/approve"] as RouteTuple,
+    cancel: ["POST", "/purchase-terms/:id/cancel"] as RouteTuple,
+    nextAction: ["GET", "/purchase-terms/:id/next-action"] as RouteTuple,
+    complete: ["POST", "/purchase-terms/:id/complete"] as RouteTuple,
+
+    receipts: ["GET", "/purchase-terms/:orderId/receipts"] as RouteTuple,
+    createReceipt: ["POST", "/purchase-terms/:orderId/receipts"] as RouteTuple,
+    receiptDetail: ["GET", "/purchase-terms/receipts/:id"] as RouteTuple,
+    updateReceipt: ["PATCH", "/purchase-terms/receipts/:id"] as RouteTuple,
+    confirmReceipt: [
+      "POST",
+      "/purchase-terms/receipts/:id/confirm",
+    ] as RouteTuple,
+    voidReceipt: ["POST", "/purchase-terms/receipts/:id/void"] as RouteTuple,
+
+    createEstimatePricing: [
+      "POST",
+      "/purchase-terms/:orderId/estimate",
+    ] as RouteTuple,
+    createBillNormalizePricing: [
+      "POST",
+      "/purchase-terms/:orderId/bill-normalize",
+    ] as RouteTuple,
+    createFinalPricing: [
+      "POST",
+      "/purchase-terms/:orderId/final-pricing",
+    ] as RouteTuple,
   },
 
   commodityPriceQuotes: {
@@ -156,13 +190,6 @@ export const ROUTES = {
     upsert: ["POST", "/commodity-price-quotes/upsert"] as RouteTuple,
     delete: ["DELETE", "/commodity-price-quotes/:id"] as RouteTuple,
   },
-
-  // supplierInvoices: {
-  //   create: ["POST", "/supplier-invoices"] as RouteTuple,
-  //   importPdf: ["POST", "/supplier-invoices/import-pdf"] as RouteTuple,
-  //   detail: ["GET", "/supplier-invoices/:id"] as RouteTuple,
-  //   post: ["POST", "/supplier-invoices/:id/post"] as RouteTuple,
-  // },
 
   supplierInvoices: {
     create: ["POST", "/supplier-invoices"] as RouteTuple,

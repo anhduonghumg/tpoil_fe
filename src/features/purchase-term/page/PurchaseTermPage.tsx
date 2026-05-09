@@ -139,7 +139,7 @@ export default function TermPurchaseOrdersPage() {
           type="link"
           size="small"
           style={{ padding: 0, fontWeight: 800 }}
-          onClick={() => navigate(`/purchase-orders/${record.id}`)}
+          onClick={() => navigate(`/purchase-terms/${record.id}`)}
         >
           {value}
         </Button>

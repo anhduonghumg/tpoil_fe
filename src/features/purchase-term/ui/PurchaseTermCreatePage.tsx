@@ -149,8 +149,8 @@ export default function TermPurchaseOrderCreatePage() {
     }
 
     const payload: CreateTermPurchaseOrderPayload = {
-      bizType: "TERM",
-      orderType: "SINGLE",
+      // bizType: "TERM",
+      // orderType: "SINGLE",
       supplierCustomerId: values.supplierCustomerId,
       supplierLocationId: values.supplierLocationId,
       orderDate: toDate(values.orderDate)!,

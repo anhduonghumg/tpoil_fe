@@ -31,6 +31,7 @@ import BankPurposesPage from "../features/bank-purposes/page/BankPurposesPage";
 import PlattsPricesPage from "../features/platts-prices/page/PlattsPricesPage";
 import TermPurchaseOrderCreatePage from "../features/purchase-term/ui/PurchaseTermCreatePage";
 import TermPurchaseOrdersPage from "../features/purchase-term/page/PurchaseTermPage";
+import TermPurchaseOrderDetailPage from "../features/purchase-term/page/TermPurchaseOrderDetailPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -61,6 +62,10 @@ export const router = createBrowserRouter([
           {
             path: "/purchase-terms",
             element: <TermPurchaseOrdersPage />,
+          },
+          {
+            path: "/purchase-terms/:id",
+            element: <TermPurchaseOrderDetailPage />,
           },
           {
             path: "/purchase-terms/create",
