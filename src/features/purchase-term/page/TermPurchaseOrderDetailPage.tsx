@@ -30,6 +30,7 @@ import type {
 } from "../types";
 import { TermReceiptModal } from "../ui/TermReceiptModal";
 import { TermPricingModal } from "../ui/TermPricingModal";
+import TermPricingSheetTable from "../ui/TermPricingSheetTable";
 
 const { Title, Text } = Typography;
 
@@ -108,7 +109,7 @@ export default function TermPurchaseOrderDetailPage() {
   const detailQuery = useTermPurchaseOrderDetail(id);
   const approveMutation = useApproveTermPurchaseOrder();
 
-  const data = detailQuery?.data?.data;
+  const data = detailQuery?.data;
   const createReceiptMutation = useCreateTermReceipt(data?.id);
   const confirmReceiptMutation = useConfirmTermReceipt(data?.id);
 
@@ -139,11 +140,29 @@ export default function TermPurchaseOrderDetailPage() {
           />
         );
       case "tempPrice":
-        return <PricingStageSection data={data} stageType="ESTIMATE" />;
+        return (
+          <PricingStageSection
+            data={data}
+            stageType="ESTIMATE"
+            onCreate={() => setPricingKind("ESTIMATE")}
+          />
+        );
       case "invoicePrice":
-        return <PricingStageSection data={data} stageType="BILL_NORMALIZE" />;
+        return (
+          <PricingStageSection
+            data={data}
+            stageType="BILL_NORMALIZE"
+            onCreate={() => setPricingKind("BILL_NORMALIZE")}
+          />
+        );
       case "officialFx":
-        return <PricingStageSection data={data} stageType="FINAL" />;
+        return (
+          <PricingStageSection
+            data={data}
+            stageType="FINAL"
+            onCreate={() => setPricingKind("FINAL")}
+          />
+        );
       case "costs":
         return <CostsSection data={data} />;
       case "bossSheet":
@@ -223,7 +242,7 @@ export default function TermPurchaseOrderDetailPage() {
               </Button>
 
               <Button
-                disabled={data.nextAction !== "CALCULATE_TEMP_PRICE"}
+                // disabled={data.nextAction !== "CALCULATE_TEMP_PRICE"}
                 onClick={() => setPricingKind("ESTIMATE")}
               >
                 Bảng giá tạm
@@ -554,9 +573,11 @@ function ReceiptSection({
 function PricingStageSection({
   data,
   stageType,
+  onCreate,
 }: {
   data: TermPurchaseOrderDetail;
   stageType: "ESTIMATE" | "BILL_NORMALIZE" | "FINAL";
+  onCreate: () => void;
 }) {
   const stage = getStage(data, stageType);
   const hasReceipt = (data.receipts || []).some(
@@ -570,9 +591,9 @@ function PricingStageSection({
   };
 
   const descMap = {
-    ESTIMATE: "Tính giá tạm sau khi đã có nhận hàng.",
-    BILL_NORMALIZE: "Cập nhật theo bill, biên bản giao nhận và số liệu bồn.",
-    FINAL: "Chốt theo tỷ giá chính thức và số cuối.",
+    ESTIMATE: "Bảng tính giá sau khi đã xác nhận nhận hàng.",
+    BILL_NORMALIZE: "Bảng tính theo bill, số liệu bồn và chi phí cập nhật.",
+    FINAL: "Bảng chốt theo tỷ giá chính thức và số liệu cuối.",
   };
 
   const actionMap = {
@@ -585,7 +606,7 @@ function PricingStageSection({
     return (
       <Card size="small" style={{ borderRadius: 16 }}>
         <HeaderBlock title={titleMap[stageType]} desc={descMap[stageType]} />
-        <Empty description="Chưa thể tạo bảng giá vì chưa có phiếu nhận hàng xác nhận." />
+        <Empty description="Chưa thể tạo bảng giá vì chưa có phiếu nhận hàng đã xác nhận." />
       </Card>
     );
   }
@@ -600,8 +621,9 @@ function PricingStageSection({
             <Button
               type="primary"
               disabled={data.nextAction !== actionMap[stageType]}
+              onClick={onCreate}
             >
-              {titleMap[stageType]}
+              Tạo {titleMap[stageType].toLowerCase()}
             </Button>
           }
         />
@@ -628,46 +650,6 @@ function StageView({
   desc: string;
   stage: TermPricingStage;
 }) {
-  const lineColumns: ColumnsType<any> = [
-    { title: "Sản phẩm", dataIndex: "productName", width: 180 },
-    { title: "Kho", dataIndex: "supplierLocationName", width: 180 },
-    {
-      title: "Qty",
-      dataIndex: "qtyActual",
-      align: "right",
-      width: 120,
-      render: (v, r) => `${fmt(v ?? r.qtyV15)} L`,
-    },
-    {
-      title: "Platts TB",
-      dataIndex: "mopsAvgUsdPerBbl",
-      align: "right",
-      width: 120,
-      render: (v) => fmt(v, 6),
-    },
-    {
-      title: "Premium",
-      dataIndex: "premiumUsdPerBbl",
-      align: "right",
-      width: 120,
-      render: (v) => fmt(v, 6),
-    },
-    {
-      title: "Đơn giá",
-      dataIndex: "unitVndPerLiter",
-      align: "right",
-      width: 140,
-      render: (v) => (v == null ? "--" : `${fmt(v, 2)} đ/L`),
-    },
-    {
-      title: "Thành tiền",
-      dataIndex: "amountVnd",
-      align: "right",
-      width: 150,
-      render: (v) => fmt(v),
-    },
-  ];
-
   return (
     <Space direction="vertical" size={10} style={{ width: "100%" }}>
       <Card size="small" style={{ borderRadius: 16 }}>
@@ -680,14 +662,20 @@ function StageView({
           <Descriptions.Item label="Premium">
             {fmt(stage.premiumUsdPerBbl, 6)}
           </Descriptions.Item>
+          <Descriptions.Item label="TTĐB">
+            {fmt(stage.specialConsumptionTaxUsdPerBbl, 6)}
+          </Descriptions.Item>
           <Descriptions.Item label="FX">
             {fmt(stage.fxRate, 2)}
           </Descriptions.Item>
-          <Descriptions.Item label="Tổng tiền">
-            {fmt(stage.totalAmountVnd)} đ
+          <Descriptions.Item label="Tổng BILL">
+            {fmt(stage.billTotalVnd)} đ
           </Descriptions.Item>
-          <Descriptions.Item label="Đơn giá">
-            {fmt(stage.unitVndPerLiter, 2)} đ/L
+          <Descriptions.Item label="Đơn giá bồn">
+            {fmt(stage.tankUnitPriceVndPerLiter, 2)} đ/L
+          </Descriptions.Item>
+          <Descriptions.Item label="Đơn giá bán">
+            {fmt(stage.sellingUnitPriceVndPerLiter, 2)} đ/L
           </Descriptions.Item>
           <Descriptions.Item label="Stage">
             <Tag color="blue">{stage.stageType}</Tag>
@@ -695,19 +683,12 @@ function StageView({
         </Descriptions>
       </Card>
 
-      <Card size="small" style={{ borderRadius: 16 }}>
-        <div style={{ fontWeight: 900, marginBottom: 8 }}>
-          Chi tiết dòng hàng
-        </div>
-        <Table
-          size="small"
-          bordered
-          rowKey="id"
-          columns={lineColumns}
-          dataSource={stage.lines || []}
-          pagination={false}
-          scroll={{ x: 1100 }}
-        />
+      <Card
+        size="small"
+        style={{ borderRadius: 16 }}
+        styles={{ body: { padding: 8 } }}
+      >
+        <TermPricingSheetTable rows={stage.sheetRows || []} />
       </Card>
     </Space>
   );
@@ -754,30 +735,26 @@ function CostsSection({ data }: { data: TermPurchaseOrderDetail }) {
 }
 
 function BossSheetSection({ data }: { data: TermPurchaseOrderDetail }) {
+  const bossStage = getStage(data, "BOSS_SHEET");
   const finalStage = getStage(data, "FINAL");
+  const stage = bossStage || finalStage;
 
   return (
     <Card size="small" style={{ borderRadius: 16 }}>
       <HeaderBlock
         title="Bảng sếp"
-        desc="Bảng tổng hợp cuối cùng phục vụ xem nhanh hiệu quả lô hàng."
-        action={<Button disabled={!finalStage}>Xuất Excel</Button>}
+        desc={
+          bossStage
+            ? "Bảng tổng hợp phục vụ quản trị."
+            : "Tạm hiển thị bảng FINAL. Sau này có thể tạo BOSS_SHEET riêng."
+        }
+        action={<Button disabled={!stage}>Xuất Excel</Button>}
       />
 
-      {!finalStage ? (
-        <Empty description="Chưa có bảng FINAL nên chưa lập được bảng sếp." />
+      {!stage ? (
+        <Empty description="Chưa có dữ liệu để lập bảng sếp." />
       ) : (
-        <Descriptions size="small" column={3}>
-          <Descriptions.Item label="Tổng lượng">
-            {fmt(data.totalQty)} L
-          </Descriptions.Item>
-          <Descriptions.Item label="Giá vốn">
-            {fmt(finalStage.unitVndPerLiter, 2)} đ/L
-          </Descriptions.Item>
-          <Descriptions.Item label="Tổng tiền">
-            {fmt(finalStage.totalAmountVnd)} đ
-          </Descriptions.Item>
-        </Descriptions>
+        <TermPricingSheetTable rows={stage.sheetRows || []} />
       )}
     </Card>
   );

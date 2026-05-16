@@ -3,10 +3,10 @@ import { ApiResponse } from "../../shared/lib/types";
 import type {
   CreateTermGoodsReceiptPayload,
   CreateTermPricingPayload,
+  CreateTermPricingResult,
   CreateTermPurchaseOrderPayload,
   CreateTermPurchaseOrderResult,
   TermGoodsReceipt,
-  TermPricingStage,
   TermPurchaseOrderDetail,
   TermPurchaseOrderListQuery,
   TermPurchaseOrderListResult,
@@ -27,7 +27,7 @@ export const TermPurchaseOrdersApi = {
   detail: (id: string) =>
     apiCall<ApiResponse<TermPurchaseOrderDetail>>("purchaseTerm.detail", {
       params: { id },
-    }).then((r) => (r.data ?? r.data) as any),
+    }).then((r) => (r.data!.data ?? r.data) as any),
 
   approve: (id: string) =>
     apiCall<ApiResponse<TermPurchaseOrderDetail>>("purchaseTerm.approve", {
@@ -62,7 +62,7 @@ export const TermPurchaseOrdersApi = {
     }).then((r) => (r.data!.data ?? r.data) as any),
 
   createEstimatePricing: (orderId: string, data: CreateTermPricingPayload) =>
-    apiCall<ApiResponse<TermPricingStage>>(
+    apiCall<ApiResponse<CreateTermPricingResult>>(
       "purchaseTerm.createEstimatePricing",
       {
         params: { orderId },
@@ -74,7 +74,7 @@ export const TermPurchaseOrdersApi = {
     orderId: string,
     data: CreateTermPricingPayload,
   ) =>
-    apiCall<ApiResponse<TermPricingStage>>(
+    apiCall<ApiResponse<CreateTermPricingResult>>(
       "purchaseTerm.createBillNormalizePricing",
       {
         params: { orderId },
@@ -83,8 +83,25 @@ export const TermPurchaseOrdersApi = {
     ).then((r) => (r.data!.data ?? r.data) as any),
 
   createFinalPricing: (orderId: string, data: CreateTermPricingPayload) =>
-    apiCall<ApiResponse<TermPricingStage>>("purchaseTerm.createFinalPricing", {
-      params: { orderId },
-      data,
-    }).then((r) => (r.data!.data ?? r.data) as any),
+    apiCall<ApiResponse<CreateTermPricingResult>>(
+      "purchaseTerm.createFinalPricing",
+      {
+        params: { orderId },
+        data,
+      },
+    ).then((r) => (r.data!.data ?? r.data) as any),
+
+  createBossSheetPricing: (orderId: string, data: CreateTermPricingPayload) =>
+    apiCall<ApiResponse<CreateTermPricingResult>>(
+      "purchaseTerm.createBossSheetPricing",
+      {
+        params: { orderId },
+        data,
+      },
+    ).then((r) => (r.data!.data ?? r.data) as any),
+
+  getVcbFxRate: () =>
+    apiCall<any>("purchaseTerm.getVcbFxRate").then(
+      (r) => (r.data!.data ?? r.data) as any,
+    ),
 };

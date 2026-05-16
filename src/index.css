@@ -130,6 +130,15 @@ button:focus-visible {
   background: #f8fafc !important;
 }
 
+.term-sheet-row-highlight td {
+    background: #e6f4ff !important;
+}
+
+.term-sheet-row-result td {
+    background: #fafafa;
+    font-weight: 600;
+}
+
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;

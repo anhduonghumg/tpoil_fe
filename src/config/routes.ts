@@ -173,16 +173,21 @@ export const ROUTES = {
 
     createEstimatePricing: [
       "POST",
-      "/purchase-terms/:orderId/estimate",
+      "/purchase-terms/:orderId/pricing/estimate",
     ] as RouteTuple,
     createBillNormalizePricing: [
       "POST",
-      "/purchase-terms/:orderId/bill-normalize",
+      "/purchase-terms/:orderId/pricing/bill-normalize",
     ] as RouteTuple,
     createFinalPricing: [
       "POST",
-      "/purchase-terms/:orderId/final-pricing",
+      "/purchase-terms/:orderId/pricing/final",
     ] as RouteTuple,
+    createBossSheetPricing: [
+      "POST",
+      "/purchase-terms/:orderId/pricing/boss-sheet",
+    ] as RouteTuple,
+    getVcbFxRate: ["GET", "/purchase-terms/vcb-fx-rate"] as RouteTuple,
   },
 
   commodityPriceQuotes: {

@@ -150,3 +150,26 @@ export function useCreateTermFinalPricing(orderId?: string) {
       notify.error(e?.message || "Tạo bảng tỷ giá chính thức thất bại"),
   });
 }
+
+export function useCreateTermBossSheetPricing(orderId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: CreateTermPricingPayload) =>
+      TermPurchaseOrdersApi.createBossSheetPricing(orderId!, data),
+
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchase-terms"] });
+      qc.invalidateQueries({ queryKey: ["purchase-terms", "detail", orderId] });
+      notify.success("Đã tạo bảng sếp");
+    },
+
+    onError: (e: any) => notify.error(e?.message || "Tạo bảng sếp thất bại"),
+  });
+}
+
+export function useFetchVcbFxRate() {
+  return useMutation({
+    mutationFn: () => TermPurchaseOrdersApi.getVcbFxRate(),
+  });
+}
