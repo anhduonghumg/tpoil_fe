@@ -188,6 +188,7 @@ export const ROUTES = {
       "/purchase-terms/:orderId/pricing/boss-sheet",
     ] as RouteTuple,
     getVcbFxRate: ["GET", "/purchase-terms/vcb-fx-rate"] as RouteTuple,
+    getPlattsAverage: ["GET", "/purchase-terms/platts-average"] as RouteTuple,
   },
 
   commodityPriceQuotes: {

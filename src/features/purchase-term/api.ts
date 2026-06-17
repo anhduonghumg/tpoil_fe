@@ -104,4 +104,9 @@ export const TermPurchaseOrdersApi = {
     apiCall<any>("purchaseTerm.getVcbFxRate").then(
       (r) => (r.data!.data ?? r.data) as any,
     ),
+
+  getPlattsAverage: (params: { productId: string; baseDate: string }) =>
+    apiCall<any>("purchaseTerm.getPlattsAverage", {
+      query: params,
+    }).then((r) => (r.data!.data ?? r.data) as any),
 };

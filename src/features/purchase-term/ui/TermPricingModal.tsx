@@ -7,6 +7,7 @@ import {
   Form,
   Input,
   InputNumber,
+  message,
   Modal,
   Radio,
   Space,
@@ -22,6 +23,8 @@ import type {
   TermPurchaseOrderDetail,
 } from "../types";
 import { useFetchVcbFxRate } from "../hooks";
+import { TermPurchaseOrdersApi } from "../api";
+import { notify } from "../../../shared/lib/notification";
 
 const { Text } = Typography;
 
@@ -41,8 +44,6 @@ type FormValues = {
   qtyBasisSelected: "ACTUAL" | "V15";
 
   plattsBaseDate?: dayjs.Dayjs;
-  plattsDaysBefore?: number;
-  plattsDaysAfter?: number;
 
   mopsAvgUsdPerBbl?: number;
   premiumUsdPerBbl?: number;
@@ -104,9 +105,65 @@ export function TermPricingModal({
   const fetchFx = async () => {
     try {
       const res = await fxMutation.mutateAsync();
-      form.setFieldValue("fxRate", Number(res.sell || 0));
+
+      const rate = Number(
+        res?.sell ?? res?.data?.sell ?? res?.data?.data?.sell ?? 0,
+      );
+
+      if (!rate) {
+        notify.warning("Không đọc được tỷ giá VCB");
+        return;
+      }
+
+      form.setFieldsValue({
+        fxRate: rate,
+        fxRateDate: dayjs(),
+      });
     } catch (e) {
       console.error(e);
+      notify.error("Lấy tỷ giá VCB thất bại");
+    }
+  };
+
+  const fetchPlattsAverage = async () => {
+    try {
+      const baseDate = form.getFieldValue("plattsBaseDate");
+      const productId = data.lines?.[0]?.productId;
+
+      if (!baseDate) {
+        notify.warning("Vui lòng chọn ngày mốc Platts");
+        return;
+      }
+
+      if (!productId) {
+        notify.warning("Không tìm thấy sản phẩm để lấy giá Platts");
+        return;
+      }
+
+      const res = await TermPurchaseOrdersApi.getPlattsAverage({
+        productId,
+        baseDate: baseDate.format("YYYY-MM-DD"),
+      });
+
+      const avg = Number(
+        res?.avgPriceUsdPerBbl ??
+          res?.mopsAvgUsdPerBbl ??
+          res?.average ??
+          res?.avg ??
+          0,
+      );
+
+      if (!avg) {
+        notify.warning("Không có dữ liệu Platts cho khoảng ngày này");
+        return;
+      }
+
+      form.setFieldsValue({
+        mopsAvgUsdPerBbl: avg,
+      });
+    } catch (e) {
+      console.error(e);
+      notify.error("Lấy giá trung bình Platts thất bại");
     }
   };
 
@@ -127,8 +184,6 @@ export function TermPricingModal({
       qtyBasisSelected: "V15",
 
       plattsBaseDate: dayjs(),
-      plattsDaysBefore: 5,
-      plattsDaysAfter: 5,
 
       premiumUsdPerBbl: data.premium ?? undefined,
       specialConsumptionTaxUsdPerBbl: 0,
@@ -146,7 +201,7 @@ export function TermPricingModal({
 
       envTaxVndPerLiter: undefined,
       extraCostVndPerLiter: undefined,
-      retailPriceVndPerLiter: kind === "BOSS_SHEET" ? undefined : undefined,
+      retailPriceVndPerLiter: undefined,
 
       costs: [],
     });
@@ -196,8 +251,8 @@ export function TermPricingModal({
       qtyBasisLocked: kind === "FINAL",
 
       plattsBaseDate: v.plattsBaseDate?.format("YYYY-MM-DD"),
-      plattsDaysBefore: v.plattsDaysBefore ?? 5,
-      plattsDaysAfter: v.plattsDaysAfter ?? 5,
+      plattsDaysBefore: 5,
+      plattsDaysAfter: 5,
 
       mopsAvgUsdPerBbl: toNumber(v.mopsAvgUsdPerBbl),
       premiumUsdPerBbl: toNumber(v.premiumUsdPerBbl),
@@ -287,6 +342,7 @@ export function TermPricingModal({
       >
         <Form form={form} layout="vertical" size="small">
           <Divider orientation="left">1. Platts / giá gốc</Divider>
+
           <div
             style={{
               display: "grid",
@@ -302,19 +358,30 @@ export function TermPricingModal({
               <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
             </Form.Item>
 
-            <Form.Item name="plattsBaseDate" label="Ngày mốc Platts">
-              <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
-            </Form.Item>
+            <div style={{ display: "grid", gap: 4 }}>
+              <Form.Item
+                name="plattsBaseDate"
+                label="Ngày mốc Platts"
+                style={{ marginBottom: 0 }}
+              >
+                <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
+              </Form.Item>
 
-            <Form.Item name="plattsDaysBefore" label="Số ngày lùi">
-              <InputNumber min={0} max={30} style={{ width: "100%" }} />
-            </Form.Item>
+              <Button
+                size="small"
+                type="link"
+                onClick={fetchPlattsAverage}
+                style={{
+                  padding: 0,
+                  height: "auto",
+                  justifyContent: "flex-start",
+                }}
+              >
+                Lấy giá TB Platts
+              </Button>
+            </div>
 
-            <Form.Item name="plattsDaysAfter" label="Số ngày tiến">
-              <InputNumber min={0} max={30} style={{ width: "100%" }} />
-            </Form.Item>
-
-            <Form.Item name="mopsAvgUsdPerBbl" label="Giá TB thủ công">
+            <Form.Item name="mopsAvgUsdPerBbl" label="Giá Platts TB">
               <InputNumber style={{ width: "100%" }} addonAfter="USD/bbl" />
             </Form.Item>
 
@@ -363,6 +430,7 @@ export function TermPricingModal({
                   addonAfter="VND/USD"
                 />
               </Form.Item>
+
               <Button
                 size="small"
                 type="link"
@@ -487,8 +555,8 @@ export function TermPricingModal({
           </Form.Item>
 
           <Text type="secondary">
-            Hệ thống sẽ tự sinh bảng sheet theo Platts, tỷ giá, số lượng và chi
-            phí đã nhập.
+            Hệ thống sẽ tự lấy giá Platts trung bình mặc định trong khoảng 5
+            ngày trước và 5 ngày sau ngày mốc.
           </Text>
         </Form>
       </ConfigProvider>
