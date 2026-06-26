@@ -2,15 +2,22 @@ import { apiCall } from "../../shared/lib/api";
 import { ApiResponse } from "../../shared/lib/types";
 import type {
   CreateTermGoodsReceiptPayload,
+  CreateTermLogisticsCostPayload,
   CreateTermPricingPayload,
   CreateTermPricingResult,
   CreateTermPurchaseOrderPayload,
+  CreateTermShipmentPayload,
   CreateTermPurchaseOrderResult,
   TermGoodsReceipt,
+  TermLogisticsCost,
   TermPurchaseOrderDetail,
+  TermShipment,
   TermPurchaseOrderListQuery,
   TermPurchaseOrderListResult,
   UpdateTermGoodsReceiptPayload,
+  UpdateTermLogisticsCostPayload,
+  UpdateTermShipmentPayload,
+  ValidateTermContractResult,
 } from "./types";
 
 export const TermPurchaseOrdersApi = {
@@ -33,6 +40,17 @@ export const TermPurchaseOrdersApi = {
     apiCall<ApiResponse<TermPurchaseOrderDetail>>("purchaseTerm.approve", {
       params: { id },
     }).then((r) => (r.data!.data ?? r.data) as any),
+
+  complete: (id: string) =>
+    apiCall<ApiResponse<TermPurchaseOrderDetail>>("purchaseTerm.complete", {
+      params: { id },
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  validateContract: (query: { supplierCustomerId: string; orderDate?: string }) =>
+    apiCall<ApiResponse<ValidateTermContractResult>>(
+      "purchaseTerm.validateContract",
+      { query },
+    ).then((r) => (r.data!.data ?? r.data) as any),
 
   receipts: (orderId: string) =>
     apiCall<ApiResponse<TermGoodsReceipt[]>>("purchaseTerm.receipts", {
@@ -100,13 +118,83 @@ export const TermPurchaseOrdersApi = {
       },
     ).then((r) => (r.data!.data ?? r.data) as any),
 
-  getVcbFxRate: () =>
-    apiCall<any>("purchaseTerm.getVcbFxRate").then(
+  getVcbFxRate: (params?: { date?: string; currencyCode?: string }) =>
+    apiCall<any>("purchaseTerm.getVcbFxRate", { query: params }).then(
       (r) => (r.data!.data ?? r.data) as any,
     ),
 
   getPlattsAverage: (params: { productId: string; baseDate: string }) =>
     apiCall<any>("purchaseTerm.getPlattsAverage", {
       query: params,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  getEnvironmentTax: (params: { productId: string; date: string }) =>
+    apiCall<any>("purchaseTerm.getEnvironmentTax", {
+      query: params,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  shipments: (purchaseOrderId: string) =>
+    apiCall<ApiResponse<TermShipment[]>>("purchaseTerm.shipments", {
+      params: { purchaseOrderId },
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  createShipment: (purchaseOrderId: string, data: CreateTermShipmentPayload) =>
+    apiCall<ApiResponse<TermShipment>>("purchaseTerm.createShipment", {
+      params: { purchaseOrderId },
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  updateShipment: (
+    purchaseOrderId: string,
+    shipmentId: string,
+    data: UpdateTermShipmentPayload,
+  ) =>
+    apiCall<ApiResponse<TermShipment>>("purchaseTerm.updateShipment", {
+      params: { purchaseOrderId, shipmentId },
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  deleteShipment: (purchaseOrderId: string, shipmentId: string) =>
+    apiCall<ApiResponse<any>>("purchaseTerm.deleteShipment", {
+      params: { purchaseOrderId, shipmentId },
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  logisticsCosts: (purchaseOrderId: string) =>
+    apiCall<ApiResponse<TermLogisticsCost[]>>("purchaseTerm.logisticsCosts", {
+      params: { purchaseOrderId },
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  createLogisticsCost: (
+    purchaseOrderId: string,
+    data: CreateTermLogisticsCostPayload,
+  ) =>
+    apiCall<ApiResponse<TermLogisticsCost>>("purchaseTerm.createLogisticsCost", {
+      params: { purchaseOrderId },
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  updateLogisticsCost: (
+    purchaseOrderId: string,
+    costId: string,
+    data: UpdateTermLogisticsCostPayload,
+  ) =>
+    apiCall<ApiResponse<TermLogisticsCost>>("purchaseTerm.updateLogisticsCost", {
+      params: { purchaseOrderId, costId },
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  deleteLogisticsCost: (purchaseOrderId: string, costId: string) =>
+    apiCall<ApiResponse<any>>("purchaseTerm.deleteLogisticsCost", {
+      params: { purchaseOrderId, costId },
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  confirmLogisticsCost: (purchaseOrderId: string, costId: string) =>
+    apiCall<ApiResponse<TermLogisticsCost>>("purchaseTerm.confirmLogisticsCost", {
+      params: { purchaseOrderId, costId },
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  voidLogisticsCost: (purchaseOrderId: string, costId: string) =>
+    apiCall<ApiResponse<TermLogisticsCost>>("purchaseTerm.voidLogisticsCost", {
+      params: { purchaseOrderId, costId },
     }).then((r) => (r.data!.data ?? r.data) as any),
 };

@@ -22,8 +22,11 @@ export type TermNextAction =
   | "APPROVE_ORDER"
   | "CREATE_RECEIPT"
   | "CALCULATE_ESTIMATE"
+  | "CALCULATE_TEMP_PRICE"
   | "CALCULATE_BILL_NORMALIZE"
+  | "CALCULATE_INVOICE_PRICE"
   | "CALCULATE_FINAL"
+  | "CALCULATE_OFFICIAL_FX"
   | "COMPLETE_ORDER"
   | "VIEW_ONLY";
 
@@ -58,6 +61,8 @@ export type CreateTermPurchaseOrderPayload = {
   expectedDate?: string;
 
   contractNo?: string;
+
+  transportMode?: TermTransportMode;
 
   deliveryLocation?: string;
 
@@ -570,6 +575,38 @@ export type CreateTermPricingResult = TermPricingStage;
 // DETAIL
 // =========================
 
+
+// =========================
+// WORKFLOW / PRINT
+// =========================
+
+export type TermWorkflowStepStatus = "DONE" | "CURRENT" | "WAITING";
+
+export type TermWorkflowStep = {
+  key: string;
+  title: string;
+  description?: string | null;
+  status: TermWorkflowStepStatus;
+  action?: TermNextAction | string | null;
+};
+
+export type TermWorkflow = {
+  currentAction: TermNextAction | string;
+  currentActionLabel: string;
+  progress: number;
+  missing: string[];
+  steps: TermWorkflowStep[];
+};
+
+export type TermPrintDocumentStatus = "READY" | "WAITING";
+
+export type TermPrintDocument = {
+  key: string;
+  title: string;
+  description?: string | null;
+  status: TermPrintDocumentStatus;
+};
+
 export type TermPurchaseOrderDetail = {
   id: UUID;
 
@@ -597,6 +634,10 @@ export type TermPurchaseOrderDetail = {
 
   contractNo?: string | null;
 
+  contractId?: UUID | null;
+
+  transportMode?: TermTransportMode | null;
+
   deliveryLocation?: string | null;
 
   paymentNote?: string | null;
@@ -621,7 +662,15 @@ export type TermPurchaseOrderDetail = {
 
   pricingRuns: TermPricingRun[];
 
+  shipments?: TermShipment[];
+
+  logisticsCosts?: TermLogisticsCost[];
+
   nextAction: TermNextAction;
+
+  workflow?: TermWorkflow;
+
+  printDocuments?: TermPrintDocument[];
 
   termPremiumUsdPerBbl?: number | null;
 
@@ -649,3 +698,103 @@ export type TermPurchaseOrderListResult = Paged<TermPurchaseOrderListItem>;
 
 export type UpdateTermGoodsReceiptPayload =
   Partial<CreateTermGoodsReceiptPayload>;
+
+
+// =========================
+// CONTRACT / TRANSPORT / LOGISTICS
+// =========================
+
+export type TermTransportMode = "SEA" | "PIPELINE" | "TRUCK" | "BARGE" | "OTHER";
+
+export type ValidateTermContractResult = {
+  valid: boolean;
+  reason?: string;
+  message?: string;
+  contract?: {
+    id: UUID;
+    code: string;
+    name?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    status?: string | null;
+  } | null;
+};
+
+export type TermShipment = {
+  id: UUID;
+  purchaseOrderId: UUID;
+  transportMode: TermTransportMode;
+  vesselName?: string | null;
+  voyageNo?: string | null;
+  blNo?: string | null;
+  loadingPort?: string | null;
+  dischargePort?: string | null;
+  eta?: string | null;
+  etd?: string | null;
+  status?: string | null;
+  note?: string | null;
+};
+
+export type TermLogisticsCostLine = {
+  id: UUID;
+  costType: string;
+  amountBeforeVat?: number | null;
+  vatRate?: number | null;
+  vatAmount?: number | null;
+  amountAfterVat?: number | null;
+  amountVndBeforeVat?: number | null;
+  isCapitalizedToCost?: boolean | null;
+  note?: string | null;
+};
+
+export type TermLogisticsCost = {
+  id: UUID;
+  purchaseOrderId: UUID;
+  shipmentId?: UUID | null;
+  documentNo?: string | null;
+  documentDate?: string | null;
+  vendorName?: string | null;
+  currency: string;
+  fxRate?: number | null;
+  totalBeforeVat?: number | null;
+  totalVat?: number | null;
+  totalAfterVat?: number | null;
+  status: string;
+  note?: string | null;
+  lines: TermLogisticsCostLine[];
+};
+
+export type CreateTermShipmentPayload = {
+  transportMode: TermTransportMode;
+  vesselName?: string;
+  voyageNo?: string;
+  blNo?: string;
+  loadingPort?: string;
+  dischargePort?: string;
+  eta?: string;
+  etd?: string;
+  note?: string;
+};
+
+export type CreateTermLogisticsCostLinePayload = {
+  costType: string;
+  amountBeforeVat: number;
+  vatRate?: number;
+  amountVndBeforeVat?: number;
+  isCapitalizedToCost?: boolean;
+  note?: string;
+};
+
+export type CreateTermLogisticsCostPayload = {
+  shipmentId?: UUID;
+  documentNo?: string;
+  documentDate?: string;
+  vendorName?: string;
+  currency?: string;
+  fxRate?: number;
+  note?: string;
+  lines: CreateTermLogisticsCostLinePayload[];
+};
+
+export type UpdateTermShipmentPayload = Partial<CreateTermShipmentPayload>;
+export type UpdateTermLogisticsCostPayload = Partial<CreateTermLogisticsCostPayload>;

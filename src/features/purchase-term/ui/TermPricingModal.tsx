@@ -22,7 +22,7 @@ import type {
   TermPricingStageType,
   TermPurchaseOrderDetail,
 } from "../types";
-import { useFetchVcbFxRate } from "../hooks";
+import { useFetchEnvironmentTax, useFetchVcbFxRate } from "../hooks";
 import { TermPurchaseOrdersApi } from "../api";
 import { notify } from "../../../shared/lib/notification";
 
@@ -101,27 +101,87 @@ export function TermPricingModal({
 }: Props) {
   const [form] = Form.useForm<FormValues>();
   const fxMutation = useFetchVcbFxRate();
+  const envTaxMutation = useFetchEnvironmentTax();
 
   const fetchFx = async () => {
     try {
-      const res = await fxMutation.mutateAsync();
+      const fxRateDate = form.getFieldValue("fxRateDate");
+
+      if (!fxRateDate) {
+        notify.warning("Vui lòng chọn ngày tỷ giá");
+        return;
+      }
+
+      const res = await fxMutation.mutateAsync({
+        date: fxRateDate.format("YYYY-MM-DD"),
+        currencyCode: "USD",
+      });
 
       const rate = Number(
-        res?.sell ?? res?.data?.sell ?? res?.data?.data?.sell ?? 0,
+        res?.sellRate ??
+          res?.sell ??
+          res?.rate ??
+          res?.data?.sellRate ??
+          res?.data?.sell ??
+          res?.data?.rate ??
+          res?.data?.data?.sellRate ??
+          res?.data?.data?.sell ??
+          0,
       );
 
       if (!rate) {
-        notify.warning("Không đọc được tỷ giá VCB");
+        notify.warning("Không có tỷ giá VCB cho ngày đã chọn");
         return;
       }
 
       form.setFieldsValue({
         fxRate: rate,
-        fxRateDate: dayjs(),
       });
     } catch (e) {
       console.error(e);
       notify.error("Lấy tỷ giá VCB thất bại");
+    }
+  };
+
+  const fetchEnvironmentTax = async () => {
+    try {
+      const billDate = form.getFieldValue("billDate");
+      const productId = data.lines?.[0]?.productId;
+
+      if (!billDate) {
+        notify.warning("Vui lòng chọn ngày bill");
+        return;
+      }
+
+      if (!productId) {
+        notify.warning("Không tìm thấy sản phẩm để lấy phí BVMT");
+        return;
+      }
+
+      const res = await envTaxMutation.mutateAsync({
+        productId,
+        date: billDate.format("YYYY-MM-DD"),
+      });
+
+      const rawTax =
+        res?.taxVndPerLiter ??
+        res?.envTaxVndPerLiter ??
+        res?.rate ??
+        res?.data?.taxVndPerLiter ??
+        res?.data?.envTaxVndPerLiter ??
+        res?.data?.rate;
+
+      if (rawTax === null || rawTax === undefined || rawTax === "") {
+        notify.warning("Không có phí BVMT cho sản phẩm/ngày bill");
+        return;
+      }
+
+      form.setFieldsValue({
+        envTaxVndPerLiter: Number(rawTax),
+      });
+    } catch (e) {
+      console.error(e);
+      notify.error("Lấy phí BVMT thất bại");
     }
   };
 
@@ -488,9 +548,33 @@ export function TermPricingModal({
               <InputNumber min={0} step={0.0001} style={{ width: "100%" }} />
             </Form.Item>
 
-            <Form.Item name="envTaxVndPerLiter" label="Thuế BVMT/lít">
-              <InputNumber min={0} style={{ width: "100%" }} addonAfter="đ/L" />
-            </Form.Item>
+            <div style={{ display: "grid", gap: 4 }}>
+              <Form.Item
+                name="envTaxVndPerLiter"
+                label="Thuế BVMT/lít"
+                style={{ marginBottom: 0 }}
+              >
+                <InputNumber
+                  min={0}
+                  style={{ width: "100%" }}
+                  addonAfter="đ/L"
+                />
+              </Form.Item>
+
+              <Button
+                size="small"
+                type="link"
+                loading={envTaxMutation.isPending}
+                onClick={fetchEnvironmentTax}
+                style={{
+                  padding: 0,
+                  height: "auto",
+                  justifyContent: "flex-start",
+                }}
+              >
+                Lấy BVMT
+              </Button>
+            </div>
 
             <Form.Item
               name="extraCostVndPerLiter"

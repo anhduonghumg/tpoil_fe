@@ -157,6 +157,7 @@ export const ROUTES = {
     create: ["POST", "/purchase-terms"] as RouteTuple,
     update: ["PATCH", "/purchase-terms/:id"] as RouteTuple,
     approve: ["POST", "/purchase-terms/:id/approve"] as RouteTuple,
+    validateContract: ["GET", "/purchase-terms/validate-contract"] as RouteTuple,
     cancel: ["POST", "/purchase-terms/:id/cancel"] as RouteTuple,
     nextAction: ["GET", "/purchase-terms/:id/next-action"] as RouteTuple,
     complete: ["POST", "/purchase-terms/:id/complete"] as RouteTuple,
@@ -177,7 +178,7 @@ export const ROUTES = {
     ] as RouteTuple,
     createBillNormalizePricing: [
       "POST",
-      "/purchase-terms/:orderId/pricing/bill-normalize",
+      "/purchase-terms/:orderId/pricing/bill",
     ] as RouteTuple,
     createFinalPricing: [
       "POST",
@@ -189,12 +190,73 @@ export const ROUTES = {
     ] as RouteTuple,
     getVcbFxRate: ["GET", "/purchase-terms/vcb-fx-rate"] as RouteTuple,
     getPlattsAverage: ["GET", "/purchase-terms/platts-average"] as RouteTuple,
+    getEnvironmentTax: [
+      "GET",
+      "/purchase-terms/environment-tax",
+    ] as RouteTuple,
+
+    shipments: ["GET", "/purchase-terms/:purchaseOrderId/shipments"] as RouteTuple,
+    createShipment: [
+      "POST",
+      "/purchase-terms/:purchaseOrderId/shipments",
+    ] as RouteTuple,
+    updateShipment: [
+      "PATCH",
+      "/purchase-terms/:purchaseOrderId/shipments/:shipmentId",
+    ] as RouteTuple,
+    deleteShipment: [
+      "DELETE",
+      "/purchase-terms/:purchaseOrderId/shipments/:shipmentId",
+    ] as RouteTuple,
+
+    logisticsCosts: [
+      "GET",
+      "/purchase-terms/:purchaseOrderId/logistics-costs",
+    ] as RouteTuple,
+    createLogisticsCost: [
+      "POST",
+      "/purchase-terms/:purchaseOrderId/logistics-costs",
+    ] as RouteTuple,
+    logisticsCostDetail: [
+      "GET",
+      "/purchase-terms/:purchaseOrderId/logistics-costs/:costId",
+    ] as RouteTuple,
+    updateLogisticsCost: [
+      "PATCH",
+      "/purchase-terms/:purchaseOrderId/logistics-costs/:costId",
+    ] as RouteTuple,
+    deleteLogisticsCost: [
+      "DELETE",
+      "/purchase-terms/:purchaseOrderId/logistics-costs/:costId",
+    ] as RouteTuple,
+    confirmLogisticsCost: [
+      "POST",
+      "/purchase-terms/:purchaseOrderId/logistics-costs/:costId/confirm",
+    ] as RouteTuple,
+    voidLogisticsCost: [
+      "POST",
+      "/purchase-terms/:purchaseOrderId/logistics-costs/:costId/void",
+    ] as RouteTuple,
   },
 
   commodityPriceQuotes: {
     list: ["GET", "/commodity-price-quotes"] as RouteTuple,
     upsert: ["POST", "/commodity-price-quotes/upsert"] as RouteTuple,
     delete: ["DELETE", "/commodity-price-quotes/:id"] as RouteTuple,
+  },
+
+  vcbFxRates: {
+    list: ["GET", "/vcb-fx-rates"] as RouteTuple,
+    upsert: ["POST", "/vcb-fx-rates/upsert"] as RouteTuple,
+    fetchFromVcb: ["POST", "/vcb-fx-rates/fetch"] as RouteTuple,
+    delete: ["DELETE", "/vcb-fx-rates/:id"] as RouteTuple,
+  },
+
+  environmentTaxes: {
+    list: ["GET", "/environment-taxes"] as RouteTuple,
+    create: ["POST", "/environment-taxes"] as RouteTuple,
+    update: ["PATCH", "/environment-taxes/:id"] as RouteTuple,
+    delete: ["DELETE", "/environment-taxes/:id"] as RouteTuple,
   },
 
   supplierInvoices: {

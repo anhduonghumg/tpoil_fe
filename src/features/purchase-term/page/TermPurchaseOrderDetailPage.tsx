@@ -1,65 +1,69 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import {
   Button,
   Card,
+  Collapse,
   Descriptions,
   Empty,
+  message,
+  Progress,
   Space,
   Spin,
   Table,
+  Tabs,
   Tag,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import {
+  ArrowLeftOutlined,
+  CalculatorOutlined,
+  CheckCircleFilled,
+  ClockCircleOutlined,
+  FileDoneOutlined,
+  FileTextOutlined,
+  PrinterOutlined,
+  TruckOutlined,
+} from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import dayjs from "dayjs";
 import {
   useApproveTermPurchaseOrder,
+  useCompleteTermPurchaseOrder,
+  useConfirmTermLogisticsCost,
   useConfirmTermReceipt,
   useCreateTermBillNormalizePricing,
+  useCreateTermBossSheetPricing,
   useCreateTermEstimatePricing,
   useCreateTermFinalPricing,
+  useCreateTermLogisticsCost,
   useCreateTermReceipt,
+  useCreateTermShipment,
   useTermPurchaseOrderDetail,
+  useVoidTermLogisticsCost,
 } from "../hooks";
 import type {
   TermGoodsReceipt,
+  TermLogisticsCost,
   TermPricingStage,
+  TermPrintDocument,
   TermPurchaseOrderDetail,
   TermPurchaseOrderLine,
+  TermShipment,
+  TermWorkflowStep,
 } from "../types";
 import { TermReceiptModal } from "../ui/TermReceiptModal";
 import { TermPricingModal } from "../ui/TermPricingModal";
 import TermPricingSheetTable from "../ui/TermPricingSheetTable";
+import { TermLogisticsCostModal, TermShipmentModal } from "../ui/TermLogisticsModals";
 
-const { Title, Text } = Typography;
+const { Text, Title } = Typography;
 
-type SectionKey =
-  | "overview"
-  | "receipt"
-  | "tempPrice"
-  | "invoicePrice"
-  | "officialFx"
-  | "costs"
-  | "bossSheet"
-  | "accounting";
-
-const SECTIONS: Array<{ key: SectionKey; label: string; desc: string }> = [
-  { key: "overview", label: "Tổng quan", desc: "Đơn & hàng hóa" },
-  { key: "receipt", label: "Nhận hàng", desc: "Phiếu nhận" },
-  { key: "tempPrice", label: "Bảng giá tạm", desc: "Estimate" },
-  { key: "invoicePrice", label: "Bảng xuất hóa đơn", desc: "Bill" },
-  { key: "officialFx", label: "Tỷ giá chính thức", desc: "Final" },
-  { key: "costs", label: "Chi phí", desc: "Theo stage" },
-  { key: "bossSheet", label: "Bảng sếp", desc: "Tổng hợp" },
-  { key: "accounting", label: "Kế toán", desc: "Xử lý sau" },
-];
+type PricingKind = "ESTIMATE" | "BILL_NORMALIZE" | "FINAL" | "BOSS_SHEET";
 
 function fmt(v?: number | null, digits = 0) {
   if (v === null || v === undefined || Number.isNaN(Number(v))) return "--";
-  return new Intl.NumberFormat("vi-VN", {
-    maximumFractionDigits: digits,
-  }).format(Number(v));
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: digits }).format(Number(v));
 }
 
 function date(v?: string | null) {
@@ -74,105 +78,63 @@ function statusTag(status?: string) {
     COMPLETED: { color: "green", text: "Hoàn tất" },
     CANCELLED: { color: "red", text: "Đã hủy" },
   };
-
   const item = map[status || ""] || { color: "default", text: status || "--" };
   return <Tag color={item.color}>{item.text}</Tag>;
 }
 
-function nextActionText(action?: string) {
-  const map: Record<string, string> = {
-    APPROVE_ORDER: "Duyệt đơn",
-    CREATE_RECEIPT: "Nhận hàng",
-    CALCULATE_TEMP_PRICE: "Tạo bảng giá tạm",
-    CALCULATE_INVOICE_PRICE: "Tạo bảng xuất hóa đơn",
-    CALCULATE_OFFICIAL_FX: "Nhập tỷ giá chính thức",
-    COMPLETE_ORDER: "Hoàn tất đơn",
-    VIEW_ONLY: "Chỉ xem",
-  };
-
-  return map[action || ""] || action || "--";
-}
-
-function getStage(data: TermPurchaseOrderDetail, stageType: string) {
+function stage(data: TermPurchaseOrderDetail, stageType: PricingKind) {
   return data.pricingRuns
     ?.flatMap((run) => run.stages || [])
-    .find((s) => s.stageType === stageType);
+    .find((item) => item.stageType === stageType);
+}
+
+function isAction(action: string | undefined, ...values: string[]) {
+  return values.includes(action || "");
+}
+
+function stageTitle(kind: PricingKind) {
+  const map: Record<PricingKind, string> = {
+    ESTIMATE: "Bảng giá tạm tính",
+    BILL_NORMALIZE: "Bảng giá theo bill",
+    FINAL: "Bảng giá chính thức",
+    BOSS_SHEET: "Bảng tổng hợp",
+  };
+  return map[kind];
 }
 
 export default function TermPurchaseOrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [section, setSection] = useState<SectionKey>("overview");
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [shipmentOpen, setShipmentOpen] = useState(false);
+  const [logisticsOpen, setLogisticsOpen] = useState(false);
+  const [pricingKind, setPricingKind] = useState<PricingKind | null>(null);
 
   const detailQuery = useTermPurchaseOrderDetail(id);
-  const approveMutation = useApproveTermPurchaseOrder();
+  const data = detailQuery.data;
 
-  const data = detailQuery?.data;
+  const approveMutation = useApproveTermPurchaseOrder();
+  const completeMutation = useCompleteTermPurchaseOrder();
   const createReceiptMutation = useCreateTermReceipt(data?.id);
   const confirmReceiptMutation = useConfirmTermReceipt(data?.id);
-
-  const [pricingKind, setPricingKind] = useState<
-    "ESTIMATE" | "BILL_NORMALIZE" | "FINAL" | null
-  >(null);
+  const createShipmentMutation = useCreateTermShipment(data?.id);
+  const createLogisticsCostMutation = useCreateTermLogisticsCost(data?.id);
+  const confirmLogisticsCostMutation = useConfirmTermLogisticsCost(data?.id);
+  const voidLogisticsCostMutation = useVoidTermLogisticsCost(data?.id);
   const createEstimatePricing = useCreateTermEstimatePricing(data?.id);
   const createBillPricing = useCreateTermBillNormalizePricing(data?.id);
   const createFinalPricing = useCreateTermFinalPricing(data?.id);
+  const createBossSheetPricing = useCreateTermBossSheetPricing(data?.id);
 
-  const main = useMemo(() => {
+  const pricing = useMemo(() => {
     if (!data) return null;
-
-    switch (section) {
-      case "overview":
-        return <OverviewSection data={data} />;
-      case "receipt":
-        return (
-          <ReceiptSection
-            data={data}
-            onCreate={() => setReceiptOpen(true)}
-            onConfirm={(receiptId) => confirmReceiptMutation.mutate(receiptId)}
-            confirmingId={
-              confirmReceiptMutation.isPending
-                ? (confirmReceiptMutation.variables as string)
-                : undefined
-            }
-          />
-        );
-      case "tempPrice":
-        return (
-          <PricingStageSection
-            data={data}
-            stageType="ESTIMATE"
-            onCreate={() => setPricingKind("ESTIMATE")}
-          />
-        );
-      case "invoicePrice":
-        return (
-          <PricingStageSection
-            data={data}
-            stageType="BILL_NORMALIZE"
-            onCreate={() => setPricingKind("BILL_NORMALIZE")}
-          />
-        );
-      case "officialFx":
-        return (
-          <PricingStageSection
-            data={data}
-            stageType="FINAL"
-            onCreate={() => setPricingKind("FINAL")}
-          />
-        );
-      case "costs":
-        return <CostsSection data={data} />;
-      case "bossSheet":
-        return <BossSheetSection data={data} />;
-      case "accounting":
-        return <AccountingSection />;
-      default:
-        return null;
-    }
-  }, [data, section]);
+    const estimate = stage(data, "ESTIMATE");
+    const bill = stage(data, "BILL_NORMALIZE");
+    const final = stage(data, "FINAL");
+    const boss = stage(data, "BOSS_SHEET");
+    return { estimate, bill, final, boss, latest: final || bill || estimate || boss };
+  }, [data]);
 
   if (detailQuery.isLoading) {
     return (
@@ -183,357 +145,340 @@ export default function TermPurchaseOrderDetailPage() {
   }
 
   if (!data) {
-    return <Empty description="Không tìm thấy đơn TERM" />;
+    return <Empty description="Không tìm thấy hồ sơ TERM" />;
   }
 
+  const workflow = data.workflow;
+  const currentAction = workflow?.currentAction || data.nextAction;
+  const hasConfirmedReceipt = (data.receipts || []).some((item) => item.status === "CONFIRMED");
+  const hasEstimate = !!pricing?.estimate;
+  const hasBill = !!pricing?.bill;
+  const hasFinal = !!pricing?.final;
+
+  const runCurrentAction = () => {
+    if (isAction(currentAction, "APPROVE_ORDER")) approveMutation.mutate(data.id);
+    else if (isAction(currentAction, "CREATE_RECEIPT")) setReceiptOpen(true);
+    else if (isAction(currentAction, "CALCULATE_ESTIMATE", "CALCULATE_TEMP_PRICE")) setPricingKind("ESTIMATE");
+    else if (isAction(currentAction, "CALCULATE_BILL_NORMALIZE", "CALCULATE_INVOICE_PRICE")) setPricingKind("BILL_NORMALIZE");
+    else if (isAction(currentAction, "CALCULATE_FINAL", "CALCULATE_OFFICIAL_FX")) setPricingKind("FINAL");
+    else if (isAction(currentAction, "COMPLETE_ORDER")) completeMutation.mutate(data.id);
+  };
+
+  const currentActionLabel = workflow?.currentActionLabel || "Xem hồ sơ";
+  const currentActionDisabled = isAction(currentAction, "VIEW_ONLY") || data.status === "CANCELLED";
+
+  const printDocument = (doc: TermPrintDocument) => {
+    if (doc.status !== "READY") {
+      message.warning("Chứng từ này chưa đủ dữ liệu để in.");
+      return;
+    }
+    message.info(`Đã sẵn sàng nối mẫu in: ${doc.title}.`);
+  };
+
   return (
-    <div style={{ height: "calc(100vh - 96px)", overflow: "auto" }}>
-      <div style={{ maxWidth: 1500, margin: "0 auto" }}>
-        <Card
-          size="small"
-          style={{ borderRadius: 16, marginBottom: 10 }}
-          styles={{ body: { padding: 10 } }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
+    <div style={{ height: "calc(100vh - 96px)", minHeight: 0, background: "#f6f8fb", padding: 8, paddingBottom: 32, overflowY: "auto", overflowX: "hidden" }}>
+      <div style={{ maxWidth: 1480, margin: "0 auto" }}>
+        <Card size="small" style={{ borderRadius: 8, marginBottom: 8 }} styles={{ body: { padding: 8 } }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ minWidth: 280 }}>
               <Space size={6} wrap>
                 <Tag color="blue">TERM</Tag>
+                <Tag color={data.transportMode === "PIPELINE" ? "purple" : "default"}>
+                  {data.transportMode === "PIPELINE" ? "Đường ống" : data.transportMode || "Chưa chọn vận chuyển"}
+                </Tag>
                 {statusTag(data.status)}
-                <Tag color="gold">{nextActionText(data.nextAction)}</Tag>
               </Space>
-
-              <Title level={4} style={{ margin: "6px 0 0" }}>
-                {data.orderNo} · {data.supplierName || "--"}
+              <Title level={5} style={{ margin: "4px 0 0" }}>
+                {data.orderNo} - {data.supplierName || "--"}
               </Title>
-
               <Text type="secondary" style={{ fontSize: 12 }}>
-                TERM lấy 1 lần, xử lý theo bảng giá tạm → bảng xuất hóa đơn → tỷ
-                giá chính thức → bảng sếp.
+                Hợp đồng {data.contractNo || "--"} · Ngày đơn {date(data.orderDate)} · Dự kiến {date(data.expectedDate)}
               </Text>
             </div>
 
             <Space wrap>
-              <Button onClick={() => navigate("/purchase-terms")}>
+              <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/purchase-terms")}>
                 Danh sách
               </Button>
-
               <Button
                 type="primary"
-                disabled={data.nextAction !== "APPROVE_ORDER"}
-                loading={approveMutation.isPending}
-                onClick={() => approveMutation.mutate(data.id)}
+                size="middle"
+                disabled={currentActionDisabled}
+                loading={approveMutation.isPending || completeMutation.isPending}
+                onClick={runCurrentAction}
               >
-                Duyệt đơn
-              </Button>
-
-              <Button
-                disabled={data.nextAction !== "CREATE_RECEIPT"}
-                onClick={() => setReceiptOpen(true)}
-              >
-                Nhận hàng
-              </Button>
-
-              <Button
-                // disabled={data.nextAction !== "CALCULATE_TEMP_PRICE"}
-                onClick={() => setPricingKind("ESTIMATE")}
-              >
-                Bảng giá tạm
-              </Button>
-
-              <Button
-                disabled={data.nextAction !== "CALCULATE_INVOICE_PRICE"}
-                onClick={() => setPricingKind("BILL_NORMALIZE")}
-              >
-                Bảng xuất hóa đơn
-              </Button>
-
-              <Button
-                disabled={data.nextAction !== "CALCULATE_OFFICIAL_FX"}
-                onClick={() => setPricingKind("FINAL")}
-              >
-                Tỷ giá chính thức
-              </Button>
-
-              <Button disabled={data.nextAction !== "COMPLETE_ORDER"}>
-                Hoàn tất
+                {currentActionLabel}
               </Button>
             </Space>
           </div>
         </Card>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "210px minmax(0, 1fr) 300px",
-            gap: 10,
-            alignItems: "start",
-          }}
-        >
-          <div style={{ position: "sticky", top: 10 }}>
-            <Card
-              size="small"
-              style={{ borderRadius: 16 }}
-              styles={{ body: { padding: 8 } }}
-            >
-              <div style={{ fontWeight: 900, margin: "4px 6px 8px" }}>
-                Màn TERM
-              </div>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(260px, 280px)", gap: 8, alignItems: "start" }}>
+          <Space direction="vertical" size={5} style={{ width: "100%" }}>
+            <WorkflowCard workflow={workflow} fallbackAction={currentAction} />
 
-              <Space direction="vertical" size={6} style={{ width: "100%" }}>
-                {SECTIONS.map((x) => {
-                  const active = x.key === section;
-
-                  return (
-                    <Button
-                      key={x.key}
-                      block
-                      type={active ? "primary" : "text"}
-                      onClick={() => setSection(x.key)}
-                      style={{
-                        height: 44,
-                        textAlign: "left",
-                        justifyContent: "flex-start",
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 800 }}>{x.label}</div>
-                        <div style={{ fontSize: 11, opacity: 0.75 }}>
-                          {x.desc}
-                        </div>
-                      </div>
-                    </Button>
-                  );
-                })}
-              </Space>
-            </Card>
-          </div>
-
-          <div style={{ minWidth: 0 }}>{main}</div>
-
-          <SummaryPanel data={data} />
-          <TermReceiptModal
-            open={receiptOpen}
-            data={data}
-            loading={createReceiptMutation.isPending}
-            onCancel={() => setReceiptOpen(false)}
-            onSubmit={(payload) =>
-              createReceiptMutation.mutate(payload, {
-                onSuccess: () => setReceiptOpen(false),
-              })
-            }
-          />
-          {pricingKind ? (
-            <TermPricingModal
-              open={!!pricingKind}
-              kind={pricingKind}
+            <ActionBoard
               data={data}
-              loading={
-                createEstimatePricing.isPending ||
-                createBillPricing.isPending ||
-                createFinalPricing.isPending
-              }
-              onCancel={() => setPricingKind(null)}
-              onSubmit={(payload) => {
-                const done = {
-                  onSuccess: () => setPricingKind(null),
-                };
-
-                if (pricingKind === "ESTIMATE") {
-                  createEstimatePricing.mutate(payload, done);
-                } else if (pricingKind === "BILL_NORMALIZE") {
-                  createBillPricing.mutate(payload, done);
-                } else {
-                  createFinalPricing.mutate(payload, done);
-                }
-              }}
+              hasConfirmedReceipt={hasConfirmedReceipt}
+              hasEstimate={hasEstimate}
+              hasBill={hasBill}
+              hasFinal={hasFinal}
+              onReceive={() => setReceiptOpen(true)}
+              onEstimate={() => setPricingKind("ESTIMATE")}
+              onBill={() => setPricingKind("BILL_NORMALIZE")}
+              onFinal={() => setPricingKind("FINAL")}
+              onBoss={() => setPricingKind("BOSS_SHEET")}
+              onShipment={() => setShipmentOpen(true)}
+              onLogistics={() => setLogisticsOpen(true)}
             />
-          ) : null}
+
+            <Collapse
+              size="small"
+              defaultActiveKey={[isAction(currentAction, "CALCULATE_ESTIMATE", "CALCULATE_TEMP_PRICE", "CALCULATE_BILL_NORMALIZE", "CALCULATE_INVOICE_PRICE", "CALCULATE_FINAL", "CALCULATE_OFFICIAL_FX") ? "pricing" : "goods"]}
+              style={{ background: "#fff", borderRadius: 8 }}
+              items={[
+                {
+                  key: "goods",
+                  label: <PanelLabel title="Hàng hóa & giao nhận" meta={(data.lines?.length || 0) + " dòng / " + (data.receipts?.length || 0) + " phiếu"} />,
+                  children: (
+                    <GoodsAndReceiptSection
+                      data={data}
+                      onReceive={() => setReceiptOpen(true)}
+                      onConfirm={(receiptId) => confirmReceiptMutation.mutate(receiptId)}
+                      confirmingId={confirmReceiptMutation.isPending ? (confirmReceiptMutation.variables as string) : undefined}
+                    />
+                  ),
+                },
+                {
+                  key: "pricing",
+                  label: <PanelLabel title="Bảng giá" meta={hasFinal ? "Đã chốt" : hasBill ? "Đã có bill" : hasEstimate ? "Đã tạm tính" : "Chưa lập"} />,
+                  children: (
+                    <PricingSection
+                      estimate={pricing?.estimate}
+                      bill={pricing?.bill}
+                      final={pricing?.final}
+                      boss={pricing?.boss}
+                      latest={pricing?.latest}
+                      hasConfirmedReceipt={hasConfirmedReceipt}
+                      onCreate={(kind) => setPricingKind(kind)}
+                    />
+                  ),
+                },
+                {
+                  key: "logistics",
+                  label: <PanelLabel title="Vận chuyển & chi phí" meta={(data.shipments?.length || 0) + " chuyến / " + (data.logisticsCosts?.length || 0) + " chi phí"} />,
+                  children: (
+                    <LogisticsSection
+                      shipments={data.shipments || []}
+                      costs={data.logisticsCosts || []}
+                      onCreateShipment={() => setShipmentOpen(true)}
+                      onCreateCost={() => setLogisticsOpen(true)}
+                      onConfirmCost={(costId) => confirmLogisticsCostMutation.mutate(costId)}
+                      onVoidCost={(costId) => voidLogisticsCostMutation.mutate(costId)}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </Space>
+
+          <div style={{ position: "sticky", top: 8 }}>
+            <SideTabs data={data} onPrint={printDocument} />
+          </div>
         </div>
       </div>
+
+      <TermReceiptModal
+        open={receiptOpen}
+        data={data}
+        loading={createReceiptMutation.isPending}
+        onCancel={() => setReceiptOpen(false)}
+        onSubmit={(payload) =>
+          createReceiptMutation.mutate(payload, { onSuccess: () => setReceiptOpen(false) })
+        }
+      />
+
+      {pricingKind ? (
+        <TermPricingModal
+          open={!!pricingKind}
+          kind={pricingKind}
+          data={data}
+          loading={
+            createEstimatePricing.isPending ||
+            createBillPricing.isPending ||
+            createFinalPricing.isPending ||
+            createBossSheetPricing.isPending
+          }
+          onCancel={() => setPricingKind(null)}
+          onSubmit={(payload) => {
+            const done = { onSuccess: () => setPricingKind(null) };
+            if (pricingKind === "ESTIMATE") createEstimatePricing.mutate(payload, done);
+            else if (pricingKind === "BILL_NORMALIZE") createBillPricing.mutate(payload, done);
+            else if (pricingKind === "FINAL") createFinalPricing.mutate(payload, done);
+            else createBossSheetPricing.mutate(payload, done);
+          }}
+        />
+      ) : null}
+
+      <TermShipmentModal
+        open={shipmentOpen}
+        loading={createShipmentMutation.isPending}
+        onCancel={() => setShipmentOpen(false)}
+        onSubmit={(payload) => createShipmentMutation.mutate(payload, { onSuccess: () => setShipmentOpen(false) })}
+      />
+
+      <TermLogisticsCostModal
+        open={logisticsOpen}
+        data={data}
+        loading={createLogisticsCostMutation.isPending}
+        onCancel={() => setLogisticsOpen(false)}
+        onSubmit={(payload) => createLogisticsCostMutation.mutate(payload, { onSuccess: () => setLogisticsOpen(false) })}
+      />
     </div>
   );
 }
 
-function OverviewSection({ data }: { data: TermPurchaseOrderDetail }) {
-  const columns: ColumnsType<TermPurchaseOrderLine> = [
-    {
-      title: "Sản phẩm",
-      dataIndex: "productName",
-      width: 220,
-      render: (_, r) => (
-        <div>
-          <b>{r.productName || "--"}</b>
-          {r.productCode ? (
-            <div style={{ fontSize: 12, color: "#64748b" }}>
-              {r.productCode}
-            </div>
-          ) : null}
-        </div>
-      ),
-    },
-    {
-      title: "Kho nhận",
-      dataIndex: "supplierLocationName",
-      width: 220,
-      render: (v) => v || "--",
-    },
-    {
-      title: "SL đặt",
-      dataIndex: "orderedQty",
-      align: "right",
-      width: 120,
-      render: (v) => `${fmt(v)} L`,
-    },
-    {
-      title: "Giá tạm",
-      dataIndex: "unitPrice",
-      align: "right",
-      width: 130,
-      render: (v) => (v == null ? "--" : `${fmt(v)} đ/L`),
-    },
-    {
-      title: "VAT",
-      dataIndex: "taxRate",
-      align: "right",
-      width: 90,
-      render: (v) => (v == null ? "--" : `${fmt(v, 2)}%`),
-    },
-    {
-      title: "Giảm trừ",
-      dataIndex: "discountAmount",
-      align: "right",
-      width: 130,
-      render: (v) => fmt(v),
-    },
-  ];
-
+function PanelLabel({ title, meta }: { title: string; meta?: string }) {
   return (
-    <Space direction="vertical" size={10} style={{ width: "100%" }}>
-      <Card size="small" style={{ borderRadius: 16 }}>
-        <Descriptions size="small" column={4}>
-          <Descriptions.Item label="Nhà cung cấp">
-            {data.supplierCode || "--"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Kho mặc định">
-            {data.supplierLocationName || "--"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Ngày đơn">
-            {date(data.orderDate)}
-          </Descriptions.Item>
-          <Descriptions.Item label="Ngày dự kiến">
-            {date(data.expectedDate)}
-          </Descriptions.Item>
-          <Descriptions.Item label="Premium">
-            {data.termPremiumUsdPerBbl == null
-              ? "--"
-              : `${fmt(data.termPremiumUsdPerBbl, 6)} USD/bbl`}
-          </Descriptions.Item>
-          <Descriptions.Item label="Tổng lượng">
-            {fmt(data.totalQty)} L
-          </Descriptions.Item>
-          <Descriptions.Item label="Tạm tính">
-            {fmt(data.totalAmount)} đ
-          </Descriptions.Item>
-          <Descriptions.Item label="Số dòng">
-            {data.lineCount || data.lines?.length || 0}
-          </Descriptions.Item>
-          <Descriptions.Item label="Hợp đồng" span={2}>
-            {data.contractNo || "--"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Địa điểm giao hàng" span={2}>
-            {data.deliveryLocation || "--"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Điều khoản thanh toán" span={2}>
-            {data.paymentNote || "--"}
-          </Descriptions.Item>
-          <Descriptions.Item label="Ghi chú" span={2}>
-            {data.note || "--"}
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
-
-      <Card size="small" style={{ borderRadius: 16 }}>
-        <div style={{ fontWeight: 900, marginBottom: 8 }}>Hàng hóa</div>
-        <Table
-          size="small"
-          bordered
-          rowKey="id"
-          columns={columns}
-          dataSource={data.lines || []}
-          pagination={false}
-          scroll={{ x: 920 }}
-        />
-      </Card>
-    </Space>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, width: "100%", alignItems: "center" }}>
+      <b>{title}</b>
+      {meta ? <Text type="secondary" style={{ fontSize: 12 }}>{meta}</Text> : null}
+    </div>
   );
 }
 
-function ReceiptSection({
-  data,
-  onCreate,
-  onConfirm,
-  confirmingId,
+function WorkflowCard({ workflow, fallbackAction }: { workflow?: TermPurchaseOrderDetail["workflow"]; fallbackAction?: string }) {
+  const steps = workflow?.steps?.length
+    ? workflow.steps
+    : [
+        { key: "ORDER", title: "Đơn hàng", status: "CURRENT", description: fallbackAction || "Đang xử lý" } as TermWorkflowStep,
+      ];
+
+  return (
+    <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 8 } }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontWeight: 900, fontSize: 16 }}>Luồng xử lý hồ sơ</div>
+          <Text type="secondary">Chỉ hiển thị những mốc người dùng cần quan tâm.</Text>
+        </div>
+        <div style={{ width: 220 }}>
+          <Progress percent={workflow?.progress ?? 0} size="small" />
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 6 }}>
+        {steps.map((step, index) => (
+          <StepCard key={step.key} step={step} index={index + 1} />
+        ))}
+      </div>
+      {workflow?.missing?.length ? (
+        <div style={{ marginTop: 6, padding: 8, borderRadius: 8, background: "#fff7ed", border: "1px solid #fed7aa" }}>
+          <b>Còn thiếu: </b>
+          <Text>{workflow.missing.join(", ")}</Text>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function StepCard({ step, index }: { step: TermWorkflowStep; index: number }) {
+  const done = step.status === "DONE";
+  const current = step.status === "CURRENT";
+  return (
+    <div style={{ border: `1px solid ${current ? "#1677ff" : "#e2e8f0"}`, borderRadius: 8, padding: 6, background: done ? "#f0fdf4" : current ? "#eff6ff" : "#fff" }}>
+      <Space size={8} align="start">
+        {done ? <CheckCircleFilled style={{ color: "#16a34a", marginTop: 2 }} /> : <ClockCircleOutlined style={{ color: current ? "#1677ff" : "#94a3b8", marginTop: 2 }} />}
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 12 }}>{index}. {step.title}</div>
+          <Text type="secondary" style={{ fontSize: 11 }}>{step.description}</Text>
+        </div>
+      </Space>
+    </div>
+  );
+}
+
+function ActionBoard({
+  hasConfirmedReceipt,
+  hasEstimate,
+  hasBill,
+  hasFinal,
+  onReceive,
+  onEstimate,
+  onBill,
+  onFinal,
+  onBoss,
+  onShipment,
+  onLogistics,
 }: {
   data: TermPurchaseOrderDetail;
-  onCreate: () => void;
-  onConfirm: (id: string) => void;
-  confirmingId?: string;
+  hasConfirmedReceipt: boolean;
+  hasEstimate: boolean;
+  hasBill: boolean;
+  hasFinal: boolean;
+  onReceive: () => void;
+  onEstimate: () => void;
+  onBill: () => void;
+  onFinal: () => void;
+  onBoss: () => void;
+  onShipment: () => void;
+  onLogistics: () => void;
 }) {
-  const columns: ColumnsType<TermGoodsReceipt> = [
-    { title: "Số phiếu", dataIndex: "receiptNo", width: 150 },
+  return (
+    <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 8 } }}>
+      <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 10 }}>Thao tác chính</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))", gap: 5 }}>
+        <ActionButton icon={<FileDoneOutlined />} title="Nhận hàng" desc="Số lượng, V15, tỷ trọng" onClick={onReceive} />
+        <ActionButton icon={<CalculatorOutlined />} title="Giá tạm tính" desc="MOPS, premium, tỷ giá" disabled={!hasConfirmedReceipt} onClick={onEstimate} done={hasEstimate} />
+        <ActionButton icon={<CalculatorOutlined />} title="Giá theo bill" desc="Sau giao nhận/bill bồn" disabled={!hasEstimate} onClick={onBill} done={hasBill} />
+        <ActionButton icon={<CalculatorOutlined />} title="Giá chính thức" desc="Chốt tỷ giá và quyết toán" disabled={!hasBill} onClick={onFinal} done={hasFinal} />
+        <ActionButton icon={<TruckOutlined />} title="Vận chuyển" desc="Đường ống/logistics" onClick={onShipment} />
+        <ActionButton icon={<FileTextOutlined />} title="Chi phí" desc="Kiểm định, vận chuyển, khác" onClick={onLogistics} />
+        <ActionButton icon={<PrinterOutlined />} title="Bảng tổng hợp" desc="Phục vụ quyết toán" disabled={!hasFinal} onClick={onBoss} />
+      </div>
+    </Card>
+  );
+}
+
+function ActionButton({ icon, title, desc, disabled, done, onClick }: { icon: React.ReactNode; title: string; desc: string; disabled?: boolean; done?: boolean; onClick: () => void }) {
+  return (
+    <Button disabled={disabled} onClick={onClick} size="small" style={{ height: 34, textAlign: "left", justifyContent: "flex-start", borderRadius: 6, paddingInline: 8 }}>
+      <Space size={6} align="center">
+        <span style={{ color: done ? "#16a34a" : "#1677ff", fontSize: 13 }}>{done ? <CheckCircleFilled /> : icon}</span>
+        <span style={{ display: "block", fontWeight: 800, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={desc}>{title}</span>
+      </Space>
+    </Button>
+  );
+}
+
+function GoodsAndReceiptSection({ data, onReceive, onConfirm, confirmingId }: { data: TermPurchaseOrderDetail; onReceive: () => void; onConfirm: (id: string) => void; confirmingId?: string }) {
+  const receiptByLine = useMemo(() => {
+    const map = new Map<string, number>();
+    (data.receipts || []).forEach((receipt) => {
+      if (!receipt.purchaseOrderLineId || receipt.status !== "CONFIRMED") return;
+      map.set(receipt.purchaseOrderLineId, (map.get(receipt.purchaseOrderLineId) || 0) + Number(receipt.qty || 0));
+    });
+    return map;
+  }, [data.receipts]);
+
+  const lineColumns: ColumnsType<TermPurchaseOrderLine> = [
+    { title: "Sản phẩm", dataIndex: "productName", render: (_, r) => <b>{r.productName || r.productCode || "--"}</b> },
+    { title: "Kho nhận", dataIndex: "supplierLocationName", render: (v) => v || "--" },
+    { title: "Đặt hàng", dataIndex: "orderedQty", align: "right", render: (v) => `${fmt(v)} L` },
+    { title: "Đã nhận", align: "right", render: (_, r) => `${fmt(receiptByLine.get(r.id) || 0)} L` },
+    { title: "Giá tạm", dataIndex: "unitPrice", align: "right", render: (v) => (v == null ? "--" : `${fmt(v)} đ/L`) },
+  ];
+
+  const receiptColumns: ColumnsType<TermGoodsReceipt> = [
+    { title: "Phiếu", dataIndex: "receiptNo", width: 130 },
+    { title: "Ngày", dataIndex: "receiptDate", width: 110, render: (v) => date(v) },
+    { title: "Sản phẩm", dataIndex: "productName", render: (v) => v || "--" },
+    { title: "SL thực nhận", dataIndex: "qty", align: "right", width: 130, render: (v) => `${fmt(v)} L` },
+    { title: "V15", dataIndex: "standardQtyV15", align: "right", width: 120, render: (v) => (v == null ? "--" : `${fmt(v)} L`) },
+    { title: "Trạng thái", dataIndex: "status", width: 115, render: (v) => <Tag color={v === "CONFIRMED" ? "green" : "default"}>{v}</Tag> },
     {
-      title: "Ngày nhận",
-      dataIndex: "receiptDate",
-      width: 120,
-      render: (v) => date(v),
-    },
-    { title: "Sản phẩm", dataIndex: "productName", width: 180 },
-    {
-      title: "Kho",
-      dataIndex: "supplierLocationName",
-      width: 180,
-      render: (v) => v || "--",
-    },
-    {
-      title: "SL thực nhận",
-      dataIndex: "qty",
-      align: "right",
-      width: 130,
-      render: (v) => `${fmt(v)} L`,
-    },
-    {
-      title: "V15",
-      dataIndex: "standardQtyV15",
-      align: "right",
-      width: 130,
-      render: (v) => (v == null ? "--" : `${fmt(v)} L`),
-    },
-    {
-      title: "Trạng thái",
-      dataIndex: "status",
-      width: 120,
-      render: (v) => <Tag>{v}</Tag>,
-    },
-    {
-      title: "Thao tác",
-      width: 120,
-      fixed: "right",
-      render: (_, record) => (
-        <Button
-          size="small"
-          type="link"
-          disabled={record.status !== "DRAFT"}
-          loading={confirmingId === record.id}
-          onClick={() => onConfirm(record.id)}
-        >
+      title: "",
+      width: 110,
+      render: (_, r) => (
+        <Button size="small" type="link" disabled={r.status !== "DRAFT"} loading={confirmingId === r.id} onClick={() => onConfirm(r.id)}>
           Xác nhận
         </Button>
       ),
@@ -541,379 +486,167 @@ function ReceiptSection({
   ];
 
   return (
-    <Card size="small" style={{ borderRadius: 16 }}>
-      <HeaderBlock
-        title="Nhận hàng"
-        desc="Ghi nhận số lượng thực nhận, V15, nhiệt độ, tỷ trọng theo từng dòng hàng."
-        action={
-          <Button
-            type="primary"
-            disabled={data.nextAction !== "CREATE_RECEIPT"}
-            onClick={onCreate}
-          >
-            Tạo phiếu nhận
-          </Button>
-        }
-      />
-
-      <Table
-        size="small"
-        bordered
-        rowKey="id"
-        columns={columns}
-        dataSource={data.receipts || []}
-        pagination={false}
-        scroll={{ x: 1000 }}
-        locale={{ emptyText: "Chưa có phiếu nhận hàng" }}
-      />
-    </Card>
+    <div>
+      <Header title="Hàng hóa & giao nhận" desc="Phần này là nơi nhập số lượng thực nhận, không tách sang màn riêng." action={<Button type="primary" onClick={onReceive}>Tạo phiếu nhận</Button>} />
+      <Table size="small" bordered rowKey="id" columns={lineColumns} dataSource={data.lines || []} pagination={false} scroll={{ x: 820 }} />
+      <div style={{ height: 10 }} />
+      <Table size="small" rowKey="id" columns={receiptColumns} dataSource={data.receipts || []} pagination={false} scroll={{ x: 900 }} locale={{ emptyText: "Chưa có phiếu nhận hàng" }} />
+    </div>
   );
 }
 
-function PricingStageSection({
-  data,
-  stageType,
-  onCreate,
-}: {
-  data: TermPurchaseOrderDetail;
-  stageType: "ESTIMATE" | "BILL_NORMALIZE" | "FINAL";
-  onCreate: () => void;
-}) {
-  const stage = getStage(data, stageType);
-  const hasReceipt = (data.receipts || []).some(
-    (x) => x.status === "CONFIRMED",
-  );
-
-  const titleMap = {
-    ESTIMATE: "Bảng giá tạm",
-    BILL_NORMALIZE: "Bảng xuất hóa đơn",
-    FINAL: "Tỷ giá chính thức",
-  };
-
-  const descMap = {
-    ESTIMATE: "Bảng tính giá sau khi đã xác nhận nhận hàng.",
-    BILL_NORMALIZE: "Bảng tính theo bill, số liệu bồn và chi phí cập nhật.",
-    FINAL: "Bảng chốt theo tỷ giá chính thức và số liệu cuối.",
-  };
-
-  const actionMap = {
-    ESTIMATE: "CALCULATE_TEMP_PRICE",
-    BILL_NORMALIZE: "CALCULATE_INVOICE_PRICE",
-    FINAL: "CALCULATE_OFFICIAL_FX",
-  };
-
-  if (!hasReceipt) {
-    return (
-      <Card size="small" style={{ borderRadius: 16 }}>
-        <HeaderBlock title={titleMap[stageType]} desc={descMap[stageType]} />
-        <Empty description="Chưa thể tạo bảng giá vì chưa có phiếu nhận hàng đã xác nhận." />
-      </Card>
-    );
-  }
-
-  if (!stage) {
-    return (
-      <Card size="small" style={{ borderRadius: 16 }}>
-        <HeaderBlock
-          title={titleMap[stageType]}
-          desc={descMap[stageType]}
-          action={
-            <Button
-              type="primary"
-              disabled={data.nextAction !== actionMap[stageType]}
-              onClick={onCreate}
-            >
-              Tạo {titleMap[stageType].toLowerCase()}
-            </Button>
-          }
-        />
-        <Empty description={`Chưa có ${titleMap[stageType].toLowerCase()}`} />
-      </Card>
-    );
-  }
-
+function PricingSection({ estimate, bill, final, boss, latest, hasConfirmedReceipt, onCreate }: { estimate?: TermPricingStage; bill?: TermPricingStage; final?: TermPricingStage; boss?: TermPricingStage; latest?: TermPricingStage; hasConfirmedReceipt: boolean; onCreate: (kind: PricingKind) => void }) {
   return (
-    <StageView
-      title={titleMap[stageType]}
-      desc={descMap[stageType]}
-      stage={stage}
-    />
+    <div>
+      <Header title="Bảng giá" desc="Hiển thị theo đúng thứ tự lập giá, không cần mở nhiều tab." />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8, marginBottom: latest ? 12 : 0 }}>
+        <PriceCard title="Tạm tính" stage={estimate} disabled={!hasConfirmedReceipt} onClick={() => onCreate("ESTIMATE")} />
+        <PriceCard title="Theo bill" stage={bill} disabled={!estimate} onClick={() => onCreate("BILL_NORMALIZE")} />
+        <PriceCard title="Chính thức" stage={final} disabled={!bill} onClick={() => onCreate("FINAL")} />
+        <PriceCard title="Tổng hợp" stage={boss} disabled={!final} onClick={() => onCreate("BOSS_SHEET")} />
+      </div>
+      {latest ? (
+        <div>
+          <div style={{ fontWeight: 900, marginBottom: 8 }}>Bảng giá mới nhất: {stageTitle(latest.stageType as PricingKind)}</div>
+          <TermPricingSheetTable rows={latest.sheetRows || []} />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
-function StageView({
-  title,
-  desc,
-  stage,
-}: {
-  title: string;
-  desc: string;
-  stage: TermPricingStage;
-}) {
+function PriceCard({ title, stage, disabled, onClick }: { title: string; stage?: TermPricingStage; disabled?: boolean; onClick: () => void }) {
   return (
-    <Space direction="vertical" size={10} style={{ width: "100%" }}>
-      <Card size="small" style={{ borderRadius: 16 }}>
-        <HeaderBlock title={title} desc={desc} />
-
-        <Descriptions size="small" column={4}>
-          <Descriptions.Item label="Platts TB">
-            {fmt(stage.mopsAvgUsdPerBbl, 6)}
-          </Descriptions.Item>
-          <Descriptions.Item label="Premium">
-            {fmt(stage.premiumUsdPerBbl, 6)}
-          </Descriptions.Item>
-          <Descriptions.Item label="TTĐB">
-            {fmt(stage.specialConsumptionTaxUsdPerBbl, 6)}
-          </Descriptions.Item>
-          <Descriptions.Item label="FX">
-            {fmt(stage.fxRate, 2)}
-          </Descriptions.Item>
-          <Descriptions.Item label="Tổng BILL">
-            {fmt(stage.billTotalVnd)} đ
-          </Descriptions.Item>
-          <Descriptions.Item label="Đơn giá bồn">
-            {fmt(stage.tankUnitPriceVndPerLiter, 2)} đ/L
-          </Descriptions.Item>
-          <Descriptions.Item label="Đơn giá bán">
-            {fmt(stage.sellingUnitPriceVndPerLiter, 2)} đ/L
-          </Descriptions.Item>
-          <Descriptions.Item label="Stage">
-            <Tag color="blue">{stage.stageType}</Tag>
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
-
-      <Card
-        size="small"
-        style={{ borderRadius: 16 }}
-        styles={{ body: { padding: 8 } }}
-      >
-        <TermPricingSheetTable rows={stage.sheetRows || []} />
-      </Card>
-    </Space>
+    <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 6, background: stage ? "#f8fafc" : "#fff" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <b>{title}</b>
+        {stage ? <Tag color="green">Đã có</Tag> : <Tag>Chưa có</Tag>}
+      </div>
+      <div style={{ margin: "8px 0", color: "#475569" }}>
+        <div>Đơn giá: <b>{stage?.unitVndPerLiter == null ? "--" : `${fmt(stage.unitVndPerLiter, 2)} đ/L`}</b></div>
+        <div>Tổng tiền: <b>{stage?.totalAmountVnd == null ? "--" : `${fmt(stage.totalAmountVnd)} đ`}</b></div>
+      </div>
+      <Button block size="small" disabled={disabled} onClick={onClick}>{stage ? "Tính lại" : "Tạo"}</Button>
+    </div>
   );
 }
 
-function CostsSection({ data }: { data: TermPurchaseOrderDetail }) {
-  const stages = data.pricingRuns?.flatMap((r) => r.stages || []) || [];
-  const rows = stages.flatMap((stage) =>
-    (stage.costs || []).map((c) => ({
-      ...c,
-      stageType: stage.stageType,
-    })),
-  );
+function LogisticsSection({ shipments, costs, onCreateShipment, onCreateCost, onConfirmCost, onVoidCost }: { shipments: TermShipment[]; costs: TermLogisticsCost[]; onCreateShipment: () => void; onCreateCost: () => void; onConfirmCost: (id: string) => void; onVoidCost: (id: string) => void }) {
+  const shipmentColumns: ColumnsType<TermShipment> = [
+    { title: "Vận chuyển", dataIndex: "transportMode", width: 120, render: (v) => (v === "PIPELINE" ? "Đường ống" : v || "--") },
+    { title: "B/L", dataIndex: "blNo", width: 140, render: (v) => v || "--" },
+    { title: "Nơi đi", dataIndex: "loadingPort", render: (v) => v || "--" },
+    { title: "Nơi nhận", dataIndex: "dischargePort", render: (v) => v || "--" },
+    { title: "ETA", dataIndex: "eta", width: 110, render: (v) => date(v) },
+  ];
+
+  const costColumns: ColumnsType<TermLogisticsCost> = [
+    { title: "Chứng từ", dataIndex: "documentNo", render: (v) => v || "--" },
+    { title: "Ngày", dataIndex: "documentDate", width: 110, render: (v) => date(v) },
+    { title: "NCC dịch vụ", dataIndex: "vendorName", render: (v) => v || "--" },
+    { title: "Sau VAT", dataIndex: "totalAfterVat", align: "right", width: 130, render: (v) => fmt(v) },
+    { title: "Trạng thái", dataIndex: "status", width: 120, render: (v) => <Tag>{v}</Tag> },
+    {
+      title: "",
+      width: 135,
+      render: (_, r) => (
+        <Space size={4}>
+          <Button size="small" type="link" disabled={r.status !== "DRAFT"} onClick={() => onConfirmCost(r.id)}>Duyệt</Button>
+          <Button size="small" danger type="link" disabled={r.status === "POSTED" || r.status === "VOID"} onClick={() => onVoidCost(r.id)}>Hủy</Button>
+        </Space>
+      ),
+    },
+  ];
 
   return (
-    <Card size="small" style={{ borderRadius: 16 }}>
-      <HeaderBlock
-        title="Chi phí"
-        desc="Chi phí được lưu theo từng bảng giá: tạm, bill hoặc chốt."
-      />
+    <div>
+      <Header title="Vận chuyển & chi phí" desc="Chỉ giữ các thông tin cần cho giá vốn và chứng từ hồ sơ." action={<Space><Button onClick={onCreateShipment}>Thêm vận chuyển</Button><Button type="primary" onClick={onCreateCost}>Thêm chi phí</Button></Space>} />
+      <Table size="small" rowKey="id" columns={shipmentColumns} dataSource={shipments} pagination={false} locale={{ emptyText: "Chưa có thông tin vận chuyển" }} scroll={{ x: 760 }} />
+      <div style={{ height: 10 }} />
+      <Table size="small" rowKey="id" columns={costColumns} dataSource={costs} pagination={false} locale={{ emptyText: "Chưa có chi phí logistics" }} scroll={{ x: 860 }} />
+    </div>
+  );
+}
 
-      <Table
+function SideTabs({ data, onPrint }: { data: TermPurchaseOrderDetail; onPrint: (doc: TermPrintDocument) => void }) {
+  return (
+    <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 8 } }}>
+      <Tabs
         size="small"
-        bordered
-        rowKey="id"
-        pagination={false}
-        dataSource={rows}
-        locale={{ emptyText: "Chưa có chi phí" }}
-        columns={[
-          { title: "Stage", dataIndex: "stageType", width: 150 },
-          { title: "Loại phí", dataIndex: "costType", width: 180 },
+        defaultActiveKey="documents"
+        items={[
           {
-            title: "Số tiền",
-            dataIndex: "amountVnd",
-            align: "right",
-            render: (v) => fmt(v),
+            key: "documents",
+            label: "Chứng từ",
+            children: <PrintPanel documents={data.printDocuments || fallbackDocuments(data)} onPrint={onPrint} />,
           },
-          { title: "Chứng từ", dataIndex: "sourceDocNo", width: 180 },
-          { title: "Ghi chú", dataIndex: "note" },
+          {
+            key: "summary",
+            label: "Tóm tắt",
+            children: <SummaryPanel data={data} />,
+          },
         ]}
       />
     </Card>
   );
 }
 
-function BossSheetSection({ data }: { data: TermPurchaseOrderDetail }) {
-  const bossStage = getStage(data, "BOSS_SHEET");
-  const finalStage = getStage(data, "FINAL");
-  const stage = bossStage || finalStage;
-
+function PrintPanel({ documents, onPrint }: { documents: TermPrintDocument[]; onPrint: (doc: TermPrintDocument) => void }) {
   return (
-    <Card size="small" style={{ borderRadius: 16 }}>
-      <HeaderBlock
-        title="Bảng sếp"
-        desc={
-          bossStage
-            ? "Bảng tổng hợp phục vụ quản trị."
-            : "Tạm hiển thị bảng FINAL. Sau này có thể tạo BOSS_SHEET riêng."
-        }
-        action={<Button disabled={!stage}>Xuất Excel</Button>}
-      />
-
-      {!stage ? (
-        <Empty description="Chưa có dữ liệu để lập bảng sếp." />
-      ) : (
-        <TermPricingSheetTable rows={stage.sheetRows || []} />
-      )}
-    </Card>
-  );
-}
-
-function AccountingSection() {
-  return (
-    <Card size="small" style={{ borderRadius: 16 }}>
-      <HeaderBlock
-        title="Kế toán xử lý sau"
-        desc="Supplier Invoice, Settlement, Bank Allocation không chặn vận hành TERM."
-      />
-
-      <Space wrap>
-        <Tag color="blue">Order-first</Tag>
-        <Tag color="green">Không chặn vận hành</Tag>
-        <Tag color="gold">Optional</Tag>
-      </Space>
-    </Card>
-  );
-}
-
-function SummaryPanel({ data }: { data: TermPurchaseOrderDetail }) {
-  const estimate = getStage(data, "ESTIMATE");
-  const bill = getStage(data, "BILL_NORMALIZE");
-  const final = getStage(data, "FINAL");
-
-  return (
-    <div style={{ position: "sticky", top: 10 }}>
-      <Space direction="vertical" size={10} style={{ width: "100%" }}>
-        <Card
-          size="small"
-          style={{ borderRadius: 16 }}
-          styles={{ body: { padding: 12 } }}
-        >
-          <div style={{ fontWeight: 900, marginBottom: 8 }}>Tóm tắt</div>
-          <Info label="Tổng lượng" value={`${fmt(data.totalQty)} L`} />
-          <Info
-            label="Số dòng"
-            value={data.lineCount || data.lines?.length || 0}
-          />
-          <Info
-            label="Premium"
-            value={
-              data.termPremiumUsdPerBbl == null
-                ? "--"
-                : `${fmt(data.termPremiumUsdPerBbl, 6)}`
-            }
-          />
-          <Info label="Tạm tính" value={fmt(data.totalAmount)} />
-          <Info label="Trạng thái" value={statusTag(data.status)} />
-        </Card>
-
-        <Card
-          size="small"
-          style={{ borderRadius: 16 }}
-          styles={{ body: { padding: 12 } }}
-        >
-          <div style={{ fontWeight: 900, marginBottom: 8 }}>Tiến độ</div>
-          <ProgressLine
-            label="Nhận hàng"
-            done={(data.receipts || []).length > 0}
-          />
-          <ProgressLine label="Giá tạm" done={!!estimate} />
-          <ProgressLine label="Bill" done={!!bill} />
-          <ProgressLine label="Tỷ giá" done={!!final} />
-        </Card>
-
-        <Card
-          size="small"
-          style={{ borderRadius: 16 }}
-          styles={{ body: { padding: 12 } }}
-        >
-          <div style={{ fontWeight: 900, marginBottom: 8 }}>Next action</div>
-          <div
-            style={{
-              borderRadius: 14,
-              background: "#0f172a",
-              color: "#fff",
-              padding: 12,
-            }}
-          >
-            <div style={{ fontSize: 12, color: "#cbd5e1" }}>Gợi ý</div>
-            <div style={{ fontSize: 15, fontWeight: 900, marginTop: 2 }}>
-              {nextActionText(data.nextAction)}
-            </div>
-          </div>
-        </Card>
+    <div>
+      <Space direction="vertical" size={5} style={{ width: "100%" }}>
+        {documents.map((doc) => (
+          <Button key={doc.key} block icon={<PrinterOutlined />} disabled={doc.status !== "READY"} onClick={() => onPrint(doc)} size="small" style={{ height: 36, textAlign: "left", justifyContent: "flex-start", paddingInline: 8 }}>
+            <span>
+              <span style={{ display: "block", fontWeight: 800 }}>{doc.title}</span>
+              <span style={{ fontSize: 11, color: "#64748b" }}>{doc.status === "READY" ? "Sẵn sàng in" : "Chưa đủ dữ liệu"}</span>
+            </span>
+          </Button>
+        ))}
       </Space>
     </div>
   );
 }
 
-function HeaderBlock({
-  title,
-  desc,
-  action,
-}: {
-  title: string;
-  desc?: string;
-  action?: React.ReactNode;
-}) {
+function SummaryPanel({ data }: { data: TermPurchaseOrderDetail }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        gap: 10,
-        alignItems: "center",
-        marginBottom: 10,
-      }}
-    >
+    <div>
+      <Descriptions size="small" column={1}>
+        <Descriptions.Item label="Nhà cung cấp">{data.supplierName || "--"}</Descriptions.Item>
+        <Descriptions.Item label="Mã NCC">{data.supplierCode || "--"}</Descriptions.Item>
+        <Descriptions.Item label="Kho nhận">{data.supplierLocationName || data.deliveryLocation || "--"}</Descriptions.Item>
+        <Descriptions.Item label="Tổng lượng">{fmt(data.totalQty)} L</Descriptions.Item>
+        <Descriptions.Item label="Tạm tính">{fmt(data.totalAmount)} đ</Descriptions.Item>
+        <Descriptions.Item label="Premium">{data.termPremiumUsdPerBbl == null ? "--" : fmt(data.termPremiumUsdPerBbl, 6) + " USD/bbl"}</Descriptions.Item>
+        <Descriptions.Item label="Ghi chú">{data.note || "--"}</Descriptions.Item>
+      </Descriptions>
+    </div>
+  );
+}
+function Header({ title, desc, action }: { title: string; desc?: string; action?: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
       <div>
         <div style={{ fontWeight: 900, fontSize: 14 }}>{title}</div>
-        {desc ? (
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {desc}
-          </Text>
-        ) : null}
+        {desc ? <Text type="secondary" style={{ fontSize: 12 }}>{desc}</Text> : null}
       </div>
       {action}
     </div>
   );
 }
 
-function Info({
-  label,
-  value,
-}: {
-  label: React.ReactNode;
-  value: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        gap: 10,
-        padding: "6px 0",
-        borderBottom: "1px solid #f1f5f9",
-      }}
-    >
-      <span style={{ color: "#64748b" }}>{label}</span>
-      <b style={{ textAlign: "right" }}>{value}</b>
-    </div>
-  );
-}
-
-function ProgressLine({ label, done }: { label: string; done: boolean }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        padding: "5px 0",
-      }}
-    >
-      <span>{label}</span>
-      {done ? <Tag color="green">Xong</Tag> : <Tag>Chưa</Tag>}
-    </div>
-  );
+function fallbackDocuments(data: TermPurchaseOrderDetail): TermPrintDocument[] {
+  const hasEstimate = !!stage(data, "ESTIMATE");
+  const hasBill = !!stage(data, "BILL_NORMALIZE");
+  const hasFinal = !!stage(data, "FINAL");
+  const hasReceipt = (data.receipts || []).some((x) => x.status === "CONFIRMED");
+  return [
+    { key: "APPENDIX", title: "Phụ lục hợp đồng", status: data.contractNo ? "READY" : "WAITING" },
+    { key: "PURCHASE_ORDER", title: "Đơn đặt hàng", status: data.orderNo ? "READY" : "WAITING" },
+    { key: "ESTIMATE_PRICE", title: "Bảng giá tạm tính", status: hasEstimate ? "READY" : "WAITING" },
+    { key: "BILL_PRICE", title: "Bảng giá theo bill", status: hasBill ? "READY" : "WAITING" },
+    { key: "OFFICIAL_PRICE", title: "Bảng giá chính thức", status: hasFinal ? "READY" : "WAITING" },
+    { key: "PAYMENT_REQUEST", title: "Phiếu đề nghị thanh toán", status: hasEstimate || hasFinal ? "READY" : "WAITING" },
+    { key: "DELIVERY_MINUTES", title: "Biên bản giao nhận", status: hasReceipt ? "READY" : "WAITING" },
+  ];
 }

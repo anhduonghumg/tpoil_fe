@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   DatePicker,
@@ -19,10 +20,10 @@ import { useNavigate } from "react-router-dom";
 
 import { PartySelect } from "../../../shared/ui/PartySelect";
 import { useProductSelect } from "../../products/hooks";
-import { useCreateTermPurchaseOrder } from "../hooks";
+import { useCreateTermPurchaseOrder, useValidateTermPurchaseContract } from "../hooks";
 import { useSupplierLocationsSelect } from "../../purchases/hooks";
 
-import type { CreateTermPurchaseOrderPayload, UUID } from "../types";
+import type { CreateTermPurchaseOrderPayload, TermTransportMode, UUID } from "../types";
 
 const { Title, Text } = Typography;
 
@@ -41,8 +42,7 @@ type FormValues = {
 
   orderDate: Dayjs;
   expectedDate?: Dayjs;
-
-  contractNo?: string;
+  transportMode?: TermTransportMode;
   deliveryLocation?: string;
 
   paymentNote?: string;
@@ -75,10 +75,18 @@ export default function TermPurchaseOrderCreatePage() {
   const [locKeyword, setLocKeyword] = useState("");
 
   const supplierCustomerId = Form.useWatch("supplierCustomerId", form);
+  const orderDate = Form.useWatch("orderDate", form);
   const lines = Form.useWatch("lines", form) ?? [];
   const premium = Form.useWatch("premium", form);
 
   const createMutation = useCreateTermPurchaseOrder();
+  const contractValidationQuery = useValidateTermPurchaseContract({
+    supplierCustomerId,
+    orderDate: toDate(orderDate),
+  });
+  const contractValidation = contractValidationQuery.data;
+  const contractInvalid = !!supplierCustomerId && contractValidation?.valid === false;
+  const contractLoading = !!supplierCustomerId && contractValidationQuery.isFetching;
   const productsQuery = useProductSelect("");
   const locQuery = useSupplierLocationsSelect(supplierCustomerId, locKeyword);
 
@@ -122,6 +130,7 @@ export default function TermPurchaseOrderCreatePage() {
 
   const initialValues: Partial<FormValues> = {
     orderDate: dayjs(),
+    transportMode: "PIPELINE",
     lines: [
       {
         taxRate: 10,
@@ -131,6 +140,11 @@ export default function TermPurchaseOrderCreatePage() {
   };
 
   const onFinish = async (values: FormValues) => {
+    if (contractValidation?.valid === false) {
+      message.error(contractValidation.message || "Nhà cung cấp chưa có hợp đồng mua hàng TERM hợp lệ");
+      return;
+    }
+
     const linesPayload = (values.lines ?? [])
       .filter((line) => line.productId && cleanNumber(line.orderedQty))
       .map((line) => ({
@@ -155,7 +169,7 @@ export default function TermPurchaseOrderCreatePage() {
       supplierLocationId: values.supplierLocationId,
       orderDate: toDate(values.orderDate)!,
       expectedDate: toDate(values.expectedDate),
-      contractNo: values.contractNo?.trim() || undefined,
+      transportMode: values.transportMode,
       deliveryLocation: values.deliveryLocation?.trim() || undefined,
       paymentNote: values.paymentNote?.trim() || undefined,
       note: values.note?.trim() || undefined,
@@ -293,6 +307,7 @@ export default function TermPurchaseOrderCreatePage() {
               <Button
                 type="primary"
                 loading={createMutation.isPending}
+                disabled={contractInvalid || contractLoading}
                 onClick={() => form.submit()}
               >
                 Lưu đơn TERM
@@ -411,8 +426,26 @@ export default function TermPurchaseOrderCreatePage() {
                     gap: 8,
                   }}
                 >
-                  <Form.Item name="contractNo" label="Số hợp đồng">
-                    <Input placeholder="Tự điền theo NCC nếu có" />
+                  <Form.Item label="Hợp đồng áp dụng">
+                    <Input
+                      readOnly
+                      value={contractValidation?.valid ? contractValidation.contract.code : ""}
+                      placeholder="Chọn NCC và ngày đơn để kiểm tra"
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="transportMode"
+                    label="Phương thức vận chuyển"
+                    rules={[{ required: true, message: "Chọn phương thức" }]}
+                  >
+                    <Select
+                      options={[
+                        { value: "PIPELINE", label: "Đường ống" },
+                        { value: "SEA", label: "Đường biển" },
+                        { value: "ROAD", label: "Đường bộ" },
+                      ]}
+                    />
                   </Form.Item>
 
                   <Form.Item name="deliveryLocation" label="Địa điểm giao hàng">
@@ -426,11 +459,27 @@ export default function TermPurchaseOrderCreatePage() {
                       placeholder="Nếu có"
                     />
                   </Form.Item>
-
-                  <Form.Item label="Loại nghiệp vụ">
-                    <Input value="TERM" readOnly />
-                  </Form.Item>
                 </div>
+
+                {supplierCustomerId ? (
+                  <Alert
+                    type={contractValidation?.valid ? "success" : contractInvalid ? "error" : "info"}
+                    showIcon
+                    style={{ marginBottom: 8 }}
+                    message={
+                      contractValidation?.valid
+                        ? `Hợp đồng áp dụng: ${contractValidation.contract.code}`
+                        : contractInvalid
+                          ? contractValidation.message
+                          : "Đang kiểm tra hợp đồng mua hàng TERM"
+                    }
+                    description={
+                      contractValidation?.valid
+                        ? `Hiệu lực: ${dayjs(contractValidation.contract.startDate).format("DD/MM/YYYY")} - ${dayjs(contractValidation.contract.endDate).format("DD/MM/YYYY")}`
+                        : undefined
+                    }
+                  />
+                ) : null}
 
                 <div
                   style={{

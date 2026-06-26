@@ -29,6 +29,8 @@ import BankAccountsPage from "../features/bank-accounts/page/BankAccountsPage";
 import BankImportTemplatesPage from "../features/bank-import-templates/ui/page/BankImportTemplatesPage";
 import BankPurposesPage from "../features/bank-purposes/page/BankPurposesPage";
 import PlattsPricesPage from "../features/platts-prices/page/PlattsPricesPage";
+import VcbRatesPage from "../features/vcb-rates/page/VcbRatesPage";
+import EnvironmentTaxesPage from "../features/environment-taxes/page/EnvironmentTaxesPage";
 import TermPurchaseOrderCreatePage from "../features/purchase-term/ui/PurchaseTermCreatePage";
 import TermPurchaseOrdersPage from "../features/purchase-term/page/PurchaseTermPage";
 import TermPurchaseOrderDetailPage from "../features/purchase-term/page/TermPurchaseOrderDetailPage";
@@ -58,6 +60,14 @@ export const router = createBrowserRouter([
           {
             path: "/purchase/platts-prices",
             element: <PlattsPricesPage />,
+          },
+          {
+            path: "/purchase/vcb-rates",
+            element: <VcbRatesPage />,
+          },
+          {
+            path: "/purchase/environment-taxes",
+            element: <EnvironmentTaxesPage />,
           },
           {
             path: "/purchase-terms",

@@ -46,6 +46,16 @@ const NAV: NavItem[] = [
     icon: <DatabaseOutlined />,
   },
   {
+    key: "/purchase/vcb-rates",
+    label: "Tỷ giá VCB",
+    icon: <DatabaseOutlined />,
+  },
+  {
+    key: "/purchase/environment-taxes",
+    label: "Phí BVMT",
+    icon: <DatabaseOutlined />,
+  },
+  {
     key: "/purchase-orders",
     label: "Đơn mua TM",
     icon: <ShoppingCartOutlined />,
@@ -149,6 +159,9 @@ const BREADCRUMB: Record<string, string> = {
 
   "/purchase-orders": "Đơn mua hàng",
   "/purchase-invoices": "Hóa đơn NCC",
+  "/purchase/platts-prices": "Giá Platts",
+  "/purchase/vcb-rates": "Tỷ giá VCB",
+  "/purchase/environment-taxes": "Phí BVMT",
 
   "/users": "Người dùng",
   "/employees": "Nhân viên",
