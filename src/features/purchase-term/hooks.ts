@@ -39,9 +39,9 @@ export function useCreateTermPurchaseOrder() {
     mutationFn: (data: CreateTermPurchaseOrderPayload) => TermPurchaseOrdersApi.create(data),
     onSuccess: () => {
       invalidateTerm(qc);
-      notify.success("Đã tạo đơn TERM");
+      notify.success("Đã tạo hồ sơ TERM");
     },
-    onError: (e: any) => notify.error(e?.message || "Tạo đơn TERM thất bại"),
+    onError: (e: any) => notify.error(e?.message || "Tạo hồ sơ TERM thất bại"),
   });
 }
 
@@ -75,9 +75,9 @@ export function useApproveTermPurchaseOrder() {
     mutationFn: (id: string) => TermPurchaseOrdersApi.approve(id),
     onSuccess: (_, id) => {
       invalidateTerm(qc, id);
-      notify.success("Đã duyệt đơn TERM");
+      notify.success("Đã sinh đơn đặt hàng TERM");
     },
-    onError: (e: any) => notify.error(e?.message || "Duyệt đơn TERM thất bại"),
+    onError: (e: any) => notify.error(e?.message || "Sinh đơn đặt hàng TERM thất bại"),
   });
 }
 

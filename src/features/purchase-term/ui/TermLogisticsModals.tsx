@@ -81,8 +81,8 @@ export function TermShipmentModal({
               options={[
                 { value: "PIPELINE", label: "Đường ống" },
                 { value: "SEA", label: "Đường biển" },
-                { value: "TRUCK", label: "Đường bộ" },
-                { value: "BARGE", label: "Sà lan" },
+                // { value: "TRUCK", label: "Đường bộ" },
+                // { value: "BARGE", label: "Sà lan" },
                 { value: "OTHER", label: "Khác" },
               ]}
             />

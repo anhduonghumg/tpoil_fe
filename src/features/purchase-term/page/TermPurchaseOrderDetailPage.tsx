@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Card,
@@ -6,6 +6,7 @@ import {
   Descriptions,
   Empty,
   message,
+  Modal,
   Progress,
   Space,
   Spin,
@@ -25,7 +26,7 @@ import {
   PrinterOutlined,
   TruckOutlined,
 } from "@ant-design/icons";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import {
   useApproveTermPurchaseOrder,
@@ -54,6 +55,7 @@ import type {
 } from "../types";
 import { TermReceiptModal } from "../ui/TermReceiptModal";
 import { TermPricingModal } from "../ui/TermPricingModal";
+import { TermPricingSheetModal } from "../ui/TermPricingSheetModal";
 import TermPricingSheetTable from "../ui/TermPricingSheetTable";
 import { TermLogisticsCostModal, TermShipmentModal } from "../ui/TermLogisticsModals";
 
@@ -105,11 +107,14 @@ function stageTitle(kind: PricingKind) {
 export default function TermPurchaseOrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoOpenEstimateRef = useRef(false);
 
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [shipmentOpen, setShipmentOpen] = useState(false);
   const [logisticsOpen, setLogisticsOpen] = useState(false);
   const [pricingKind, setPricingKind] = useState<PricingKind | null>(null);
+  const [viewPricingStage, setViewPricingStage] = useState<TermPricingStage | null>(null);
 
   const detailQuery = useTermPurchaseOrderDetail(id);
   const data = detailQuery.data;
@@ -135,6 +140,16 @@ export default function TermPurchaseOrderDetailPage() {
     const boss = stage(data, "BOSS_SHEET");
     return { estimate, bill, final, boss, latest: final || bill || estimate || boss };
   }, [data]);
+
+  useEffect(() => {
+    if (!data || autoOpenEstimateRef.current) return;
+    if (searchParams.get("step") !== "estimate") return;
+    if (stage(data, "ESTIMATE")) return;
+
+    autoOpenEstimateRef.current = true;
+    setPricingKind("ESTIMATE");
+    setSearchParams({}, { replace: true });
+  }, [data, searchParams, setSearchParams]);
 
   if (detailQuery.isLoading) {
     return (
@@ -166,6 +181,27 @@ export default function TermPurchaseOrderDetailPage() {
 
   const currentActionLabel = workflow?.currentActionLabel || "Xem hồ sơ";
   const currentActionDisabled = isAction(currentAction, "VIEW_ONLY") || data.status === "CANCELLED";
+
+  const getPricingStage = (kind: PricingKind) => {
+    if (kind === "ESTIMATE") return pricing?.estimate;
+    if (kind === "BILL_NORMALIZE") return pricing?.bill;
+    if (kind === "FINAL") return pricing?.final;
+    return pricing?.boss;
+  };
+
+  const openPricing = (kind: PricingKind) => {
+    const existingStage = getPricingStage(kind);
+    if (existingStage) {
+      setViewPricingStage(existingStage);
+      return;
+    }
+    setPricingKind(kind);
+  };
+
+  const recalculatePricing = (kind: PricingKind) => {
+    setViewPricingStage(null);
+    setPricingKind(kind);
+  };
 
   const printDocument = (doc: TermPrintDocument) => {
     if (doc.status !== "READY") {
@@ -223,11 +259,13 @@ export default function TermPurchaseOrderDetailPage() {
               hasEstimate={hasEstimate}
               hasBill={hasBill}
               hasFinal={hasFinal}
+              onGenerateOrder={runCurrentAction}
+              generatingOrder={approveMutation.isPending}
               onReceive={() => setReceiptOpen(true)}
-              onEstimate={() => setPricingKind("ESTIMATE")}
-              onBill={() => setPricingKind("BILL_NORMALIZE")}
-              onFinal={() => setPricingKind("FINAL")}
-              onBoss={() => setPricingKind("BOSS_SHEET")}
+              onEstimate={() => openPricing("ESTIMATE")}
+              onBill={() => openPricing("BILL_NORMALIZE")}
+              onFinal={() => openPricing("FINAL")}
+              onBoss={() => openPricing("BOSS_SHEET")}
               onShipment={() => setShipmentOpen(true)}
               onLogistics={() => setLogisticsOpen(true)}
             />
@@ -260,7 +298,7 @@ export default function TermPurchaseOrderDetailPage() {
                       boss={pricing?.boss}
                       latest={pricing?.latest}
                       hasConfirmedReceipt={hasConfirmedReceipt}
-                      onCreate={(kind) => setPricingKind(kind)}
+                      onCreate={openPricing}
                     />
                   ),
                 },
@@ -298,24 +336,44 @@ export default function TermPurchaseOrderDetailPage() {
         }
       />
 
-      {pricingKind ? (
-        <TermPricingModal
-          open={!!pricingKind}
+      <PricingSheetViewModal
+        stage={viewPricingStage}
+        onClose={() => setViewPricingStage(null)}
+        onRecalculate={(kind) => recalculatePricing(kind)}
+      />
+
+      {pricingKind && pricingKind !== "BOSS_SHEET" ? (
+        <TermPricingSheetModal
+          open
           kind={pricingKind}
           data={data}
+          initialStage={getPricingStage(pricingKind)}
           loading={
             createEstimatePricing.isPending ||
             createBillPricing.isPending ||
-            createFinalPricing.isPending ||
-            createBossSheetPricing.isPending
+            createFinalPricing.isPending
           }
           onCancel={() => setPricingKind(null)}
           onSubmit={(payload) => {
             const done = { onSuccess: () => setPricingKind(null) };
             if (pricingKind === "ESTIMATE") createEstimatePricing.mutate(payload, done);
             else if (pricingKind === "BILL_NORMALIZE") createBillPricing.mutate(payload, done);
-            else if (pricingKind === "FINAL") createFinalPricing.mutate(payload, done);
-            else createBossSheetPricing.mutate(payload, done);
+            else createFinalPricing.mutate(payload, done);
+          }}
+        />
+      ) : null}
+
+      {pricingKind === "BOSS_SHEET" ? (
+        <TermPricingModal
+          open
+          kind="BOSS_SHEET"
+          data={data}
+          initialStage={getPricingStage("BOSS_SHEET")}
+          loading={createBossSheetPricing.isPending}
+          onCancel={() => setPricingKind(null)}
+          onSubmit={(payload) => {
+            const done = { onSuccess: () => setPricingKind(null) };
+            createBossSheetPricing.mutate(payload, done);
           }}
         />
       ) : null}
@@ -397,10 +455,13 @@ function StepCard({ step, index }: { step: TermWorkflowStep; index: number }) {
 }
 
 function ActionBoard({
+  data,
   hasConfirmedReceipt,
   hasEstimate,
   hasBill,
   hasFinal,
+  onGenerateOrder,
+  generatingOrder,
   onReceive,
   onEstimate,
   onBill,
@@ -414,6 +475,8 @@ function ActionBoard({
   hasEstimate: boolean;
   hasBill: boolean;
   hasFinal: boolean;
+  onGenerateOrder: () => void;
+  generatingOrder?: boolean;
   onReceive: () => void;
   onEstimate: () => void;
   onBill: () => void;
@@ -422,13 +485,16 @@ function ActionBoard({
   onShipment: () => void;
   onLogistics: () => void;
 }) {
+  const isOrderGenerated = data.status !== "DRAFT";
+
   return (
     <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 8 } }}>
       <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 10 }}>Thao tác chính</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))", gap: 5 }}>
-        <ActionButton icon={<FileDoneOutlined />} title="Nhận hàng" desc="Số lượng, V15, tỷ trọng" onClick={onReceive} />
-        <ActionButton icon={<CalculatorOutlined />} title="Giá tạm tính" desc="MOPS, premium, tỷ giá" disabled={!hasConfirmedReceipt} onClick={onEstimate} done={hasEstimate} />
-        <ActionButton icon={<CalculatorOutlined />} title="Giá theo bill" desc="Sau giao nhận/bill bồn" disabled={!hasEstimate} onClick={onBill} done={hasBill} />
+        <ActionButton icon={<CalculatorOutlined />} title="Giá tạm tính" desc="MOPS, premium, tỷ giá" onClick={onEstimate} done={hasEstimate} />
+        <ActionButton icon={<FileDoneOutlined />} title="Đơn đặt hàng" desc="Sinh sau bảng giá tạm tính" disabled={!hasEstimate || isOrderGenerated} loading={generatingOrder} onClick={onGenerateOrder} done={isOrderGenerated} />
+        <ActionButton icon={<FileDoneOutlined />} title="Nhận hàng" desc="Số lượng, V15, tỷ trọng" disabled={!isOrderGenerated} onClick={onReceive} done={hasConfirmedReceipt} />
+        <ActionButton icon={<CalculatorOutlined />} title="Giá theo bill" desc="Sau giao nhận/bill bồn" disabled={!hasConfirmedReceipt} onClick={onBill} done={hasBill} />
         <ActionButton icon={<CalculatorOutlined />} title="Giá chính thức" desc="Chốt tỷ giá và quyết toán" disabled={!hasBill} onClick={onFinal} done={hasFinal} />
         <ActionButton icon={<TruckOutlined />} title="Vận chuyển" desc="Đường ống/logistics" onClick={onShipment} />
         <ActionButton icon={<FileTextOutlined />} title="Chi phí" desc="Kiểm định, vận chuyển, khác" onClick={onLogistics} />
@@ -438,9 +504,9 @@ function ActionBoard({
   );
 }
 
-function ActionButton({ icon, title, desc, disabled, done, onClick }: { icon: React.ReactNode; title: string; desc: string; disabled?: boolean; done?: boolean; onClick: () => void }) {
+function ActionButton({ icon, title, desc, disabled, done, loading, onClick }: { icon: React.ReactNode; title: string; desc: string; disabled?: boolean; done?: boolean; loading?: boolean; onClick: () => void }) {
   return (
-    <Button disabled={disabled} onClick={onClick} size="small" style={{ height: 34, textAlign: "left", justifyContent: "flex-start", borderRadius: 6, paddingInline: 8 }}>
+    <Button disabled={disabled} loading={loading} onClick={onClick} size="small" style={{ height: 34, textAlign: "left", justifyContent: "flex-start", borderRadius: 6, paddingInline: 8 }}>
       <Space size={6} align="center">
         <span style={{ color: done ? "#16a34a" : "#1677ff", fontSize: 13 }}>{done ? <CheckCircleFilled /> : icon}</span>
         <span style={{ display: "block", fontWeight: 800, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={desc}>{title}</span>
@@ -500,8 +566,8 @@ function PricingSection({ estimate, bill, final, boss, latest, hasConfirmedRecei
     <div>
       <Header title="Bảng giá" desc="Hiển thị theo đúng thứ tự lập giá, không cần mở nhiều tab." />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8, marginBottom: latest ? 12 : 0 }}>
-        <PriceCard title="Tạm tính" stage={estimate} disabled={!hasConfirmedReceipt} onClick={() => onCreate("ESTIMATE")} />
-        <PriceCard title="Theo bill" stage={bill} disabled={!estimate} onClick={() => onCreate("BILL_NORMALIZE")} />
+        <PriceCard title="Tạm tính" stage={estimate} onClick={() => onCreate("ESTIMATE")} />
+        <PriceCard title="Theo bill" stage={bill} disabled={!estimate || !hasConfirmedReceipt} onClick={() => onCreate("BILL_NORMALIZE")} />
         <PriceCard title="Chính thức" stage={final} disabled={!bill} onClick={() => onCreate("FINAL")} />
         <PriceCard title="Tổng hợp" stage={boss} disabled={!final} onClick={() => onCreate("BOSS_SHEET")} />
       </div>
@@ -526,8 +592,53 @@ function PriceCard({ title, stage, disabled, onClick }: { title: string; stage?:
         <div>Đơn giá: <b>{stage?.unitVndPerLiter == null ? "--" : `${fmt(stage.unitVndPerLiter, 2)} đ/L`}</b></div>
         <div>Tổng tiền: <b>{stage?.totalAmountVnd == null ? "--" : `${fmt(stage.totalAmountVnd)} đ`}</b></div>
       </div>
-      <Button block size="small" disabled={disabled} onClick={onClick}>{stage ? "Tính lại" : "Tạo"}</Button>
+      <Button block size="small" disabled={disabled} onClick={onClick}>{stage ? "Xem bảng" : "Tạo"}</Button>
     </div>
+  );
+}
+
+function PricingSheetViewModal({
+  stage,
+  onClose,
+  onRecalculate,
+}: {
+  stage: TermPricingStage | null;
+  onClose: () => void;
+  onRecalculate: (kind: PricingKind) => void;
+}) {
+  if (!stage) return null;
+
+  const kind = stage.stageType as PricingKind;
+
+  return (
+    <Modal
+      open
+      width="min(1180px, calc(100vw - 32px))"
+      title={stageTitle(kind)}
+      onCancel={onClose}
+      footer={[
+        <Button key="close" onClick={onClose}>
+          Đóng
+        </Button>,
+        <Button key="recalculate" type="primary" onClick={() => onRecalculate(kind)}>
+          Sửa bảng giá
+        </Button>,
+      ]}
+      styles={{ body: { paddingTop: 8 } }}
+    >
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        <Tag color="blue">Đơn giá {stage.unitVndPerLiter == null ? "--" : `${fmt(stage.unitVndPerLiter, 2)} đ/L`}</Tag>
+        <Tag color="green">Tổng tiền {stage.totalAmountVnd == null ? "--" : `${fmt(stage.totalAmountVnd)} đ`}</Tag>
+        {stage.fxRate ? <Tag>Tỷ giá {fmt(stage.fxRate, 2)}</Tag> : null}
+        {stage.mopsAvgUsdPerBbl ? <Tag>MOPS {fmt(stage.mopsAvgUsdPerBbl, 3)} USD/bbl</Tag> : null}
+      </div>
+
+      {stage.sheetRows?.length ? (
+        <TermPricingSheetTable rows={stage.sheetRows} />
+      ) : (
+        <Empty description="Bảng giá này chưa có dòng chi tiết để hiển thị." />
+      )}
+    </Modal>
   );
 }
 
@@ -640,13 +751,17 @@ function fallbackDocuments(data: TermPurchaseOrderDetail): TermPrintDocument[] {
   const hasBill = !!stage(data, "BILL_NORMALIZE");
   const hasFinal = !!stage(data, "FINAL");
   const hasReceipt = (data.receipts || []).some((x) => x.status === "CONFIRMED");
+  const isOrderGenerated = data.status !== "DRAFT";
   return [
     { key: "APPENDIX", title: "Phụ lục hợp đồng", status: data.contractNo ? "READY" : "WAITING" },
-    { key: "PURCHASE_ORDER", title: "Đơn đặt hàng", status: data.orderNo ? "READY" : "WAITING" },
     { key: "ESTIMATE_PRICE", title: "Bảng giá tạm tính", status: hasEstimate ? "READY" : "WAITING" },
+    { key: "PURCHASE_ORDER", title: "Đơn đặt hàng", status: hasEstimate && isOrderGenerated ? "READY" : "WAITING" },
     { key: "BILL_PRICE", title: "Bảng giá theo bill", status: hasBill ? "READY" : "WAITING" },
     { key: "OFFICIAL_PRICE", title: "Bảng giá chính thức", status: hasFinal ? "READY" : "WAITING" },
     { key: "PAYMENT_REQUEST", title: "Phiếu đề nghị thanh toán", status: hasEstimate || hasFinal ? "READY" : "WAITING" },
     { key: "DELIVERY_MINUTES", title: "Biên bản giao nhận", status: hasReceipt ? "READY" : "WAITING" },
   ];
 }
+
+
+

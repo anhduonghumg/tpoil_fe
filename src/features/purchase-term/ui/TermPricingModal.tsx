@@ -19,6 +19,7 @@ import dayjs from "dayjs";
 import type {
   CreateTermPricingPayload,
   TermPricingCostPayload,
+  TermPricingStage,
   TermPricingStageType,
   TermPurchaseOrderDetail,
 } from "../types";
@@ -73,6 +74,7 @@ type Props = {
   open: boolean;
   kind: PricingKind;
   data: TermPurchaseOrderDetail;
+  initialStage?: TermPricingStage | null;
   loading?: boolean;
   onCancel: () => void;
   onSubmit: (payload: CreateTermPricingPayload) => void;
@@ -85,6 +87,13 @@ const titleMap: Record<PricingKind, string> = {
   BOSS_SHEET: "Tạo bảng sếp",
 };
 
+Object.assign(titleMap, {
+  ESTIMATE: "Tạo bảng giá tạm tính",
+  BILL_NORMALIZE: "Tạo bảng giá theo bill",
+  FINAL: "Tạo bảng giá chính thức",
+  BOSS_SHEET: "Tạo bảng tổng hợp",
+});
+
 function toNumber(v: unknown): number | undefined {
   if (v === null || v === undefined || v === "") return undefined;
   const n = Number(v);
@@ -95,6 +104,7 @@ export function TermPricingModal({
   open,
   kind,
   data,
+  initialStage,
   loading,
   onCancel,
   onSubmit,
@@ -239,7 +249,7 @@ export function TermPricingModal({
         0,
       ) || Number(data.totalQty || 0);
 
-    form.setFieldsValue({
+    const defaultValues: Partial<FormValues> = {
       billDate: dayjs(),
       qtyBasisSelected: "V15",
 
@@ -264,8 +274,44 @@ export function TermPricingModal({
       retailPriceVndPerLiter: undefined,
 
       costs: [],
+    };
+
+    if (!initialStage) {
+      form.setFieldsValue(defaultValues);
+      return;
+    }
+
+    const priceDays = initialStage.priceDays || [];
+    const lastPriceDay = priceDays[priceDays.length - 1];
+
+    form.setFieldsValue({
+      ...defaultValues,
+      billDate: initialStage.fxRateDate ? dayjs(initialStage.fxRateDate) : defaultValues.billDate,
+      qtyBasisSelected: "V15",
+      plattsBaseDate: lastPriceDay?.priceDate ? dayjs(lastPriceDay.priceDate) : defaultValues.plattsBaseDate,
+      mopsAvgUsdPerBbl: initialStage.mopsAvgUsdPerBbl ?? undefined,
+      premiumUsdPerBbl: initialStage.premiumUsdPerBbl ?? defaultValues.premiumUsdPerBbl,
+      specialConsumptionTaxUsdPerBbl: initialStage.specialConsumptionTaxUsdPerBbl ?? defaultValues.specialConsumptionTaxUsdPerBbl,
+      fxRateDate: initialStage.fxRateDate ? dayjs(initialStage.fxRateDate) : defaultValues.fxRateDate,
+      fxRate: initialStage.fxRate ?? undefined,
+      billBarrelQty: initialStage.billBarrelQty ?? undefined,
+      tankQtyLiter: initialStage.tankQtyLiter ?? defaultValues.tankQtyLiter,
+      insuranceRate: initialStage.insuranceRate ?? defaultValues.insuranceRate,
+      inspectionFeeVnd: initialStage.inspectionFeeVnd ?? undefined,
+      transportFeeVnd: initialStage.transportFeeVnd ?? undefined,
+      storageFeeVnd: initialStage.storageFeeVnd ?? undefined,
+      transportLossRate: initialStage.transportLossRate ?? defaultValues.transportLossRate,
+      envTaxVndPerLiter: initialStage.envTaxVndPerLiter ?? undefined,
+      extraCostVndPerLiter: initialStage.extraCostVndPerLiter ?? undefined,
+      retailPriceVndPerLiter: initialStage.retailPriceVndPerLiter ?? undefined,
+      note: initialStage.note ?? undefined,
+      costs: (initialStage.costs || []).map((cost) => ({
+        name: cost.name || undefined,
+        amountVnd: cost.amountVnd ?? undefined,
+        note: cost.note || undefined,
+      })),
     });
-  }, [open, kind, data, form]);
+  }, [open, kind, data, form, initialStage]);
 
   const submit = async () => {
     const v = await form.validateFields();

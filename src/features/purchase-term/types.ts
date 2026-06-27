@@ -454,6 +454,14 @@ export type TermPricingStage = {
 
   temporaryAmountVnd?: number | null;
 
+  contractPaymentRate?: number | null;
+
+  contractPaymentAmountVnd?: number | null;
+
+  bankGuaranteeRate?: number | null;
+
+  bankGuaranteeFeeVnd?: number | null;
+
   discountVndPerLiter?: number | null;
 
   note?: string | null;
@@ -555,6 +563,10 @@ export type CreateTermPricingPayload = {
   extraCostVndPerLiter?: number;
 
   retailPriceVndPerLiter?: number;
+
+  contractPaymentRate?: number;
+
+  bankGuaranteeRate?: number;
 
   envTaxAmountVnd?: number;
 

@@ -123,7 +123,7 @@ export const TermPurchaseOrdersApi = {
       (r) => (r.data!.data ?? r.data) as any,
     ),
 
-  getPlattsAverage: (params: { productId: string; baseDate: string }) =>
+  getPlattsAverage: (params: { productId: string; baseDate: string; limit?: number }) =>
     apiCall<any>("purchaseTerm.getPlattsAverage", {
       query: params,
     }).then((r) => (r.data!.data ?? r.data) as any),

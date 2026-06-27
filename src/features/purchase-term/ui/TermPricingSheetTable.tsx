@@ -27,7 +27,6 @@ export default function TermPricingSheetTable({ rows, loading }: Props) {
       align: "center",
       fixed: "left",
     },
-
     {
       title: "Nội dung",
       dataIndex: "label",
@@ -45,12 +44,10 @@ export default function TermPricingSheetTable({ rows, loading }: Props) {
         );
       },
     },
-
     {
       title: "Giá trị",
       width: 220,
       align: "right",
-
       render(_, row) {
         const digits = row.unit?.includes("USD") ? 6 : 0;
 
@@ -66,13 +63,11 @@ export default function TermPricingSheetTable({ rows, loading }: Props) {
         );
       },
     },
-
     {
       title: "ĐVT",
       dataIndex: "unit",
       width: 120,
     },
-
     {
       title: "Công thức",
       dataIndex: "formula",
@@ -81,12 +76,10 @@ export default function TermPricingSheetTable({ rows, loading }: Props) {
         return value ? <Text type="secondary">{value}</Text> : null;
       },
     },
-
     {
       title: "Ghi chú",
       dataIndex: "note",
       width: 260,
-
       render(value) {
         return value ? <Text type="secondary">{value}</Text> : null;
       },
@@ -108,14 +101,8 @@ export default function TermPricingSheetTable({ rows, loading }: Props) {
         y: "calc(100vh - 320px)",
       }}
       rowClassName={(row) => {
-        if (row.isHighlighted) {
-          return "term-sheet-row-highlight";
-        }
-
-        if (row.isResult) {
-          return "term-sheet-row-result";
-        }
-
+        if (row.isHighlighted) return "term-sheet-row-highlight";
+        if (row.isResult) return "term-sheet-row-result";
         return "";
       }}
     />

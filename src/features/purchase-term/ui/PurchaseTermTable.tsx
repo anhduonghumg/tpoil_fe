@@ -51,11 +51,14 @@ function statusTag(status: TermPurchaseOrderListItem["status"]) {
 
 function nextActionLabel(action: TermNextAction) {
   const map: Record<TermNextAction, string> = {
-    APPROVE_ORDER: "Duyệt đơn",
-    CREATE_RECEIPT: "Nhập receipt",
-    CALCULATE_ESTIMATE: "Tính tạm",
-    CALCULATE_BILL_NORMALIZE: "Chốt bill",
+    APPROVE_ORDER: "Sinh đơn",
+    CREATE_RECEIPT: "Nhận hàng",
+    CALCULATE_ESTIMATE: "Lập giá tạm",
+    CALCULATE_TEMP_PRICE: "Lập giá tạm",
+    CALCULATE_BILL_NORMALIZE: "Giá theo bill",
+    CALCULATE_INVOICE_PRICE: "Giá theo bill",
     CALCULATE_FINAL: "Chốt giá",
+    CALCULATE_OFFICIAL_FX: "Chốt giá",
     COMPLETE_ORDER: "Hoàn tất",
     VIEW_ONLY: "Xem",
   };

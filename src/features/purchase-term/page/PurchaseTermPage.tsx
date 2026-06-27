@@ -77,11 +77,14 @@ function paymentModeTag(mode: PaymentMode) {
 
 function nextActionTag(action: TermNextAction) {
   const map: Record<TermNextAction, { text: string; color?: string }> = {
-    APPROVE_ORDER: { text: "Cần duyệt", color: "orange" },
+    APPROVE_ORDER: { text: "Sinh đơn", color: "orange" },
     CREATE_RECEIPT: { text: "Nhận hàng", color: "blue" },
-    CALCULATE_ESTIMATE: { text: "Tính giá tạm", color: "gold" },
-    CALCULATE_BILL_NORMALIZE: { text: "Bảng xuất HĐ", color: "purple" },
+    CALCULATE_ESTIMATE: { text: "Lập giá tạm", color: "gold" },
+    CALCULATE_TEMP_PRICE: { text: "Lập giá tạm", color: "gold" },
+    CALCULATE_BILL_NORMALIZE: { text: "Giá theo bill", color: "purple" },
+    CALCULATE_INVOICE_PRICE: { text: "Giá theo bill", color: "purple" },
     CALCULATE_FINAL: { text: "Chốt giá", color: "green" },
+    CALCULATE_OFFICIAL_FX: { text: "Chốt giá", color: "green" },
     COMPLETE_ORDER: { text: "Hoàn tất", color: "green" },
     VIEW_ONLY: { text: "Xem", color: "default" },
   };

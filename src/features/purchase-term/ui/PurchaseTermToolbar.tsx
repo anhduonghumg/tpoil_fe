@@ -98,7 +98,7 @@ export function PurchaseTermToolbar({
 
       <Space size={10} style={{ flex: "0 0 auto" }}>
         <Button size="small" style={{ borderRadius: 9 }}>
-          Đơn hàng trước
+          Hồ sơ trước
         </Button>
 
         <Button
@@ -108,7 +108,7 @@ export function PurchaseTermToolbar({
           onClick={onCreate}
           style={{ borderRadius: 9 }}
         >
-          Tạo đơn
+          Tạo hồ sơ
         </Button>
       </Space>
     </div>
