@@ -23,15 +23,17 @@ type FormValues = {
   specialConsumptionTaxUsdPerBbl?: number;
   fxRateDate?: Dayjs;
   fxRate?: number;
-  billBarrelQty?: number;
+  billBarrelQty?: number | string;
   tankQtyLiter?: number;
-  insuranceRate?: number;
+  insuranceAmountVnd?: number;
   inspectionFeeVnd?: number;
   transportFeeVnd?: number;
   storageFeeVnd?: number;
-  transportLossRate?: number;
+  transportLossAmountVnd?: number;
+  transportDeductionVnd?: number;
   envTaxVndPerLiter?: number;
   extraCostVndPerLiter?: number;
+  fundAdjustmentVndPerLiter?: number;
   contractPaymentRate?: number;
   bankGuaranteeRate?: number;
   note?: string;
@@ -49,13 +51,18 @@ type Props = {
 
 const titleMap: Record<SheetPricingKind, string> = {
   ESTIMATE: "Bảng giá tạm tính",
-  BILL_NORMALIZE: "Bảng giá theo bill",
-  FINAL: "Bảng giá chính thức",
+  BILL_NORMALIZE: "Bảng xuất hóa đơn",
+  FINAL: "Bảng chính thức",
 };
 
-function cleanNumber(value?: number | null) {
+function cleanNumber(value?: number | string | null) {
   if (value === null || value === undefined || value === "") return undefined;
-  const n = Number(value);
+  const raw = typeof value === "string" ? value.trim() : value;
+  const normalized =
+    typeof raw === "string" && raw.includes(",")
+      ? raw.replace(/\./g, "").replace(/,/g, ".")
+      : raw;
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -66,6 +73,63 @@ function toDate(value?: Dayjs) {
 function fmt(value?: number | null, digits = 0) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
   return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: digits }).format(Number(value));
+}
+
+function fmtFixed(value?: number | null, digits = 0) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
+  return new Intl.NumberFormat("vi-VN", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(value));
+}
+
+function roundNumber(value: number, digits = 3) {
+  const factor = 10 ** digits;
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+}
+
+function formatPlainDecimalComma(value: number | string | null | undefined, digits = 6): string {
+  if (value === null || value === undefined || value === "") return "";
+  const num = cleanNumber(value);
+  if (!Number.isFinite(num)) return "";
+  return Number(num).toFixed(digits).replace(".", ",");
+}
+
+function formatPercentRate(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "";
+  const num = cleanNumber(value);
+  if (num === undefined) return "";
+  return fmt(num * 100, 6);
+}
+
+function parsePercentRate(value?: string): number {
+  const num = cleanNumber(value);
+  return num === undefined ? NaN : num / 100;
+}
+
+function sanitizeNumericText(value: string) {
+  const cleaned = value.replace(/[^\d.,]/g, "");
+  const commaIndex = cleaned.indexOf(",");
+  const withSingleComma =
+    commaIndex < 0
+      ? cleaned
+      : cleaned.slice(0, commaIndex + 1) + cleaned.slice(commaIndex + 1).replace(/,/g, "");
+  const dotIndex = withSingleComma.indexOf(".");
+  if (commaIndex >= 0 || dotIndex < 0) return withSingleComma;
+  return withSingleComma.slice(0, dotIndex + 1) + withSingleComma.slice(dotIndex + 1).replace(/\./g, "");
+}
+
+// Parse Vietnamese number format (comma as decimal separator)
+function parseVietnameseNumber(str: string): number {
+  if (!str) return NaN;
+  const normalized = str
+    .replace(/\./g, "")
+    .replace(/,/g, ".");
+  return parseFloat(normalized);
+}
+
+function formatVietnameseNumber(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "";
+  const num = typeof value === "string" ? parseVietnameseNumber(value) : Number(value);
+  if (!Number.isFinite(num)) return "";
+  return fmt(num, 6);
 }
 
 function averagePriceDays(days?: PriceDayForm[]) {
@@ -97,27 +161,29 @@ function calculatePreview(values: FormValues | undefined, data: TermPurchaseOrde
   const specialTax = cleanNumber(values?.specialConsumptionTaxUsdPerBbl) ?? 0;
   const fxRate = cleanNumber(values?.fxRate) ?? 0;
   const envTax = cleanNumber(values?.envTaxVndPerLiter) ?? 0;
-  const extraCost = cleanNumber(values?.extraCostVndPerLiter) ?? 0;
-  const insuranceRate = cleanNumber(values?.insuranceRate) ?? 0;
-  const transportLossRate = cleanNumber(values?.transportLossRate) ?? 0;
+  const extraCostAmount = cleanNumber(values?.extraCostVndPerLiter) ?? 0;
+  const fundAdjustment = cleanNumber(values?.fundAdjustmentVndPerLiter) ?? 0;
+  const insuranceAmount = cleanNumber(values?.insuranceAmountVnd) ?? 0;
+  const lossAmount = cleanNumber(values?.transportLossAmountVnd) ?? 0;
   const inspectionFeeVnd = cleanNumber(values?.inspectionFeeVnd) ?? 0;
   const transportFeeVnd = cleanNumber(values?.transportFeeVnd) ?? 0;
   const storageFeeVnd = cleanNumber(values?.storageFeeVnd) ?? 0;
+  const transportDeductionVnd = cleanNumber(values?.transportDeductionVnd) ?? 0;
   const vatRate = Number(data.lines?.[0]?.taxRate ?? 8) / 100;
 
-  const fobUsdPerBbl = mops + premium + specialTax;
+  const fobUsdPerBbl = roundNumber(mops + premium + specialTax, 3);
   const billBarrelQty = cleanNumber(values?.billBarrelQty) ?? (qty ? qty / 159 : 0);
   const amountUsd = fobUsdPerBbl * billBarrelQty;
   const amountVnd = amountUsd * fxRate;
-  const insuranceAmount = amountVnd * insuranceRate;
-  const lossAmount = amountVnd * transportLossRate;
-  const billTotal = amountVnd + insuranceAmount + inspectionFeeVnd + transportFeeVnd + storageFeeVnd + lossAmount;
+  const billTotal = amountVnd + insuranceAmount + inspectionFeeVnd + transportFeeVnd + storageFeeVnd + lossAmount - transportDeductionVnd;
   const unitAverage = qty ? billTotal / qty : 0;
-  const unitBeforeVat = unitAverage + envTax + extraCost;
+  const extraCost = qty ? extraCostAmount / qty : 0;
+  const fundAdjustmentAmount = fundAdjustment * qty;
+  const unitBeforeVat = unitAverage + envTax + extraCost + fundAdjustment;
   const amountBeforeVat = unitBeforeVat * qty;
   const vatAmount = amountBeforeVat * vatRate;
   const totalAmount = amountBeforeVat + vatAmount;
-  const contractPaymentRate = cleanNumber(values?.contractPaymentRate) ?? 0;
+  const contractPaymentRate = cleanNumber(values?.contractPaymentRate) ?? 100;
   const contractPaymentAmount = amountBeforeVat * contractPaymentRate / 100;
   const bankGuaranteeRate = cleanNumber(values?.bankGuaranteeRate) ?? 0;
   const bankGuaranteeFee = amountBeforeVat * bankGuaranteeRate / 100;
@@ -135,6 +201,10 @@ function calculatePreview(values: FormValues | undefined, data: TermPurchaseOrde
     transportFeeVnd,
     storageFeeVnd,
     lossAmount,
+    transportDeductionVnd,
+    extraCostAmount,
+    fundAdjustment,
+    fundAdjustmentAmount,
     billTotal,
     unitAverage,
     unitBeforeVat,
@@ -180,15 +250,17 @@ function buildInitialValues(data: TermPurchaseOrderDetail, initialStage?: TermPr
     specialConsumptionTaxUsdPerBbl: initialStage?.specialConsumptionTaxUsdPerBbl ?? 0,
     fxRateDate: fxDate,
     fxRate: initialStage?.fxRate ?? undefined,
-    billBarrelQty: initialStage?.billBarrelQty ?? undefined,
+    billBarrelQty: initialStage?.billBarrelQty == null ? undefined : formatPlainDecimalComma(initialStage.billBarrelQty, 6),
     tankQtyLiter: initialStage?.tankQtyLiter ?? qtyInfo.v15,
-    insuranceRate: initialStage?.insuranceRate ?? 0,
+    insuranceAmountVnd: initialStage?.insuranceAmountVnd ?? 0,
     inspectionFeeVnd: initialStage?.inspectionFeeVnd ?? 0,
     transportFeeVnd: initialStage?.transportFeeVnd ?? 0,
     storageFeeVnd: initialStage?.storageFeeVnd ?? 0,
-    transportLossRate: initialStage?.transportLossRate ?? 0,
+    transportLossAmountVnd: initialStage?.transportLossAmountVnd ?? 0,
+    transportDeductionVnd: initialStage?.transportDeductionVnd ?? 0,
     envTaxVndPerLiter: initialStage?.envTaxVndPerLiter ?? 0,
-    extraCostVndPerLiter: initialStage?.extraCostVndPerLiter ?? 0,
+    extraCostVndPerLiter: (initialStage?.extraCostVndPerLiter ?? 0) * (initialStage?.tankQtyLiter ?? qtyInfo.v15),
+    fundAdjustmentVndPerLiter: initialStage?.fundAdjustmentVndPerLiter ?? 0,
     contractPaymentRate: initialStage?.contractPaymentRate ?? 100,
     bankGuaranteeRate: initialStage?.bankGuaranteeRate ?? 0,
     note: initialStage?.note ?? undefined,
@@ -242,15 +314,19 @@ function buildPayload(values: FormValues, data: TermPurchaseOrderDetail, kind: S
     fxRateDate: toDate(values.fxRateDate) ?? data.orderDate,
     fxStage: kind === "FINAL" ? "OFFICIAL" : "ESTIMATE",
     fxRate: cleanNumber(values.fxRate),
-    billBarrelQty: cleanNumber(values.billBarrelQty),
+    billBarrelQty: cleanNumber(values.billBarrelQty) ?? calculatePreview(values, data).billBarrelQty,
     tankQtyLiter: cleanNumber(values.tankQtyLiter),
-    insuranceRate: cleanNumber(values.insuranceRate),
+    insuranceAmountVnd: cleanNumber(values.insuranceAmountVnd),
     inspectionFeeVnd: cleanNumber(values.inspectionFeeVnd),
     transportFeeVnd: cleanNumber(values.transportFeeVnd),
     storageFeeVnd: cleanNumber(values.storageFeeVnd),
-    transportLossRate: cleanNumber(values.transportLossRate),
+    transportLossAmountVnd: cleanNumber(values.transportLossAmountVnd),
+    transportDeductionVnd: cleanNumber(values.transportDeductionVnd),
     envTaxVndPerLiter: cleanNumber(values.envTaxVndPerLiter),
-    extraCostVndPerLiter: cleanNumber(values.extraCostVndPerLiter),
+    extraCostVndPerLiter: cleanNumber(values.extraCostVndPerLiter) && cleanNumber(values.tankQtyLiter)
+      ? cleanNumber(values.extraCostVndPerLiter)! / cleanNumber(values.tankQtyLiter)!
+      : undefined,
+    fundAdjustmentVndPerLiter: cleanNumber(values.fundAdjustmentVndPerLiter),
     contractPaymentRate: cleanNumber(values.contractPaymentRate),
     bankGuaranteeRate: cleanNumber(values.bankGuaranteeRate),
     note: values.note?.trim() || undefined,
@@ -289,7 +365,14 @@ function RateAmountInput({ name, amount }: { name: keyof FormValues; amount: num
   return (
     <div style={{ display: "grid", gridTemplateColumns: "92px minmax(0, 1fr)", gap: 6, alignItems: "center" }}>
       <Form.Item name={name} noStyle>
-        <InputNumber min={0} style={{ width: "100%" }} precision={6} />
+        <InputNumber
+          min={0}
+          style={{ width: "100%" }}
+          precision={6}
+          parser={parsePercentRate}
+          formatter={formatPercentRate}
+          addonAfter="%"
+        />
       </Form.Item>
       <div style={{ textAlign: "right", fontWeight: 700 }}>{fmt(amount)}</div>
     </div>
@@ -485,7 +568,7 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
             </tr>
           </thead>
           <tbody>
-            <SheetRow label="Ngày bảng giá" note={kind === "ESTIMATE" ? "Tạm tính" : kind === "BILL_NORMALIZE" ? "Theo bill" : "Chính thức"}>
+            <SheetRow label="Ngày bảng giá" note={kind === "ESTIMATE" ? "Tạm tính" : kind === "BILL_NORMALIZE" ? "Xuất hóa đơn" : "Chính thức"}>
               <Form.Item name="billDate" rules={[{ required: true, message: "Chọn ngày bảng giá" }]} noStyle>
                 <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
               </Form.Item>
@@ -531,7 +614,7 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
                     }
                   >
                     <Form.Item name={["priceDays", index, "priceUsdPerBbl"]} noStyle>
-                      <InputNumber min={0} style={{ width: "100%" }} precision={3} />
+                      <InputNumber min={0} style={{ width: "100%" }} precision={3} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
                     </Form.Item>
                   </SheetRow>
                 ))
@@ -539,19 +622,19 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
 
             <SheetRow label="Giá trung bình MOPS" unit="USD/thùng">
               <Form.Item name="mopsAvgUsdPerBbl" noStyle>
-                <InputNumber min={0} style={{ width: "100%" }} precision={3} placeholder={preview.mops ? fmt(preview.mops, 3) : "Tự tính từ Platts"} />
+                <InputNumber min={0} style={{ width: "100%" }} precision={3} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} placeholder={preview.mops ? fmt(preview.mops, 3) : "Tự tính từ Platts"} />
               </Form.Item>
             </SheetRow>
 
             <SheetRow label="Premium" unit="USD/thùng">
               <Form.Item name="premiumUsdPerBbl" noStyle>
-                <InputNumber style={{ width: "100%" }} precision={3} />
+                <InputNumber style={{ width: "100%" }} precision={3} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
               </Form.Item>
             </SheetRow>
 
             <SheetRow label="Thuế TTĐB" unit="USD/thùng">
               <Form.Item name="specialConsumptionTaxUsdPerBbl" noStyle>
-                <InputNumber min={0} style={{ width: "100%" }} precision={3} />
+                <InputNumber min={0} style={{ width: "100%" }} precision={3} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
               </Form.Item>
             </SheetRow>
 
@@ -561,7 +644,17 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
 
             <SheetRow label="Số thùng BILL" unit="thùng">
               <Form.Item name="billBarrelQty" noStyle>
-                <InputNumber min={0} style={{ width: "100%" }} precision={3} placeholder={preview.billBarrelQty ? fmt(preview.billBarrelQty, 3) : undefined} />
+                <Input
+                  inputMode="decimal"
+                  style={{ width: "100%" }}
+                  placeholder={preview.billBarrelQty ? formatPlainDecimalComma(preview.billBarrelQty, 6) : undefined}
+                  onChange={(event) => {
+                    const sanitized = sanitizeNumericText(event.target.value);
+                    if (sanitized !== event.target.value) {
+                      form.setFieldValue("billBarrelQty", sanitized);
+                    }
+                  }}
+                />
               </Form.Item>
             </SheetRow>
 
@@ -578,7 +671,7 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
                   <DatePicker style={{ width: "42%" }} format="DD/MM/YYYY" />
                 </Form.Item>
                 <Form.Item name="fxRate" noStyle>
-                  <InputNumber min={0} style={{ width: "42%" }} />
+                  <InputNumber min={0} style={{ width: "42%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
                 </Form.Item>
               </Space.Compact>
             </SheetRow>
@@ -605,29 +698,38 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
             {showCostRows ? (
               <>
                 <SheetRow label="Bảo hiểm hàng hóa" unit="VND">
-                  <RateAmountInput name="insuranceRate" amount={preview.insuranceAmount} />
+                  <Form.Item name="insuranceAmountVnd" noStyle>
+                    <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
+                  </Form.Item>
                 </SheetRow>
 
-                <SheetRow label="Phí giám định đo" unit="VND">
+                <SheetRow label="Phí giám định" unit="VND">
                   <Form.Item name="inspectionFeeVnd" noStyle>
-                    <InputNumber min={0} style={{ width: "100%" }} />
+                    <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
                   </Form.Item>
                 </SheetRow>
 
                 <SheetRow label="Cước vận chuyển" unit="VND">
                   <Form.Item name="transportFeeVnd" noStyle>
-                    <InputNumber min={0} style={{ width: "100%" }} />
+                    <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
                   </Form.Item>
                 </SheetRow>
 
                 <SheetRow label="Phí thuê kho" unit="VND">
                   <Form.Item name="storageFeeVnd" noStyle>
-                    <InputNumber min={0} style={{ width: "100%" }} />
+                    <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
                   </Form.Item>
                 </SheetRow>
 
                 <SheetRow label="Hao hụt vận chuyển trừ thẳng vào lượng" unit="VND">
-                  <RateAmountInput name="transportLossRate" amount={preview.lossAmount} />
+                  <Form.Item name="transportLossAmountVnd" noStyle>
+                    <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
+                  </Form.Item>
+                </SheetRow>
+                <SheetRow label="Trừ cước/chi quỹ" unit="VND">
+                  <Form.Item name="transportDeductionVnd" noStyle>
+                    <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
+                  </Form.Item>
                 </SheetRow>
               </>
             ) : null}
@@ -647,7 +749,7 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
             <SheetRow
               label={
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                  <span>Thuế môi trường</span>
+                  <span>Phí bảo vệ môi trường</span>
                   <Button size="small" type="link" loading={fetchingEnvTax} onClick={fetchEnvironmentTax}>
                     Lấy BVMT
                   </Button>
@@ -656,14 +758,23 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
               unit="VND/lít"
             >
               <Form.Item name="envTaxVndPerLiter" noStyle>
-                <InputNumber min={0} style={{ width: "100%" }} />
+                <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
               </Form.Item>
             </SheetRow>
 
-            <SheetRow label="Chi phí khác" unit="VND/lít">
+            <SheetRow label="Chi phí khác" unit="VND">
               <Form.Item name="extraCostVndPerLiter" noStyle>
-                <InputNumber min={0} style={{ width: "100%" }} />
+                <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
               </Form.Item>
+            </SheetRow>
+
+            <SheetRow label="Trích/chi quỹ" unit="VND/lít">
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 120px", gap: 6, alignItems: "center" }}>
+                <Form.Item name="fundAdjustmentVndPerLiter" noStyle>
+                  <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
+                </Form.Item>
+                <div style={{ textAlign: "right", fontWeight: 700 }}>{fmt(preview.fundAdjustmentAmount)}</div>
+              </div>
             </SheetRow>
 
             <SheetRow label="Đơn giá trước VAT" unit="VND/lít" strong>
@@ -676,7 +787,7 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
 
             <SheetRow label="Số lượng nhập" unit="Lít" strong>
               <Form.Item name="tankQtyLiter" rules={[{ required: true, message: "Nhập số lượng nhập" }]} noStyle>
-                <InputNumber min={0.001} style={{ width: "100%" }} />
+                <InputNumber min={0.001} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
               </Form.Item>
             </SheetRow>
 
@@ -691,9 +802,9 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
             <SheetRow
               label={
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span>Giá trị thanh toán trước theo hợp đồng</span>
+                  <span>Giá trị thanh toán theo đơn hàng</span>
                   <Form.Item name="contractPaymentRate" noStyle>
-                    <InputNumber min={0} max={100} style={{ width: 84 }} precision={3} addonAfter="%" />
+                    <InputNumber min={0} max={200} style={{ width: 84 }} precision={3} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} addonAfter="%" />
                   </Form.Item>
                 </div>
               }
@@ -708,7 +819,7 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span>Phí bảo lãnh ngân hàng</span>
                   <Form.Item name="bankGuaranteeRate" noStyle>
-                    <InputNumber min={0} style={{ width: 84 }} precision={3} addonAfter="%" />
+                    <InputNumber min={0} style={{ width: 84 }} precision={3} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} addonAfter="%" />
                   </Form.Item>
                 </div>
               }
@@ -726,7 +837,7 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
 
         <div style={{ marginTop: 8 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Ba bảng tạm tính, theo bill và chính thức dùng cùng cấu trúc trường. Bảng tổng hợp cho sếp được xử lý riêng.
+            Ba bảng tạm tính, xuất hóa đơn và chính thức dùng cùng cấu trúc trường. Bảng sếp được xử lý riêng.
           </Text>
         </div>
       </Form>

@@ -1,5 +1,6 @@
 ﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notify } from "../../shared/lib/notification";
+import { extractApiError } from "../../shared/lib/httpError";
 import { TermPurchaseOrdersApi } from "./api";
 import type {
   CreateTermGoodsReceiptPayload,
@@ -131,7 +132,7 @@ export function useCreateTermEstimatePricing(orderId?: string) {
       invalidateTerm(qc, orderId);
       notify.success("Đã lập bảng giá tạm tính");
     },
-    onError: (e: any) => notify.error(e?.message || "Lập bảng giá tạm tính thất bại"),
+    onError: (e: any) => notify.error(extractApiError(e).message || "Lập bảng giá tạm tính thất bại"),
   });
 }
 
@@ -143,9 +144,9 @@ export function useCreateTermBillNormalizePricing(orderId?: string) {
       TermPurchaseOrdersApi.createBillNormalizePricing(orderId!, data),
     onSuccess: () => {
       invalidateTerm(qc, orderId);
-      notify.success("Đã lập bảng giá theo bill");
+      notify.success("Đã lập bảng xuất hóa đơn");
     },
-    onError: (e: any) => notify.error(e?.message || "Lập bảng giá theo bill thất bại"),
+    onError: (e: any) => notify.error(extractApiError(e).message || "Lập bảng xuất hóa đơn thất bại"),
   });
 }
 
@@ -159,7 +160,7 @@ export function useCreateTermFinalPricing(orderId?: string) {
       invalidateTerm(qc, orderId);
       notify.success("Đã lập bảng giá chính thức");
     },
-    onError: (e: any) => notify.error(e?.message || "Lập bảng giá chính thức thất bại"),
+    onError: (e: any) => notify.error(extractApiError(e).message || "Lập bảng giá chính thức thất bại"),
   });
 }
 
@@ -173,7 +174,80 @@ export function useCreateTermBossSheetPricing(orderId?: string) {
       invalidateTerm(qc, orderId);
       notify.success("Đã lập bảng tổng hợp");
     },
-    onError: (e: any) => notify.error(e?.message || "Lập bảng tổng hợp thất bại"),
+    onError: (e: any) => notify.error(extractApiError(e).message || "Lập bảng tổng hợp thất bại"),
+  });
+}
+
+export function useGenerateTermOrderDocument(orderId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => TermPurchaseOrdersApi.generateOrderDocument(orderId!),
+    onSuccess: () => {
+      invalidateTerm(qc, orderId);
+      notify.success("Đã sinh đơn đặt hàng");
+    },
+    onError: (e: any) => notify.error(extractApiError(e).message || "Sinh đơn đặt hàng thất bại"),
+  });
+}
+
+export function usePrintTermOrderDocuments() {
+  return useMutation({
+    mutationFn: (data: { ids: string[]; autoGenerate?: boolean }) =>
+      TermPurchaseOrdersApi.printOrderDocuments(data),
+    onError: (e: any) => notify.error(extractApiError(e).message || "Lấy dữ liệu in đơn đặt hàng thất bại"),
+  });
+}
+
+export function useCreateTermPaymentRequest(orderId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => TermPurchaseOrdersApi.createPaymentRequest(orderId!),
+    onSuccess: () => {
+      invalidateTerm(qc, orderId);
+      notify.success("Đã lập đề nghị thanh toán");
+    },
+    onError: (e: any) => notify.error(extractApiError(e).message || "Lập đề nghị thanh toán thất bại"),
+  });
+}
+
+export function useCreateTermBankInstruction(orderId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => TermPurchaseOrdersApi.createBankInstruction(orderId!),
+    onSuccess: () => {
+      invalidateTerm(qc, orderId);
+      notify.success("Đã lập ủy nhiệm chi");
+    },
+    onError: (e: any) => notify.error(extractApiError(e).message || "Lập ủy nhiệm chi thất bại"),
+  });
+}
+
+export function useMatchTermBankInstruction(orderId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (instructionId: string) => TermPurchaseOrdersApi.matchBankInstruction(orderId!, instructionId),
+    onSuccess: () => {
+      invalidateTerm(qc, orderId);
+      notify.success("Đã đối chiếu giao dịch ngân hàng");
+    },
+    onError: (e: any) => notify.error(extractApiError(e).message || "Đối chiếu giao dịch ngân hàng thất bại"),
+  });
+}
+
+export function useCreateTermSettlementAdjustment(orderId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => TermPurchaseOrdersApi.createSettlementAdjustment(orderId!),
+    onSuccess: () => {
+      invalidateTerm(qc, orderId);
+      notify.success("Đã ghi nhận điều chỉnh/hoàn tiền");
+    },
+    onError: (e: any) => notify.error(extractApiError(e).message || "Ghi nhận điều chỉnh/hoàn tiền thất bại"),
   });
 }
 

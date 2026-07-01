@@ -284,8 +284,8 @@ export function PurchaseTermFilterDrawer({
               options={[
                 { label: "Chưa tính giá", value: "NONE" },
                 { label: "Đã tạm tính", value: "ESTIMATE" },
-                { label: "Đã có bill", value: "BILL_NORMALIZE" },
-                { label: "Đã chốt giá", value: "FINAL" },
+                { label: "Đã có bảng xuất hóa đơn", value: "BILL_NORMALIZE" },
+                { label: "Đã có bảng chính thức", value: "FINAL" },
                 { label: "Đã post", value: "POSTED" },
               ]}
             />

@@ -10,6 +10,20 @@ export type BankTxnMatchStatus =
   | "PARTIAL_MATCHED";
 
 export type BankImportStatus = "QUEUED" | "PROCESSING" | "DONE" | "FAILED";
+export type TermPaymentBatchStatus =
+  | "DRAFT"
+  | "SENT_TO_BANK"
+  | "PARTIALLY_PAID"
+  | "PAID"
+  | "CANCELLED";
+export type TermPaymentBatchItemStatus =
+  | "PENDING"
+  | "SENT"
+  | "PARTIALLY_PAID"
+  | "PAID"
+  | "FAILED"
+  | "CANCELLED";
+export type TermPaymentBatchFileType = "EXPORTED_LIST" | "BANK_RETURN" | "UNC" | "OTHER";
 
 export type PagedMeta = {
   page: number;
@@ -39,6 +53,68 @@ export type BankImportTemplateOption = {
   name: string;
   version: number;
   isActive?: boolean;
+};
+
+export type TermPaymentPendingRequest = {
+  id: UUID;
+  requestNo: string;
+  requestDate: string;
+  purchaseOrderId: UUID;
+  orderNo: string;
+  supplierName?: string | null;
+  amountVnd: number;
+  currency: string;
+  paymentDeadline?: string | null;
+  content?: string | null;
+  status: string;
+  createdAt: string;
+};
+
+export type TermPaymentBatchFile = {
+  id: UUID;
+  batchId: UUID;
+  fileType: TermPaymentBatchFileType;
+  fileName: string;
+  fileUrl: string;
+  fileChecksum?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  note?: string | null;
+  createdAt: string;
+};
+
+export type TermPaymentBatchItem = {
+  id: UUID;
+  batchId: UUID;
+  paymentRequestId: UUID;
+  purchaseOrderId: UUID;
+  bankTransactionId?: UUID | null;
+  supplierName: string;
+  amountVnd: number;
+  paidAmountVnd: number;
+  beneficiaryName?: string | null;
+  beneficiaryBankAccount?: string | null;
+  beneficiaryBankName?: string | null;
+  transferContent?: string | null;
+  status: TermPaymentBatchItemStatus;
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TermPaymentBatch = {
+  id: UUID;
+  batchNo: string;
+  batchDate: string;
+  bankAccountId?: UUID | null;
+  totalAmountVnd: number;
+  itemCount: number;
+  status: TermPaymentBatchStatus;
+  note?: string | null;
+  items?: TermPaymentBatchItem[];
+  files?: TermPaymentBatchFile[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type SupplierBrief = {

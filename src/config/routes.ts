@@ -188,6 +188,31 @@ export const ROUTES = {
       "POST",
       "/purchase-terms/:orderId/pricing/boss-sheet",
     ] as RouteTuple,
+    generateOrderDocument: [
+      "POST",
+      "/purchase-terms/:orderId/order-document/generate",
+    ] as RouteTuple,
+    orderDocument: ["GET", "/purchase-terms/:orderId/order-document"] as RouteTuple,
+    printOrderDocuments: [
+      "POST",
+      "/purchase-terms/order-documents/print",
+    ] as RouteTuple,
+    createPaymentRequest: [
+      "POST",
+      "/purchase-terms/:orderId/payment-request",
+    ] as RouteTuple,
+    createBankInstruction: [
+      "POST",
+      "/purchase-terms/:orderId/bank-instruction",
+    ] as RouteTuple,
+    matchBankInstruction: [
+      "POST",
+      "/purchase-terms/:orderId/bank-instruction/:instructionId/match",
+    ] as RouteTuple,
+    createSettlementAdjustment: [
+      "POST",
+      "/purchase-terms/:orderId/settlement-adjustment",
+    ] as RouteTuple,
     getVcbFxRate: ["GET", "/purchase-terms/vcb-fx-rate"] as RouteTuple,
     getPlattsAverage: ["GET", "/purchase-terms/platts-average"] as RouteTuple,
     getEnvironmentTax: [
@@ -290,6 +315,19 @@ export const ROUTES = {
     deleteMultipleTransactions: [
       "POST",
       "/banking/transactions/delete-multiple",
+    ] as RouteTuple,
+    termPaymentPendingRequests: [
+      "GET",
+      "/banking/term-payment-batches/pending-requests",
+    ] as RouteTuple,
+    termPaymentBatches: ["GET", "/banking/term-payment-batches"] as RouteTuple,
+    createTermPaymentBatch: ["POST", "/banking/term-payment-batches"] as RouteTuple,
+    termPaymentBatchDetail: ["GET", "/banking/term-payment-batches/:id"] as RouteTuple,
+    sendTermPaymentBatch: ["POST", "/banking/term-payment-batches/:id/send"] as RouteTuple,
+    uploadTermPaymentBatchFile: ["POST", "/banking/term-payment-batches/:id/files"] as RouteTuple,
+    matchTermPaymentBatchItem: [
+      "POST",
+      "/banking/term-payment-batches/:id/items/:itemId/match",
     ] as RouteTuple,
   },
 

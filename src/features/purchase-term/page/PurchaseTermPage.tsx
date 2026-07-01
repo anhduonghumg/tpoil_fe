@@ -4,6 +4,7 @@ import {
   Card,
   DatePicker,
   Input,
+  message,
   Select,
   Space,
   Table,
@@ -23,7 +24,8 @@ import type {
   TermPurchaseOrderListItem,
   TermPurchaseOrderListQuery,
 } from "../types";
-import { useTermPurchaseOrderList } from "../hooks";
+import { usePrintTermOrderDocuments, useTermPurchaseOrderList } from "../hooks";
+import { openTermOrderDocumentsPrint } from "../lib/printTermOrderDocuments";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -78,13 +80,19 @@ function paymentModeTag(mode: PaymentMode) {
 function nextActionTag(action: TermNextAction) {
   const map: Record<TermNextAction, { text: string; color?: string }> = {
     APPROVE_ORDER: { text: "Sinh đơn", color: "orange" },
-    CREATE_RECEIPT: { text: "Nhận hàng", color: "blue" },
+    CREATE_ORDER_DOCUMENT: { text: "Đơn đặt hàng", color: "orange" },
+    CREATE_PAYMENT_REQUEST: { text: "Đề nghị TT", color: "cyan" },
+    CREATE_BANK_INSTRUCTION: { text: "Ủy nhiệm chi", color: "blue" },
+    MATCH_BANK_TRANSACTION: { text: "Đối chiếu NH", color: "blue" },
+    CREATE_RECEIPT: { text: "Giao nhận", color: "blue" },
     CALCULATE_ESTIMATE: { text: "Lập giá tạm", color: "gold" },
     CALCULATE_TEMP_PRICE: { text: "Lập giá tạm", color: "gold" },
-    CALCULATE_BILL_NORMALIZE: { text: "Giá theo bill", color: "purple" },
-    CALCULATE_INVOICE_PRICE: { text: "Giá theo bill", color: "purple" },
-    CALCULATE_FINAL: { text: "Chốt giá", color: "green" },
-    CALCULATE_OFFICIAL_FX: { text: "Chốt giá", color: "green" },
+    CALCULATE_BILL_NORMALIZE: { text: "Bảng xuất HĐ", color: "purple" },
+    CALCULATE_INVOICE_PRICE: { text: "Bảng xuất HĐ", color: "purple" },
+    CALCULATE_FINAL: { text: "Bảng chính thức", color: "green" },
+    CALCULATE_OFFICIAL_FX: { text: "Bảng chính thức", color: "green" },
+    CREATE_SETTLEMENT_ADJUSTMENT: { text: "Điều chỉnh", color: "volcano" },
+    CREATE_BOSS_SHEET: { text: "Bảng sếp", color: "magenta" },
     COMPLETE_ORDER: { text: "Hoàn tất", color: "green" },
     VIEW_ONLY: { text: "Xem", color: "default" },
   };
@@ -100,6 +108,7 @@ export default function TermPurchaseOrdersPage() {
   const [filter, setFilter] = useState<FilterValues>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   const query = useMemo<TermPurchaseOrderListQuery>(() => {
     return {
@@ -115,6 +124,7 @@ export default function TermPurchaseOrdersPage() {
   }, [filter, page, pageSize]);
 
   const listQuery = useTermPurchaseOrderList(query);
+  const printDocuments = usePrintTermOrderDocuments();
 
   const data = listQuery.data;
   const rows = data?.items ?? [];
@@ -129,6 +139,30 @@ export default function TermPurchaseOrdersPage() {
     setDraft({});
     setFilter({});
     setPage(1);
+  };
+
+  const printSelected = async () => {
+    const ids = selectedRowKeys.map(String);
+    if (!ids.length) {
+      message.warning("Chọn ít nhất một đơn để in.");
+      return;
+    }
+
+    const result = await printDocuments.mutateAsync({
+      ids,
+      autoGenerate: true,
+    });
+
+    if (result.skipped?.length) {
+      message.warning(`Có ${result.skipped.length} đơn chưa đủ dữ liệu để in.`);
+    }
+
+    if (!result.items?.length) {
+      message.warning("Không có đơn đặt hàng nào đủ dữ liệu để in.");
+      return;
+    }
+
+    openTermOrderDocumentsPrint(result.items);
   };
 
   const columns: ColumnsType<TermPurchaseOrderListItem> = [
@@ -245,6 +279,14 @@ export default function TermPurchaseOrdersPage() {
                 dòng hàng và một bộ bảng giá chung.
               </Text>
             </div>
+
+            <Button
+              disabled={!selectedRowKeys.length}
+              loading={printDocuments.isPending}
+              onClick={printSelected}
+            >
+              In đơn đặt hàng
+            </Button>
 
             <Button
               type="primary"
@@ -381,6 +423,11 @@ export default function TermPurchaseOrdersPage() {
           <Table<TermPurchaseOrderListItem>
             size="small"
             rowKey="id"
+            rowSelection={{
+              selectedRowKeys,
+              onChange: setSelectedRowKeys,
+              preserveSelectedRowKeys: true,
+            }}
             columns={columns}
             dataSource={rows}
             loading={listQuery.isLoading}

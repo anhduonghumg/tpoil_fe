@@ -22,6 +22,11 @@ export const bankingKeys = {
   templates: (bankCode?: string) =>
     ["banking", "templates", bankCode || "all"] as const,
   importDetail: (id?: string) => ["banking", "import-detail", id] as const,
+  termPaymentPendingRequests: () => ["banking", "term-payment-pending-requests"] as const,
+  termPaymentBatches: (query?: Record<string, unknown>) =>
+    ["banking", "term-payment-batches", query || {}] as const,
+  termPaymentBatchDetail: (id?: string) =>
+    ["banking", "term-payment-batch-detail", id] as const,
 };
 
 export function useBankTransactions(query: BankTransactionListQuery) {
@@ -292,6 +297,78 @@ export function useDeleteMultipleBankTransactions() {
     onSuccess: (res) => {
       notify.success(`Đã xóa ${res.count} giao dịch`);
       qc.invalidateQueries({ queryKey: ["banking"] });
+    },
+  });
+}
+
+export function useTermPaymentPendingRequests() {
+  return useQuery({
+    queryKey: bankingKeys.termPaymentPendingRequests(),
+    queryFn: () => BankingApi.listTermPaymentPendingRequests(),
+  });
+}
+
+export function useTermPaymentBatches(query?: Record<string, unknown>) {
+  return useQuery({
+    queryKey: bankingKeys.termPaymentBatches(query),
+    queryFn: () => BankingApi.listTermPaymentBatches(query),
+  });
+}
+
+export function useTermPaymentBatchDetail(id?: string) {
+  return useQuery({
+    queryKey: bankingKeys.termPaymentBatchDetail(id),
+    queryFn: () => BankingApi.getTermPaymentBatchDetail(id!),
+    enabled: !!id,
+  });
+}
+
+export function useCreateTermPaymentBatch() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: BankingApi.createTermPaymentBatch,
+    onSuccess: () => {
+      notify.success("Đã tạo bảng kê thanh toán TERM");
+      qc.invalidateQueries({ queryKey: bankingKeys.all });
+    },
+  });
+}
+
+export function useSendTermPaymentBatch() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => BankingApi.sendTermPaymentBatch(id),
+    onSuccess: (_, id) => {
+      notify.success("Đã đánh dấu gửi bảng kê sang ngân hàng");
+      qc.invalidateQueries({ queryKey: bankingKeys.all });
+      qc.invalidateQueries({ queryKey: bankingKeys.termPaymentBatchDetail(id) });
+    },
+  });
+}
+
+export function useMatchTermPaymentBatchItem(batchId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: {
+      itemId: string;
+      bankTransactionId: string;
+      paidAmountVnd?: number;
+      status?: string;
+      note?: string;
+    }) =>
+      BankingApi.matchTermPaymentBatchItem(batchId!, payload.itemId, {
+        bankTransactionId: payload.bankTransactionId,
+        paidAmountVnd: payload.paidAmountVnd,
+        status: payload.status,
+        note: payload.note,
+      }),
+    onSuccess: () => {
+      notify.success("Đã đối chiếu dòng bảng kê");
+      qc.invalidateQueries({ queryKey: bankingKeys.all });
+      qc.invalidateQueries({ queryKey: bankingKeys.termPaymentBatchDetail(batchId) });
     },
   });
 }

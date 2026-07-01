@@ -18,8 +18,14 @@ export type TermOrderStatus =
   | "COMPLETED"
   | "CANCELLED";
 
+export type TermPurchaseFlowType = "ESTIMATE_FIRST" | "DIRECT_ORDER";
+
 export type TermNextAction =
   | "APPROVE_ORDER"
+  | "CREATE_ORDER_DOCUMENT"
+  | "CREATE_PAYMENT_REQUEST"
+  | "CREATE_BANK_INSTRUCTION"
+  | "MATCH_BANK_TRANSACTION"
   | "CREATE_RECEIPT"
   | "CALCULATE_ESTIMATE"
   | "CALCULATE_TEMP_PRICE"
@@ -27,6 +33,8 @@ export type TermNextAction =
   | "CALCULATE_INVOICE_PRICE"
   | "CALCULATE_FINAL"
   | "CALCULATE_OFFICIAL_FX"
+  | "CREATE_SETTLEMENT_ADJUSTMENT"
+  | "CREATE_BOSS_SHEET"
   | "COMPLETE_ORDER"
   | "VIEW_ONLY";
 
@@ -64,6 +72,8 @@ export type CreateTermPurchaseOrderPayload = {
 
   transportMode?: TermTransportMode;
 
+  termFlowType?: TermPurchaseFlowType;
+
   deliveryLocation?: string;
 
   paymentNote?: string;
@@ -80,6 +90,110 @@ export type CreateTermPurchaseOrderResult = {
   orderNo: string;
 };
 
+export type TermOrderDocumentSourceType = "ESTIMATE_PRICING" | "DIRECT";
+
+export type TermOrderDocumentLine = {
+  id: UUID;
+  productId?: UUID | null;
+  productCode?: string | null;
+  productName: string;
+  qtyLiter: number;
+  unitPriceVndPerLiter: number;
+  amountVnd: number;
+  vatRate?: number | null;
+  note?: string | null;
+};
+
+export type TermOrderDocument = {
+  id: UUID;
+  purchaseOrderId: UUID;
+  sourceType: TermOrderDocumentSourceType;
+  sourcePricingStageId?: UUID | null;
+  documentNo: string;
+  documentDate: string;
+  buyerName: string;
+  buyerAddress?: string | null;
+  buyerPhone?: string | null;
+  buyerFax?: string | null;
+  supplierName: string;
+  supplierAddress?: string | null;
+  supplierPhone?: string | null;
+  contractNo?: string | null;
+  appendixNo?: string | null;
+  deliveryTimeText?: string | null;
+  deliveryLocation?: string | null;
+  paymentMethodText?: string | null;
+  priceBasisNote?: string | null;
+  officialPriceNote?: string | null;
+  includedTaxNote?: string | null;
+  totalQtyLiter: number;
+  unitPriceVndPerLiter: number;
+  amountVnd: number;
+  vatRate: number;
+  totalAmountVnd: number;
+  status: string;
+  version: number;
+  lines: TermOrderDocumentLine[];
+};
+
+export type PrintTermOrderDocumentsResult = {
+  items: TermOrderDocument[];
+  skipped: Array<{ orderId: UUID; reason: string }>;
+};
+
+export type TermPaymentRequest = {
+  id: UUID;
+  requestNo: string;
+  requestDate: string;
+  supplierName: string;
+  amountVnd: number;
+  currency: string;
+  paymentDeadline?: string | null;
+  status: string;
+  note?: string | null;
+  batchItems?: Array<{
+    id: UUID;
+    batchId: UUID;
+    batchNo?: string | null;
+    bankTransactionId?: UUID | null;
+    amountVnd?: number | null;
+    paidAmountVnd?: number | null;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TermBankInstruction = {
+  id: UUID;
+  paymentRequestId?: UUID | null;
+  bankTransactionId?: UUID | null;
+  instructionNo?: string | null;
+  instructionDate?: string | null;
+  amountVnd: number;
+  beneficiaryName?: string | null;
+  beneficiaryBankAccount?: string | null;
+  beneficiaryBankName?: string | null;
+  status: string;
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TermSettlementAdjustment = {
+  id: UUID;
+  finalPricingStageId?: UUID | null;
+  adjustmentType: string;
+  amountVnd: number;
+  reason?: string | null;
+  status: string;
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 // =========================
 // LIST
 // =========================
@@ -90,6 +204,8 @@ export type TermPurchaseOrderListItem = {
   orderNo: string;
 
   status: TermOrderStatus;
+
+  termFlowType?: TermPurchaseFlowType;
 
   orderDate: string;
 
@@ -430,6 +546,8 @@ export type TermPricingStage = {
 
   transportLossAmountVnd?: number | null;
 
+  transportDeductionVnd?: number | null;
+
   envTaxAmountVnd?: number | null;
 
   vatAmountVnd?: number | null;
@@ -453,6 +571,10 @@ export type TermPricingStage = {
   sellingUnitPriceVndPerLiter?: number | null;
 
   temporaryAmountVnd?: number | null;
+
+  fundAdjustmentVndPerLiter?: number | null;
+
+  fundAdjustmentAmountVnd?: number | null;
 
   contractPaymentRate?: number | null;
 
@@ -550,6 +672,8 @@ export type CreateTermPricingPayload = {
 
   insuranceRate?: number;
 
+  insuranceAmountVnd?: number;
+
   inspectionFeeVnd?: number;
 
   transportFeeVnd?: number;
@@ -558,9 +682,15 @@ export type CreateTermPricingPayload = {
 
   transportLossRate?: number;
 
+  transportLossAmountVnd?: number;
+
+  transportDeductionVnd?: number;
+
   envTaxVndPerLiter?: number;
 
   extraCostVndPerLiter?: number;
+
+  fundAdjustmentVndPerLiter?: number;
 
   retailPriceVndPerLiter?: number;
 
@@ -630,6 +760,8 @@ export type TermPurchaseOrderDetail = {
 
   status: TermOrderStatus;
 
+  termFlowType?: TermPurchaseFlowType;
+
   orderDate: string;
 
   expectedDate?: string | null;
@@ -677,6 +809,14 @@ export type TermPurchaseOrderDetail = {
   shipments?: TermShipment[];
 
   logisticsCosts?: TermLogisticsCost[];
+
+  termOrderDocuments?: TermOrderDocument[];
+
+  termPaymentRequests?: TermPaymentRequest[];
+
+  termBankInstructions?: TermBankInstruction[];
+
+  termSettlementAdjustments?: TermSettlementAdjustment[];
 
   nextAction: TermNextAction;
 

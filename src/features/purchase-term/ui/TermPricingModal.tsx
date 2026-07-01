@@ -89,15 +89,38 @@ const titleMap: Record<PricingKind, string> = {
 
 Object.assign(titleMap, {
   ESTIMATE: "Tạo bảng giá tạm tính",
-  BILL_NORMALIZE: "Tạo bảng giá theo bill",
-  FINAL: "Tạo bảng giá chính thức",
-  BOSS_SHEET: "Tạo bảng tổng hợp",
+  BILL_NORMALIZE: "Tạo bảng xuất hóa đơn",
+  FINAL: "Tạo bảng chính thức",
+  BOSS_SHEET: "Tạo bảng sếp",
 });
 
 function toNumber(v: unknown): number | undefined {
   if (v === null || v === undefined || v === "") return undefined;
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
+}
+
+function formatNumber(value?: number | null, digits = 0) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "";
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: digits }).format(Number(value));
+}
+
+function parseVietnameseNumber(value?: string): number {
+  if (!value) return NaN;
+  const normalized = value
+    .replace(/[^\d,.-]/g, "")
+    .replace(/\./g, "")
+    .replace(/,/g, ".");
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function formatVietnameseNumber(value: number | string | null | undefined, info?: { userTyping: boolean; input: string }): string {
+  if (info?.userTyping) return info.input;
+  if (value === null || value === undefined || value === "") return "";
+  const num = typeof value === "string" ? parseVietnameseNumber(value) : Number(value);
+  if (!Number.isFinite(num)) return "";
+  return formatNumber(num, 5);
 }
 
 export function TermPricingModal({
@@ -555,6 +578,9 @@ export function TermPricingModal({
             <Form.Item name="billBarrelQty" label="Số thùng BILL">
               <InputNumber
                 min={0}
+                precision={5}
+                parser={parseVietnameseNumber}
+                formatter={formatVietnameseNumber}
                 style={{ width: "100%" }}
                 addonAfter="thùng"
               />

@@ -8,6 +8,8 @@ import type {
   CreateTermPurchaseOrderPayload,
   CreateTermShipmentPayload,
   CreateTermPurchaseOrderResult,
+  PrintTermOrderDocumentsResult,
+  TermOrderDocument,
   TermGoodsReceipt,
   TermLogisticsCost,
   TermPurchaseOrderDetail,
@@ -117,6 +119,49 @@ export const TermPurchaseOrdersApi = {
         data,
       },
     ).then((r) => (r.data!.data ?? r.data) as any),
+
+  generateOrderDocument: (orderId: string) =>
+    apiCall<ApiResponse<TermOrderDocument>>(
+      "purchaseTerm.generateOrderDocument",
+      {
+        params: { orderId },
+      },
+    ).then((r) => (r.data!.data ?? r.data) as any),
+
+  orderDocument: (orderId: string) =>
+    apiCall<ApiResponse<TermOrderDocument>>("purchaseTerm.orderDocument", {
+      params: { orderId },
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  printOrderDocuments: (data: { ids: string[]; autoGenerate?: boolean }) =>
+    apiCall<ApiResponse<PrintTermOrderDocumentsResult>>(
+      "purchaseTerm.printOrderDocuments",
+      { data },
+    ).then((r) => (r.data!.data ?? r.data) as any),
+
+  createPaymentRequest: (orderId: string, data: Record<string, unknown> = {}) =>
+    apiCall<ApiResponse<any>>("purchaseTerm.createPaymentRequest", {
+      params: { orderId },
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  createBankInstruction: (orderId: string, data: Record<string, unknown> = {}) =>
+    apiCall<ApiResponse<any>>("purchaseTerm.createBankInstruction", {
+      params: { orderId },
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  matchBankInstruction: (orderId: string, instructionId: string, data: Record<string, unknown> = {}) =>
+    apiCall<ApiResponse<any>>("purchaseTerm.matchBankInstruction", {
+      params: { orderId, instructionId },
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  createSettlementAdjustment: (orderId: string, data: Record<string, unknown> = {}) =>
+    apiCall<ApiResponse<any>>("purchaseTerm.createSettlementAdjustment", {
+      params: { orderId },
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any),
 
   getVcbFxRate: (params?: { date?: string; currencyCode?: string }) =>
     apiCall<any>("purchaseTerm.getVcbFxRate", { query: params }).then(

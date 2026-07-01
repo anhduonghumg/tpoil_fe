@@ -17,6 +17,7 @@ import dayjs, { Dayjs } from "dayjs";
 import { useNavigate } from "react-router-dom";
 
 import { PartySelect } from "../../../shared/ui/PartySelect";
+import { extractApiError } from "../../../shared/lib/httpError";
 import { useProductSelect } from "../../products/hooks";
 import { useSupplierLocationsSelect } from "../../purchases/hooks";
 import { TermPurchaseOrdersApi } from "../api";
@@ -27,6 +28,7 @@ import type {
   TermTransportMode,
   UUID,
 } from "../types";
+import { notify } from "../../../shared/lib/notification";
 
 const { Text, Title } = Typography;
 
@@ -67,17 +69,17 @@ type FormValues = {
   specialConsumptionTaxUsdPerBbl?: number;
   fxRateDate?: Dayjs;
   fxRate?: number;
-  billBarrelQty?: number;
+  billBarrelQty?: number | string;
   tankQtyLiter?: number;
-  insuranceRate?: number;
+  insuranceAmountVnd?: number;
   inspectionFeeVnd?: number;
   transportFeeVnd?: number;
   storageFeeVnd?: number;
   transportDeductionVnd?: number;
-  transportLossRate?: number;
+  transportLossAmountVnd?: number;
   envTaxVndPerLiter?: number;
   extraCostVndPerLiter?: number;
-  accruedCostVndPerLiter?: number;
+  fundAdjustmentVndPerLiter?: number;
   contractPaymentRate?: number;
   bankGuaranteeRate?: number;
   pricingNote?: string;
@@ -92,15 +94,61 @@ function toDate(value?: Dayjs) {
   return value ? value.format("YYYY-MM-DD") : undefined;
 }
 
-function cleanNumber(value?: number | null) {
+function cleanNumber(value?: number | string | null) {
   if (value === null || value === undefined || value === "") return undefined;
-  const n = Number(value);
+  const raw = typeof value === "string" ? value.trim() : value;
+  const normalized =
+    typeof raw === "string" && raw.includes(",")
+      ? raw.replace(/\./g, "").replace(/,/g, ".")
+      : raw;
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : undefined;
 }
 
 function fmt(value?: number | null, digits = 0) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
   return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: digits }).format(Number(value));
+}
+
+function fmtFixed(value?: number | null, digits = 0) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
+  return new Intl.NumberFormat("vi-VN", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(value));
+}
+
+function roundNumber(value: number, digits = 3) {
+  const factor = 10 ** digits;
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+}
+
+function formatPlainDecimalComma(value: number | string | null | undefined, digits = 6): string {
+  if (value === null || value === undefined || value === "") return "";
+  const num = cleanNumber(value);
+  if (!Number.isFinite(num)) return "";
+  return Number(num).toFixed(digits).replace(".", ",");
+}
+
+function formatPercentRate(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "";
+  const num = cleanNumber(value);
+  if (num === undefined) return "";
+  return fmt(num * 100, 6);
+}
+
+function parsePercentRate(value?: string): number {
+  const num = cleanNumber(value);
+  return num === undefined ? NaN : num / 100;
+}
+
+function sanitizeNumericText(value: string) {
+  const cleaned = value.replace(/[^\d.,]/g, "");
+  const commaIndex = cleaned.indexOf(",");
+  const withSingleComma =
+    commaIndex < 0
+      ? cleaned
+      : cleaned.slice(0, commaIndex + 1) + cleaned.slice(commaIndex + 1).replace(/,/g, "");
+  const dotIndex = withSingleComma.indexOf(".");
+  if (commaIndex >= 0 || dotIndex < 0) return withSingleComma;
+  return withSingleComma.slice(0, dotIndex + 1) + withSingleComma.slice(dotIndex + 1).replace(/\./g, "");
 }
 
 function averagePriceDays(days?: PriceDayForm[]) {
@@ -121,26 +169,26 @@ function calculatePreview(values?: FormValues) {
   const specialTax = cleanNumber(values?.specialConsumptionTaxUsdPerBbl) ?? 0;
   const fxRate = cleanNumber(values?.fxRate) ?? 0;
   const envTax = cleanNumber(values?.envTaxVndPerLiter) ?? 0;
-  const extraCost = cleanNumber(values?.extraCostVndPerLiter) ?? 0;
-  const accruedCost = cleanNumber(values?.accruedCostVndPerLiter) ?? 0;
-  const insuranceRate = cleanNumber(values?.insuranceRate) ?? 0;
-  const transportLossRate = cleanNumber(values?.transportLossRate) ?? 0;
+  const extraCostAmount = cleanNumber(values?.extraCostVndPerLiter) ?? 0;
+  const fundAdjustment = cleanNumber(values?.fundAdjustmentVndPerLiter) ?? 0;
+  const insuranceAmount = cleanNumber(values?.insuranceAmountVnd) ?? 0;
+  const lossAmount = cleanNumber(values?.transportLossAmountVnd) ?? 0;
   const inspectionFeeVnd = cleanNumber(values?.inspectionFeeVnd) ?? 0;
   const transportFeeVnd = cleanNumber(values?.transportFeeVnd) ?? 0;
   const storageFeeVnd = cleanNumber(values?.storageFeeVnd) ?? 0;
   const transportDeductionVnd = cleanNumber(values?.transportDeductionVnd) ?? 0;
   const vatRate = Number(lines[0]?.taxRate ?? 8) / 100;
 
-  const fobUsdPerBbl = mops + premium + specialTax;
+  const fobUsdPerBbl = roundNumber(mops + premium + specialTax, 3);
   const billBarrelQty = cleanNumber(values?.billBarrelQty) ?? (qty ? qty / 159 : 0);
   const amountUsd = fobUsdPerBbl * billBarrelQty;
   const amountVnd = amountUsd * fxRate;
   const baseVndPerLiter = fxRate ? (fobUsdPerBbl * fxRate) / 159 : 0;
-  const insuranceAmount = amountVnd * insuranceRate;
-  const lossAmount = amountVnd * transportLossRate;
   const billTotal = amountVnd + insuranceAmount + inspectionFeeVnd + transportFeeVnd + storageFeeVnd + lossAmount - transportDeductionVnd;
   const unitAverage = qty ? billTotal / qty : 0;
-  const unitBeforeVat = unitAverage + envTax + extraCost + accruedCost;
+  const extraCost = qty ? extraCostAmount / qty : 0;
+  const fundAdjustmentAmount = fundAdjustment * qty;
+  const unitBeforeVat = unitAverage + envTax + extraCost + fundAdjustment;
   const amountBeforeVat = unitBeforeVat * qty;
   const vatAmount = amountBeforeVat * vatRate;
   const totalAmount = amountBeforeVat + vatAmount;
@@ -163,6 +211,9 @@ function calculatePreview(values?: FormValues) {
     storageFeeVnd,
     lossAmount,
     transportDeductionVnd,
+    extraCostAmount,
+    fundAdjustment,
+    fundAdjustmentAmount,
     billTotal,
     unitAverage,
     fxRate,
@@ -204,15 +255,19 @@ function buildEstimatePayload(values: FormValues, created: CreatedTermDetail): C
     fxRateDate: toDate(values.fxRateDate) ?? toDate(values.orderDate),
     fxStage: "ESTIMATE",
     fxRate: cleanNumber(values.fxRate),
-    billBarrelQty: cleanNumber(values.billBarrelQty),
+    billBarrelQty: cleanNumber(values.billBarrelQty) ?? calculatePreview(values).billBarrelQty,
     tankQtyLiter: cleanNumber(values.tankQtyLiter),
-    insuranceRate: cleanNumber(values.insuranceRate),
+    insuranceAmountVnd: cleanNumber(values.insuranceAmountVnd),
     inspectionFeeVnd: cleanNumber(values.inspectionFeeVnd),
     transportFeeVnd: cleanNumber(values.transportFeeVnd),
     storageFeeVnd: cleanNumber(values.storageFeeVnd),
-    transportLossRate: cleanNumber(values.transportLossRate),
+    transportLossAmountVnd: cleanNumber(values.transportLossAmountVnd),
+    transportDeductionVnd: cleanNumber(values.transportDeductionVnd),
     envTaxVndPerLiter: cleanNumber(values.envTaxVndPerLiter),
-    extraCostVndPerLiter: cleanNumber(values.extraCostVndPerLiter),
+    extraCostVndPerLiter: cleanNumber(values.extraCostVndPerLiter) && cleanNumber(values.tankQtyLiter)
+      ? cleanNumber(values.extraCostVndPerLiter)! / cleanNumber(values.tankQtyLiter)!
+      : undefined,
+    fundAdjustmentVndPerLiter: cleanNumber(values.fundAdjustmentVndPerLiter),
     contractPaymentRate: cleanNumber(values.contractPaymentRate),
     bankGuaranteeRate: cleanNumber(values.bankGuaranteeRate),
     note: values.pricingNote?.trim() || undefined,
@@ -258,7 +313,14 @@ function RateAmountInput({ name, amount }: { name: keyof FormValues; amount: num
   return (
     <div style={{ display: "grid", gridTemplateColumns: "92px minmax(0, 1fr)", gap: 6, alignItems: "center" }}>
       <Form.Item name={name} noStyle>
-        <InputNumber min={0} style={{ width: "100%" }} precision={6} />
+        <InputNumber
+          min={0}
+          style={{ width: "100%" }}
+          precision={6}
+          parser={parsePercentRate}
+          formatter={formatPercentRate}
+          addonAfter="%"
+        />
       </Form.Item>
       <div style={{ textAlign: "right", fontWeight: 700 }}>{fmt(amount)}</div>
     </div>
@@ -272,6 +334,7 @@ export default function TermPurchaseOrderCreatePage() {
   const [savingEstimate, setSavingEstimate] = useState(false);
   const [fetchingPlatts, setFetchingPlatts] = useState(false);
   const [fetchingFx, setFetchingFx] = useState(false);
+  const [fetchingEnvTax, setFetchingEnvTax] = useState(false);
   const [showPlattsRows, setShowPlattsRows] = useState(false);
   const [showCostRows, setShowCostRows] = useState(false);
 
@@ -316,7 +379,7 @@ export default function TermPurchaseOrderCreatePage() {
     const baseDate: Dayjs | undefined = form.getFieldValue("plattsBaseDate") || form.getFieldValue("billDate") || form.getFieldValue("orderDate");
 
     if (!productId) {
-      message.warning("Chọn sản phẩm trước khi lấy giá Platts.");
+      notify.warning("Chọn sản phẩm trước khi lấy giá Platts.");
       return;
     }
 
@@ -385,17 +448,64 @@ export default function TermPurchaseOrderCreatePage() {
       );
 
       if (!rate) {
-        message.warning("Không có tỷ giá VCB cho ngày đã chọn.");
+        notify.warning("Không có tỷ giá VCB cho ngày đã chọn.");
         return;
       }
 
       form.setFieldsValue({ fxRate: rate });
-      message.success("Đã lấy tỷ giá VCB.");
+      notify.success("Đã lấy tỷ giá VCB.");
     } catch (error) {
       console.error(error);
-      message.error("Lấy tỷ giá VCB thất bại.");
+      notify.error("Lấy tỷ giá VCB thất bại.");
     } finally {
       setFetchingFx(false);
+    }
+  };
+
+  const fetchEnvironmentTax = async () => {
+    const productId = form.getFieldValue(["lines", 0, "productId"]);
+    const taxDate: Dayjs | undefined =
+      form.getFieldValue("billDate") ||
+      form.getFieldValue("fxRateDate") ||
+      form.getFieldValue("orderDate");
+
+    if (!productId) {
+      notify.warning("Chọn sản phẩm trước khi lấy phí BVMT.");
+      return;
+    }
+
+    if (!taxDate) {
+      notify.warning("Chọn ngày bill trước khi lấy phí BVMT.");
+      return;
+    }
+
+    setFetchingEnvTax(true);
+    try {
+      const res = await TermPurchaseOrdersApi.getEnvironmentTax({
+        productId,
+        date: taxDate.format("YYYY-MM-DD"),
+      });
+
+      const rawTax =
+        res?.taxVndPerLiter ??
+        res?.envTaxVndPerLiter ??
+        res?.rate ??
+        res?.data?.taxVndPerLiter ??
+        res?.data?.envTaxVndPerLiter ??
+        res?.data?.rate;
+
+      if (rawTax === null || rawTax === undefined || rawTax === "") {
+        notify.warning("Không có phí BVMT cho sản phẩm/ngày đã chọn.");
+        return;
+      }
+
+      form.setFieldsValue({ envTaxVndPerLiter: Number(rawTax) });
+      notify.success("Đã lấy phí BVMT.");
+    } catch (error) {
+      console.error(error);
+      notify.error("Lấy phí BVMT thất bại.");
+    } finally {
+      setFetchingEnvTax(false);
     }
   };
 
@@ -407,15 +517,15 @@ export default function TermPurchaseOrderCreatePage() {
     qtyBasisSelected: "V15",
     fxRateDate: dayjs(),
     specialConsumptionTaxUsdPerBbl: 0,
-    insuranceRate: 0,
-    transportLossRate: 0,
+    insuranceAmountVnd: 0,
+    transportLossAmountVnd: 0,
     envTaxVndPerLiter: 0,
     extraCostVndPerLiter: 0,
     inspectionFeeVnd: 0,
     transportFeeVnd: 0,
     storageFeeVnd: 0,
     transportDeductionVnd: 0,
-    accruedCostVndPerLiter: 0,
+    fundAdjustmentVndPerLiter: 0,
     contractPaymentRate: 100,
     bankGuaranteeRate: 0,
     transportMode: "PIPELINE",
@@ -431,13 +541,13 @@ export default function TermPurchaseOrderCreatePage() {
 
   const onFinish = async (values: FormValues) => {
     if (contractValidation?.valid === false) {
-      message.error(contractValidation.message || "Nhà cung cấp chưa có hợp đồng mua hàng TERM hợp lệ");
+      notify.error(contractValidation.message || "Nhà cung cấp chưa có hợp đồng mua hàng TERM hợp lệ");
       return;
     }
 
     const line = values.lines?.[0];
     if (!line?.productId || !cleanNumber(line.orderedQty)) {
-      message.error("Cần chọn sản phẩm và nhập sản lượng tạm tính.");
+      notify.error("Cần chọn sản phẩm và nhập sản lượng tạm tính.");
       return;
     }
 
@@ -481,8 +591,9 @@ export default function TermPurchaseOrderCreatePage() {
       console.error(error);
 
       if (result?.id) {
-        message.warning("Đã tạo hồ sơ TERM, nhưng bảng giá tạm tính chưa lưu được. Vui lòng kiểm tra lại.");
-        navigate(`/purchase-terms/${result.id}?step=estimate`);
+        const apiError = extractApiError(error);
+        message.error(`Đã tạo hồ sơ TERM, nhưng bảng giá tạm tính chưa lưu được: ${apiError.message}`);
+        navigate(`/purchase-terms/${result.id}`);
       }
     } finally {
       setSavingEstimate(false);
@@ -659,7 +770,17 @@ export default function TermPurchaseOrderCreatePage() {
 
                   <SheetRow label="Số thùng BILL" unit="thùng">
                     <Form.Item name="billBarrelQty" noStyle>
-                      <InputNumber min={0} style={{ width: "100%" }} precision={3} placeholder={preview.billBarrelQty ? fmt(preview.billBarrelQty, 3) : undefined} />
+                      <Input
+                        inputMode="decimal"
+                        style={{ width: "100%" }}
+                        placeholder={preview.billBarrelQty ? formatPlainDecimalComma(preview.billBarrelQty, 6) : undefined}
+                        onChange={(event) => {
+                          const sanitized = sanitizeNumericText(event.target.value);
+                          if (sanitized !== event.target.value) {
+                            form.setFieldValue("billBarrelQty", sanitized);
+                          }
+                        }}
+                      />
                     </Form.Item>
                   </SheetRow>
 
@@ -674,7 +795,7 @@ export default function TermPurchaseOrderCreatePage() {
                   </SheetRow>
 
                   <SheetRow label="Số lượng thùng giao nhận tạm tính" unit="Thùng">
-                    <SheetText>{fmt(preview.qty / 159, 3)}</SheetText>
+                    <SheetText>{fmtFixed(preview.qty / 159, 5)}</SheetText>
                   </SheetRow>
 
                                     <SheetRow
@@ -719,11 +840,13 @@ export default function TermPurchaseOrderCreatePage() {
 
                   {showCostRows ? (
                     <>
-<SheetRow label="Bảo hiểm hàng hóa" unit="VND">
-                    <RateAmountInput name="insuranceRate" amount={preview.insuranceAmount} />
+                  <SheetRow label="Bảo hiểm hàng hóa" unit="VND">
+                    <Form.Item name="insuranceAmountVnd" noStyle>
+                      <InputNumber min={0} style={{ width: "100%" }} />
+                    </Form.Item>
                   </SheetRow>
 
-                  <SheetRow label="Phí giám định đo" unit="VND">
+                  <SheetRow label="Phí giám định" unit="VND">
                     <Form.Item name="inspectionFeeVnd" noStyle>
                       <InputNumber min={0} style={{ width: "100%" }} />
                     </Form.Item>
@@ -742,7 +865,9 @@ export default function TermPurchaseOrderCreatePage() {
                   </SheetRow>
 
                   <SheetRow label="Hao hụt vận chuyển trừ thẳng vào lượng" unit="VND">
-                    <RateAmountInput name="transportLossRate" amount={preview.lossAmount} />
+                    <Form.Item name="transportLossAmountVnd" noStyle>
+                      <InputNumber min={0} style={{ width: "100%" }} />
+                    </Form.Item>
                   </SheetRow>
 
                   <SheetRow label="Trừ cước/chi quỹ" unit="VND">
@@ -766,11 +891,17 @@ export default function TermPurchaseOrderCreatePage() {
                     <SheetText>{fmt(preview.unitAverage, 3)}</SheetText>
                   </SheetRow>
 
-                  <SheetRow label="Quỹ bình ổn giá" unit="VND">
-                    <SheetText>0</SheetText>
-                  </SheetRow>
-
-                  <SheetRow label="Thuế môi trường" unit="VND">
+                  <SheetRow
+                    label={
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <span>Phí bảo vệ môi trường</span>
+                        <Button size="small" loading={fetchingEnvTax} onClick={fetchEnvironmentTax}>
+                          Lấy BVMT
+                        </Button>
+                      </div>
+                    }
+                    unit="VND/lít"
+                  >
                     <Form.Item name="envTaxVndPerLiter" noStyle>
                       <InputNumber min={0} style={{ width: "100%" }} />
                     </Form.Item>
@@ -783,9 +914,12 @@ export default function TermPurchaseOrderCreatePage() {
                   </SheetRow>
 
                   <SheetRow label="Trích/chi quỹ" unit="VND/lít">
-                    <Form.Item name="accruedCostVndPerLiter" noStyle>
-                      <InputNumber min={0} style={{ width: "100%" }} />
-                    </Form.Item>
+                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 120px", gap: 6, alignItems: "center" }}>
+                      <Form.Item name="fundAdjustmentVndPerLiter" noStyle>
+                        <InputNumber min={0} style={{ width: "100%" }} />
+                      </Form.Item>
+                      <div style={{ textAlign: "right", fontWeight: 700 }}>{fmt(preview.fundAdjustmentAmount)}</div>
+                    </div>
                   </SheetRow>
 
                   <SheetRow label="Đơn giá trước VAT" unit="VND" strong>
@@ -813,9 +947,9 @@ export default function TermPurchaseOrderCreatePage() {
                   <SheetRow
                     label={
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span>Giá trị thanh toán trước theo hợp đồng</span>
+                        <span>Giá trị thanh toán theo đơn hàng</span>
                         <Form.Item name="contractPaymentRate" noStyle>
-                          <InputNumber min={0} max={100} style={{ width: 84 }} precision={3} addonAfter="%" />
+                          <InputNumber min={0} max={200} style={{ width: 84 }} precision={3} addonAfter="%" />
                         </Form.Item>
                       </div>
                     }
