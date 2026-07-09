@@ -1,6 +1,7 @@
 ﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notify } from "../../shared/lib/notification";
 import { extractApiError } from "../../shared/lib/httpError";
+import { APP_BOOTSTRAP_QUERY_KEY } from "../app/hooks";
 import { TermPurchaseOrdersApi } from "./api";
 import type {
   CreateTermGoodsReceiptPayload,
@@ -8,6 +9,7 @@ import type {
   CreateTermPricingPayload,
   CreateTermPurchaseOrderPayload,
   CreateTermShipmentPayload,
+  GenerateTermOrderDocumentPayload,
   TermPurchaseOrderListQuery,
   UpdateTermLogisticsCostPayload,
   UpdateTermShipmentPayload,
@@ -23,6 +25,7 @@ function invalidateTerm(qc: ReturnType<typeof useQueryClient>, id?: string) {
   qc.invalidateQueries({ queryKey: qk.root });
   qc.invalidateQueries({ queryKey: ["term-purchase-orders"] });
   qc.invalidateQueries({ queryKey: ["purchase-orders"] });
+  qc.invalidateQueries({ queryKey: APP_BOOTSTRAP_QUERY_KEY });
   if (id) qc.invalidateQueries({ queryKey: qk.detail(id) });
 }
 
@@ -182,7 +185,7 @@ export function useGenerateTermOrderDocument(orderId?: string) {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: () => TermPurchaseOrdersApi.generateOrderDocument(orderId!),
+    mutationFn: (data?: GenerateTermOrderDocumentPayload) => TermPurchaseOrdersApi.generateOrderDocument(orderId!, data),
     onSuccess: () => {
       invalidateTerm(qc, orderId);
       notify.success("Đã sinh đơn đặt hàng");
@@ -193,7 +196,7 @@ export function useGenerateTermOrderDocument(orderId?: string) {
 
 export function usePrintTermOrderDocuments() {
   return useMutation({
-    mutationFn: (data: { ids: string[]; autoGenerate?: boolean }) =>
+    mutationFn: (data: { ids: string[]; autoGenerate?: boolean; documentOptions?: GenerateTermOrderDocumentPayload }) =>
       TermPurchaseOrdersApi.printOrderDocuments(data),
     onError: (e: any) => notify.error(extractApiError(e).message || "Lấy dữ liệu in đơn đặt hàng thất bại"),
   });
@@ -203,7 +206,7 @@ export function useCreateTermPaymentRequest(orderId?: string) {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: () => TermPurchaseOrdersApi.createPaymentRequest(orderId!),
+    mutationFn: (data?: Record<string, unknown>) => TermPurchaseOrdersApi.createPaymentRequest(orderId!, data),
     onSuccess: () => {
       invalidateTerm(qc, orderId);
       notify.success("Đã lập đề nghị thanh toán");

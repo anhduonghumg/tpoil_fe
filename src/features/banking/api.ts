@@ -8,6 +8,7 @@ import type {
   BankTransactionListQuery,
   CommitBankImportPayload,
   ConfirmBankTransactionPayload,
+  CreateManualBankTransactionPayload,
   MatchSuggestionResponse,
   Paged,
   PreviewBankImportPayload,
@@ -20,6 +21,11 @@ export const BankingApi = {
     apiCall<Paged<BankTransactionItem>>("banking.transactions", {
       query,
     }).then((r) => r.data!.data ?? (r.data as any)),
+
+  createManualTransaction: (data: CreateManualBankTransactionPayload) =>
+    apiCall<BankTransactionItem>("banking.createManualTransaction", {
+      data,
+    }).then((r) => (r.data as any)?.data ?? r.data),
 
   getTransactionDetail: (id: string) =>
     apiCall<BankTransactionItem>("banking.transactionDetail", {
@@ -59,7 +65,7 @@ export const BankingApi = {
         data: form,
       },
     );
-    return res.data! ?? (res.data as any);
+    return (res.data as any)?.data ?? res.data!;
   },
 
   commitImport: (body: CommitBankImportPayload) =>
@@ -82,14 +88,14 @@ export const BankingApi = {
 
   listTermPaymentPendingRequests: () =>
     apiCall<TermPaymentPendingRequest[]>("banking.termPaymentPendingRequests").then(
-      (r) => r.data! ?? (r.data as any),
+      (r) => (r.data as any)?.data ?? r.data ?? [],
     ),
 
   listTermPaymentBatches: (query?: Record<string, unknown>) =>
     apiCall<{ items: TermPaymentBatch[]; total: number; page: number; pageSize: number }>(
       "banking.termPaymentBatches",
       { query },
-    ).then((r) => r.data! ?? (r.data as any)),
+    ).then((r) => (r.data as any)?.data ?? r.data),
 
   createTermPaymentBatch: (data: {
     paymentRequestIds: string[];
@@ -98,18 +104,18 @@ export const BankingApi = {
     note?: string;
   }) =>
     apiCall<TermPaymentBatch>("banking.createTermPaymentBatch", { data }).then(
-      (r) => r.data! ?? (r.data as any),
+      (r) => (r.data as any)?.data ?? r.data,
     ),
 
   getTermPaymentBatchDetail: (id: string) =>
     apiCall<TermPaymentBatch>("banking.termPaymentBatchDetail", {
       params: { id },
-    }).then((r) => r.data! ?? (r.data as any)),
+    }).then((r) => (r.data as any)?.data ?? r.data),
 
   sendTermPaymentBatch: (id: string) =>
     apiCall<TermPaymentBatch>("banking.sendTermPaymentBatch", {
       params: { id },
-    }).then((r) => r.data! ?? (r.data as any)),
+    }).then((r) => (r.data as any)?.data ?? r.data),
 
   uploadTermPaymentBatchFile: (id: string, data: FormData) =>
     apiCall("banking.uploadTermPaymentBatchFile", {
@@ -125,5 +131,10 @@ export const BankingApi = {
     apiCall("banking.matchTermPaymentBatchItem", {
       params: { id, itemId },
       data,
+    }).then((r) => r.data?.data ?? r.data),
+
+  confirmTermPaymentBatchItemPaid: (id: string, itemId: string) =>
+    apiCall("banking.confirmTermPaymentBatchItemPaid", {
+      params: { id, itemId },
     }).then((r) => r.data?.data ?? r.data),
 };

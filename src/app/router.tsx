@@ -34,6 +34,33 @@ import EnvironmentTaxesPage from "../features/environment-taxes/page/Environment
 import TermPurchaseOrderCreatePage from "../features/purchase-term/ui/PurchaseTermCreatePage";
 import TermPurchaseOrdersPage from "../features/purchase-term/page/PurchaseTermPage";
 import TermPurchaseOrderDetailPage from "../features/purchase-term/page/TermPurchaseOrderDetailPage";
+import {
+  DriverListPage,
+  DriverDocumentPage,
+  ExpectedInventoryPage,
+  InventoryAccountingPage,
+  InventoryAvailabilityPage,
+  InventoryMatrixReportPage,
+  OperationsDashboardPage,
+  OperationsPartnerPage,
+  ShipCharterAppendixListPage,
+  ShipCharterContractListPage,
+  ShipCharterOrderDetailPage,
+  ShipCharterOrderFormPage,
+  ShipCharterOrderListPage,
+  ShipFreightRatePage,
+  StorageRentalContractPage,
+  VehicleDispatchOrderDetailPage,
+  VehicleDispatchOrderFormPage,
+  VehicleDispatchOrderListPage,
+  VehicleListPage,
+  VehicleDocumentPage,
+  VesselListPage,
+  WarehouseReservationPage,
+  WarehouseTransferDetailPage,
+  WarehouseTransferFormPage,
+  WarehouseTransferListPage,
+} from "../features/operations/pages";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -89,7 +116,39 @@ export const router = createBrowserRouter([
             path: "/purchase-invoices/:id",
             element: <PurchaseInvoiceDetailPage />,
           },
-          { path: "inventory", element: <div>Kho hàng</div> },
+          { path: "inventory", element: <InventoryAvailabilityPage /> },
+          {
+            path: "operations",
+            element: (
+              <RouteGuard need={PERMS.OPERATIONS_VIEW}>
+                <OperationsDashboardPage />
+              </RouteGuard>
+            ),
+          },
+          { path: "operations/charter-orders", element: <ShipCharterOrderListPage /> },
+          { path: "operations/partners", element: <OperationsPartnerPage /> },
+          { path: "operations/charter-orders/create", element: <ShipCharterOrderFormPage /> },
+          { path: "operations/charter-orders/:id", element: <ShipCharterOrderDetailPage /> },
+          { path: "operations/vessels", element: <VesselListPage /> },
+          { path: "operations/charter-contracts", element: <ShipCharterContractListPage /> },
+          { path: "operations/charter-appendices", element: <ShipCharterAppendixListPage /> },
+          { path: "operations/freight-rates", element: <ShipFreightRatePage /> },
+          { path: "operations/storage-contracts", element: <StorageRentalContractPage /> },
+          { path: "operations/inventory-availability", element: <InventoryAvailabilityPage /> },
+          { path: "operations/inventory-accounting", element: <InventoryAccountingPage /> },
+          { path: "operations/inventory-matrix", element: <InventoryMatrixReportPage /> },
+          { path: "operations/expected-inventory", element: <ExpectedInventoryPage /> },
+          { path: "operations/reservations", element: <WarehouseReservationPage /> },
+          { path: "operations/warehouse-transfers", element: <WarehouseTransferListPage /> },
+          { path: "operations/warehouse-transfers/create", element: <WarehouseTransferFormPage /> },
+          { path: "operations/warehouse-transfers/:id", element: <WarehouseTransferDetailPage /> },
+          { path: "operations/vehicles", element: <VehicleListPage /> },
+          { path: "operations/vehicle-documents", element: <VehicleDocumentPage /> },
+          { path: "operations/drivers", element: <DriverListPage /> },
+          { path: "operations/driver-documents", element: <DriverDocumentPage /> },
+          { path: "operations/vehicle-dispatches", element: <VehicleDispatchOrderListPage /> },
+          { path: "operations/vehicle-dispatches/create", element: <VehicleDispatchOrderFormPage /> },
+          { path: "operations/vehicle-dispatches/:id", element: <VehicleDispatchOrderDetailPage /> },
           {
             path: "users",
             element: (

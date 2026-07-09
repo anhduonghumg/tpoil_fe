@@ -15,9 +15,19 @@ export interface ContractsNotifications {
   expiredCount: number;
 }
 
+export interface TermPaymentsNotifications {
+  pendingCount: number;
+}
+
+export interface TermPurchasePaymentNotifications {
+  paidCount: number;
+}
+
 export interface NotificationsPayload {
   birthdays: BirthdaysNotifications;
   contracts: ContractsNotifications;
+  termPayments: TermPaymentsNotifications;
+  termPurchasePayments: TermPurchasePaymentNotifications;
 }
 
 export interface AuthBootstrapPayload {

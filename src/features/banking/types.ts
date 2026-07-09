@@ -189,6 +189,21 @@ export type BankTransactionListQuery = {
   confirmed?: "true" | "false" | "";
 };
 
+export type CreateManualBankTransactionPayload = {
+  bankAccountId: UUID;
+  txnDate: string;
+  direction: BankTxnDirection;
+  amount: number;
+  description: string;
+  counterpartyName?: string;
+  counterpartyAcc?: string;
+  externalRef?: string;
+  documentCode?: string;
+  purposeRaw?: string;
+  purposeId?: UUID;
+  note?: string;
+};
+
 export type MatchSuggestionItem = {
   settlementId: UUID;
   supplier?: SupplierBrief;

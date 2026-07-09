@@ -8,6 +8,7 @@ import type {
   CreateTermPurchaseOrderPayload,
   CreateTermShipmentPayload,
   CreateTermPurchaseOrderResult,
+  GenerateTermOrderDocumentPayload,
   PrintTermOrderDocumentsResult,
   TermOrderDocument,
   TermGoodsReceipt,
@@ -59,11 +60,25 @@ export const TermPurchaseOrdersApi = {
       params: { orderId },
     }).then((r) => (r.data!.data ?? r.data) as any),
 
-  createReceipt: (orderId: string, data: CreateTermGoodsReceiptPayload) =>
-    apiCall<ApiResponse<TermGoodsReceipt>>("purchaseTerm.createReceipt", {
+  createReceipt: (orderId: string, data: CreateTermGoodsReceiptPayload) => {
+    if (data.sourceFile) {
+      const form = new FormData();
+      Object.entries(data).forEach(([key, value]) => {
+        if (value === undefined || value === null || key === "sourceFile") return;
+        form.append(key, value instanceof File ? value : String(value));
+      });
+      form.append("file", data.sourceFile);
+      return apiCall<ApiResponse<TermGoodsReceipt>>("purchaseTerm.createReceipt", {
+        params: { orderId },
+        data: form,
+      }).then((r) => (r.data!.data ?? r.data) as any);
+    }
+
+    return apiCall<ApiResponse<TermGoodsReceipt>>("purchaseTerm.createReceipt", {
       params: { orderId },
       data,
-    }).then((r) => (r.data!.data ?? r.data) as any),
+    }).then((r) => (r.data!.data ?? r.data) as any);
+  },
 
   updateReceipt: (id: string, data: UpdateTermGoodsReceiptPayload) =>
     apiCall<ApiResponse<TermGoodsReceipt>>("purchaseTerm.updateReceipt", {
@@ -120,11 +135,30 @@ export const TermPurchaseOrdersApi = {
       },
     ).then((r) => (r.data!.data ?? r.data) as any),
 
-  generateOrderDocument: (orderId: string) =>
+  importPricingSheet: (file: File) => {
+    const data = new FormData();
+    data.append("file", file);
+    return apiCall<ApiResponse<any>>("purchaseTerm.importPricingSheet", {
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any);
+  },
+
+  importReceiptDocument: (orderId: string, file: File, template: "TEMPLATE_1" | "TEMPLATE_2") => {
+    const data = new FormData();
+    data.append("file", file);
+    data.append("template", template);
+    return apiCall<ApiResponse<any>>("purchaseTerm.importReceiptDocument", {
+      params: { orderId },
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any);
+  },
+
+  generateOrderDocument: (orderId: string, data?: GenerateTermOrderDocumentPayload) =>
     apiCall<ApiResponse<TermOrderDocument>>(
       "purchaseTerm.generateOrderDocument",
       {
         params: { orderId },
+        data: data ?? {},
       },
     ).then((r) => (r.data!.data ?? r.data) as any),
 
@@ -133,7 +167,7 @@ export const TermPurchaseOrdersApi = {
       params: { orderId },
     }).then((r) => (r.data!.data ?? r.data) as any),
 
-  printOrderDocuments: (data: { ids: string[]; autoGenerate?: boolean }) =>
+  printOrderDocuments: (data: { ids: string[]; autoGenerate?: boolean; documentOptions?: GenerateTermOrderDocumentPayload }) =>
     apiCall<ApiResponse<PrintTermOrderDocumentsResult>>(
       "purchaseTerm.printOrderDocuments",
       { data },

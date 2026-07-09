@@ -13,6 +13,7 @@ export function useAppBootstrap(opts?: { enabled?: boolean }) {
     staleTime: 5 * 60 * 1000,
     gcTime: 24 * 60 * 60 * 1000,
     retry: false,
+    refetchInterval: 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });

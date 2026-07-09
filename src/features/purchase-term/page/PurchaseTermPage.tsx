@@ -8,12 +8,13 @@ import {
   Select,
   Space,
   Table,
+  Tabs,
   Tag,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs, { Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { PartySelect } from "../../../shared/ui/PartySelect";
 
@@ -37,6 +38,8 @@ type FilterValues = {
   supplierCustomerId?: string | null;
   dateRange?: [Dayjs, Dayjs] | null;
 };
+
+type TermListTab = "ALL" | "PAID";
 
 function money(v?: number | null) {
   if (v === null || v === undefined) return "--";
@@ -77,6 +80,19 @@ function paymentModeTag(mode: PaymentMode) {
   );
 }
 
+function paymentStatusTag(status?: string | null) {
+  const map: Record<string, { text: string; color?: string }> = {
+    DRAFT: { text: "Chưa gửi", color: "default" },
+    SUBMITTED: { text: "Đề nghị TT", color: "cyan" },
+    IN_BATCH: { text: "Đã lập bảng kê", color: "blue" },
+    SENT_TO_BANK: { text: "Đã gửi NH", color: "blue" },
+    PARTIALLY_PAID: { text: "TT một phần", color: "gold" },
+    PAID: { text: "Đã thanh toán", color: "green" },
+  };
+  const item = status ? map[status] : undefined;
+  return item ? <Tag color={item.color}>{item.text}</Tag> : <Tag>Chưa đề nghị</Tag>;
+}
+
 function nextActionTag(action: TermNextAction) {
   const map: Record<TermNextAction, { text: string; color?: string }> = {
     APPROVE_ORDER: { text: "Sinh đơn", color: "orange" },
@@ -103,9 +119,13 @@ function nextActionTag(action: TermNextAction) {
 
 export default function TermPurchaseOrdersPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [draft, setDraft] = useState<FilterValues>({});
   const [filter, setFilter] = useState<FilterValues>({});
+  const [activeTab, setActiveTab] = useState<TermListTab>(
+    searchParams.get("tab") === "paid" ? "PAID" : "ALL",
+  );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -114,6 +134,7 @@ export default function TermPurchaseOrdersPage() {
     return {
       keyword: filter.keyword?.trim() || undefined,
       status: filter.status,
+      paymentStatus: activeTab === "PAID" ? "PAID" : undefined,
       paymentMode: filter.paymentMode,
       supplierCustomerId: filter.supplierCustomerId || undefined,
       fromDate: filter.dateRange?.[0]?.format("YYYY-MM-DD"),
@@ -121,7 +142,7 @@ export default function TermPurchaseOrdersPage() {
       page,
       pageSize,
     };
-  }, [filter, page, pageSize]);
+  }, [activeTab, filter, page, pageSize]);
 
   const listQuery = useTermPurchaseOrderList(query);
   const printDocuments = usePrintTermOrderDocuments();
@@ -221,6 +242,12 @@ export default function TermPurchaseOrdersPage() {
       dataIndex: "paymentMode",
       width: 120,
       render: paymentModeTag,
+    },
+    {
+      title: "TT thanh toán",
+      dataIndex: "paymentStatus",
+      width: 150,
+      render: paymentStatusTag,
     },
     {
       title: "Trạng thái",
@@ -420,6 +447,20 @@ export default function TermPurchaseOrdersPage() {
           }}
           styles={{ body: { padding: 12 } }}
         >
+          <Tabs
+            size="small"
+            activeKey={activeTab}
+            onChange={(key) => {
+              setActiveTab(key as TermListTab);
+              setSearchParams(key === "PAID" ? { tab: "paid" } : {});
+              setPage(1);
+              setSelectedRowKeys([]);
+            }}
+            items={[
+              { key: "ALL", label: "Tất cả đơn TERM" },
+              { key: "PAID", label: "Đơn đã thanh toán" },
+            ]}
+          />
           <Table<TermPurchaseOrderListItem>
             size="small"
             rowKey="id"

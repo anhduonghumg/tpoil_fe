@@ -10,8 +10,9 @@ import {
 } from "antd";
 import {
   BellOutlined,
-  GiftOutlined,
   FileTextOutlined,
+  GiftOutlined,
+  WalletOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
@@ -28,6 +29,9 @@ export default function NotificationsBell({
 
   const birthdays = bootstrap?.data?.notifications?.birthdays;
   const contracts = bootstrap?.data?.notifications?.contracts;
+  const termPayments = bootstrap?.data?.notifications?.termPayments;
+  const termPurchasePayments =
+    bootstrap?.data?.notifications?.termPurchasePayments;
 
   const bdayCount = birthdays?.count ?? 0;
   const hasBirthday = bdayCount > 0;
@@ -37,13 +41,41 @@ export default function NotificationsBell({
   const expiredCount = contracts?.expiredCount ?? 0;
   const hasContracts = expiringCount + expiredCount > 0;
 
+  const pendingTermPaymentCount = termPayments?.pendingCount ?? 0;
+  const hasPendingTermPayments = pendingTermPaymentCount > 0;
+  const paidTermPaymentCount = termPurchasePayments?.paidCount ?? 0;
+  const hasPaidTermPayments = paidTermPaymentCount > 0;
+
   const badgeCount =
-    extraCount + (hasBirthday ? 1 : 0) + (hasContracts ? 1 : 0);
+    extraCount +
+    pendingTermPaymentCount +
+    paidTermPaymentCount +
+    (hasBirthday ? 1 : 0) +
+    (hasContracts ? 1 : 0);
 
   const dropdownItems: MenuProps["items"] = useMemo(() => {
     const items: MenuProps["items"] = [];
-    if (!ready)
+    if (!ready) {
       return [{ key: "loading", disabled: true, label: "Đang tải..." }];
+    }
+
+    if (hasPendingTermPayments) {
+      items.push({
+        key: "term-payment-requests",
+        icon: <WalletOutlined style={{ color: "#13c2c2" }} />,
+        label: `Có ${pendingTermPaymentCount} đề nghị thanh toán TERM chờ ngân hàng`,
+        onClick: () => navigate("/banking?tab=term-payments"),
+      });
+    }
+
+    if (hasPaidTermPayments) {
+      items.push({
+        key: "term-purchase-payments",
+        icon: <WalletOutlined style={{ color: "#52c41a" }} />,
+        label: `Có ${paidTermPaymentCount} đề nghị TERM đã có thanh toán`,
+        onClick: () => navigate("/purchase-terms?tab=paid"),
+      });
+    }
 
     if (hasBirthday) {
       items.push({
@@ -53,6 +85,7 @@ export default function NotificationsBell({
         onClick: () => setOpenModal(true),
       });
     }
+
     if (hasContracts) {
       items.push({
         key: "contracts-expiry",
@@ -61,11 +94,18 @@ export default function NotificationsBell({
         onClick: () => navigate("/contracts/expiry-report"),
       });
     }
-    if (!items.length)
+
+    if (!items.length) {
       items.push({ key: "empty", disabled: true, label: "Không có thông báo" });
+    }
+
     return items;
   }, [
     ready,
+    hasPendingTermPayments,
+    pendingTermPaymentCount,
+    hasPaidTermPayments,
+    paidTermPaymentCount,
     hasBirthday,
     hasContracts,
     bdayCount,
@@ -92,7 +132,7 @@ export default function NotificationsBell({
         menu={{ items: dropdownItems }}
         trigger={["click"]}
         placement="bottomRight"
-        overlayStyle={{ width: 280 }}
+        overlayStyle={{ width: 340 }}
       >
         <Badge count={badgeCount} size="small" offset={[-2, 2]}>
           <BellOutlined className="icon-btn" />

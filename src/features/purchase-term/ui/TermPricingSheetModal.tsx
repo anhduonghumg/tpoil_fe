@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Button, DatePicker, Form, Input, InputNumber, message, Modal, Space, Tag, Typography } from "antd";
+import { Button, DatePicker, Form, Input, InputNumber, message, Modal, Space, Tag, Typography, Upload } from "antd";
+import { UploadOutlined } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 import type { CreateTermPricingPayload, TermPricingStage, TermPurchaseOrderDetail, TermPricingStageType } from "../types";
 import { TermPurchaseOrdersApi } from "../api";
@@ -37,6 +38,15 @@ type FormValues = {
   contractPaymentRate?: number;
   bankGuaranteeRate?: number;
   note?: string;
+};
+
+type ImportedPricingFields = Partial<
+  Omit<FormValues, "billDate" | "plattsBaseDate" | "fxRateDate" | "priceDays">
+> & {
+  billDate?: string;
+  plattsBaseDate?: string;
+  fxRateDate?: string;
+  priceDays?: Array<{ quoteDate?: string; priceUsdPerBbl?: number }>;
 };
 
 type Props = {
@@ -267,6 +277,43 @@ function buildInitialValues(data: TermPurchaseOrderDetail, initialStage?: TermPr
   };
 }
 
+function buildImportedValues(fields?: ImportedPricingFields | null): Partial<FormValues> {
+  if (!fields) return {};
+
+  const next: Partial<FormValues> = {};
+
+  if (fields.billDate) next.billDate = dayjs(fields.billDate);
+  if (fields.plattsBaseDate) next.plattsBaseDate = dayjs(fields.plattsBaseDate);
+  if (fields.fxRateDate) next.fxRateDate = dayjs(fields.fxRateDate);
+  if (fields.priceDays?.length) {
+    next.priceDays = fields.priceDays.slice(0, 11).map((item) => ({
+      quoteDate: item.quoteDate ? dayjs(item.quoteDate) : undefined,
+      priceUsdPerBbl: item.priceUsdPerBbl,
+    }));
+  }
+
+  if (fields.mopsAvgUsdPerBbl !== undefined) next.mopsAvgUsdPerBbl = fields.mopsAvgUsdPerBbl;
+  if (fields.premiumUsdPerBbl !== undefined) next.premiumUsdPerBbl = fields.premiumUsdPerBbl;
+  if (fields.specialConsumptionTaxUsdPerBbl !== undefined) next.specialConsumptionTaxUsdPerBbl = fields.specialConsumptionTaxUsdPerBbl;
+  if (fields.fxRate !== undefined) next.fxRate = fields.fxRate;
+  if (fields.billBarrelQty !== undefined) next.billBarrelQty = formatPlainDecimalComma(fields.billBarrelQty, 6);
+  if (fields.tankQtyLiter !== undefined) next.tankQtyLiter = fields.tankQtyLiter;
+  if (fields.insuranceAmountVnd !== undefined) next.insuranceAmountVnd = fields.insuranceAmountVnd;
+  if (fields.inspectionFeeVnd !== undefined) next.inspectionFeeVnd = fields.inspectionFeeVnd;
+  if (fields.transportFeeVnd !== undefined) next.transportFeeVnd = fields.transportFeeVnd;
+  if (fields.storageFeeVnd !== undefined) next.storageFeeVnd = fields.storageFeeVnd;
+  if (fields.transportLossAmountVnd !== undefined) next.transportLossAmountVnd = fields.transportLossAmountVnd;
+  if (fields.transportDeductionVnd !== undefined) next.transportDeductionVnd = fields.transportDeductionVnd;
+  if (fields.envTaxVndPerLiter !== undefined) next.envTaxVndPerLiter = fields.envTaxVndPerLiter;
+  if (fields.extraCostVndPerLiter !== undefined) next.extraCostVndPerLiter = fields.extraCostVndPerLiter;
+  if (fields.fundAdjustmentVndPerLiter !== undefined) next.fundAdjustmentVndPerLiter = fields.fundAdjustmentVndPerLiter;
+  if (fields.contractPaymentRate !== undefined) next.contractPaymentRate = fields.contractPaymentRate;
+  if (fields.bankGuaranteeRate !== undefined) next.bankGuaranteeRate = fields.bankGuaranteeRate;
+  if (fields.note) next.note = fields.note;
+
+  return next;
+}
+
 function buildLines(data: TermPurchaseOrderDetail, kind: SheetPricingKind) {
   const confirmedReceipts = (data.receipts || []).filter((item) => item.status === "CONFIRMED");
 
@@ -384,6 +431,7 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
   const [fetchingPlatts, setFetchingPlatts] = useState(false);
   const [fetchingFx, setFetchingFx] = useState(false);
   const [fetchingEnvTax, setFetchingEnvTax] = useState(false);
+  const [importingSheet, setImportingSheet] = useState(false);
   const [showPlattsRows, setShowPlattsRows] = useState(false);
   const [showCostRows, setShowCostRows] = useState(false);
   const watched = Form.useWatch([], form) as FormValues | undefined;
@@ -527,6 +575,63 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
     }
   };
 
+  const importPricingSheet = async (file: File) => {
+    const isSupported =
+      file.type === "application/pdf" ||
+      file.type.startsWith("image/") ||
+      file.type.startsWith("text/") ||
+      /\.(pdf|png|jpe?g|webp|txt)$/i.test(file.name);
+
+    if (!isSupported) {
+      message.warning("Chỉ nhận PDF, ảnh hoặc file TXT.");
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      message.warning("File bảng giá tối đa 8MB.");
+      return;
+    }
+
+    setImportingSheet(true);
+    try {
+      const res = await TermPurchaseOrdersApi.importPricingSheet(file);
+      const fields = (res?.fields ?? res?.data?.fields ?? {}) as ImportedPricingFields;
+      const warnings = (res?.warnings ?? res?.data?.warnings ?? []) as string[];
+      const supported = Boolean(res?.supported ?? res?.data?.supported);
+
+      if (!supported) {
+        message.warning(res?.message || "Chưa đọc được dữ liệu từ file.");
+        return;
+      }
+
+      const nextValues = buildImportedValues(fields);
+      form.setFieldsValue(nextValues);
+
+      if (fields.priceDays?.length) setShowPlattsRows(true);
+      if (
+        fields.insuranceAmountVnd !== undefined ||
+        fields.inspectionFeeVnd !== undefined ||
+        fields.transportFeeVnd !== undefined ||
+        fields.storageFeeVnd !== undefined ||
+        fields.transportLossAmountVnd !== undefined ||
+        fields.transportDeductionVnd !== undefined
+      ) {
+        setShowCostRows(true);
+      }
+
+      if (warnings.length) {
+        message.warning(`Đã đọc file, cần kiểm tra: ${warnings.slice(0, 2).join("; ")}`);
+      } else {
+        message.success("Đã đọc bảng giá và điền vào form.");
+      }
+    } catch (error: any) {
+      console.error(error);
+      message.error(error?.response?.data?.message || error?.message || "Đọc bảng giá thất bại.");
+    } finally {
+      setImportingSheet(false);
+    }
+  };
+
   const submit = async () => {
     const values = await form.validateFields();
     onSubmit(buildPayload(values, data, kind));
@@ -546,10 +651,22 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
       styles={{ body: { paddingTop: 8, maxHeight: "calc(100vh - 170px)", overflow: "auto" } }}
     >
       <Form<FormValues> form={form} layout="vertical" size="small">
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
           <Tag color="blue">{data.orderNo}</Tag>
           <Tag>{data.supplierName || "--"}</Tag>
           <Tag color={kind === "FINAL" ? "green" : kind === "BILL_NORMALIZE" ? "purple" : "gold"}>{titleMap[kind]}</Tag>
+          <Upload
+            accept=".pdf,.txt,image/*"
+            showUploadList={false}
+            beforeUpload={(file) => {
+              void importPricingSheet(file as File);
+              return Upload.LIST_IGNORE;
+            }}
+          >
+            <Button size="small" icon={<UploadOutlined />} loading={importingSheet}>
+              Đọc ảnh/PDF
+            </Button>
+          </Upload>
         </div>
 
         <table className="term-price-sheet">

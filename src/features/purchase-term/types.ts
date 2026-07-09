@@ -72,6 +72,8 @@ export type CreateTermPurchaseOrderPayload = {
 
   transportMode?: TermTransportMode;
 
+  charterVessel?: boolean;
+
   termFlowType?: TermPurchaseFlowType;
 
   deliveryLocation?: string;
@@ -141,11 +143,18 @@ export type PrintTermOrderDocumentsResult = {
   skipped: Array<{ orderId: UUID; reason: string }>;
 };
 
+export type GenerateTermOrderDocumentPayload = {
+  deliveryMode?: "FACTORY" | "WAREHOUSE";
+  originSource?: "BINH_SON" | "NGHI_SON" | "IMPORT";
+  paymentMethodText?: string;
+};
+
 export type TermPaymentRequest = {
   id: UUID;
   requestNo: string;
   requestDate: string;
   supplierName: string;
+  content?: string | null;
   amountVnd: number;
   currency: string;
   paymentDeadline?: string | null;
@@ -225,6 +234,12 @@ export type TermPurchaseOrderListItem = {
 
   premium?: number | null;
 
+  paymentStatus?: string | null;
+
+  transportMode?: TermTransportMode | null;
+
+  charterVessel?: boolean | null;
+
   nextAction: TermNextAction;
 
   createdAt: string;
@@ -236,6 +251,8 @@ export type TermPurchaseOrderListQuery = {
   keyword?: string;
 
   status?: TermOrderStatus;
+
+  paymentStatus?: string;
 
   supplierCustomerId?: UUID;
 
@@ -276,6 +293,24 @@ export type TermGoodsReceipt = {
   qty: number;
 
   standardQtyV15?: number | null;
+
+  billQty?: number | null;
+
+  tankQty?: number | null;
+
+  temporaryWithdrawQty?: number | null;
+
+  billToTankLossQty?: number | null;
+
+  receiptDocumentTemplate?: "TEMPLATE_1" | "TEMPLATE_2" | string | null;
+
+  sourceFileName?: string | null;
+
+  sourceFileUrl?: string | null;
+
+  sourceFileMimeType?: string | null;
+
+  sourceFileSizeBytes?: number | null;
 
   tempC?: number | null;
 
@@ -782,6 +817,8 @@ export type TermPurchaseOrderDetail = {
 
   transportMode?: TermTransportMode | null;
 
+  charterVessel?: boolean | null;
+
   deliveryLocation?: string | null;
 
   paymentNote?: string | null;
@@ -837,6 +874,12 @@ export type CreateTermGoodsReceiptPayload = {
   productId: UUID;
   receiptDate: string;
   qty: number;
+  billQty?: number;
+  tankQty?: number;
+  temporaryWithdrawQty?: number;
+  billToTankLossQty?: number;
+  receiptDocumentTemplate?: "TEMPLATE_1" | "TEMPLATE_2";
+  sourceFile?: File;
   tempC?: number;
   density?: number;
   standardQtyV15?: number;

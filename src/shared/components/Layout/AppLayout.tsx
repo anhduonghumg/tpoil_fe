@@ -1,18 +1,20 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Layout, Menu, Dropdown, Avatar, Breadcrumb, Drawer, Grid } from "antd";
 import {
+  Avatar,
+  Breadcrumb,
+  Drawer,
+  Dropdown,
+  Grid,
+  Layout,
+  Menu,
+  Select,
+} from "antd";
+import {
+  LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  DashboardOutlined,
-  ShoppingCartOutlined,
-  DatabaseOutlined,
   UserOutlined,
-  ApartmentOutlined,
-  TeamOutlined,
-  SolutionOutlined,
-  UnorderedListOutlined,
-  LogoutOutlined,
 } from "@ant-design/icons";
 import "./AppLayout.css";
 import { useLogout } from "../../../features/auth/hooks";
@@ -24,154 +26,41 @@ import logo from "../../../assets/logo_200.png";
 import { confirmDialog } from "../../lib/confirm";
 import NotificationsBell from "./NotificationsBell";
 import { useAppSession } from "../../authz/AppSessionProvider";
-import { PERMS } from "../../authz/perms";
 import { getAuthorizedMenu } from "./MenuUtils";
+import {
+  DepartmentWorkspaceProvider,
+  useDepartmentWorkspaceValue,
+} from "../../../features/workspaces/context";
+import type {
+  DepartmentWorkspace,
+  WorkspaceMenuItem,
+} from "../../../features/workspaces/types";
 
 const { Header, Sider, Content } = Layout;
 const { useBreakpoint } = Grid;
 
-type NavItem = {
-  key: string;
-  label: string;
-  icon?: JSX.Element;
-  children?: NavItem[];
-  need?: string;
-};
-
-const NAV: NavItem[] = [
-  { key: "/", label: "Dashboard", icon: <DashboardOutlined /> },
-  {
-    key: "/purchase/platts-prices",
-    label: "Giá Platts",
-    icon: <DatabaseOutlined />,
-  },
-  {
-    key: "/purchase/vcb-rates",
-    label: "Tỷ giá VCB",
-    icon: <DatabaseOutlined />,
-  },
-  {
-    key: "/purchase/environment-taxes",
-    label: "Phí BVMT",
-    icon: <DatabaseOutlined />,
-  },
-  {
-    key: "/purchase-orders",
-    label: "Đơn mua TM",
-    icon: <ShoppingCartOutlined />,
-  },
-  {
-    key: "/purchase-terms",
-    label: "Đơn mua TERM",
-    icon: <ShoppingCartOutlined />,
-  },
-  { key: "/banking", label: "Ngân hàng", icon: <DatabaseOutlined /> },
-  {
-    key: "/users",
-    label: "Người dùng",
-    icon: <UserOutlined />,
-    need: PERMS.USERS_VIEW,
-  },
-  {
-    key: "/employees",
-    label: "Nhân viên",
-    icon: <UserOutlined />,
-  },
-  { key: "/department", label: "Phòng ban", icon: <ApartmentOutlined /> },
-  {
-    key: "/customers",
-    label: "Khách hàng",
-    icon: <TeamOutlined />,
-  },
-  {
-    key: "/suppliers",
-    label: "Nhà cung cấp",
-    icon: <TeamOutlined />,
-  },
-  {
-    key: "/contracts",
-    label: "Hợp đồng",
-    icon: <SolutionOutlined />,
-  },
-  {
-    key: "/contractTypes",
-    label: "Loại hợp đồng",
-    icon: <UnorderedListOutlined />,
-  },
-  {
-    key: "/cron",
-    label: "Công việc định kỳ",
-    icon: <UnorderedListOutlined />,
-    need: PERMS.SYSTEM_RBAC_ADMIN,
-  },
-  {
-    key: "/settings/roles",
-    label: "Phân quyền",
-    icon: <UnorderedListOutlined />,
-    need: PERMS.SYSTEM_RBAC_ADMIN,
-  },
-  {
-    key: "master",
-    label: "Danh mục",
-    icon: <UnorderedListOutlined />,
-    children: [
-      {
-        key: "/settings/customer-groups",
-        label: "Nhóm khách hàng",
-        icon: <TeamOutlined />,
-      },
-      {
-        key: "/settings/products",
-        label: "Sản phẩm",
-        icon: <TeamOutlined />,
-      },
-      {
-        key: "/settings/inventory",
-        label: "Kho hàng",
-        icon: <TeamOutlined />,
-      },
-      {
-        key: "/settings/price-bulletins",
-        label: "Giá sản phẩm",
-        icon: <TeamOutlined />,
-      },
-      {
-        key: "/bank-accounts",
-        label: "Tài khoản ngân hàng",
-        icon: <DatabaseOutlined />,
-      },
-      {
-        key: "/bank-import-templates",
-        label: "Mẫu import ngân hàng",
-        icon: <DatabaseOutlined />,
-      },
-      {
-        key: "/bank-purposes",
-        label: "Mục đích giao dịch",
-        icon: <DatabaseOutlined />,
-      },
-    ],
-  },
-];
-
 const BREADCRUMB: Record<string, string> = {
   "/": "Dashboard",
-
+  "/dashboard": "Dashboard",
   "/purchase-orders": "Đơn mua hàng",
   "/purchase-invoices": "Hóa đơn NCC",
   "/purchase/platts-prices": "Giá Platts",
   "/purchase/vcb-rates": "Tỷ giá VCB",
   "/purchase/environment-taxes": "Phí BVMT",
-
+  "/purchase-terms": "Hồ sơ mua TERM",
+  "/banking": "Ngân hàng",
+  "/bank-accounts": "Tài khoản ngân hàng",
+  "/bank-import-templates": "Mẫu import ngân hàng",
+  "/bank-purposes": "Mục đích giao dịch",
   "/users": "Người dùng",
   "/employees": "Nhân viên",
   "/department": "Phòng ban",
   "/customers": "Khách hàng",
   "/suppliers": "Nhà cung cấp",
   "/contracts": "Hợp đồng",
+  "/contracts/expiry-report": "Cảnh báo hết hạn",
   "/contractTypes": "Loại hợp đồng",
   "/cron": "Công việc định kỳ",
-
   "/settings/roles": "Phân quyền",
   "/settings/customer-groups": "Nhóm khách hàng",
   "/settings/products": "Sản phẩm",
@@ -179,22 +68,64 @@ const BREADCRUMB: Record<string, string> = {
   "/settings/price-bulletins": "Giá sản phẩm",
 };
 
+function flattenMenu(items: WorkspaceMenuItem[]): WorkspaceMenuItem[] {
+  return items.flatMap((item) =>
+    item.children?.length ? [item, ...flattenMenu(item.children)] : [item],
+  );
+}
+
 const SiderMenu = React.memo(function SiderMenu({
   collapsed,
+  currentWorkspace,
+  workspaces,
+  onWorkspaceChange,
   onNavigate,
   items,
   selectedKeys,
 }: {
   collapsed: boolean;
+  currentWorkspace: DepartmentWorkspace;
+  workspaces: DepartmentWorkspace[];
+  onWorkspaceChange: (key: string) => void;
   onNavigate: (key: string) => void;
   items: any[];
   selectedKeys: string[];
 }) {
+  const workspaceOptions = useMemo(
+    () =>
+      workspaces.map((item) => ({
+        value: item.key,
+        label: item.name,
+      })),
+    [workspaces],
+  );
+
   return (
     <>
-      <div className="app-brand" onClick={() => onNavigate("/")}>
-        <img style={{ width: "64px" }} src={logo} className="" alt="Logo" />
+      <div className="app-brand" onClick={() => onNavigate("/dashboard")}>
+        <img style={{ width: "64px" }} src={logo} alt="Logo" />
       </div>
+
+      <div className="app-workspace">
+        {collapsed ? (
+          <div className="app-workspace-compact" title={currentWorkspace.name}>
+            {currentWorkspace.name.charAt(0).toUpperCase()}
+          </div>
+        ) : (
+          <>
+            <div className="app-workspace-label">Workspace</div>
+            <Select
+              className="app-workspace-select"
+              value={currentWorkspace.key}
+              options={workspaceOptions}
+              disabled={workspaceOptions.length <= 1}
+              onChange={onWorkspaceChange}
+              popupMatchSelectWidth={false}
+            />
+          </>
+        )}
+      </div>
+
       <div className="app-menu-scroll">
         <Menu
           theme="dark"
@@ -261,22 +192,34 @@ export default function AppLayout() {
   const { pathname } = useLocation();
 
   const { me, ready, permissions } = useAppSession();
+  const workspaceValue = useDepartmentWorkspaceValue({
+    enabled: ready,
+    permissions,
+  });
   const logout = useLogout();
   const qc = useQueryClient();
 
-  if (!ready) return null;
-
   const menuItems = useMemo(() => {
-    return getAuthorizedMenu(NAV, permissions);
-  }, [permissions]);
+    return getAuthorizedMenu(workspaceValue.menu as any, permissions);
+  }, [permissions, workspaceValue.menu]);
 
   const flatKeys = useMemo(() => {
     const walk = (items: any[]): string[] =>
-      items.flatMap((i) =>
-        i.children?.length ? [i.key, ...walk(i.children)] : [i.key],
+      items.flatMap((item) =>
+        item.children?.length ? [item.key, ...walk(item.children)] : [item.key],
       );
     return walk(menuItems);
   }, [menuItems]);
+
+  const menuLabels = useMemo(() => {
+    return flattenMenu(workspaceValue.menu).reduce<Record<string, string>>(
+      (acc, item) => {
+        if (item.key.startsWith("/")) acc[item.key] = item.label;
+        return acc;
+      },
+      {},
+    );
+  }, [workspaceValue.menu]);
 
   const onNavigate = useCallback(
     (key: string) => {
@@ -287,9 +230,17 @@ export default function AppLayout() {
     [nav, pathname, open],
   );
 
+  const onWorkspaceChange = useCallback(
+    (key: string) => {
+      workspaceValue.setWorkspaceKey(key);
+      if (pathname === "/" || pathname === "/dashboard") nav("/dashboard");
+    },
+    [nav, pathname, workspaceValue],
+  );
+
   const onToggleSider = useCallback(() => {
     if (isMobile) setOpen(true);
-    else setCollapsed((c) => !c);
+    else setCollapsed((value) => !value);
   }, [isMobile]);
 
   const onLogout = useCallback(async () => {
@@ -313,31 +264,16 @@ export default function AppLayout() {
 
   const selectedKeys = useMemo(() => {
     const best = flatKeys
-      .filter((k) => pathname === k || pathname.startsWith(k + "/"))
+      .filter((key) => pathname === key || pathname.startsWith(key + "/"))
       .sort((a, b) => b.length - a.length)[0];
-    return [best || "/"];
+    return [best || "/dashboard"];
   }, [pathname, flatKeys]);
-
-  // const breadcrumbItems = useMemo(() => {
-  //   const segs = pathname.split("/").filter(Boolean);
-  //   const paths = [
-  //     "/",
-  //     ...segs.map((_, i) => "/" + segs.slice(0, i + 1).join("/")),
-  //   ];
-  //   return paths.map((p, i) => ({
-  //     title:
-  //       i === paths.length - 1
-  //         ? BREADCRUMB[p] || decodeURIComponent(p.split("/").pop() || "")
-  //         : BREADCRUMB[p] || "Home",
-  //     path: p,
-  //   }));
-  // }, [pathname]);
 
   const breadcrumbItems = useMemo(() => {
     const segs = pathname.split("/").filter(Boolean);
     const paths = [
       "/",
-      ...segs.map((_, i) => "/" + segs.slice(0, i + 1).join("/")),
+      ...segs.map((_, index) => "/" + segs.slice(0, index + 1).join("/")),
     ];
 
     const isUuidLike = (value: string) =>
@@ -345,112 +281,117 @@ export default function AppLayout() {
         value,
       );
 
-    return paths.map((p, i) => {
-      const lastSeg = p.split("/").pop() || "";
-      const prevSeg = p.split("/").filter(Boolean).slice(-2, -1)[0] || "";
+    return paths.map((path) => {
+      const parts = path.split("/").filter(Boolean);
+      const lastSeg = parts[parts.length - 1] || "";
+      const prevSeg = parts[parts.length - 2] || "";
 
-      let title = BREADCRUMB[p];
+      let title = menuLabels[path] || BREADCRUMB[path];
 
       if (!title) {
         if (isUuidLike(lastSeg)) {
-          if (prevSeg === "purchase-orders") {
-            title = "Chi tiết đơn mua";
-          } else if (prevSeg === "purchase-invoices") {
-            title = "Chi tiết hóa đơn NCC";
-          } else {
-            title = "Chi tiết";
-          }
+          if (prevSeg === "purchase-orders") title = "Chi tiết đơn mua";
+          else if (prevSeg === "purchase-invoices") title = "Chi tiết hóa đơn NCC";
+          else if (prevSeg === "purchase-terms") title = "Chi tiết hồ sơ TERM";
+          else title = "Chi tiết";
         } else {
           title = decodeURIComponent(lastSeg || "Home");
         }
       }
 
-      return {
-        title,
-        path: p,
-      };
+      return { title, path };
     });
-  }, [pathname]);
+  }, [menuLabels, pathname]);
 
   const userName = (me?.name || me?.email || "User") as string;
 
+  if (!ready) return null;
+
   return (
-    <Layout className="app-root">
-      {!isMobile && (
-        <Sider
-          collapsible
-          collapsed={collapsed}
-          onCollapse={setCollapsed}
-          breakpoint="lg"
-          width={220}
-          className="app-sider"
-        >
-          <SiderMenu
+    <DepartmentWorkspaceProvider value={workspaceValue}>
+      <Layout className="app-root">
+        {!isMobile && (
+          <Sider
+            collapsible
             collapsed={collapsed}
-            onNavigate={onNavigate}
-            items={menuItems}
-            selectedKeys={selectedKeys}
-          />
-        </Sider>
-      )}
-
-      <Layout>
-        <Header className="app-header">
-          <div className="app-header-left">
-            {isMobile ? (
-              <MenuUnfoldOutlined
-                className="trigger"
-                onClick={() => setOpen(true)}
-              />
-            ) : collapsed ? (
-              <MenuUnfoldOutlined className="trigger" onClick={onToggleSider} />
-            ) : (
-              <MenuFoldOutlined className="trigger" onClick={onToggleSider} />
-            )}
-            <Breadcrumb
-              items={breadcrumbItems.map((b, i) => ({
-                title:
-                  i === breadcrumbItems.length - 1 ? (
-                    <span>{b.title}</span>
-                  ) : (
-                    <a
-                      onClick={(e) => {
-                        e.preventDefault();
-                        onNavigate(b.path);
-                      }}
-                    >
-                      {b.title}
-                    </a>
-                  ),
-              }))}
+            onCollapse={setCollapsed}
+            breakpoint="lg"
+            width={220}
+            className="app-sider"
+          >
+            <SiderMenu
+              collapsed={collapsed}
+              currentWorkspace={workspaceValue.currentWorkspace}
+              workspaces={workspaceValue.workspaces}
+              onWorkspaceChange={onWorkspaceChange}
+              onNavigate={onNavigate}
+              items={menuItems}
+              selectedKeys={selectedKeys}
             />
-          </div>
+          </Sider>
+        )}
 
-          <HeaderRight userName={userName} onLogout={handleLogout} />
-        </Header>
-        <Content className="app-content">
-          <div className="app-card">
-            <Outlet />
-          </div>
-        </Content>
+        <Layout>
+          <Header className="app-header">
+            <div className="app-header-left">
+              {isMobile ? (
+                <MenuUnfoldOutlined
+                  className="trigger"
+                  onClick={() => setOpen(true)}
+                />
+              ) : collapsed ? (
+                <MenuUnfoldOutlined className="trigger" onClick={onToggleSider} />
+              ) : (
+                <MenuFoldOutlined className="trigger" onClick={onToggleSider} />
+              )}
+              <Breadcrumb
+                items={breadcrumbItems.map((item, index) => ({
+                  title:
+                    index === breadcrumbItems.length - 1 ? (
+                      <span>{item.title}</span>
+                    ) : (
+                      <a
+                        onClick={(event) => {
+                          event.preventDefault();
+                          onNavigate(item.path);
+                        }}
+                      >
+                        {item.title}
+                      </a>
+                    ),
+                }))}
+              />
+            </div>
+
+            <HeaderRight userName={userName} onLogout={handleLogout} />
+          </Header>
+          <Content className="app-content">
+            <div className="app-card">
+              <Outlet />
+            </div>
+          </Content>
+        </Layout>
+
+        {isMobile && (
+          <Drawer
+            open={open}
+            placement="left"
+            onClose={() => setOpen(false)}
+            style={{ padding: 0 }}
+            width={260}
+          >
+            <SiderMenu
+              collapsed={false}
+              currentWorkspace={workspaceValue.currentWorkspace}
+              workspaces={workspaceValue.workspaces}
+              onWorkspaceChange={onWorkspaceChange}
+              onNavigate={onNavigate}
+              items={menuItems}
+              selectedKeys={selectedKeys}
+            />
+          </Drawer>
+        )}
       </Layout>
-
-      {isMobile && (
-        <Drawer
-          open={open}
-          placement="left"
-          onClose={() => setOpen(false)}
-          style={{ padding: 0 }}
-          width={220}
-        >
-          <SiderMenu
-            collapsed={false}
-            onNavigate={onNavigate}
-            items={menuItems}
-            selectedKeys={selectedKeys}
-          />
-        </Drawer>
-      )}
-    </Layout>
+    </DepartmentWorkspaceProvider>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Space, Modal, Typography } from "antd";
+import { Space, Modal, Typography, Tabs } from "antd";
 import dayjs from "dayjs";
+import { useSearchParams } from "react-router-dom";
 import {
   useBankTransactions,
   useBulkQuickMatchBankTransactions,
@@ -19,9 +20,13 @@ import { StatementTable } from "../ui/StatementTable";
 import { StatementMatchDrawer } from "../ui/StatementMatchDrawer";
 import ImportStatementModal from "../ui/ImportStatementModal";
 import { notify } from "../../../shared/lib/notification";
+import { TermPaymentBatchesPanel } from "../ui/TermPaymentBatchesPanel";
+import { ManualBankTransactionModal } from "../ui/ManualBankTransactionModal";
 
 export default function BankStatementPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [importOpen, setImportOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [selected, setSelected] = useState<BankTransactionItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -49,6 +54,8 @@ export default function BankStatementPage() {
 
   const rows = data?.data ?? [];
   const meta = data?.meta;
+  const activeTab =
+    searchParams.get("tab") === "term-payments" ? "term-payments" : "statements";
 
   const handleSearch = () => {
     setQuery({
@@ -103,56 +110,92 @@ export default function BankStatementPage() {
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       <Typography.Title level={4} style={{ margin: 0 }}>
-        Sao kê ngân hàng
+        Ngân hàng
       </Typography.Title>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-end",
-          gap: 16,
-          flexWrap: "wrap",
+      <Tabs
+        activeKey={activeTab}
+        onChange={(key) => {
+          const next = new URLSearchParams(searchParams);
+          if (key === "term-payments") {
+            next.set("tab", key);
+          } else {
+            next.delete("tab");
+          }
+          setSearchParams(next, { replace: true });
         }}
-      >
-        <StatementFilterBar
-          filters={filters}
-          onChange={setFilters}
-          onSearch={handleSearch}
-        />
+        items={[
+          {
+            key: "statements",
+            label: "Sao kê",
+            children: (
+              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-end",
+                    gap: 16,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <StatementFilterBar
+                    filters={filters}
+                    onChange={setFilters}
+                    onSearch={handleSearch}
+                  />
 
-        <StatementHeader
-          onOpenImport={() => setImportOpen(true)}
-          onBulkQuickMatch={handleBulkQuickMatch}
-          bulkDisabled={!selectedRowKeys.length}
-          bulkLoading={bulkQuickMatchMutation.isPending}
-          selectedCount={selectedRowKeys.length}
-        />
-      </div>
+                  <StatementHeader
+                    onOpenImport={() => setImportOpen(true)}
+                    onOpenManual={() => setManualOpen(true)}
+                    onBulkQuickMatch={handleBulkQuickMatch}
+                    bulkDisabled={!selectedRowKeys.length}
+                    bulkLoading={bulkQuickMatchMutation.isPending}
+                    selectedCount={selectedRowKeys.length}
+                  />
+                </div>
 
-      <StatementTable
-        data={rows}
-        loading={isLoading || bulkQuickMatchMutation.isPending}
-        page={meta?.page || query.page || 1}
-        pageSize={meta?.pageSize || query.pageSize || 20}
-        total={meta?.total || 0}
-        onChangePage={(page, pageSize) =>
-          setQuery((s) => ({ ...s, page, pageSize }))
-        }
-        onOpenMatch={handleOpenMatch}
-        selectedRowKeys={selectedRowKeys}
-        onChangeSelectedRowKeys={setSelectedRowKeys}
-        deleting={deleteOneMut.isPending || deleteManyMut.isPending}
-        onDeleteOne={(row) => deleteOneMut.mutate(row.id)}
-        onDeleteMany={(ids) =>
-          deleteManyMut.mutate(ids as string[], {
-            onSuccess: () => setSelectedRowKeys([]),
-          })
-        }
+                <StatementTable
+                  data={rows}
+                  loading={isLoading || bulkQuickMatchMutation.isPending}
+                  page={meta?.page || query.page || 1}
+                  pageSize={meta?.pageSize || query.pageSize || 20}
+                  total={meta?.total || 0}
+                  onChangePage={(page, pageSize) =>
+                    setQuery((s) => ({ ...s, page, pageSize }))
+                  }
+                  onOpenMatch={handleOpenMatch}
+                  selectedRowKeys={selectedRowKeys}
+                  onChangeSelectedRowKeys={setSelectedRowKeys}
+                  deleting={deleteOneMut.isPending || deleteManyMut.isPending}
+                  onDeleteOne={(row) => deleteOneMut.mutate(row.id)}
+                  onDeleteMany={(ids) =>
+                    deleteManyMut.mutate(ids as string[], {
+                      onSuccess: () => setSelectedRowKeys([]),
+                    })
+                  }
+                />
+              </Space>
+            ),
+          },
+          {
+            key: "term-payments",
+            label: "Bảng kê TERM",
+            children: <TermPaymentBatchesPanel />,
+          },
+        ]}
       />
 
       <ImportStatementModal
         open={importOpen}
         onCancel={() => setImportOpen(false)}
+        onSuccess={() => {
+          refetch();
+        }}
+      />
+
+      <ManualBankTransactionModal
+        open={manualOpen}
+        onCancel={() => setManualOpen(false)}
         onSuccess={() => {
           refetch();
         }}

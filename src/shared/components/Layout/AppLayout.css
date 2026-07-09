@@ -15,7 +15,7 @@
 }
 
 /* Logo + thương hiệu */
-.app-sider .app-brand {
+.app-brand {
   /* display: flex; */
   text-align: center;
   align-items: center;
@@ -28,6 +28,41 @@
 }
 .app-sider .app-brand {
   flex: 0 0 auto;
+}
+
+.app-workspace {
+  padding: 0 12px 12px;
+  flex: 0 0 auto;
+}
+.app-workspace-label {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  line-height: 16px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.app-workspace-select {
+  width: 100%;
+}
+.app-workspace-select .ant-select-selector {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: #fff !important;
+}
+.app-workspace-select .ant-select-selection-item {
+  color: #fff !important;
+  font-weight: 600;
+}
+.app-workspace-compact {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin: 0 auto;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.22);
+  color: #fff;
+  font-weight: 700;
 }
 
 /* Scroll container for the menu */

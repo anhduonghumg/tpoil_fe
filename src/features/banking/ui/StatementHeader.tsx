@@ -1,10 +1,9 @@
-import React from "react";
-import { Button, Select, Space, Typography } from "antd";
-import type { BankAccountOption } from "../types";
-import { ImportOutlined } from "@ant-design/icons";
+import { Button, Space } from "antd";
+import { ImportOutlined, PlusOutlined } from "@ant-design/icons";
 
 type Props = {
   onOpenImport: () => void;
+  onOpenManual: () => void;
   onBulkQuickMatch?: () => void;
   bulkDisabled?: boolean;
   bulkLoading?: boolean;
@@ -13,6 +12,7 @@ type Props = {
 
 export function StatementHeader({
   onOpenImport,
+  onOpenManual,
   onBulkQuickMatch,
   bulkDisabled,
   bulkLoading,
@@ -23,7 +23,6 @@ export function StatementHeader({
       <Space wrap>
         <Button
           size="small"
-          // type="primary"
           icon={<ImportOutlined />}
           onClick={onBulkQuickMatch}
           disabled={bulkDisabled}
@@ -39,6 +38,10 @@ export function StatementHeader({
           onClick={onOpenImport}
         >
           Import sao kê
+        </Button>
+
+        <Button size="small" icon={<PlusOutlined />} onClick={onOpenManual}>
+          Thêm giao dịch
         </Button>
       </Space>
     </div>

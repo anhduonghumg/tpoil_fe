@@ -1,5 +1,5 @@
 import { hasPerm } from "../../authz/authz";
-import { PermCode } from "../../authz/perms";
+import { PERMS, PermCode } from "../../authz/perms";
 import { NavItem } from "./MenuConfig";
 
 export function getAuthorizedMenu(
@@ -7,9 +7,11 @@ export function getAuthorizedMenu(
   userPermissions: Set<PermCode>
 ) {
   return items.reduce<any[]>((acc, item) => {
+    const isAdmin = userPermissions.has(PERMS.SYSTEM_RBAC_ADMIN);
     if (
+      !isAdmin &&
       item.need &&
-      !hasPerm({ permissions: userPermissions }, item.need as PermCode)
+      !hasPerm({ permissions: userPermissions }, item.need as PermCode | PermCode[])
     ) {
       return acc;
     }

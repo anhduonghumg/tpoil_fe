@@ -1,0 +1,246 @@
+.department-workspace-page {
+  width: 100%;
+}
+
+.workspace-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 0 2px;
+}
+
+.workspace-title-block {
+  min-width: 0;
+}
+
+.workspace-title {
+  margin: 0 !important;
+  line-height: 1.2 !important;
+}
+
+.workspace-description {
+  display: block;
+  max-width: 720px;
+  margin-top: 4px;
+  color: #64748b;
+}
+
+.workspace-header-actions {
+  justify-content: flex-end;
+}
+
+.workspace-header-switcher {
+  min-width: 168px;
+}
+
+.workspace-kpi-card {
+  height: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.workspace-kpi-card .ant-card-body {
+  padding: 16px;
+}
+
+.workspace-kpi-label {
+  display: block;
+  color: #64748b;
+}
+
+.workspace-kpi-value {
+  margin: 6px 0 2px !important;
+  color: #0f172a !important;
+}
+
+.workspace-kpi-hint {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.workspace-section-card {
+  height: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.workspace-section-card .ant-card-head {
+  min-height: 48px;
+  border-bottom-color: #eef2f7;
+}
+
+.workspace-section-card .ant-card-head-title {
+  font-weight: 700;
+}
+
+.process-flow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+  gap: 12px;
+}
+
+.process-step {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  align-items: center;
+  justify-items: center;
+  min-height: 132px;
+  padding: 14px 12px;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  text-align: center;
+  cursor: default;
+}
+
+.process-step.is-clickable {
+  cursor: pointer;
+}
+
+.process-step.is-clickable:hover {
+  border-color: #10b981;
+  background: #f0fdf4;
+}
+
+.process-step:disabled {
+  opacity: 1;
+}
+
+.process-step-index {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.process-step-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: #e8f7ef;
+  color: #059669;
+  font-size: 20px;
+}
+
+.process-step-label {
+  display: block;
+  max-width: 100%;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.process-step-arrow {
+  position: absolute;
+  top: 50%;
+  right: -10px;
+  z-index: 1;
+  color: #94a3b8;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.workspace-report-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workspace-report-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid #eef2f7;
+  background: transparent;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workspace-report-item:last-child {
+  border-bottom: 0;
+}
+
+.workspace-report-item:disabled {
+  cursor: default;
+}
+
+.workspace-report-item span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.workspace-shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.workspace-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workspace-shortcut:hover {
+  border-color: #10b981;
+  background: #f8fffb;
+}
+
+.workspace-shortcut:disabled {
+  cursor: default;
+}
+
+.workspace-shortcut-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #059669;
+}
+
+@media (max-width: 768px) {
+  .workspace-header {
+    flex-direction: column;
+  }
+
+  .workspace-header-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .workspace-header-switcher {
+    min-width: 100%;
+  }
+
+  .process-step-arrow {
+    display: none;
+  }
+}

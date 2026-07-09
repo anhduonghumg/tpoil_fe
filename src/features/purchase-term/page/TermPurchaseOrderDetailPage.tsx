@@ -3,11 +3,16 @@ import {
   Button,
   Card,
   Collapse,
+  DatePicker,
   Descriptions,
   Empty,
+  Form,
+  Input,
+  InputNumber,
   message,
   Modal,
   Progress,
+  Select,
   Space,
   Spin,
   Table,
@@ -38,18 +43,19 @@ import {
   useCreateTermBankInstruction,
   useCreateTermEstimatePricing,
   useCreateTermFinalPricing,
+  useGenerateTermOrderDocument,
   useCreateTermLogisticsCost,
   useCreateTermPaymentRequest,
   useCreateTermReceipt,
   useCreateTermSettlementAdjustment,
   useCreateTermShipment,
   useMatchTermBankInstruction,
-  usePrintTermOrderDocuments,
   useTermPurchaseOrderDetail,
   useVoidTermLogisticsCost,
 } from "../hooks";
 import type {
   TermGoodsReceipt,
+  GenerateTermOrderDocumentPayload,
   TermLogisticsCost,
   TermPricingStage,
   TermPrintDocument,
@@ -64,6 +70,7 @@ import { TermPricingSheetModal } from "../ui/TermPricingSheetModal";
 import TermPricingSheetTable from "../ui/TermPricingSheetTable";
 import { TermLogisticsCostModal, TermShipmentModal } from "../ui/TermLogisticsModals";
 import { openTermOrderDocumentsPrint } from "../lib/printTermOrderDocuments";
+import { openTermPaymentRequestPrint } from "../lib/printTermPaymentRequest";
 
 const { Text, Title } = Typography;
 
@@ -119,6 +126,8 @@ export default function TermPurchaseOrderDetailPage() {
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [shipmentOpen, setShipmentOpen] = useState(false);
   const [logisticsOpen, setLogisticsOpen] = useState(false);
+  const [orderDocumentOpen, setOrderDocumentOpen] = useState(false);
+  const [paymentRequestOpen, setPaymentRequestOpen] = useState(false);
   const [pricingKind, setPricingKind] = useState<PricingKind | null>(null);
   const [viewPricingStage, setViewPricingStage] = useState<TermPricingStage | null>(null);
 
@@ -137,7 +146,7 @@ export default function TermPurchaseOrderDetailPage() {
   const createBillPricing = useCreateTermBillNormalizePricing(data?.id);
   const createFinalPricing = useCreateTermFinalPricing(data?.id);
   const createBossSheetPricing = useCreateTermBossSheetPricing(data?.id);
-  const printOrderDocumentMutation = usePrintTermOrderDocuments();
+  const generateOrderDocumentMutation = useGenerateTermOrderDocument(data?.id);
   const createPaymentRequestMutation = useCreateTermPaymentRequest(data?.id);
   const createBankInstructionMutation = useCreateTermBankInstruction(data?.id);
   const matchBankInstructionMutation = useMatchTermBankInstruction(data?.id);
@@ -183,8 +192,8 @@ export default function TermPurchaseOrderDetailPage() {
 
   const runCurrentAction = () => {
     if (isAction(currentAction, "APPROVE_ORDER")) approveMutation.mutate(data.id);
-    else if (isAction(currentAction, "CREATE_ORDER_DOCUMENT")) printOrderDocument();
-    else if (isAction(currentAction, "CREATE_PAYMENT_REQUEST")) createPaymentRequestMutation.mutate();
+    else if (isAction(currentAction, "CREATE_ORDER_DOCUMENT")) setOrderDocumentOpen(true);
+    else if (isAction(currentAction, "CREATE_PAYMENT_REQUEST")) setPaymentRequestOpen(true);
     else if (isAction(currentAction, "CREATE_BANK_INSTRUCTION")) createBankInstructionMutation.mutate();
     else if (isAction(currentAction, "MATCH_BANK_TRANSACTION")) {
       const instruction = (data.termBankInstructions || []).find((item) => item.status !== "CANCELLED");
@@ -229,21 +238,23 @@ export default function TermPurchaseOrderDetailPage() {
       message.warning("Chứng từ này chưa đủ dữ liệu để in.");
       return;
     }
+    if (doc.key === "PAYMENT_REQUEST") {
+      if (!openTermPaymentRequestPrint(data)) {
+        message.warning("Chưa có phiếu đề nghị thanh toán để in.");
+      }
+      return;
+    }
+    if (doc.key === "PURCHASE_ORDER") {
+      setOrderDocumentOpen(true);
+      return;
+    }
     message.info(`Đã sẵn sàng nối mẫu in: ${doc.title}.`);
   };
 
-  const printOrderDocument = async () => {
-    const result = await printOrderDocumentMutation.mutateAsync({
-      ids: [data.id],
-      autoGenerate: true,
-    });
-
-    if (!result.items?.length) {
-      message.warning(result.skipped?.[0]?.reason || "Chưa đủ dữ liệu in đơn đặt hàng.");
-      return;
-    }
-
-    openTermOrderDocumentsPrint(result.items);
+  const printOrderDocument = async (payload: GenerateTermOrderDocumentPayload) => {
+    const document = await generateOrderDocumentMutation.mutateAsync(payload);
+    openTermOrderDocumentsPrint([document]);
+    setOrderDocumentOpen(false);
   };
 
   return (
@@ -257,6 +268,7 @@ export default function TermPurchaseOrderDetailPage() {
                 <Tag color={data.transportMode === "PIPELINE" ? "purple" : "default"}>
                   {data.transportMode === "PIPELINE" ? "Đường ống" : data.transportMode || "Chưa chọn vận chuyển"}
                 </Tag>
+                {data.charterVessel ? <Tag color="cyan">Thuê tàu</Tag> : null}
                 {statusTag(data.status)}
               </Space>
               <Title level={5} style={{ margin: "4px 0 0" }}>
@@ -273,8 +285,8 @@ export default function TermPurchaseOrderDetailPage() {
               </Button>
               <Button
                 icon={<PrinterOutlined />}
-                loading={printOrderDocumentMutation.isPending}
-                onClick={printOrderDocument}
+                loading={generateOrderDocumentMutation.isPending}
+                onClick={() => setOrderDocumentOpen(true)}
               >
                 In đơn đặt hàng
               </Button>
@@ -285,7 +297,7 @@ export default function TermPurchaseOrderDetailPage() {
                 loading={
                   approveMutation.isPending ||
                   completeMutation.isPending ||
-                  printOrderDocumentMutation.isPending ||
+                  generateOrderDocumentMutation.isPending ||
                   createPaymentRequestMutation.isPending ||
                   createBankInstructionMutation.isPending ||
                   matchBankInstructionMutation.isPending ||
@@ -309,8 +321,8 @@ export default function TermPurchaseOrderDetailPage() {
               hasEstimate={hasEstimate}
               hasBill={hasBill}
               hasFinal={hasFinal}
-              onGenerateOrder={printOrderDocument}
-              generatingOrder={printOrderDocumentMutation.isPending}
+              onGenerateOrder={() => setOrderDocumentOpen(true)}
+              generatingOrder={generateOrderDocumentMutation.isPending}
               onReceive={() => setReceiptOpen(true)}
               onEstimate={() => openPricing("ESTIMATE")}
               onBill={() => openPricing("BILL_NORMALIZE")}
@@ -384,6 +396,26 @@ export default function TermPurchaseOrderDetailPage() {
         onCancel={() => setReceiptOpen(false)}
         onSubmit={(payload) =>
           createReceiptMutation.mutate(payload, { onSuccess: () => setReceiptOpen(false) })
+        }
+      />
+
+      <TermOrderDocumentModal
+        open={orderDocumentOpen}
+        data={data}
+        loading={generateOrderDocumentMutation.isPending}
+        onCancel={() => setOrderDocumentOpen(false)}
+        onSubmit={printOrderDocument}
+      />
+
+      <TermPaymentRequestModal
+        open={paymentRequestOpen}
+        data={data}
+        loading={createPaymentRequestMutation.isPending}
+        onCancel={() => setPaymentRequestOpen(false)}
+        onSubmit={(payload) =>
+          createPaymentRequestMutation.mutate(payload, {
+            onSuccess: () => setPaymentRequestOpen(false),
+          })
         }
       />
 
@@ -544,10 +576,10 @@ function ActionBoard({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))", gap: 5 }}>
         <ActionButton icon={<CalculatorOutlined />} title="Giá tạm tính" desc="MOPS, premium, tỷ giá" onClick={onEstimate} done={hasEstimate} />
         <ActionButton icon={<FileDoneOutlined />} title="Đơn đặt hàng" desc="Sinh sau bảng tạm hoặc lập trực tiếp" disabled={!hasEstimate && data.termFlowType !== "DIRECT_ORDER"} loading={generatingOrder} onClick={onGenerateOrder} done={isOrderGenerated} />
-        <ActionButton icon={<FileDoneOutlined />} title="Giao nhận" desc="Số lượng, V15, tỷ trọng" disabled={!isOrderGenerated} onClick={onReceive} done={hasConfirmedReceipt} />
+        <ActionButton icon={<TruckOutlined />} title="Vận chuyển" desc="Đường ống/logistics" onClick={onShipment} />
+        <ActionButton icon={<FileDoneOutlined />} title="Giao nhận" desc="Bill, bồn kho, rút tạm tính" disabled={!isOrderGenerated} onClick={onReceive} done={hasConfirmedReceipt} />
         <ActionButton icon={<CalculatorOutlined />} title="Bảng xuất HĐ" desc="Sau giao nhận/bill bồn" disabled={!hasConfirmedReceipt} onClick={onBill} done={hasBill} />
         <ActionButton icon={<CalculatorOutlined />} title="Bảng chính thức" desc="Khi có giá chính thức" disabled={!hasBill} onClick={onFinal} done={hasFinal} />
-        <ActionButton icon={<TruckOutlined />} title="Vận chuyển" desc="Đường ống/logistics" onClick={onShipment} />
         <ActionButton icon={<FileTextOutlined />} title="Chi phí" desc="Kiểm định, vận chuyển, khác" onClick={onLogistics} />
         <ActionButton icon={<PrinterOutlined />} title="Bảng sếp" desc="Tổng hợp cuối hồ sơ" disabled={!hasFinal} onClick={onBoss} />
       </div>
@@ -566,6 +598,165 @@ function ActionButton({ icon, title, desc, disabled, done, loading, onClick }: {
   );
 }
 
+function TermOrderDocumentModal({
+  open,
+  data,
+  loading,
+  onCancel,
+  onSubmit,
+}: {
+  open: boolean;
+  data: TermPurchaseOrderDetail;
+  loading?: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: GenerateTermOrderDocumentPayload) => void;
+}) {
+  const [form] = Form.useForm<GenerateTermOrderDocumentPayload>();
+
+  useEffect(() => {
+    if (!open) return;
+    form.setFieldsValue({
+      deliveryMode: "WAREHOUSE",
+      originSource: "NGHI_SON",
+      paymentMethodText: data.paymentNote || "Chuyển khoản",
+    });
+  }, [data.paymentNote, form, open]);
+
+  return (
+    <Modal
+      open={open}
+      title="Thông tin đơn đặt hàng"
+      width={560}
+      onCancel={onCancel}
+      okText="Sinh & in đơn"
+      cancelText="Hủy"
+      confirmLoading={loading}
+      onOk={() => {
+        form.validateFields().then((values) => {
+          onSubmit({
+            deliveryMode: values.deliveryMode,
+            originSource: values.originSource,
+            paymentMethodText: values.paymentMethodText?.trim() || undefined,
+          });
+        });
+      }}
+    >
+      <Form layout="vertical" form={form}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <Form.Item name="deliveryMode" label="Giao nhận" rules={[{ required: true, message: "Chọn hình thức giao nhận" }]}>
+            <Select
+              options={[
+                { value: "FACTORY", label: "Nhà máy" },
+                { value: "WAREHOUSE", label: "Kho" },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="originSource" label="Nguồn gốc" rules={[{ required: true, message: "Chọn nguồn gốc" }]}>
+            <Select
+              options={[
+                { value: "BINH_SON", label: "Bình Sơn" },
+                { value: "NGHI_SON", label: "Nghi Sơn" },
+                { value: "IMPORT", label: "Nhập khẩu" },
+              ]}
+            />
+          </Form.Item>
+        </div>
+        <Form.Item name="paymentMethodText" label="Thanh toán" rules={[{ required: true, message: "Nhập thông tin thanh toán" }]}>
+          <Input.TextArea rows={3} placeholder="Ví dụ: Chuyển khoản" />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}
+
+function TermPaymentRequestModal({
+  open,
+  data,
+  loading,
+  onCancel,
+  onSubmit,
+}: {
+  open: boolean;
+  data: TermPurchaseOrderDetail;
+  loading?: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: Record<string, unknown>) => void;
+}) {
+  const [form] = Form.useForm();
+  const latestStage = stage(data, "ESTIMATE") || stage(data, "FINAL") || stage(data, "BILL_NORMALIZE");
+  const activeDocument = (data.termOrderDocuments || []).find((item) => item.status === "ACTIVE");
+  const defaultAmount =
+    activeDocument?.totalAmountVnd ||
+    latestStage?.contractPaymentAmountVnd ||
+    latestStage?.temporaryAmountVnd ||
+    latestStage?.totalAmountVnd ||
+    data.totalAmount ||
+    0;
+
+  useEffect(() => {
+    if (!open) return;
+    form.setFieldsValue({
+      requestNo: `${data.orderNo}-DNTT`,
+      requestDate: dayjs(),
+      amountVnd: Math.round(Number(defaultAmount || 0)),
+      content: `Công ty Thiên Phúc thanh toán tiền hàng cho công ty ${data.supplierName || ""} theo đơn hàng ${data.orderNo}`,
+    });
+  }, [open, data.orderNo, defaultAmount, form]);
+
+  return (
+    <Modal
+      open={open}
+      title="Lập đề nghị thanh toán"
+      width={720}
+      onCancel={onCancel}
+      okText="Lưu đề nghị"
+      cancelText="Hủy"
+      confirmLoading={loading}
+      onOk={() => {
+        form.validateFields().then((values) => {
+          onSubmit({
+            ...values,
+            requestDate: values.requestDate?.format("YYYY-MM-DD"),
+            paymentDeadline: values.paymentDeadline?.format("YYYY-MM-DD"),
+          });
+        });
+      }}
+    >
+      <Space direction="vertical" size={10} style={{ width: "100%" }}>
+        <Descriptions size="small" bordered column={2}>
+          <Descriptions.Item label="Hồ sơ">{data.orderNo}</Descriptions.Item>
+          <Descriptions.Item label="Nhà cung cấp">{data.supplierName || "--"}</Descriptions.Item>
+          <Descriptions.Item label="Đơn đặt hàng">{activeDocument?.documentNo || "Chưa có"}</Descriptions.Item>
+          <Descriptions.Item label="Số tiền mặc định">{fmt(defaultAmount)} đ</Descriptions.Item>
+        </Descriptions>
+
+        <Form layout="vertical" form={form}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 180px 180px", gap: 8 }}>
+            <Form.Item name="requestNo" label="Số đề nghị" rules={[{ required: true, message: "Nhập số đề nghị" }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="requestDate" label="Ngày đề nghị" rules={[{ required: true, message: "Chọn ngày" }]}>
+              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item name="paymentDeadline" label="Hạn thanh toán">
+              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+            </Form.Item>
+          </div>
+          <Form.Item name="amountVnd" label="Số tiền đề nghị" rules={[{ required: true, message: "Nhập số tiền" }]}>
+            <InputNumber min={0} precision={0} style={{ width: "100%" }} addonAfter="VND" />
+          </Form.Item>
+          <Form.Item name="content" label="Nội dung thanh toán">
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <Form.Item name="note" label="Ghi chú">
+            <Input.TextArea rows={2} />
+          </Form.Item>
+        </Form>
+      </Space>
+    </Modal>
+  );
+}
+
 function GoodsAndReceiptSection({ data, onReceive, onConfirm, confirmingId }: { data: TermPurchaseOrderDetail; onReceive: () => void; onConfirm: (id: string) => void; confirmingId?: string }) {
   const receiptByLine = useMemo(() => {
     const map = new Map<string, number>();
@@ -580,7 +771,7 @@ function GoodsAndReceiptSection({ data, onReceive, onConfirm, confirmingId }: { 
     { title: "Sản phẩm", dataIndex: "productName", render: (_, r) => <b>{r.productName || r.productCode || "--"}</b> },
     { title: "Kho nhận", dataIndex: "supplierLocationName", render: (v) => v || "--" },
     { title: "Đặt hàng", dataIndex: "orderedQty", align: "right", render: (v) => `${fmt(v)} L` },
-    { title: "Đã nhận", align: "right", render: (_, r) => `${fmt(receiptByLine.get(r.id) || 0)} L` },
+    { title: "Đã lên bồn", align: "right", render: (_, r) => `${fmt(receiptByLine.get(r.id) || 0)} L` },
     { title: "Giá tạm", dataIndex: "unitPrice", align: "right", render: (v) => (v == null ? "--" : `${fmt(v)} đ/L`) },
   ];
 
@@ -588,8 +779,20 @@ function GoodsAndReceiptSection({ data, onReceive, onConfirm, confirmingId }: { 
     { title: "Phiếu", dataIndex: "receiptNo", width: 130 },
     { title: "Ngày", dataIndex: "receiptDate", width: 110, render: (v) => date(v) },
     { title: "Sản phẩm", dataIndex: "productName", render: (v) => v || "--" },
-    { title: "SL thực nhận", dataIndex: "qty", align: "right", width: 130, render: (v) => `${fmt(v)} L` },
-    { title: "V15", dataIndex: "standardQtyV15", align: "right", width: 120, render: (v) => (v == null ? "--" : `${fmt(v)} L`) },
+    { title: "SL trên bill", dataIndex: "billQty", align: "right", width: 130, render: (v, r) => `${fmt(v ?? r.qty)} L` },
+    { title: "Lên bồn kho", dataIndex: "tankQty", align: "right", width: 130, render: (v, r) => `${fmt(v ?? r.qty)} L` },
+    { title: "Rút tạm tính", dataIndex: "temporaryWithdrawQty", align: "right", width: 140, render: (v, r) => `${fmt(v ?? r.standardQtyV15 ?? r.qty)} L` },
+    { title: "Hao hụt bill về bồn", dataIndex: "billToTankLossQty", align: "right", width: 155, render: (v, r) => `${fmt(v ?? Math.max(Number(r.billQty ?? r.qty) - Number(r.tankQty ?? r.qty), 0))} L` },
+    {
+      title: "File",
+      width: 90,
+      render: (_, r) =>
+        r.sourceFileUrl ? (
+          <Button size="small" type="link" onClick={() => window.open(r.sourceFileUrl!, "_blank")}>
+            Xem
+          </Button>
+        ) : "--",
+    },
     { title: "Trạng thái", dataIndex: "status", width: 115, render: (v) => <Tag color={v === "CONFIRMED" ? "green" : "default"}>{v}</Tag> },
     {
       title: "",
@@ -604,10 +807,10 @@ function GoodsAndReceiptSection({ data, onReceive, onConfirm, confirmingId }: { 
 
   return (
     <div>
-      <Header title="Hàng hóa & giao nhận" desc="Phần này là nơi nhập số lượng thực nhận, không tách sang màn riêng." action={<Button type="primary" onClick={onReceive}>Tạo phiếu nhận</Button>} />
+      <Header title="Hàng hóa & giao nhận" desc="Nhập số lượng bill, lượng lên bồn, lượng rút tạm tính và hao hụt." action={<Button type="primary" onClick={onReceive}>Tạo phiếu giao nhận</Button>} />
       <Table size="small" bordered rowKey="id" columns={lineColumns} dataSource={data.lines || []} pagination={false} scroll={{ x: 820 }} />
       <div style={{ height: 10 }} />
-      <Table size="small" rowKey="id" columns={receiptColumns} dataSource={data.receipts || []} pagination={false} scroll={{ x: 900 }} locale={{ emptyText: "Chưa có phiếu nhận hàng" }} />
+      <Table size="small" rowKey="id" columns={receiptColumns} dataSource={data.receipts || []} pagination={false} scroll={{ x: 1160 }} locale={{ emptyText: "Chưa có phiếu giao nhận" }} />
     </div>
   );
 }
@@ -770,7 +973,43 @@ function PrintPanel({ documents, onPrint }: { documents: TermPrintDocument[]; on
   );
 }
 
+function termPaymentStatus(data: TermPurchaseOrderDetail) {
+  const requests = (data.termPaymentRequests || []).filter(
+    (request) => request.status !== "CANCELLED",
+  );
+  if (!requests.length) {
+    return { text: "Chưa lập đề nghị thanh toán", color: "default" };
+  }
+
+  const batchItems = requests.flatMap((request) => request.batchItems || []);
+  if (requests.some((request) => request.status === "PAID")) {
+    return { text: "Đã thanh toán", color: "green" };
+  }
+  if (requests.some((request) => request.status === "PARTIALLY_PAID")) {
+    return { text: "Thanh toán một phần", color: "gold" };
+  }
+  if (
+    batchItems.some(
+      (item) =>
+        item.status === "PAID" ||
+        item.status === "PARTIALLY_PAID" ||
+        !!item.bankTransactionId,
+    )
+  ) {
+    return { text: "Đã có sao kê thanh toán", color: "green" };
+  }
+  if (requests.some((request) => request.status === "SENT_TO_BANK")) {
+    return { text: "Đã gửi ngân hàng, chưa thanh toán", color: "blue" };
+  }
+  if (requests.some((request) => request.status === "IN_BATCH")) {
+    return { text: "Đã vào bảng kê, chờ gửi ngân hàng", color: "cyan" };
+  }
+
+  return { text: "Chờ ngân hàng lập bảng kê", color: "orange" };
+}
+
 function SummaryPanel({ data }: { data: TermPurchaseOrderDetail }) {
+  const paymentStatus = termPaymentStatus(data);
   return (
     <div>
       <Descriptions size="small" column={1}>
@@ -779,6 +1018,9 @@ function SummaryPanel({ data }: { data: TermPurchaseOrderDetail }) {
         <Descriptions.Item label="Kho nhận">{data.supplierLocationName || data.deliveryLocation || "--"}</Descriptions.Item>
         <Descriptions.Item label="Tổng lượng">{fmt(data.totalQty)} L</Descriptions.Item>
         <Descriptions.Item label="Tạm tính">{fmt(data.totalAmount)} đ</Descriptions.Item>
+        <Descriptions.Item label="Thanh toán">
+          <Tag color={paymentStatus.color}>{paymentStatus.text}</Tag>
+        </Descriptions.Item>
         <Descriptions.Item label="Premium">{data.termPremiumUsdPerBbl == null ? "--" : fmt(data.termPremiumUsdPerBbl, 6) + " USD/bbl"}</Descriptions.Item>
         <Descriptions.Item label="Ghi chú">{data.note || "--"}</Descriptions.Item>
       </Descriptions>

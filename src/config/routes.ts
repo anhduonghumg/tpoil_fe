@@ -10,6 +10,14 @@ export const ROUTES = {
     logout: ["POST", "/auth/logout"] as const,
     me: ["GET", "/auth/me"] as const,
   },
+  me: {
+    workspaces: ["GET", "/me/workspaces"] as RouteTuple,
+    currentWorkspace: ["GET", "/me/workspaces/current"] as RouteTuple,
+    menu: ["GET", "/me/menu"] as RouteTuple,
+  },
+  dashboards: {
+    detail: ["GET", "/dashboards/:dashboardKey"] as RouteTuple,
+  },
   dashboard: {
     index: ["/dashboard"] as const,
   },
@@ -188,6 +196,14 @@ export const ROUTES = {
       "POST",
       "/purchase-terms/:orderId/pricing/boss-sheet",
     ] as RouteTuple,
+    importPricingSheet: [
+      "POST",
+      "/purchase-terms/pricing/import-preview",
+    ] as RouteTuple,
+    importReceiptDocument: [
+      "POST",
+      "/purchase-terms/:orderId/receipts/import-preview",
+    ] as RouteTuple,
     generateOrderDocument: [
       "POST",
       "/purchase-terms/:orderId/order-document/generate",
@@ -297,6 +313,7 @@ export const ROUTES = {
 
   banking: {
     transactions: ["GET", "/banking/transactions"] as RouteTuple,
+    createManualTransaction: ["POST", "/banking/transactions/manual"] as RouteTuple,
     transactionDetail: ["GET", "/banking/transactions/:id"] as RouteTuple,
     transactionSuggestions: [
       "GET",
@@ -328,6 +345,10 @@ export const ROUTES = {
     matchTermPaymentBatchItem: [
       "POST",
       "/banking/term-payment-batches/:id/items/:itemId/match",
+    ] as RouteTuple,
+    confirmTermPaymentBatchItemPaid: [
+      "POST",
+      "/banking/term-payment-batches/:id/items/:itemId/confirm-paid",
     ] as RouteTuple,
   },
 

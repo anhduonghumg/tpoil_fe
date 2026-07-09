@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   DatePicker,
   Form,
   Input,
@@ -11,8 +12,10 @@ import {
   Space,
   Tag,
   Typography,
+  Upload,
   message,
 } from "antd";
+import { UploadOutlined } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 import { useNavigate } from "react-router-dom";
 
@@ -21,7 +24,10 @@ import { extractApiError } from "../../../shared/lib/httpError";
 import { useProductSelect } from "../../products/hooks";
 import { useSupplierLocationsSelect } from "../../purchases/hooks";
 import { TermPurchaseOrdersApi } from "../api";
-import { useCreateTermPurchaseOrder, useValidateTermPurchaseContract } from "../hooks";
+import {
+  useCreateTermPurchaseOrder,
+  useValidateTermPurchaseContract,
+} from "../hooks";
 import type {
   CreateTermPricingPayload,
   CreateTermPurchaseOrderPayload,
@@ -53,6 +59,7 @@ type FormValues = {
   orderDate?: Dayjs;
   expectedDate?: Dayjs;
   transportMode?: TermTransportMode;
+  charterVessel?: boolean;
   deliveryLocation?: string;
   contractNote?: string;
   paymentNote?: string;
@@ -85,6 +92,25 @@ type FormValues = {
   pricingNote?: string;
 };
 
+type ImportedPricingFields = Partial<
+  Omit<
+    FormValues,
+    | "orderDate"
+    | "expectedDate"
+    | "billDate"
+    | "plattsBaseDate"
+    | "fxRateDate"
+    | "priceDays"
+    | "lines"
+  >
+> & {
+  billDate?: string;
+  plattsBaseDate?: string;
+  fxRateDate?: string;
+  priceDays?: Array<{ quoteDate?: string; priceUsdPerBbl?: number }>;
+  note?: string;
+};
+
 type CreatedTermDetail = {
   id: UUID;
   lines?: Array<{ id: UUID; orderedQty?: number | null }>;
@@ -106,13 +132,20 @@ function cleanNumber(value?: number | string | null) {
 }
 
 function fmt(value?: number | null, digits = 0) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
-  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: digits }).format(Number(value));
+  if (value === null || value === undefined || Number.isNaN(Number(value)))
+    return "--";
+  return new Intl.NumberFormat("vi-VN", {
+    maximumFractionDigits: digits,
+  }).format(Number(value));
 }
 
 function fmtFixed(value?: number | null, digits = 0) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
-  return new Intl.NumberFormat("vi-VN", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(value));
+  if (value === null || value === undefined || Number.isNaN(Number(value)))
+    return "--";
+  return new Intl.NumberFormat("vi-VN", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(Number(value));
 }
 
 function roundNumber(value: number, digits = 3) {
@@ -120,7 +153,10 @@ function roundNumber(value: number, digits = 3) {
   return Math.round((value + Number.EPSILON) * factor) / factor;
 }
 
-function formatPlainDecimalComma(value: number | string | null | undefined, digits = 6): string {
+function formatPlainDecimalComma(
+  value: number | string | null | undefined,
+  digits = 6,
+): string {
   if (value === null || value === undefined || value === "") return "";
   const num = cleanNumber(value);
   if (!Number.isFinite(num)) return "";
@@ -145,10 +181,14 @@ function sanitizeNumericText(value: string) {
   const withSingleComma =
     commaIndex < 0
       ? cleaned
-      : cleaned.slice(0, commaIndex + 1) + cleaned.slice(commaIndex + 1).replace(/,/g, "");
+      : cleaned.slice(0, commaIndex + 1) +
+        cleaned.slice(commaIndex + 1).replace(/,/g, "");
   const dotIndex = withSingleComma.indexOf(".");
   if (commaIndex >= 0 || dotIndex < 0) return withSingleComma;
-  return withSingleComma.slice(0, dotIndex + 1) + withSingleComma.slice(dotIndex + 1).replace(/\./g, "");
+  return (
+    withSingleComma.slice(0, dotIndex + 1) +
+    withSingleComma.slice(dotIndex + 1).replace(/\./g, "")
+  );
 }
 
 function averagePriceDays(days?: PriceDayForm[]) {
@@ -162,9 +202,15 @@ function averagePriceDays(days?: PriceDayForm[]) {
 
 function calculatePreview(values?: FormValues) {
   const lines = values?.lines || [];
-  const qtyFromLines = lines.reduce((sum, line) => sum + Number(line?.orderedQty || 0), 0);
+  const qtyFromLines = lines.reduce(
+    (sum, line) => sum + Number(line?.orderedQty || 0),
+    0,
+  );
   const qty = cleanNumber(values?.tankQtyLiter) ?? qtyFromLines;
-  const mops = cleanNumber(values?.mopsAvgUsdPerBbl) ?? averagePriceDays(values?.priceDays) ?? 0;
+  const mops =
+    cleanNumber(values?.mopsAvgUsdPerBbl) ??
+    averagePriceDays(values?.priceDays) ??
+    0;
   const premium = cleanNumber(values?.premiumUsdPerBbl) ?? 0;
   const specialTax = cleanNumber(values?.specialConsumptionTaxUsdPerBbl) ?? 0;
   const fxRate = cleanNumber(values?.fxRate) ?? 0;
@@ -180,11 +226,19 @@ function calculatePreview(values?: FormValues) {
   const vatRate = Number(lines[0]?.taxRate ?? 8) / 100;
 
   const fobUsdPerBbl = roundNumber(mops + premium + specialTax, 3);
-  const billBarrelQty = cleanNumber(values?.billBarrelQty) ?? (qty ? qty / 159 : 0);
+  const billBarrelQty =
+    cleanNumber(values?.billBarrelQty) ?? (qty ? qty / 159 : 0);
   const amountUsd = fobUsdPerBbl * billBarrelQty;
   const amountVnd = amountUsd * fxRate;
   const baseVndPerLiter = fxRate ? (fobUsdPerBbl * fxRate) / 159 : 0;
-  const billTotal = amountVnd + insuranceAmount + inspectionFeeVnd + transportFeeVnd + storageFeeVnd + lossAmount - transportDeductionVnd;
+  const billTotal =
+    amountVnd +
+    insuranceAmount +
+    inspectionFeeVnd +
+    transportFeeVnd +
+    storageFeeVnd +
+    lossAmount -
+    transportDeductionVnd;
   const unitAverage = qty ? billTotal / qty : 0;
   const extraCost = qty ? extraCostAmount / qty : 0;
   const fundAdjustmentAmount = fundAdjustment * qty;
@@ -193,9 +247,9 @@ function calculatePreview(values?: FormValues) {
   const vatAmount = amountBeforeVat * vatRate;
   const totalAmount = amountBeforeVat + vatAmount;
   const contractPaymentRate = cleanNumber(values?.contractPaymentRate) ?? 100;
-  const contractPaymentAmount = amountBeforeVat * contractPaymentRate / 100;
+  const contractPaymentAmount = (amountBeforeVat * contractPaymentRate) / 100;
   const bankGuaranteeRate = cleanNumber(values?.bankGuaranteeRate) ?? 0;
-  const bankGuaranteeFee = amountBeforeVat * bankGuaranteeRate / 100;
+  const bankGuaranteeFee = (amountBeforeVat * bankGuaranteeRate) / 100;
 
   return {
     qty,
@@ -229,13 +283,19 @@ function calculatePreview(values?: FormValues) {
   };
 }
 
-function buildEstimatePayload(values: FormValues, created: CreatedTermDetail): CreateTermPricingPayload {
+function buildEstimatePayload(
+  values: FormValues,
+  created: CreatedTermDetail,
+): CreateTermPricingPayload {
   if (!created.lines?.length) {
     throw new Error("TERM_LINES_NOT_FOUND_AFTER_CREATE");
   }
 
   const priceDays = (values.priceDays || [])
-    .filter((item) => item?.quoteDate && cleanNumber(item.priceUsdPerBbl) !== undefined)
+    .filter(
+      (item) =>
+        item?.quoteDate && cleanNumber(item.priceUsdPerBbl) !== undefined,
+    )
     .map((item) => ({
       quoteDate: toDate(item.quoteDate)!,
       priceUsdPerBbl: Number(item.priceUsdPerBbl),
@@ -245,17 +305,26 @@ function buildEstimatePayload(values: FormValues, created: CreatedTermDetail): C
     billDate: toDate(values.billDate) ?? toDate(values.orderDate)!,
     qtyBasisSelected: values.qtyBasisSelected ?? "V15",
     qtyBasisLocked: false,
-    plattsBaseDate: toDate(values.plattsBaseDate) ?? toDate(values.priceDays?.[0]?.quoteDate) ?? toDate(values.orderDate),
+    plattsBaseDate:
+      toDate(values.plattsBaseDate) ??
+      toDate(values.priceDays?.[0]?.quoteDate) ??
+      toDate(values.orderDate),
     plattsDaysBefore: 11,
     plattsDaysAfter: 0,
     priceDays,
-    mopsAvgUsdPerBbl: cleanNumber(values.mopsAvgUsdPerBbl) ?? averagePriceDays(values.priceDays),
+    mopsAvgUsdPerBbl:
+      cleanNumber(values.mopsAvgUsdPerBbl) ??
+      averagePriceDays(values.priceDays),
     premiumUsdPerBbl: cleanNumber(values.premiumUsdPerBbl),
-    specialConsumptionTaxUsdPerBbl: cleanNumber(values.specialConsumptionTaxUsdPerBbl),
+    specialConsumptionTaxUsdPerBbl: cleanNumber(
+      values.specialConsumptionTaxUsdPerBbl,
+    ),
     fxRateDate: toDate(values.fxRateDate) ?? toDate(values.orderDate),
     fxStage: "ESTIMATE",
     fxRate: cleanNumber(values.fxRate),
-    billBarrelQty: cleanNumber(values.billBarrelQty) ?? calculatePreview(values).billBarrelQty,
+    billBarrelQty:
+      cleanNumber(values.billBarrelQty) ??
+      calculatePreview(values).billBarrelQty,
     tankQtyLiter: cleanNumber(values.tankQtyLiter),
     insuranceAmountVnd: cleanNumber(values.insuranceAmountVnd),
     inspectionFeeVnd: cleanNumber(values.inspectionFeeVnd),
@@ -264,9 +333,12 @@ function buildEstimatePayload(values: FormValues, created: CreatedTermDetail): C
     transportLossAmountVnd: cleanNumber(values.transportLossAmountVnd),
     transportDeductionVnd: cleanNumber(values.transportDeductionVnd),
     envTaxVndPerLiter: cleanNumber(values.envTaxVndPerLiter),
-    extraCostVndPerLiter: cleanNumber(values.extraCostVndPerLiter) && cleanNumber(values.tankQtyLiter)
-      ? cleanNumber(values.extraCostVndPerLiter)! / cleanNumber(values.tankQtyLiter)!
-      : undefined,
+    extraCostVndPerLiter:
+      cleanNumber(values.extraCostVndPerLiter) &&
+      cleanNumber(values.tankQtyLiter)
+        ? cleanNumber(values.extraCostVndPerLiter)! /
+          cleanNumber(values.tankQtyLiter)!
+        : undefined,
     fundAdjustmentVndPerLiter: cleanNumber(values.fundAdjustmentVndPerLiter),
     contractPaymentRate: cleanNumber(values.contractPaymentRate),
     bankGuaranteeRate: cleanNumber(values.bankGuaranteeRate),
@@ -280,6 +352,70 @@ function buildEstimatePayload(values: FormValues, created: CreatedTermDetail): C
       };
     }),
   };
+}
+
+function buildImportedValues(
+  fields?: ImportedPricingFields | null,
+  current?: FormValues,
+): Partial<FormValues> {
+  if (!fields) return {};
+
+  const currentLine = current?.lines?.[0] || {};
+  const nextLine = { ...currentLine };
+  const next: Partial<FormValues> = {};
+
+  if (fields.billDate) {
+    next.billDate = dayjs(fields.billDate);
+    next.orderDate = current?.orderDate || dayjs(fields.billDate);
+  }
+  if (fields.plattsBaseDate) next.plattsBaseDate = dayjs(fields.plattsBaseDate);
+  if (fields.fxRateDate) next.fxRateDate = dayjs(fields.fxRateDate);
+  if (fields.priceDays?.length) {
+    next.priceDays = fields.priceDays.slice(0, 11).map((item) => ({
+      quoteDate: item.quoteDate ? dayjs(item.quoteDate) : undefined,
+      priceUsdPerBbl: item.priceUsdPerBbl,
+    }));
+  }
+
+  if (fields.mopsAvgUsdPerBbl !== undefined)
+    next.mopsAvgUsdPerBbl = fields.mopsAvgUsdPerBbl;
+  if (fields.premiumUsdPerBbl !== undefined)
+    next.premiumUsdPerBbl = fields.premiumUsdPerBbl;
+  if (fields.specialConsumptionTaxUsdPerBbl !== undefined)
+    next.specialConsumptionTaxUsdPerBbl = fields.specialConsumptionTaxUsdPerBbl;
+  if (fields.fxRate !== undefined) next.fxRate = fields.fxRate;
+  if (fields.billBarrelQty !== undefined)
+    next.billBarrelQty = formatPlainDecimalComma(fields.billBarrelQty, 6);
+  if (fields.tankQtyLiter !== undefined) {
+    next.tankQtyLiter = fields.tankQtyLiter;
+    nextLine.orderedQty = fields.tankQtyLiter;
+  }
+  if (fields.insuranceAmountVnd !== undefined)
+    next.insuranceAmountVnd = fields.insuranceAmountVnd;
+  if (fields.inspectionFeeVnd !== undefined)
+    next.inspectionFeeVnd = fields.inspectionFeeVnd;
+  if (fields.transportFeeVnd !== undefined)
+    next.transportFeeVnd = fields.transportFeeVnd;
+  if (fields.storageFeeVnd !== undefined)
+    next.storageFeeVnd = fields.storageFeeVnd;
+  if (fields.transportLossAmountVnd !== undefined)
+    next.transportLossAmountVnd = fields.transportLossAmountVnd;
+  if (fields.transportDeductionVnd !== undefined)
+    next.transportDeductionVnd = fields.transportDeductionVnd;
+  if (fields.envTaxVndPerLiter !== undefined)
+    next.envTaxVndPerLiter = fields.envTaxVndPerLiter;
+  if (fields.extraCostVndPerLiter !== undefined)
+    next.extraCostVndPerLiter = fields.extraCostVndPerLiter;
+  if (fields.fundAdjustmentVndPerLiter !== undefined)
+    next.fundAdjustmentVndPerLiter = fields.fundAdjustmentVndPerLiter;
+  if (fields.contractPaymentRate !== undefined)
+    next.contractPaymentRate = fields.contractPaymentRate;
+  if (fields.bankGuaranteeRate !== undefined)
+    next.bankGuaranteeRate = fields.bankGuaranteeRate;
+  if (fields.note) next.pricingNote = fields.note;
+
+  next.lines = [nextLine];
+  return next;
 }
 
 function SheetRow({
@@ -297,21 +433,49 @@ function SheetRow({
 }) {
   return (
     <tr>
-      <td className={strong ? "term-sheet-label strong" : "term-sheet-label"}>{label}</td>
+      <td className={strong ? "term-sheet-label strong" : "term-sheet-label"}>
+        {label}
+      </td>
       <td className="term-sheet-unit">{unit}</td>
-      <td className={strong ? "term-sheet-value strong" : "term-sheet-value"}>{children}</td>
+      <td className={strong ? "term-sheet-value strong" : "term-sheet-value"}>
+        {children}
+      </td>
       <td className="term-sheet-note">{note}</td>
     </tr>
   );
 }
 
 function SheetText({ children }: { children: React.ReactNode }) {
-  return <div style={{ minHeight: 25, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>{children}</div>;
+  return (
+    <div
+      style={{
+        minHeight: 25,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
-function RateAmountInput({ name, amount }: { name: keyof FormValues; amount: number }) {
+function RateAmountInput({
+  name,
+  amount,
+}: {
+  name: keyof FormValues;
+  amount: number;
+}) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "92px minmax(0, 1fr)", gap: 6, alignItems: "center" }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "92px minmax(0, 1fr)",
+        gap: 6,
+        alignItems: "center",
+      }}
+    >
       <Form.Item name={name} noStyle>
         <InputNumber
           min={0}
@@ -335,11 +499,13 @@ export default function TermPurchaseOrderCreatePage() {
   const [fetchingPlatts, setFetchingPlatts] = useState(false);
   const [fetchingFx, setFetchingFx] = useState(false);
   const [fetchingEnvTax, setFetchingEnvTax] = useState(false);
+  const [importingSheet, setImportingSheet] = useState(false);
   const [showPlattsRows, setShowPlattsRows] = useState(false);
   const [showCostRows, setShowCostRows] = useState(false);
 
   const supplierCustomerId = Form.useWatch("supplierCustomerId", form);
   const orderDate = Form.useWatch("orderDate", form);
+  const transportMode = Form.useWatch("transportMode", form);
   const watched = Form.useWatch([], form) as FormValues | undefined;
 
   const createMutation = useCreateTermPurchaseOrder();
@@ -348,8 +514,10 @@ export default function TermPurchaseOrderCreatePage() {
     orderDate: toDate(orderDate),
   });
   const contractValidation = contractValidationQuery.data;
-  const contractInvalid = !!supplierCustomerId && contractValidation?.valid === false;
-  const contractLoading = !!supplierCustomerId && contractValidationQuery.isFetching;
+  const contractInvalid =
+    !!supplierCustomerId && contractValidation?.valid === false;
+  const contractLoading =
+    !!supplierCustomerId && contractValidationQuery.isFetching;
 
   const productsQuery = useProductSelect("");
   const locQuery = useSupplierLocationsSelect(supplierCustomerId, locKeyword);
@@ -358,7 +526,9 @@ export default function TermPurchaseOrderCreatePage() {
     () =>
       (productsQuery.data ?? []).map((product: any) => ({
         value: product.id,
-        label: product.code ? `${product.code} - ${product.name}` : product.name,
+        label: product.code
+          ? `${product.code} - ${product.name}`
+          : product.name,
       })),
     [productsQuery.data],
   );
@@ -376,7 +546,10 @@ export default function TermPurchaseOrderCreatePage() {
 
   const fetchLast10Platts = async () => {
     const productId = form.getFieldValue(["lines", 0, "productId"]);
-    const baseDate: Dayjs | undefined = form.getFieldValue("plattsBaseDate") || form.getFieldValue("billDate") || form.getFieldValue("orderDate");
+    const baseDate: Dayjs | undefined =
+      form.getFieldValue("plattsBaseDate") ||
+      form.getFieldValue("billDate") ||
+      form.getFieldValue("orderDate");
 
     if (!productId) {
       notify.warning("Chọn sản phẩm trước khi lấy giá Platts.");
@@ -408,7 +581,9 @@ export default function TermPurchaseOrderCreatePage() {
 
       form.setFieldsValue({
         priceDays: items,
-        mopsAvgUsdPerBbl: Number(res?.avgPriceUsdPerBbl || averagePriceDays(items)),
+        mopsAvgUsdPerBbl: Number(
+          res?.avgPriceUsdPerBbl || averagePriceDays(items),
+        ),
       });
 
       message.success(`Đã lấy ${items.length} ngày giá Platts gần nhất.`);
@@ -421,7 +596,10 @@ export default function TermPurchaseOrderCreatePage() {
   };
 
   const fetchVcbFxRate = async () => {
-    const fxRateDate: Dayjs | undefined = form.getFieldValue("fxRateDate") || form.getFieldValue("billDate") || form.getFieldValue("orderDate");
+    const fxRateDate: Dayjs | undefined =
+      form.getFieldValue("fxRateDate") ||
+      form.getFieldValue("billDate") ||
+      form.getFieldValue("orderDate");
 
     if (!fxRateDate) {
       message.warning("Chọn ngày tỷ giá.");
@@ -509,6 +687,72 @@ export default function TermPurchaseOrderCreatePage() {
     }
   };
 
+  const importPricingSheet = async (file: File) => {
+    const isSupported =
+      file.type === "application/pdf" ||
+      file.type.startsWith("image/") ||
+      file.type.startsWith("text/") ||
+      /\.(pdf|png|jpe?g|webp|txt)$/i.test(file.name);
+
+    if (!isSupported) {
+      notify.warning("Chỉ nhận PDF, ảnh hoặc file TXT.");
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      notify.warning("File bảng giá tối đa 8MB.");
+      return;
+    }
+
+    setImportingSheet(true);
+    try {
+      const res = await TermPurchaseOrdersApi.importPricingSheet(file);
+      const fields = (res?.fields ??
+        res?.data?.fields ??
+        {}) as ImportedPricingFields;
+      const warnings = (res?.warnings ?? res?.data?.warnings ?? []) as string[];
+      const supported = Boolean(res?.supported ?? res?.data?.supported);
+
+      if (!supported) {
+        notify.warning(res?.message || "Chưa đọc được dữ liệu từ file.");
+        return;
+      }
+
+      form.setFieldsValue(
+        buildImportedValues(fields, form.getFieldsValue(true)),
+      );
+
+      if (fields.priceDays?.length) setShowPlattsRows(true);
+      if (
+        fields.insuranceAmountVnd !== undefined ||
+        fields.inspectionFeeVnd !== undefined ||
+        fields.transportFeeVnd !== undefined ||
+        fields.storageFeeVnd !== undefined ||
+        fields.transportLossAmountVnd !== undefined ||
+        fields.transportDeductionVnd !== undefined
+      ) {
+        setShowCostRows(true);
+      }
+
+      if (warnings.length) {
+        notify.warning(
+          `Đã đọc file, cần kiểm tra: ${warnings.slice(0, 2).join("; ")}`,
+        );
+      } else {
+        notify.success("Đã đọc bảng giá và điền vào form.");
+      }
+    } catch (error: any) {
+      console.error(error);
+      notify.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Đọc bảng giá thất bại.",
+      );
+    } finally {
+      setImportingSheet(false);
+    }
+  };
+
   const initialValues: FormValues = {
     orderDate: dayjs(),
     expectedDate: dayjs().add(1, "day"),
@@ -529,6 +773,7 @@ export default function TermPurchaseOrderCreatePage() {
     contractPaymentRate: 100,
     bankGuaranteeRate: 0,
     transportMode: "PIPELINE",
+    charterVessel: false,
     priceDays: Array.from({ length: 11 }).map((_, index) => ({
       quoteDate: dayjs().subtract(10 - index, "day"),
     })),
@@ -541,7 +786,10 @@ export default function TermPurchaseOrderCreatePage() {
 
   const onFinish = async (values: FormValues) => {
     if (contractValidation?.valid === false) {
-      notify.error(contractValidation.message || "Nhà cung cấp chưa có hợp đồng mua hàng TERM hợp lệ");
+      notify.error(
+        contractValidation.message ||
+          "Nhà cung cấp chưa có hợp đồng mua hàng TERM hợp lệ",
+      );
       return;
     }
 
@@ -558,6 +806,8 @@ export default function TermPurchaseOrderCreatePage() {
       orderDate: toDate(values.orderDate)!,
       expectedDate: toDate(values.expectedDate),
       transportMode: values.transportMode,
+      charterVessel:
+        values.transportMode === "SEA" ? !!values.charterVessel : false,
       deliveryLocation: values.deliveryLocation?.trim() || undefined,
       paymentNote: values.paymentNote?.trim() || undefined,
       note: values.note?.trim() || undefined,
@@ -567,7 +817,8 @@ export default function TermPurchaseOrderCreatePage() {
       lines: [
         {
           productId: line.productId,
-          supplierLocationId: line.supplierLocationId || values.supplierLocationId,
+          supplierLocationId:
+            line.supplierLocationId || values.supplierLocationId,
           orderedQty: Number(line.orderedQty),
           unitPrice: previewAtSubmit.unitBeforeVat || undefined,
           taxRate: cleanNumber(line.taxRate) ?? 8,
@@ -577,13 +828,19 @@ export default function TermPurchaseOrderCreatePage() {
     };
 
     setSavingEstimate(true);
-    let result: Awaited<ReturnType<typeof createMutation.mutateAsync>> | null = null;
+    let result: Awaited<ReturnType<typeof createMutation.mutateAsync>> | null =
+      null;
 
     try {
       result = await createMutation.mutateAsync(payload);
-      const createdDetail = (result as any).lines?.length ? (result as any) : await TermPurchaseOrdersApi.detail(result.id);
+      const createdDetail = (result as any).lines?.length
+        ? (result as any)
+        : await TermPurchaseOrdersApi.detail(result.id);
 
-      await TermPurchaseOrdersApi.createEstimatePricing(result.id, buildEstimatePayload(values, createdDetail));
+      await TermPurchaseOrdersApi.createEstimatePricing(
+        result.id,
+        buildEstimatePayload(values, createdDetail),
+      );
 
       message.success("Đã tạo hồ sơ TERM và bảng giá tạm tính.");
       navigate(`/purchase-terms/${result.id}`);
@@ -592,7 +849,9 @@ export default function TermPurchaseOrderCreatePage() {
 
       if (result?.id) {
         const apiError = extractApiError(error);
-        message.error(`Đã tạo hồ sơ TERM, nhưng bảng giá tạm tính chưa lưu được: ${apiError.message}`);
+        message.error(
+          `Đã tạo hồ sơ TERM, nhưng bảng giá tạm tính chưa lưu được: ${apiError.message}`,
+        );
         navigate(`/purchase-terms/${result.id}`);
       }
     } finally {
@@ -601,24 +860,79 @@ export default function TermPurchaseOrderCreatePage() {
   };
 
   return (
-    <div style={{ height: "calc(100vh - 96px)", overflow: "auto", background: "#f6f8fb", padding: 10 }}>
+    <div
+      style={{
+        height: "calc(100vh - 96px)",
+        overflow: "auto",
+        background: "#f6f8fb",
+        padding: 10,
+      }}
+    >
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <Form<FormValues> form={form} layout="vertical" size="small" initialValues={initialValues} onFinish={onFinish}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+        <Form<FormValues>
+          form={form}
+          layout="vertical"
+          size="small"
+          initialValues={initialValues}
+          onFinish={onFinish}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 10,
+              alignItems: "center",
+              marginBottom: 8,
+              flexWrap: "wrap",
+            }}
+          >
             <div>
-              <Title level={4} style={{ margin: 0 }}>Bảng giá tạm tính TERM</Title>
-              <Text type="secondary">Nhập hồ sơ theo đúng bố cục bảng giá tạm tính, sau khi lưu hệ thống tự tạo hồ sơ TERM.</Text>
+              <Title level={4} style={{ margin: 0 }}>
+                Bảng giá tạm tính TERM
+              </Title>
+              <Text type="secondary">
+                Nhập hồ sơ theo đúng bố cục bảng giá tạm tính, sau khi lưu hệ
+                thống tự tạo hồ sơ TERM.
+              </Text>
             </div>
             <Space>
+              <Upload
+                accept=".pdf,.txt,image/*"
+                showUploadList={false}
+                beforeUpload={(file) => {
+                  void importPricingSheet(file as File);
+                  return Upload.LIST_IGNORE;
+                }}
+              >
+                <Button icon={<UploadOutlined />} loading={importingSheet}>
+                  Đọc ảnh/PDF
+                </Button>
+              </Upload>
               <Button onClick={() => navigate(-1)}>Quay lại</Button>
-              <Button type="primary" loading={createMutation.isPending || savingEstimate} disabled={contractInvalid || contractLoading || savingEstimate} onClick={() => form.submit()}>
+              <Button
+                type="primary"
+                loading={createMutation.isPending || savingEstimate}
+                disabled={contractInvalid || contractLoading || savingEstimate}
+                onClick={() => form.submit()}
+              >
                 Lưu bảng giá tạm tính
               </Button>
             </Space>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 300px", gap: 10, alignItems: "start" }}>
-            <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 10 } }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) 300px",
+              gap: 10,
+              alignItems: "start",
+            }}
+          >
+            <Card
+              size="small"
+              style={{ borderRadius: 8 }}
+              styles={{ body: { padding: 10 } }}
+            >
               <div className="term-sheet-title">BẢNG GIÁ TẠM TÍNH</div>
               <table className="term-sheet">
                 <colgroup>
@@ -636,8 +950,15 @@ export default function TermPurchaseOrderCreatePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  <SheetRow label="Nhà cung cấp" note={contractLoading ? "Đang kiểm tra" : undefined}>
-                    <Form.Item name="supplierCustomerId" rules={[{ required: true, message: "Chọn nhà cung cấp" }]} noStyle>
+                  <SheetRow
+                    label="Nhà cung cấp"
+                    note={contractLoading ? "Đang kiểm tra" : undefined}
+                  >
+                    <Form.Item
+                      name="supplierCustomerId"
+                      rules={[{ required: true, message: "Chọn nhà cung cấp" }]}
+                      noStyle
+                    >
                       <PartySelect
                         partyRole="SUPPLIER"
                         placeholder="Chọn nhà cung cấp"
@@ -645,7 +966,12 @@ export default function TermPurchaseOrderCreatePage() {
                           form.setFieldsValue({
                             supplierCustomerId: value || undefined,
                             supplierLocationId: undefined,
-                            lines: [{ ...(form.getFieldValue(["lines", 0]) || {}), supplierLocationId: undefined }],
+                            lines: [
+                              {
+                                ...(form.getFieldValue(["lines", 0]) || {}),
+                                supplierLocationId: undefined,
+                              },
+                            ],
                           });
                           setLocKeyword("");
                         }}
@@ -653,26 +979,75 @@ export default function TermPurchaseOrderCreatePage() {
                     </Form.Item>
                   </SheetRow>
 
-                  <SheetRow label="Ngày giao nhận hàng dự kiến" note={<Form.Item name="contractNote" noStyle><Input placeholder="Laycan..." /></Form.Item>}>
+                  <SheetRow
+                    label="Ngày giao nhận hàng dự kiến"
+                    note={
+                      <Form.Item name="contractNote" noStyle>
+                        <Input placeholder="Laycan..." />
+                      </Form.Item>
+                    }
+                  >
                     <Space.Compact style={{ width: "100%" }}>
-                      <Form.Item name="orderDate" rules={[{ required: true, message: "Chọn ngày hồ sơ" }]} noStyle>
-                        <DatePicker style={{ width: "50%" }} format="DD/MM/YYYY" />
+                      <Form.Item
+                        name="orderDate"
+                        rules={[{ required: true, message: "Chọn ngày hồ sơ" }]}
+                        noStyle
+                      >
+                        <DatePicker
+                          style={{ width: "50%" }}
+                          format="DD/MM/YYYY"
+                        />
                       </Form.Item>
                       <Form.Item name="expectedDate" noStyle>
-                        <DatePicker style={{ width: "50%" }} format="DD/MM/YYYY" />
+                        <DatePicker
+                          style={{ width: "50%" }}
+                          format="DD/MM/YYYY"
+                        />
                       </Form.Item>
                     </Space.Compact>
                   </SheetRow>
 
                   <SheetRow label="Hình thức nhận hàng">
-                    <Form.Item name="transportMode" rules={[{ required: true }]} noStyle>
-                      <Select
-                        options={[
-                          { value: "PIPELINE", label: "Đường ống" },
-                          { value: "SEA", label: "Đường biển" },
-                        ]}
-                      />
-                    </Form.Item>
+                    <Space.Compact style={{ width: "100%" }}>
+                      <Form.Item
+                        name="transportMode"
+                        rules={[{ required: true }]}
+                        noStyle
+                      >
+                        <Select
+                          style={{
+                            width: transportMode === "SEA" ? "50%" : "100%",
+                          }}
+                          options={[
+                            { value: "PIPELINE", label: "Đường ống" },
+                            { value: "SEA", label: "Đường biển" },
+                          ]}
+                        />
+                      </Form.Item>
+                      {transportMode === "SEA" ? (
+                        <Form.Item
+                          name="charterVessel"
+                          valuePropName="checked"
+                          noStyle
+                        >
+                          <Checkbox
+          
+                            style={{
+                              width: "50%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              border: "1px solid #d9d9d9",
+                              borderLeft: 0,
+                              borderRadius: "0 6px 6px 0",
+                  
+                            }}
+                          >
+                            Thuê tàu
+                          </Checkbox>
+                        </Form.Item>
+                      ) : null}
+                    </Space.Compact>
                   </SheetRow>
 
                   <SheetRow label="Kho đến">
@@ -681,16 +1056,27 @@ export default function TermPurchaseOrderCreatePage() {
                         showSearch
                         allowClear
                         disabled={!supplierCustomerId}
-                        placeholder={supplierCustomerId ? "Chọn kho nhận" : "Chọn NCC trước"}
+                        placeholder={
+                          supplierCustomerId
+                            ? "Chọn kho nhận"
+                            : "Chọn NCC trước"
+                        }
                         filterOption={false}
                         onSearch={setLocKeyword}
                         loading={locQuery.isLoading}
                         options={locationOptions}
                         onChange={(value) => {
-                          const currentLine = form.getFieldValue(["lines", 0]) || {};
+                          const currentLine =
+                            form.getFieldValue(["lines", 0]) || {};
                           form.setFieldsValue({
                             supplierLocationId: value,
-                            lines: [{ ...currentLine, supplierLocationId: currentLine.supplierLocationId || value }],
+                            lines: [
+                              {
+                                ...currentLine,
+                                supplierLocationId:
+                                  currentLine.supplierLocationId || value,
+                              },
+                            ],
                           });
                         }}
                       />
@@ -698,8 +1084,18 @@ export default function TermPurchaseOrderCreatePage() {
                   </SheetRow>
 
                   <SheetRow label="Sản phẩm">
-                    <Form.Item name={["lines", 0, "productId"]} rules={[{ required: true, message: "Chọn sản phẩm" }]} noStyle>
-                      <Select showSearch placeholder="Chọn sản phẩm" optionFilterProp="label" loading={productsQuery.isLoading} options={productOptions} />
+                    <Form.Item
+                      name={["lines", 0, "productId"]}
+                      rules={[{ required: true, message: "Chọn sản phẩm" }]}
+                      noStyle
+                    >
+                      <Select
+                        showSearch
+                        placeholder="Chọn sản phẩm"
+                        optionFilterProp="label"
+                        loading={productsQuery.isLoading}
+                        options={productOptions}
+                      />
                     </Form.Item>
                   </SheetRow>
 
@@ -710,25 +1106,47 @@ export default function TermPurchaseOrderCreatePage() {
                   <SheetRow label="Ngày mốc Platts">
                     <Space.Compact style={{ width: "100%" }}>
                       <Form.Item name="plattsBaseDate" noStyle>
-                        <DatePicker style={{ width: "55%" }} format="DD/MM/YYYY" />
+                        <DatePicker
+                          style={{ width: "55%" }}
+                          format="DD/MM/YYYY"
+                        />
                       </Form.Item>
-                      <Button loading={fetchingPlatts} onClick={fetchLast10Platts} style={{ width: "45%" }}>
+                      <Button
+                        loading={fetchingPlatts}
+                        onClick={fetchLast10Platts}
+                        style={{ width: "45%" }}
+                      >
                         Lấy 11 ngày
                       </Button>
                     </Space.Compact>
                   </SheetRow>
                   <SheetRow
                     label={
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <span>Giá Platts</span>
-                        <Button size="small" type="link" onClick={() => setShowPlattsRows((value) => !value)}>
+                        <Button
+                          size="small"
+                          type="link"
+                          onClick={() => setShowPlattsRows((value) => !value)}
+                        >
                           {showPlattsRows ? "Ẩn" : "Mở 11 ngày"}
                         </Button>
                       </div>
                     }
                     strong
                   >
-                    <SheetText>{preview.mops ? `TB ${fmt(preview.mops, 3)}` : "Chưa có giá"}</SheetText>
+                    <SheetText>
+                      {preview.mops
+                        ? `TB ${fmt(preview.mops, 3)}`
+                        : "Chưa có giá"}
+                    </SheetText>
                   </SheetRow>
 
                   {showPlattsRows
@@ -736,13 +1154,26 @@ export default function TermPurchaseOrderCreatePage() {
                         <SheetRow
                           key={index}
                           label={
-                            <Form.Item name={["priceDays", index, "quoteDate"]} noStyle>
-                              <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
+                            <Form.Item
+                              name={["priceDays", index, "quoteDate"]}
+                              noStyle
+                            >
+                              <DatePicker
+                                style={{ width: "100%" }}
+                                format="DD/MM/YYYY"
+                              />
                             </Form.Item>
                           }
                         >
-                          <Form.Item name={["priceDays", index, "priceUsdPerBbl"]} noStyle>
-                            <InputNumber min={0} style={{ width: "100%" }} precision={3} />
+                          <Form.Item
+                            name={["priceDays", index, "priceUsdPerBbl"]}
+                            noStyle
+                          >
+                            <InputNumber
+                              min={0}
+                              style={{ width: "100%" }}
+                              precision={3}
+                            />
                           </Form.Item>
                         </SheetRow>
                       ))
@@ -750,7 +1181,16 @@ export default function TermPurchaseOrderCreatePage() {
 
                   <SheetRow label="Giá trung bình MOPS" unit="USD/thùng">
                     <Form.Item name="mopsAvgUsdPerBbl" noStyle>
-                      <InputNumber min={0} style={{ width: "100%" }} precision={3} placeholder={preview.mops ? fmt(preview.mops, 3) : "Tự tính từ Platts"} />
+                      <InputNumber
+                        min={0}
+                        style={{ width: "100%" }}
+                        precision={3}
+                        placeholder={
+                          preview.mops
+                            ? fmt(preview.mops, 3)
+                            : "Tự tính từ Platts"
+                        }
+                      />
                     </Form.Item>
                   </SheetRow>
 
@@ -773,9 +1213,15 @@ export default function TermPurchaseOrderCreatePage() {
                       <Input
                         inputMode="decimal"
                         style={{ width: "100%" }}
-                        placeholder={preview.billBarrelQty ? formatPlainDecimalComma(preview.billBarrelQty, 6) : undefined}
+                        placeholder={
+                          preview.billBarrelQty
+                            ? formatPlainDecimalComma(preview.billBarrelQty, 6)
+                            : undefined
+                        }
                         onChange={(event) => {
-                          const sanitized = sanitizeNumericText(event.target.value);
+                          const sanitized = sanitizeNumericText(
+                            event.target.value,
+                          );
                           if (sanitized !== event.target.value) {
                             form.setFieldValue("billBarrelQty", sanitized);
                           }
@@ -788,21 +1234,42 @@ export default function TermPurchaseOrderCreatePage() {
                     <SheetText>{fmt(preview.amountUsd, 3)}</SheetText>
                   </SheetRow>
 
-                  <SheetRow label="Số lượng lít thực tế giao nhận tạm tính" unit="Lít">
-                    <Form.Item name={["lines", 0, "orderedQty"]} rules={[{ required: true, message: "Nhập sản lượng" }]} noStyle>
+                  <SheetRow
+                    label="Số lượng lít thực tế giao nhận tạm tính"
+                    unit="Lít"
+                  >
+                    <Form.Item
+                      name={["lines", 0, "orderedQty"]}
+                      rules={[{ required: true, message: "Nhập sản lượng" }]}
+                      noStyle
+                    >
                       <InputNumber min={0.001} style={{ width: "100%" }} />
                     </Form.Item>
                   </SheetRow>
 
-                  <SheetRow label="Số lượng thùng giao nhận tạm tính" unit="Thùng">
+                  <SheetRow
+                    label="Số lượng thùng giao nhận tạm tính"
+                    unit="Thùng"
+                  >
                     <SheetText>{fmtFixed(preview.qty / 159, 5)}</SheetText>
                   </SheetRow>
 
-                                    <SheetRow
+                  <SheetRow
                     label={
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                        }}
+                      >
                         <span>Tỷ giá tạm tính</span>
-                        <Button size="small" loading={fetchingFx} onClick={fetchVcbFxRate}>
+                        <Button
+                          size="small"
+                          loading={fetchingFx}
+                          onClick={fetchVcbFxRate}
+                        >
                           Lấy VCB
                         </Button>
                       </div>
@@ -811,7 +1278,10 @@ export default function TermPurchaseOrderCreatePage() {
                   >
                     <Space.Compact style={{ width: "100%" }}>
                       <Form.Item name="fxRateDate" noStyle>
-                        <DatePicker style={{ width: "50%" }} format="DD/MM/YYYY" />
+                        <DatePicker
+                          style={{ width: "50%" }}
+                          format="DD/MM/YYYY"
+                        />
                       </Form.Item>
                       <Form.Item name="fxRate" noStyle>
                         <InputNumber min={0} style={{ width: "50%" }} />
@@ -823,11 +1293,22 @@ export default function TermPurchaseOrderCreatePage() {
                     <SheetText>{fmt(preview.amountVnd)}</SheetText>
                   </SheetRow>
 
-                                    <SheetRow
+                  <SheetRow
                     label={
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <span>Chi phí & điều chỉnh BILL</span>
-                        <Button size="small" type="link" onClick={() => setShowCostRows((value) => !value)}>
+                        <Button
+                          size="small"
+                          type="link"
+                          onClick={() => setShowCostRows((value) => !value)}
+                        >
                           {showCostRows ? "Ẩn" : "Mở chi tiết"}
                         </Button>
                       </div>
@@ -835,51 +1316,55 @@ export default function TermPurchaseOrderCreatePage() {
                     unit="VND"
                     strong
                   >
-                    <SheetText>{fmt(preview.billTotal - preview.amountVnd)}</SheetText>
+                    <SheetText>
+                      {fmt(preview.billTotal - preview.amountVnd)}
+                    </SheetText>
                   </SheetRow>
 
                   {showCostRows ? (
                     <>
-                  <SheetRow label="Bảo hiểm hàng hóa" unit="VND">
-                    <Form.Item name="insuranceAmountVnd" noStyle>
-                      <InputNumber min={0} style={{ width: "100%" }} />
-                    </Form.Item>
-                  </SheetRow>
+                      <SheetRow label="Bảo hiểm hàng hóa" unit="VND">
+                        <Form.Item name="insuranceAmountVnd" noStyle>
+                          <InputNumber min={0} style={{ width: "100%" }} />
+                        </Form.Item>
+                      </SheetRow>
 
-                  <SheetRow label="Phí giám định" unit="VND">
-                    <Form.Item name="inspectionFeeVnd" noStyle>
-                      <InputNumber min={0} style={{ width: "100%" }} />
-                    </Form.Item>
-                  </SheetRow>
+                      <SheetRow label="Phí giám định" unit="VND">
+                        <Form.Item name="inspectionFeeVnd" noStyle>
+                          <InputNumber min={0} style={{ width: "100%" }} />
+                        </Form.Item>
+                      </SheetRow>
 
-                  <SheetRow label="Cước vận chuyển" unit="VND">
-                    <Form.Item name="transportFeeVnd" noStyle>
-                      <InputNumber min={0} style={{ width: "100%" }} />
-                    </Form.Item>
-                  </SheetRow>
+                      <SheetRow label="Cước vận chuyển" unit="VND">
+                        <Form.Item name="transportFeeVnd" noStyle>
+                          <InputNumber min={0} style={{ width: "100%" }} />
+                        </Form.Item>
+                      </SheetRow>
 
-                  <SheetRow label="Phí thuê kho" unit="VND">
-                    <Form.Item name="storageFeeVnd" noStyle>
-                      <InputNumber min={0} style={{ width: "100%" }} />
-                    </Form.Item>
-                  </SheetRow>
+                      <SheetRow label="Phí thuê kho" unit="VND">
+                        <Form.Item name="storageFeeVnd" noStyle>
+                          <InputNumber min={0} style={{ width: "100%" }} />
+                        </Form.Item>
+                      </SheetRow>
 
-                  <SheetRow label="Hao hụt vận chuyển trừ thẳng vào lượng" unit="VND">
-                    <Form.Item name="transportLossAmountVnd" noStyle>
-                      <InputNumber min={0} style={{ width: "100%" }} />
-                    </Form.Item>
-                  </SheetRow>
+                      <SheetRow
+                        label="Hao hụt vận chuyển trừ thẳng vào lượng"
+                        unit="VND"
+                      >
+                        <Form.Item name="transportLossAmountVnd" noStyle>
+                          <InputNumber min={0} style={{ width: "100%" }} />
+                        </Form.Item>
+                      </SheetRow>
 
-                  <SheetRow label="Trừ cước/chi quỹ" unit="VND">
-                    <Form.Item name="transportDeductionVnd" noStyle>
-                      <InputNumber min={0} style={{ width: "100%" }} />
-                    </Form.Item>
-                  </SheetRow>
-
-                                      </>
+                      <SheetRow label="Trừ cước/chi quỹ" unit="VND">
+                        <Form.Item name="transportDeductionVnd" noStyle>
+                          <InputNumber min={0} style={{ width: "100%" }} />
+                        </Form.Item>
+                      </SheetRow>
+                    </>
                   ) : null}
 
-<SheetRow label="Tổng tiền BILL" unit="VND" strong>
+                  <SheetRow label="Tổng tiền BILL" unit="VND" strong>
                     <SheetText>{fmt(preview.billTotal)}</SheetText>
                   </SheetRow>
 
@@ -893,9 +1378,20 @@ export default function TermPurchaseOrderCreatePage() {
 
                   <SheetRow
                     label={
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                        }}
+                      >
                         <span>Phí bảo vệ môi trường</span>
-                        <Button size="small" loading={fetchingEnvTax} onClick={fetchEnvironmentTax}>
+                        <Button
+                          size="small"
+                          loading={fetchingEnvTax}
+                          onClick={fetchEnvironmentTax}
+                        >
                           Lấy BVMT
                         </Button>
                       </div>
@@ -914,11 +1410,20 @@ export default function TermPurchaseOrderCreatePage() {
                   </SheetRow>
 
                   <SheetRow label="Trích/chi quỹ" unit="VND/lít">
-                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 120px", gap: 6, alignItems: "center" }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "minmax(0, 1fr) 120px",
+                        gap: 6,
+                        alignItems: "center",
+                      }}
+                    >
                       <Form.Item name="fundAdjustmentVndPerLiter" noStyle>
                         <InputNumber min={0} style={{ width: "100%" }} />
                       </Form.Item>
-                      <div style={{ textAlign: "right", fontWeight: 700 }}>{fmt(preview.fundAdjustmentAmount)}</div>
+                      <div style={{ textAlign: "right", fontWeight: 700 }}>
+                        {fmt(preview.fundAdjustmentAmount)}
+                      </div>
                     </div>
                   </SheetRow>
 
@@ -931,25 +1436,63 @@ export default function TermPurchaseOrderCreatePage() {
                   </SheetRow>
 
                   <SheetRow label="Số lượng nhập" unit="Lít" strong>
-                    <Form.Item name="tankQtyLiter" rules={[{ required: true, message: "Nhập số lượng nhập" }]} noStyle>
-                      <InputNumber min={0.001} style={{ width: "100%" }} placeholder={preview.qty ? fmt(preview.qty) : undefined} />
+                    <Form.Item
+                      name="tankQtyLiter"
+                      rules={[
+                        { required: true, message: "Nhập số lượng nhập" },
+                      ]}
+                      noStyle
+                    >
+                      <InputNumber
+                        min={0.001}
+                        style={{ width: "100%" }}
+                        placeholder={preview.qty ? fmt(preview.qty) : undefined}
+                      />
                     </Form.Item>
                   </SheetRow>
 
-                  <SheetRow label={<Form.Item name={["lines", 0, "taxRate"]} noStyle><InputNumber min={0} max={100} style={{ width: 80 }} addonAfter="%" /></Form.Item>} unit="VND">
+                  <SheetRow
+                    label={
+                      <Form.Item name={["lines", 0, "taxRate"]} noStyle>
+                        <InputNumber
+                          min={0}
+                          max={100}
+                          style={{ width: 80 }}
+                          addonAfter="%"
+                        />
+                      </Form.Item>
+                    }
+                    unit="VND"
+                  >
                     <SheetText>{fmt(preview.vatAmount)}</SheetText>
                   </SheetRow>
 
-                  <SheetRow label="Tổng tiền thanh toán tạm tính" unit="VND" strong>
+                  <SheetRow
+                    label="Tổng tiền thanh toán tạm tính"
+                    unit="VND"
+                    strong
+                  >
                     <SheetText>{fmt(preview.totalAmount)}</SheetText>
                   </SheetRow>
 
                   <SheetRow
                     label={
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <span>Giá trị thanh toán theo đơn hàng</span>
                         <Form.Item name="contractPaymentRate" noStyle>
-                          <InputNumber min={0} max={200} style={{ width: 84 }} precision={3} addonAfter="%" />
+                          <InputNumber
+                            min={0}
+                            max={200}
+                            style={{ width: 84 }}
+                            precision={3}
+                            addonAfter="%"
+                          />
                         </Form.Item>
                       </div>
                     }
@@ -961,10 +1504,21 @@ export default function TermPurchaseOrderCreatePage() {
 
                   <SheetRow
                     label={
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <span>Phí bảo lãnh ngân hàng</span>
                         <Form.Item name="bankGuaranteeRate" noStyle>
-                          <InputNumber min={0} style={{ width: 84 }} precision={3} addonAfter="%" />
+                          <InputNumber
+                            min={0}
+                            style={{ width: 84 }}
+                            precision={3}
+                            addonAfter="%"
+                          />
                         </Form.Item>
                       </div>
                     }
@@ -977,20 +1531,47 @@ export default function TermPurchaseOrderCreatePage() {
               </table>
 
               <div style={{ marginTop: 8 }}>
-                <Form.Item name="pricingNote" label="Ghi chú bảng giá" style={{ marginBottom: 0 }}>
+                <Form.Item
+                  name="pricingNote"
+                  label="Ghi chú bảng giá"
+                  style={{ marginBottom: 0 }}
+                >
                   <Input.TextArea rows={2} />
                 </Form.Item>
               </div>
             </Card>
 
-            <Space direction="vertical" size={8} style={{ width: "100%", position: "sticky", top: 8 }}>
-              <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 10 } }}>
+            <Space
+              direction="vertical"
+              size={8}
+              style={{ width: "100%", position: "sticky", top: 8 }}
+            >
+              <Card
+                size="small"
+                style={{ borderRadius: 8 }}
+                styles={{ body: { padding: 10 } }}
+              >
                 <div style={{ fontWeight: 900, marginBottom: 8 }}>Tóm tắt</div>
-                <div className="term-summary-row"><span>Số lượng nhập</span><b>{fmt(preview.qty)} L</b></div>
-                <div className="term-summary-row"><span>MOPS bình quân</span><b>{fmt(preview.mops, 3)}</b></div>
-                <div className="term-summary-row"><span>FOB</span><b>{fmt(preview.fobUsdPerBbl, 3)}</b></div>
-                <div className="term-summary-row"><span>Đơn giá</span><b>{fmt(preview.unitBeforeVat, 3)}</b></div>
-                <div className="term-summary-row total"><span>Tạm thanh toán</span><b>{fmt(preview.totalAmount)}</b></div>
+                <div className="term-summary-row">
+                  <span>Số lượng nhập</span>
+                  <b>{fmt(preview.qty)} L</b>
+                </div>
+                <div className="term-summary-row">
+                  <span>MOPS bình quân</span>
+                  <b>{fmt(preview.mops, 3)}</b>
+                </div>
+                <div className="term-summary-row">
+                  <span>FOB</span>
+                  <b>{fmt(preview.fobUsdPerBbl, 3)}</b>
+                </div>
+                <div className="term-summary-row">
+                  <span>Đơn giá</span>
+                  <b>{fmt(preview.unitBeforeVat, 3)}</b>
+                </div>
+                <div className="term-summary-row total">
+                  <span>Tạm thanh toán</span>
+                  <b>{fmt(preview.totalAmount)}</b>
+                </div>
                 <div style={{ marginTop: 10 }}>
                   <Tag color="blue">TERM</Tag>
                   <Tag color="gold">Bảng giá tạm tính</Tag>
@@ -999,28 +1580,46 @@ export default function TermPurchaseOrderCreatePage() {
 
               {supplierCustomerId ? (
                 <Alert
-                  type={contractValidation?.valid ? "success" : contractInvalid ? "error" : "info"}
+                  type={
+                    contractValidation?.valid
+                      ? "success"
+                      : contractInvalid
+                      ? "error"
+                      : "info"
+                  }
                   showIcon
                   message={
                     contractValidation?.valid
                       ? `Hợp đồng áp dụng: ${contractValidation.contract.code}`
                       : contractInvalid
-                        ? contractValidation.message
-                        : "Đang kiểm tra hợp đồng mua hàng TERM"
+                      ? contractValidation.message
+                      : "Đang kiểm tra hợp đồng mua hàng TERM"
                   }
                   description={
                     contractValidation?.valid
-                      ? `Hiệu lực: ${dayjs(contractValidation.contract.startDate).format("DD/MM/YYYY")} - ${dayjs(contractValidation.contract.endDate).format("DD/MM/YYYY")}`
+                      ? `Hiệu lực: ${dayjs(
+                          contractValidation.contract.startDate,
+                        ).format("DD/MM/YYYY")} - ${dayjs(
+                          contractValidation.contract.endDate,
+                        ).format("DD/MM/YYYY")}`
                       : undefined
                   }
                 />
               ) : null}
 
-              <Card size="small" style={{ borderRadius: 8 }} styles={{ body: { padding: 10 } }}>
+              <Card
+                size="small"
+                style={{ borderRadius: 8 }}
+                styles={{ body: { padding: 10 } }}
+              >
                 <Form.Item name="paymentNote" label="Điều khoản thanh toán">
                   <Input.TextArea rows={2} />
                 </Form.Item>
-                <Form.Item name="note" label="Ghi chú nội bộ" style={{ marginBottom: 0 }}>
+                <Form.Item
+                  name="note"
+                  label="Ghi chú nội bộ"
+                  style={{ marginBottom: 0 }}
+                >
                   <Input.TextArea rows={2} />
                 </Form.Item>
               </Card>

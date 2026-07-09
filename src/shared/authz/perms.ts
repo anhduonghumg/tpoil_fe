@@ -17,6 +17,12 @@ export const PERMS = {
 
   // System
   SYSTEM_RBAC_ADMIN: "system.rbac.admin",
+  OPERATIONS_VIEW: "operations.view",
+  OPERATIONS_CHARTER_MANAGE: "operations.charter.manage",
+  OPERATIONS_WAREHOUSE_MANAGE: "operations.warehouse.manage",
+  OPERATIONS_ROAD_MANAGE: "operations.road.manage",
+  OPERATIONS_PARTNERS_MANAGE: "operations.partners.manage",
+  OPERATIONS_TERM_COSTS_POST: "operations.term_costs.post",
 } as const;
 
 export type PermCode = (typeof PERMS)[keyof typeof PERMS];

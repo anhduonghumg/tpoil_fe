@@ -5,11 +5,13 @@ import type {
   BankTransactionListQuery,
   CommitBankImportPayload,
   ConfirmBankTransactionPayload,
+  CreateManualBankTransactionPayload,
   Paged,
   PreviewBankImportPayload,
 } from "./types";
 import { apiCall } from "../../shared/lib/api";
 import { notify } from "../../shared/lib/notification";
+import { APP_BOOTSTRAP_QUERY_KEY } from "../app/hooks";
 
 export const bankingKeys = {
   all: ["banking"] as const,
@@ -301,6 +303,20 @@ export function useDeleteMultipleBankTransactions() {
   });
 }
 
+export function useCreateManualBankTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateManualBankTransactionPayload) =>
+      BankingApi.createManualTransaction(data),
+    onSuccess: () => {
+      notify.success("Đã thêm giao dịch thủ công");
+      qc.invalidateQueries({ queryKey: bankingKeys.all });
+    },
+    onError: (e: any) =>
+      notify.error(e?.response?.data?.message || e?.message || "Thêm giao dịch thất bại"),
+  });
+}
+
 export function useTermPaymentPendingRequests() {
   return useQuery({
     queryKey: bankingKeys.termPaymentPendingRequests(),
@@ -331,6 +347,7 @@ export function useCreateTermPaymentBatch() {
     onSuccess: () => {
       notify.success("Đã tạo bảng kê thanh toán TERM");
       qc.invalidateQueries({ queryKey: bankingKeys.all });
+      qc.invalidateQueries({ queryKey: APP_BOOTSTRAP_QUERY_KEY });
     },
   });
 }
@@ -344,6 +361,7 @@ export function useSendTermPaymentBatch() {
       notify.success("Đã đánh dấu gửi bảng kê sang ngân hàng");
       qc.invalidateQueries({ queryKey: bankingKeys.all });
       qc.invalidateQueries({ queryKey: bankingKeys.termPaymentBatchDetail(id) });
+      qc.invalidateQueries({ queryKey: APP_BOOTSTRAP_QUERY_KEY });
     },
   });
 }
@@ -366,9 +384,24 @@ export function useMatchTermPaymentBatchItem(batchId?: string) {
         note: payload.note,
       }),
     onSuccess: () => {
-      notify.success("Đã đối chiếu dòng bảng kê");
+      notify.success("Đã khớp sao kê, chờ xác nhận thanh toán");
       qc.invalidateQueries({ queryKey: bankingKeys.all });
       qc.invalidateQueries({ queryKey: bankingKeys.termPaymentBatchDetail(batchId) });
+    },
+  });
+}
+
+export function useConfirmTermPaymentBatchItemPaid(batchId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (itemId: string) =>
+      BankingApi.confirmTermPaymentBatchItemPaid(batchId!, itemId),
+    onSuccess: () => {
+      notify.success("Đã xác nhận thanh toán và thông báo sang mua hàng");
+      qc.invalidateQueries({ queryKey: bankingKeys.all });
+      qc.invalidateQueries({ queryKey: bankingKeys.termPaymentBatchDetail(batchId) });
+      qc.invalidateQueries({ queryKey: APP_BOOTSTRAP_QUERY_KEY });
     },
   });
 }
