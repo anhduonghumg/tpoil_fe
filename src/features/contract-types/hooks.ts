@@ -27,8 +27,12 @@ export const useCreateContractType = () => {
   return useMutation({
     mutationFn: (payload: Partial<ContractType>) =>
       ContractTypesApi.create(payload),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["contractTypes", "list"] }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["contractTypes", "list"] }),
+        qc.invalidateQueries({ queryKey: ["lookups", "contractTypes"] }),
+      ]);
+    },
   });
 };
 
@@ -37,9 +41,12 @@ export const useUpdateContractType = (id: string) => {
   return useMutation({
     mutationFn: (payload: Partial<ContractType>) =>
       ContractTypesApi.update(id, payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["contractTypes", "list"] });
-      qc.invalidateQueries({ queryKey: ["contractTypes", "detail", id] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["contractTypes", "list"] }),
+        qc.invalidateQueries({ queryKey: ["contractTypes", "detail", id] }),
+        qc.invalidateQueries({ queryKey: ["lookups", "contractTypes"] }),
+      ]);
     },
   });
 };
@@ -48,7 +55,11 @@ export const useDeleteContractType = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => ContractTypesApi.delete(id),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["contractTypes", "list"] }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["contractTypes", "list"] }),
+        qc.invalidateQueries({ queryKey: ["lookups", "contractTypes"] }),
+      ]);
+    },
   });
 };

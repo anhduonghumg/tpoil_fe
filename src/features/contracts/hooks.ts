@@ -22,10 +22,11 @@ const CONTRACTS_LIST_QUERY_KEY = ["contracts", "list"];
 
 // ===== LIST =====
 
-export function useContractList(query: ContractListQuery) {
+export function useContractList(query: ContractListQuery, enabled = true) {
   return useQuery<Paged<Contract>>({
     queryKey: [CONTRACTS_QUERY_KEY, "list", query],
     queryFn: () => ContractsApi.list(query),
+    enabled,
     // keepPreviousData: true,
   });
 }

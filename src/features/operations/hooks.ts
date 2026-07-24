@@ -27,6 +27,7 @@ export function useOperationList(
     | "storageContracts"
     | "availability"
     | "matrix"
+    | "commercialLotInventory"
     | "expectedInventory"
     | "reservations"
     | "transfers"

@@ -14,6 +14,30 @@ import {
 import { UploadOutlined } from "@ant-design/icons";
 import { uploadFile } from "../../shared/api/uploads";
 
+const statusLabels: Record<string, string> = {
+  DRAFT: "Nháp",
+  WAITING_CONFIRMATION: "Chờ xác nhận",
+  REGISTERED: "Đã đăng ký",
+  CONFIRMED: "Đã xác nhận",
+  ACTIVE: "Đang hiệu lực",
+  IN_PROGRESS: "Đang thực hiện",
+  IN_TRANSIT: "Đang vận chuyển",
+  ASSIGNED: "Đã phân công",
+  LOADING: "Đang bốc hàng",
+  DELIVERED: "Đã giao",
+  COMPLETED: "Hoàn tất",
+  CLOSED: "Đã đóng",
+  EXPIRED: "Hết hiệu lực",
+  TERMINATED: "Đã chấm dứt",
+  RELEASED: "Đã giải phóng",
+  CONSUMED: "Đã sử dụng",
+  CANCELLED: "Đã hủy",
+  VOID: "Đã hủy",
+  OPEN: "Đang mở",
+  PARTIALLY_RECEIVED: "Nhận một phần",
+  RECEIVED: "Đã nhận",
+};
+
 export const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
   const color =
     status === "COMPLETED" || status === "CLOSED" || status === "CONFIRMED"
@@ -23,7 +47,7 @@ export const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
       : status === "IN_TRANSIT" || status === "IN_PROGRESS"
       ? "blue"
       : "gold";
-  return <Tag color={color}>{status || "-"}</Tag>;
+  return <Tag color={color}>{status ? statusLabels[status] ?? status : "-"}</Tag>;
 };
 
 export const OperationsDashboardCard: React.FC<{
@@ -56,9 +80,12 @@ export const FileUploadField: React.FC<{
   value?: string;
   onChange?: (value?: string) => void;
   folder?: string;
-}> = ({ value, onChange, folder = "operations" }) => (
-  <Space direction="vertical">
+  disabled?: boolean;
+  compact?: boolean;
+}> = ({ value, onChange, folder = "operations", disabled = false, compact = false }) => (
+  <Space direction="vertical" size={compact ? 2 : 8}>
     <Upload
+      disabled={disabled}
       maxCount={1}
       showUploadList={false}
       customRequest={async ({ file, onSuccess, onError }) => {
@@ -72,7 +99,7 @@ export const FileUploadField: React.FC<{
         }
       }}
     >
-      <Button icon={<UploadOutlined />}>Tải file lên</Button>
+      <Button size="small" disabled={disabled} icon={<UploadOutlined />} title={compact ? "Tải file chi tiết" : undefined} aria-label={compact ? "Tải file chi tiết" : undefined}>{compact ? null : "Tải file lên"}</Button>
     </Upload>
     {value ? (
       <Typography.Link href={value} target="_blank">
@@ -96,6 +123,7 @@ const SimpleSelect: React.FC<SimpleSelectProps> = ({
   placeholder,
 }) => (
   <Select
+    size="small"
     allowClear
     showSearch
     value={value}

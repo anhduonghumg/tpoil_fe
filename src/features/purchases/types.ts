@@ -298,6 +298,7 @@ export type SupplierInvoiceDetail = {
   purchaseOrder?: {
     id: UUID;
     orderNo?: string | null;
+    orderType?: PurchaseOrderType;
   } | null;
 
   payableSettlement?: {

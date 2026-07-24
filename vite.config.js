@@ -1,4 +1,3 @@
-// vite.config.ts
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -9,7 +8,10 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
-        // rewrite: (path) => path, // giữ nguyên /api (vì Nest đã setGlobalPrefix('api'))
+      },
+      '/static': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
       },
     },
   },

@@ -4,7 +4,15 @@
 }
 
 .app-root {
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
+}
+
+/* Keep the application shell fixed while the route content scrolls below the header. */
+.app-root > .ant-layout {
+  min-width: 0;
+  min-height: 0;
 }
 
 /* Make sider a column so the brand stays at top and menu can scroll */
@@ -154,7 +162,12 @@
 
 /* Content */
 .app-content {
+  min-height: 0;
   margin: 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .app-card {
   background: #fff;

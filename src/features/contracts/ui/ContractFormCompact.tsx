@@ -86,7 +86,7 @@ export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
             name="contractTypeId"
             rules={[{ required: true, message: "Vui lòng chọn loại hợp đồng" }]}
           >
-            <ContractTypeSelect placeholder="Chọn loại hợp đồng" />
+            <ContractTypeSelect placeholder="Chọn loại hợp đồng" excludeCodes={["WAREHOUSE_RENTAL"]} />
           </Form.Item>
         </Col>
 

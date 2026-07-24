@@ -5,13 +5,11 @@ import {
   useCustomerDetail,
   useUpdateCustomer,
 } from "../hooks";
-import type { Customer, CustomerRole, CustomerType, PartyType } from "../types";
+import type { Customer, CustomerRole, CustomerType, PartnerRole, PartyType } from "../types";
 import CustomerCompactForm from "./CustomerCompactForm";
 import OverlayForm from "../../employees/ui/OverlayForm";
 
 type Mode = "create" | "edit";
-
-type PartnerRole = "CUSTOMER" | "SUPPLIER" | "INTERNAL";
 
 interface CustomerUpsertOverlayProps {
   mode: Mode;
@@ -20,6 +18,7 @@ interface CustomerUpsertOverlayProps {
   onClose: () => void;
   onSuccess?: () => void;
   partyTypeDefault?: PartyType;
+  partnerRoleDefault?: PartnerRole;
 }
 
 export const CustomerUpsertOverlay: React.FC<CustomerUpsertOverlayProps> = ({
@@ -29,6 +28,7 @@ export const CustomerUpsertOverlay: React.FC<CustomerUpsertOverlayProps> = ({
   onClose,
   onSuccess,
   partyTypeDefault,
+  partnerRoleDefault,
 }) => {
   const isEdit = mode === "edit";
 
@@ -42,9 +42,13 @@ export const CustomerUpsertOverlay: React.FC<CustomerUpsertOverlayProps> = ({
     createMutation.isPending || updateMutation.isPending || detailLoading;
 
   const title = isEdit
-    ? partyTypeDefault === "SUPPLIER"
+    ? partnerRoleDefault === "SHIP_OWNER" || partnerRoleDefault === "SEA_CARRIER"
+      ? "Cập nhật chủ tàu / đơn vị vận tải biển"
+      : partyTypeDefault === "SUPPLIER"
       ? "Cập nhật nhà cung cấp"
       : "Cập nhật khách hàng"
+    : partnerRoleDefault === "SHIP_OWNER" || partnerRoleDefault === "SEA_CARRIER"
+    ? "Thêm chủ tàu / đơn vị vận tải biển"
     : partyTypeDefault === "SUPPLIER"
     ? "Thêm nhà cung cấp"
     : "Thêm khách hàng";
@@ -68,6 +72,7 @@ export const CustomerUpsertOverlay: React.FC<CustomerUpsertOverlayProps> = ({
           customerId={customerId}
           detail={detail?.data}
           partyTypeDefault={partyTypeDefault ?? "CUSTOMER"}
+          partnerRoleDefault={partnerRoleDefault}
           onCreate={(values) =>
             createMutation.mutate(values, {
               onSuccess: () => {
@@ -99,6 +104,7 @@ interface CustomerUpsertFormContentProps {
   onCreate: (values: Partial<Customer>) => void;
   onUpdate: (values: Partial<Customer> & { id: string }) => void;
   partyTypeDefault: PartyType;
+  partnerRoleDefault?: PartnerRole;
 }
 
 const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
@@ -110,6 +116,7 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
   onCreate,
   onUpdate,
   partyTypeDefault,
+  partnerRoleDefault,
 }) => {
   const isEdit = mode === "edit";
 
@@ -133,11 +140,14 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
       if (flagCustomer) partnerRoles.push("CUSTOMER");
       if (flagSupplier) partnerRoles.push("SUPPLIER");
       if (flagInternal) partnerRoles.push("INTERNAL");
+      partnerRoles.push(...(detail.partnerRoles ?? []));
 
       // nếu data cũ thiếu hết flags thì default theo partyTypeDefault
       if (partnerRoles.length === 0) {
         partnerRoles.push(
-          partyTypeDefault === "SUPPLIER"
+          partnerRoleDefault
+            ? partnerRoleDefault
+            : partyTypeDefault === "SUPPLIER"
             ? "SUPPLIER"
             : partyTypeDefault === "INTERNAL"
             ? "INTERNAL"
@@ -168,7 +178,7 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
         note: detail?.note ?? "",
       });
     }
-  }, [open, isEdit, detail, form, partyTypeDefault]);
+  }, [open, isEdit, detail, form, partyTypeDefault, partnerRoleDefault]);
 
   const handleFinish = (values: any) => {
     const partnerRoles: PartnerRole[] = Array.isArray(values.partnerRoles)
@@ -178,6 +188,9 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
     const isCustomer = partnerRoles.includes("CUSTOMER");
     const isSupplier = partnerRoles.includes("SUPPLIER");
     const isInternal = partnerRoles.includes("INTERNAL");
+    const specializedRoles = partnerRoles.filter(
+      (role) => !["CUSTOMER", "SUPPLIER", "INTERNAL"].includes(role),
+    ) as Customer["partnerRoles"];
 
     // ✅ partyType để tương thích data cũ / query cũ
     const partyType: PartyType = (() => {
@@ -191,11 +204,11 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
       name: values.name,
       type: values.type as CustomerType,
       roles: values.roles as CustomerRole[] | undefined,
-
       // flags + partyType
       isCustomer,
       isSupplier,
       isInternal,
+      partnerRoles: specializedRoles,
       partyType,
 
       taxCode: values.taxCode || undefined,
@@ -237,6 +250,7 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
       form={form}
       onFinish={handleFinish}
       partyTypeDefault={partyTypeDefault}
+      partnerRoleDefault={partnerRoleDefault}
     />
   );
 };

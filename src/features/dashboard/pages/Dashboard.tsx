@@ -1,5 +1,5 @@
-import DepartmentWorkspacePage from "../../workspaces/ui/DepartmentWorkspacePage";
+import ProfessionalDashboard from "../../workspaces/ui/ProfessionalDashboard";
 
 export default function Dashboard() {
-  return <DepartmentWorkspacePage />;
+  return <ProfessionalDashboard />;
 }

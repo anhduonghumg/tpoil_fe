@@ -15,6 +15,7 @@ import {
 import type {
   PurchaseOrderBusinessTab,
   PurchaseOrderListQuery,
+  PurchaseOrderType,
   UUID,
 } from "../types";
 import { useProductSelect } from "../../products/hooks";
@@ -25,11 +26,16 @@ import { openPdfPreviewByPost } from "../../../shared/lib/helper";
 
 type ProductOption = { id: UUID; name: string; code?: string | null };
 
-export default function PurchaseOrdersPage() {
+export default function PurchaseOrdersPage({
+  fixedOrderType,
+}: {
+  fixedOrderType?: PurchaseOrderType;
+} = {}) {
   const navigate = useNavigate();
 
   const [query, setQuery] = useState<PurchaseOrderListQuery>({
     keyword: "",
+    orderType: fixedOrderType,
     businessState: undefined,
     page: 1,
     limit: 20,
@@ -38,7 +44,11 @@ export default function PurchaseOrdersPage() {
   const [businessTab, setBusinessTab] =
     useState<PurchaseOrderBusinessTab>("ALL");
 
-  const listQ = usePurchaseOrderList(query);
+  const effectiveQuery = {
+    ...query,
+    orderType: fixedOrderType ?? query.orderType,
+  };
+  const listQ = usePurchaseOrderList(effectiveQuery);
 
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -57,7 +67,7 @@ export default function PurchaseOrdersPage() {
   const [printStatus, setPrintStatus] = useState<string | null>(null);
   const [printMetrics, setPrintMetrics] = useState<any>(null);
 
-  const tabCountsQ = usePurchaseOrderTabCounts(query);
+  const tabCountsQ = usePurchaseOrderTabCounts(effectiveQuery);
   const counts = tabCountsQ.data ?? {};
 
   const onSearchProducts = async (keyword: string) => {
@@ -171,7 +181,15 @@ export default function PurchaseOrdersPage() {
       {header}
 
       <div style={{ marginTop: 14, marginBottom: 12 }}>
-        <PurchaseOrderFilters value={query} onChange={setQuery} />
+        <PurchaseOrderFilters
+          value={effectiveQuery}
+          onChange={(next) =>
+            setQuery({
+              ...next,
+              orderType: fixedOrderType ?? next.orderType,
+            })
+          }
+        />
       </div>
 
       <div style={{ marginBottom: 12 }}>
@@ -315,6 +333,7 @@ export default function PurchaseOrdersPage() {
         products={products}
         onSearchProducts={onSearchProducts}
         defaultOrderNo=""
+        fixedOrderType={fixedOrderType}
       />
 
       <PrintBatchModal

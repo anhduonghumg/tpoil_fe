@@ -19,7 +19,7 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import type { FormInstance } from "antd";
-import type { CustomerRole, CustomerType, PartyType } from "../types";
+import type { CustomerRole, CustomerType, PartnerRole, PartyType } from "../types";
 import { notify } from "../../../shared/lib/notification";
 import { normalizeCode } from "../../../shared/lib/helper";
 import { useGenerateCustomerCode } from "../hooks";
@@ -45,9 +45,11 @@ const PARTNER_ROLE_OPTIONS = [
   { label: "Khách hàng", value: "CUSTOMER" },
   { label: "Nhà cung cấp", value: "SUPPLIER" },
   { label: "Nội bộ", value: "INTERNAL" },
+  { label: "Chủ tàu", value: "SHIP_OWNER" },
+  { label: "Đơn vị vận tải biển", value: "SEA_CARRIER" },
 ] as const;
 
-type PartnerRoleValue = (typeof PARTNER_ROLE_OPTIONS)[number]["value"];
+type PartnerRoleValue = PartnerRole;
 
 const VIETQR_TAX_ENDPOINT = "https://api.vietqr.io/v2/business/{taxCode}";
 
@@ -70,12 +72,14 @@ interface CustomerCompactFormProps {
   form: FormInstance;
   onFinish?: (values: any) => void;
   partyTypeDefault?: PartyType;
+  partnerRoleDefault?: PartnerRole;
 }
 
 export default function CustomerCompactForm({
   form,
   onFinish,
   partyTypeDefault = "CUSTOMER",
+  partnerRoleDefault,
 }: CustomerCompactFormProps) {
   const gen = useGenerateCustomerCode();
 
@@ -137,9 +141,13 @@ export default function CustomerCompactForm({
         layout="vertical"
         className="form-compact"
         initialValues={{
-          roles: ["Retail"],
+          roles:
+            partnerRoleDefault === "SHIP_OWNER" ||
+            partnerRoleDefault === "SEA_CARRIER"
+              ? ["Other"]
+              : ["Retail"],
           type: "B2B",
-          partnerRoles: [defaultPartnerRole],
+          partnerRoles: [partnerRoleDefault ?? defaultPartnerRole],
         }}
         onFinish={onFinish}
       >
@@ -224,13 +232,13 @@ export default function CustomerCompactForm({
               label="Tên khách hàng"
               rules={[{ required: true, message: "Nhập tên khách hàng" }]}
             >
-              <Input placeholder="Tên đối tác/khách hàng" />
+              <Input size="small" placeholder="Tên đối tác/khách hàng" />
             </Form.Item>
           </Col>
 
           <Col xs={24} md={6}>
             <Form.Item name="groupId" label="Nhóm khách hàng">
-              <CustomerGroupSelect placeholder="Chọn nhóm" />
+              <CustomerGroupSelect size="small" placeholder="Chọn nhóm" />
             </Form.Item>
           </Col>
         </Row>
@@ -239,6 +247,7 @@ export default function CustomerCompactForm({
           <Col xs={24} md={12}>
             <Form.Item name="billingAddress" label="Địa chỉ xuất HĐ">
               <Input.TextArea
+                size="small"
                 placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành"
                 autoSize={{ minRows: 2, maxRows: 4 }}
               />
@@ -248,6 +257,7 @@ export default function CustomerCompactForm({
           <Col xs={24} md={12}>
             <Form.Item name="shippingAddress" label="Địa chỉ giao hàng">
               <Input.TextArea
+                size="small"
                 placeholder="Nếu khác địa chỉ xuất HĐ"
                 autoSize={{ minRows: 2, maxRows: 4 }}
               />
@@ -325,8 +335,9 @@ export default function CustomerCompactForm({
                 optionFilterProp="label"
                 showSearch
                 onClear={() => {
-                  const fallback =
-                    partyTypeDefault === "SUPPLIER"
+                  const fallback = partnerRoleDefault
+                    ? [partnerRoleDefault]
+                    : partyTypeDefault === "SUPPLIER"
                       ? ["SUPPLIER"]
                       : partyTypeDefault === "INTERNAL"
                       ? ["INTERNAL"]
@@ -347,6 +358,7 @@ export default function CustomerCompactForm({
               />
             </Form.Item>
           </Col>
+
 
           <Col xs={24} md={6}>
             <Form.Item name="creditLimit" label="Hạn mức (VND)">
@@ -426,7 +438,7 @@ export default function CustomerCompactForm({
         <Row gutter={12}>
           <Col span={24}>
             <Form.Item label="Ghi chú" name="note">
-              <TextArea rows={3} autoSize={{ minRows: 3, maxRows: 5 }} />
+              <TextArea size="small" rows={3} autoSize={{ minRows: 3, maxRows: 5 }} />
             </Form.Item>
           </Col>
         </Row>

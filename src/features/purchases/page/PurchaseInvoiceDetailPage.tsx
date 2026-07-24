@@ -17,6 +17,7 @@ import { LeftOutlined } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { notify } from "../../../shared/lib/notification";
+import { extractApiError } from "../../../shared/lib/httpError";
 import { usePostSupplierInvoice, useSupplierInvoiceDetail } from "../hooks";
 import type { SupplierInvoiceDetail } from "../types";
 
@@ -67,27 +68,25 @@ export default function PurchaseInvoiceDetailPage() {
           await detailQ.refetch();
           notify.success("Đã post hóa đơn");
         } catch (error: any) {
-          const message =
-            error?.response?.data?.message ||
-            error?.message ||
-            "Không post được hóa đơn";
+          const { code, message } = extractApiError(error);
+          const normalized = `${code || ""} ${message}`;
 
-          if (String(message).includes("INVOICE_NOT_DRAFT")) {
+          if (normalized.includes("INVOICE_NOT_DRAFT")) {
             notify.error("Chỉ được post hóa đơn ở trạng thái nháp");
             return;
           }
 
-          if (String(message).includes("INVENTORY_NEGATIVE_PENDING")) {
+          if (normalized.includes("INVENTORY_NEGATIVE_PENDING")) {
             notify.error("Không thể post vì PendingDocQty không đủ");
             return;
           }
 
-          if (String(message).includes("INVOICE_LINE_GR_NOT_CONFIRMED")) {
+          if (normalized.includes("INVOICE_LINE_GR_NOT_CONFIRMED")) {
             notify.error("Có dòng hàng tham chiếu phiếu nhận chưa xác nhận");
             return;
           }
 
-          notify.error("Không post được hóa đơn");
+          notify.error(message || "Không post được hóa đơn");
         }
       },
     });
@@ -158,7 +157,7 @@ export default function PurchaseInvoiceDetailPage() {
         <div style={{ marginTop: 12 }}>
           <Button
             icon={<LeftOutlined />}
-            onClick={() => navigate("/purchase-orders")}
+            onClick={() => navigate("/commercial-purchases/retail")}
           >
             Quay lại
           </Button>
@@ -195,8 +194,12 @@ export default function PurchaseInvoiceDetailPage() {
           icon={<LeftOutlined />}
           onClick={() =>
             inv.purchaseOrderId
-              ? navigate(`/purchase-orders/${inv.purchaseOrderId}`)
-              : navigate("/purchase-orders")
+              ? navigate(
+                  inv.purchaseOrder?.orderType === "LOT"
+                    ? `/commercial-purchases/lots/${inv.purchaseOrderId}`
+                    : `/purchase-orders/${inv.purchaseOrderId}`,
+                )
+              : navigate("/commercial-purchases/retail")
           }
         >
           Quay lại

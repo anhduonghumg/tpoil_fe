@@ -20,39 +20,64 @@ const patch = async <T = any>(url: string, data?: unknown) =>
 
 export const operationsApi = {
   dashboard: () => get<any>("/operations/dashboard"),
-  partners: (params?: PageParams) => get<any[]>("/operations/partners", params),
-  savePartnerRole: (data: unknown) => post("/operations/partners/roles", data),
+  shipCharterDashboard: () => get<any>("/operations/ship-charters/dashboard"),
+  shipOwners: (params?: PageParams) => get<any>("/operations/ship-owners", params),
+  shipOwner: (id: string) => get<any>(`/operations/ship-owners/${id}`),
+  shipOwnerSelect: (keyword?: string) =>
+    get<any[]>("/operations/ship-owners/select", { keyword }),
   vessels: (params?: PageParams) => get<any>("/operations/vessels", params),
   vessel: (id: string) => get<any>(`/operations/vessels/${id}`),
+  vesselSelect: (params?: PageParams) => get<any[]>("/operations/vessels/select", params),
   saveVessel: (data: unknown, id?: string) =>
-    id ? put(`/operations/vessels/${id}`, data) : post("/operations/vessels", data),
+    id ? patch(`/operations/vessels/${id}`, data) : post("/operations/vessels", data),
+  vesselDocuments: (vesselId: string, params?: PageParams) =>
+    get<any>(`/operations/vessels/${vesselId}/documents`, params),
+  vesselDocumentCheck: (vesselId: string) =>
+    get<any>(`/operations/vessels/${vesselId}/document-check`),
+  saveVesselDocument: (vesselId: string, data: unknown, id?: string) =>
+    id
+      ? patch(`/operations/vessel-documents/${id}`, data)
+      : post(`/operations/vessels/${vesselId}/documents`, data),
   charterContracts: (params?: PageParams) => get<any>("/operations/charter-contracts", params),
   charterContract: (id: string) => get<any>(`/operations/charter-contracts/${id}`),
   saveCharterContract: (data: unknown, id?: string) =>
     id ? put(`/operations/charter-contracts/${id}`, data) : post("/operations/charter-contracts", data),
   charterAppendices: (params?: PageParams) => get<any>("/operations/charter-appendices", params),
+  charterAppendix: (id: string) => get<any>(`/operations/charter-appendices/${id}`),
   saveCharterAppendix: (data: unknown, id?: string) =>
     id ? put(`/operations/charter-appendices/${id}`, data) : post("/operations/charter-appendices", data),
   charterOrders: (params?: PageParams) => get<any>("/operations/charter-orders", params),
+  pendingTermCharterOrders: (params?: PageParams) => get<any>("/operations/charter-orders/term-pending", params),
   charterOrder: (id: string) => get<any>(`/operations/charter-orders/${id}`),
   saveCharterOrder: (data: unknown, id?: string) =>
     id ? put(`/operations/charter-orders/${id}`, data) : post("/operations/charter-orders", data),
+  createCharterOrderFromTerm: (purchaseOrderId: string, data: unknown = {}) =>
+    post(`/operations/charter-orders/from-term/${purchaseOrderId}`, data),
+  confirmCharterOrder: (id: string, override = false) =>
+    post(`/operations/charter-orders/${id}/${override ? "confirm-override" : "confirm"}`, { overrideDocumentCheck: override }),
+  createCharterAppendix: (id: string, data: unknown) =>
+    post(`/operations/charter-orders/${id}/create-appendix`, data),
+  cancelCharterOrder: (id: string) => post(`/operations/charter-orders/${id}/cancel`),
   changeCharterStatus: (id: string, status: string) =>
     patch(`/operations/charter-orders/${id}/status/${status}`),
   saveInsurance: (orderId: string, data: unknown, id?: string) =>
     id
       ? put(`/operations/charter-orders/${orderId}/insurances/${id}`, data)
       : post(`/operations/charter-orders/${orderId}/insurances`, data),
+  charterInsurances: (params?: PageParams) => get<any>("/operations/charter-insurances", params),
   saveInspection: (orderId: string, data: unknown, id?: string) =>
     id
       ? put(`/operations/charter-orders/${orderId}/inspections/${id}`, data)
       : post(`/operations/charter-orders/${orderId}/inspections`, data),
+  charterInspections: (params?: PageParams) => get<any>("/operations/charter-inspections", params),
   saveAgent: (orderId: string, data: unknown, id?: string) =>
     id
       ? put(`/operations/charter-orders/${orderId}/agents/${id}`, data)
       : post(`/operations/charter-orders/${orderId}/agents`, data),
+  shippingAgentRegistrations: (params?: PageParams) => get<any>("/operations/shipping-agent-registrations", params),
   postTermCosts: (id: string) => post(`/operations/charter-orders/${id}/post-term-costs`),
   freightRates: (params?: PageParams) => get<any>("/operations/freight-rates", params),
+  lookupFreightRate: (params: PageParams) => get<any>("/operations/freight-rates/lookup", params),
   saveFreightRate: (data: unknown, id?: string) =>
     id ? put(`/operations/freight-rates/${id}`, data) : post("/operations/freight-rates", data),
   storageContracts: (params?: PageParams) => get<any>("/operations/storage-contracts", params),
@@ -63,6 +88,8 @@ export const operationsApi = {
     post(`/operations/storage-contracts/${id}/post-term-cost`, data),
   availability: (params?: PageParams) => get<any>("/operations/warehouse/availability", params),
   matrix: (params?: PageParams) => get<any>("/operations/warehouse/matrix", params),
+  commercialLotInventory: (params?: PageParams) =>
+    get<any>("/operations/warehouse/commercial-lots", params),
   expectedInventory: (params?: PageParams) => get<any>("/operations/expected-inventory", params),
   saveExpectedInventory: (data: unknown) => post("/operations/expected-inventory", data),
   cancelExpectedInventory: (id: string) => patch(`/operations/expected-inventory/${id}/cancel`),

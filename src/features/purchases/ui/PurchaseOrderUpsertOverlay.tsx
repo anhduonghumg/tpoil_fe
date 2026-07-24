@@ -15,6 +15,7 @@ import dayjs from "dayjs";
 import type {
   PriceRegionOption,
   PurchasePaymentMode,
+  PurchaseOrderType,
   UpsertPurchaseOrderPayload,
   UUID,
 } from "../types";
@@ -34,6 +35,7 @@ export type PurchaseOrderUpsertOverlayProps = {
   products: ProductOption[];
   onSearchProducts: (keyword: string) => void;
   defaultOrderNo?: string;
+  fixedOrderType?: PurchaseOrderType;
 };
 
 export default function PurchaseOrderUpsertOverlay(
@@ -46,6 +48,7 @@ export default function PurchaseOrderUpsertOverlay(
     products,
     onSearchProducts,
     defaultOrderNo,
+    fixedOrderType,
   } = props;
 
   const [form] = Form.useForm<UpsertPurchaseOrderPayload>();
@@ -66,7 +69,7 @@ export default function PurchaseOrderUpsertOverlay(
 
     form.setFieldsValue({
       orderNo: defaultOrderNo ?? "",
-      orderType: "SINGLE",
+      orderType: fixedOrderType ?? "SINGLE",
       paymentMode: "PREPAID",
       priceRegionCode: regionDefault,
       orderDate: dayjs(),
@@ -87,7 +90,7 @@ export default function PurchaseOrderUpsertOverlay(
         },
       ],
     });
-  }, [open, regionDefault, defaultOrderNo]);
+  }, [open, regionDefault, defaultOrderNo, fixedOrderType]);
 
   const paymentMode = Form.useWatch("paymentMode", form) as
     | PurchasePaymentMode
@@ -143,6 +146,7 @@ export default function PurchaseOrderUpsertOverlay(
 
       const payload: UpsertPurchaseOrderPayload = {
         ...values,
+        orderType: fixedOrderType ?? values.orderType,
         orderNo: values.orderNo.trim(),
         expectedDate: values.expectedDate ?? null,
         note: values.note ?? null,
@@ -275,7 +279,7 @@ export default function PurchaseOrderUpsertOverlay(
             rules={[{ required: true }]}
             style={{ marginBottom: 0 }}
           >
-            <Radio.Group size="small">
+            <Radio.Group size="small" disabled={Boolean(fixedOrderType)}>
               <Radio.Button value="SINGLE">Mua lẻ</Radio.Button>
               <Radio.Button value="LOT">Mua lô</Radio.Button>
             </Radio.Group>

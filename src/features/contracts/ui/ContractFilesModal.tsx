@@ -3,6 +3,7 @@ import React from "react";
 import { List, Spin, Tag } from "antd";
 import { useContractDetail } from "../hooks";
 import CommonModal from "../../../shared/ui/CommonModal";
+import { toAbsUrl } from "../../../shared/lib/url";
 
 interface ContractFilesModalProps {
   contractId?: string | null;
@@ -48,11 +49,8 @@ export const ContractFilesModal: React.FC<ContractFilesModalProps> = ({
           dataSource={attachments}
           renderItem={(item: any) => {
             const handleClick = () => {
-              if (item.fileUrl) {
-                window.open(item.fileUrl, "_blank", "noopener,noreferrer");
-              } else if (item.externalUrl) {
-                window.open(item.externalUrl, "_blank", "noopener,noreferrer");
-              }
+              const url = toAbsUrl(item.fileUrl || item.externalUrl);
+              if (url) window.open(url, "_blank", "noopener,noreferrer");
             };
 
             return (

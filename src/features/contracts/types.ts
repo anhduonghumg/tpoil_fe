@@ -84,6 +84,7 @@ export interface Contract {
   }[];
 
   attachments?: ContractAttachment[];
+  warehouses?: { id: string; code: string; name: string }[];
 }
 
 // ===== List item =====
@@ -118,6 +119,7 @@ export interface ContractListItem {
 
   renewalOfId?: string | null;
   renewalOfCode?: string | null;
+  warehouses?: { id: string; code: string; name: string }[];
 }
 
 // ===== Query & payload types =====
@@ -125,6 +127,7 @@ export interface ContractListItem {
 export interface ContractListQuery {
   keyword?: string;
   customerId?: string;
+  contractTypeId?: string;
   status?: ContractStatus;
   riskLevel?: RiskLevel;
   startFrom?: string;
@@ -162,6 +165,7 @@ export interface ContractUpsertPayload {
 
   renewalOfId?: string | null;
   approvalRequestId?: string | null;
+  warehouseIds?: string[];
 }
 
 export interface ContractFormValues {

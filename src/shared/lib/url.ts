@@ -1,10 +1,9 @@
-// shared/lib/url.ts
-export const toAbsUrl = (u?: string | null) => {
-  if (!u) return undefined;
-  if (u.startsWith("http://") || u.startsWith("https://")) return u;
-  // nếu server và FE cùng origin:
-  // return `${window.location.origin}${u}`;
-  // hoặc nếu backend khác domain:
-//   console.log(`${import.meta.env.VITE_API_URL || ""}${u}`);
-  return `${import.meta.env.VITE_API_URL || ""}${u}`;
+export const toAbsUrl = (url?: string | null) => {
+  if (!url) return undefined;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+
+  // Upload service returns /static/... while Vite runs on port 5173 in dev.
+  // Resolve relative files against the API server, not the frontend router.
+  const apiOrigin = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3000" : "");
+  return `${apiOrigin}${url}`;
 };

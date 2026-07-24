@@ -127,6 +127,7 @@ export const ROUTES = {
     delete: ["DELETE", "/purchase-orders/:id"] as RouteTuple,
     approve: ["POST", "/purchase-orders/:id/approve"] as RouteTuple,
     cancel: ["POST", "/purchase-orders/:id/cancel"] as RouteTuple,
+    validateContract: ["GET", "/purchase-orders/validate-contract"] as RouteTuple,
 
     approveMany: ["POST", "/purchase-orders/approve-many"] as RouteTuple,
     cancelMany: ["POST", "/purchase-orders/cancel-many"] as RouteTuple,
@@ -279,6 +280,22 @@ export const ROUTES = {
       "/purchase-terms/:purchaseOrderId/logistics-costs/:costId/void",
     ] as RouteTuple,
   },
+  commercialLots: {
+    list: ["GET", "/commercial-lot-purchases"] as RouteTuple,
+    detail: ["GET", "/commercial-lot-purchases/:id"] as RouteTuple,
+    createWithdrawal: [
+      "POST",
+      "/commercial-lot-purchases/:id/withdrawals",
+    ] as RouteTuple,
+    confirmWithdrawal: [
+      "POST",
+      "/commercial-lot-purchases/:id/withdrawals/:withdrawalId/confirm",
+    ] as RouteTuple,
+    cancelWithdrawal: [
+      "POST",
+      "/commercial-lot-purchases/:id/withdrawals/:withdrawalId/cancel",
+    ] as RouteTuple,
+  },
 
   commodityPriceQuotes: {
     list: ["GET", "/commodity-price-quotes"] as RouteTuple,
@@ -392,6 +409,9 @@ export const ROUTES = {
     update: ["PUT", "/products/:id"] as RouteTuple,
   },
   supplierLocations: {
+    areas: ["GET", "/supplier-locations/areas"] as RouteTuple,
+    createArea: ["POST", "/supplier-locations/areas"] as RouteTuple,
+    updateArea: ["PATCH", "/supplier-locations/areas/:id"] as RouteTuple,
     select: ["GET", "/supplier-locations/select"] as RouteTuple,
     list: ["GET", "/supplier-locations"] as RouteTuple,
     detail: ["GET", "/supplier-locations/:id"] as RouteTuple,

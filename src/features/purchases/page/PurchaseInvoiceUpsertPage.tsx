@@ -17,6 +17,7 @@ import { LeftOutlined, UploadOutlined } from "@ant-design/icons";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { notify } from "../../../shared/lib/notification";
+import { extractApiError } from "../../../shared/lib/httpError";
 import {
   useCreateSupplierInvoice,
   useImportSupplierInvoicePdf,
@@ -222,32 +223,30 @@ export default function PurchaseInvoiceUpsertPage() {
         navigate(`/purchase-invoices/${res.id}`);
       }
     } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        "Tạo hóa đơn thất bại";
+      const { code, message } = extractApiError(error);
+      const normalized = `${code || ""} ${message}`;
 
-      if (String(message).includes("INVOICE_DUPLICATE")) {
+      if (normalized.includes("INVOICE_DUPLICATE")) {
         notify.error("Hóa đơn đã tồn tại");
         return;
       }
 
-      if (String(message).includes("PO_SUPPLIER_MISMATCH")) {
+      if (normalized.includes("PO_SUPPLIER_MISMATCH")) {
         notify.error("Nhà cung cấp không khớp với đơn mua");
         return;
       }
 
-      if (String(message).includes("INVENTORY_NEGATIVE_PENDING")) {
+      if (normalized.includes("INVENTORY_NEGATIVE_PENDING")) {
         notify.error("Không thể tạo hóa đơn vì PendingDocQty không đủ");
         return;
       }
 
-      if (String(message).includes("INVOICE_LINE_GR_NOT_CONFIRMED")) {
+      if (normalized.includes("INVOICE_LINE_GR_NOT_CONFIRMED")) {
         notify.error("Có dòng hàng tham chiếu phiếu nhận chưa xác nhận");
         return;
       }
 
-      notify.error("Tạo hóa đơn thất bại");
+      notify.error(message || "Tạo hóa đơn thất bại");
     }
   };
 
@@ -279,8 +278,12 @@ export default function PurchaseInvoiceUpsertPage() {
           icon={<LeftOutlined />}
           onClick={() =>
             poId
-              ? navigate(`/purchase-orders/${poId}`)
-              : navigate("/purchase-orders")
+              ? navigate(
+                  po?.orderType === "LOT"
+                    ? `/commercial-purchases/lots/${poId}`
+                    : `/purchase-orders/${poId}`,
+                )
+              : navigate("/commercial-purchases/retail")
           }
         >
           Quay lại đơn mua

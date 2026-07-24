@@ -43,6 +43,8 @@ const BREADCRUMB: Record<string, string> = {
   "/": "Dashboard",
   "/dashboard": "Dashboard",
   "/purchase-orders": "Đơn mua hàng",
+  "/commercial-purchases/lots": "Mua thương mại lô",
+  "/commercial-purchases/retail": "Mua thương mại lẻ",
   "/purchase-invoices": "Hóa đơn NCC",
   "/purchase/platts-prices": "Giá Platts",
   "/purchase/vcb-rates": "Tỷ giá VCB",

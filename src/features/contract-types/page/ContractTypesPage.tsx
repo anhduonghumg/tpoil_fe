@@ -28,7 +28,10 @@ export default function ContractTypesPage() {
     try {
       if (!selected.length) return;
       await ContractTypesApi.deleteMultiple(selected);
-      await qc.invalidateQueries({ queryKey: ["contractTypes", "list"] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["contractTypes", "list"] }),
+        qc.invalidateQueries({ queryKey: ["lookups", "contractTypes"] }),
+      ]);
       setSelected([]);
       notify.success("Đã xoá các loại hợp đồng đã chọn");
     } catch (e) {

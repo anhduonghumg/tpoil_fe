@@ -7,6 +7,15 @@ import { apiCall } from "../lib/api";
 import { ApiResponse } from "../lib/types";
 
 type OptionValue = string;
+export type CustomerSelectRole =
+  | "CUSTOMER"
+  | "SUPPLIER"
+  | "INTERNAL"
+  | "SHIP_OWNER"
+  | "SEA_CARRIER"
+  | "INSURER"
+  | "SURVEYOR"
+  | "SHIPPING_AGENT";
 
 interface CustomerSelectItem {
   id: string;
@@ -26,6 +35,7 @@ export interface CustomerSelectProps
   extends Omit<SelectProps<OptionValue>, "options" | "loading" | "onChange"> {
   value?: OptionValue | null;
   onChange?: (value: OptionValue | null) => void;
+  customerRole?: CustomerSelectRole;
 }
 
 function useDebouncedValue<T>(value: T, delay = 300): T {
@@ -43,6 +53,7 @@ async function fetchCustomerOptions(params: {
   keyword?: string;
   page: number;
   pageSize: number;
+  customerRole?: CustomerSelectRole;
 }): Promise<CustomerSelectResponse> {
   const res = await apiCall<ApiResponse<CustomerSelectResponse>>(
     "customer.select",
@@ -51,6 +62,7 @@ async function fetchCustomerOptions(params: {
         keyword: params.keyword,
         page: params.page,
         pageSize: params.pageSize,
+        role: params.customerRole,
       },
     }
   );
@@ -63,6 +75,7 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
   placeholder = "Chọn khách hàng",
   allowClear = true,
   disabled,
+  customerRole,
   ...rest
 }) => {
   const [search, setSearch] = useState("");
@@ -72,12 +85,13 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
 
   const { data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage } =
     useInfiniteQuery({
-      queryKey: ["customer", "select", debouncedSearch],
+      queryKey: ["customer", "select", customerRole, debouncedSearch],
       queryFn: ({ pageParam }) =>
         fetchCustomerOptions({
           keyword: debouncedSearch || undefined,
           page: pageParam as number,
           pageSize: PAGE_SIZE,
+          customerRole,
         }),
       initialPageParam: 1,
       getNextPageParam: (lastPage) => {

@@ -30,7 +30,7 @@ import type {
   WorkspaceShortcut,
 } from "../types";
 import "./workspace.css";
-import { OperationsDashboardPage } from "../../operations/pages";
+import OperationsDashboardPage from "../../operations/OperationsDashboardPage";
 
 function canSee(
   item: { need?: string | string[] | null },

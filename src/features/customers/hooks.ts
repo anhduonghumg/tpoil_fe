@@ -44,6 +44,7 @@ export const useCreateCustomer = () => {
     mutationFn: (d: Partial<Customer>) => CustomersApi.create(d),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["customers", "list"] });
+      qc.invalidateQueries({ queryKey: ["customer", "select"] });
     },
   });
 };
@@ -57,6 +58,7 @@ export const useUpdateCustomer = () => {
       qc.invalidateQueries({ queryKey: ["customers", "list"] });
       qc.invalidateQueries({ queryKey: ["customers", "detail", vars.id] });
       qc.invalidateQueries({ queryKey: ["customers", "overview", vars.id] });
+      qc.invalidateQueries({ queryKey: ["customer", "select"] });
     },
   });
 };

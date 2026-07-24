@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { Table, Tag, Button, Space, Tooltip, Typography } from "antd";
+import { Table, Tag, Button, Space, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { EditOutlined, DeleteOutlined, LinkOutlined } from "@ant-design/icons";
 import type { Customer } from "../types";

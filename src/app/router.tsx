@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import Login from "../features/auth/pages/Login";
 import Dashboard from "../features/dashboard/pages/Dashboard";
 import AppLayout from "../shared/components/Layout/AppLayout";
@@ -20,10 +20,14 @@ import { CustomerGroupsPage } from "../features/customer-groups/page/CustomerGro
 import PurchaseOrdersPage from "../features/purchases/page/PurchaseOrdersPage";
 import { ProductsPage } from "../features/products/page/ProductsPage";
 import { SupplierLocationsPage } from "../features/supplierLocations/page/SupplierLocationsPage";
+import { WarehouseRentalContractsPage } from "../features/supplierLocations/page/WarehouseRentalContractsPage";
 import { PriceBulletinsPage } from "../features/price-bulletins/page/PriceBulletinsPage";
 import PurchaseOrderDetailPage from "../features/purchases/page/PurchaseOrderDetailPage";
 import PurchaseInvoiceUpsertPage from "../features/purchases/page/PurchaseInvoiceUpsertPage";
 import PurchaseInvoiceDetailPage from "../features/purchases/page/PurchaseInvoiceDetailPage";
+import CommercialLotPurchasesPage from "../features/commercial-lots/page/CommercialLotPurchasesPage";
+import CommercialLotPurchaseCreatePage from "../features/commercial-lots/page/CommercialLotPurchaseCreatePage";
+import CommercialLotPurchaseDetailPage from "../features/commercial-lots/page/CommercialLotPurchaseDetailPage";
 import BankStatementPage from "../features/banking/page/BankStatementPage";
 import BankAccountsPage from "../features/bank-accounts/page/BankAccountsPage";
 import BankImportTemplatesPage from "../features/bank-import-templates/ui/page/BankImportTemplatesPage";
@@ -41,26 +45,37 @@ import {
   InventoryAccountingPage,
   InventoryAvailabilityPage,
   InventoryMatrixReportPage,
-  OperationsDashboardPage,
-  OperationsPartnerPage,
-  ShipCharterAppendixListPage,
-  ShipCharterContractListPage,
-  ShipCharterOrderDetailPage,
-  ShipCharterOrderFormPage,
-  ShipCharterOrderListPage,
-  ShipFreightRatePage,
-  StorageRentalContractPage,
+  ShipOwnerListPage,
   VehicleDispatchOrderDetailPage,
   VehicleDispatchOrderFormPage,
   VehicleDispatchOrderListPage,
   VehicleListPage,
   VehicleDocumentPage,
   VesselListPage,
+  VesselDetailPage,
+  VesselDocumentListPage,
   WarehouseReservationPage,
   WarehouseTransferDetailPage,
   WarehouseTransferFormPage,
   WarehouseTransferListPage,
 } from "../features/operations/pages";
+import OperationsDashboardPage from "../features/operations/OperationsDashboardPage";
+import {
+  ShipCharterOrderDetailPage,
+  ShipCharterOrderFormPage,
+  ShipCharterOrderListPage,
+} from "../features/operations/ship-charter-order-pages";
+import {
+  ShipCharterAppendixDetailPage,
+  ShipCharterAppendixListPage,
+  ShipCharterContractDetailPage,
+  ShipCharterContractListPage,
+  ShipCharterDashboardPage,
+  ShipCharterInsuranceListPage,
+  ShipCharterInspectionListPage,
+  ShipFreightRatePage,
+  ShippingAgentRegistrationListPage,
+} from "../features/operations/ship-charter-master-pages";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
@@ -76,13 +91,32 @@ export const router = createBrowserRouter([
           {
             path: "purchase-orders",
             children: [
-              { index: true, element: <PurchaseOrdersPage /> },
+              {
+                index: true,
+                element: <Navigate to="/commercial-purchases/retail" replace />,
+              },
               {
                 path: "/purchase-orders/:id",
                 element: <PurchaseOrderDetailPage />,
               },
             ],
             // element: <PurchaseOrdersPage />,
+          },
+          {
+            path: "/commercial-purchases/lots",
+            element: <CommercialLotPurchasesPage />,
+          },
+          {
+            path: "/commercial-purchases/lots/create",
+            element: <CommercialLotPurchaseCreatePage />,
+          },
+          {
+            path: "/commercial-purchases/lots/:id",
+            element: <CommercialLotPurchaseDetailPage />,
+          },
+          {
+            path: "/commercial-purchases/retail",
+            element: <PurchaseOrdersPage fixedOrderType="SINGLE" />,
           },
           {
             path: "/purchase/platts-prices",
@@ -126,14 +160,23 @@ export const router = createBrowserRouter([
             ),
           },
           { path: "operations/charter-orders", element: <ShipCharterOrderListPage /> },
-          { path: "operations/partners", element: <OperationsPartnerPage /> },
+          { path: "operations/ship-charters/dashboard", element: <ShipCharterDashboardPage /> },
+          { path: "operations/ship-owners", element: <ShipOwnerListPage /> },
           { path: "operations/charter-orders/create", element: <ShipCharterOrderFormPage /> },
+          { path: "operations/charter-orders/:id/edit", element: <ShipCharterOrderFormPage /> },
           { path: "operations/charter-orders/:id", element: <ShipCharterOrderDetailPage /> },
           { path: "operations/vessels", element: <VesselListPage /> },
+          { path: "operations/vessel-documents", element: <VesselDocumentListPage /> },
+          { path: "operations/vessels/:id", element: <VesselDetailPage /> },
           { path: "operations/charter-contracts", element: <ShipCharterContractListPage /> },
+          { path: "operations/charter-contracts/:id", element: <ShipCharterContractDetailPage /> },
           { path: "operations/charter-appendices", element: <ShipCharterAppendixListPage /> },
+          { path: "operations/charter-appendices/:id", element: <ShipCharterAppendixDetailPage /> },
           { path: "operations/freight-rates", element: <ShipFreightRatePage /> },
-          { path: "operations/storage-contracts", element: <StorageRentalContractPage /> },
+          { path: "operations/charter-insurances", element: <ShipCharterInsuranceListPage /> },
+          { path: "operations/charter-inspections", element: <ShipCharterInspectionListPage /> },
+          { path: "operations/shipping-agent-registrations", element: <ShippingAgentRegistrationListPage /> },
+           { path: "operations/storage-contracts", element: <WarehouseRentalContractsPage /> },
           { path: "operations/inventory-availability", element: <InventoryAvailabilityPage /> },
           { path: "operations/inventory-accounting", element: <InventoryAccountingPage /> },
           { path: "operations/inventory-matrix", element: <InventoryMatrixReportPage /> },

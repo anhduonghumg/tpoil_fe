@@ -1,0 +1,303 @@
+.commercial-lot-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.commercial-lot-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.commercial-lot-title {
+  margin: 0 !important;
+  font-size: 18px !important;
+  line-height: 28px !important;
+}
+
+.commercial-lot-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(220px, 1fr) minmax(240px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.commercial-lot-tabs .ant-tabs-nav {
+  margin: 0;
+}
+
+.commercial-lot-table .ant-table {
+  font-size: 13px;
+}
+
+.commercial-lot-table .ant-table-thead > tr > th {
+  background: #f5f7fa;
+  color: #344054;
+  font-weight: 600;
+}
+
+.commercial-lot-order-link {
+  padding: 0;
+  font-weight: 600;
+}
+
+.commercial-lot-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.commercial-lot-kpi {
+  min-width: 0;
+  padding: 12px 14px;
+  border-right: 1px solid #e5e7eb;
+}
+
+.commercial-lot-kpi:last-child {
+  border-right: 0;
+}
+
+.commercial-lot-kpi-label {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+}
+
+.commercial-lot-kpi-value {
+  display: block;
+  margin-top: 3px;
+  color: #101828;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 26px;
+}
+
+.commercial-lot-form-band {
+  padding: 10px 0 2px;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.commercial-lot-form-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0 10px;
+  max-width: 1180px;
+}
+
+.commercial-lot-field-order-no {
+  grid-column: span 3;
+}
+
+.commercial-lot-field-order-date,
+.commercial-lot-field-expected-date {
+  grid-column: span 2;
+}
+
+.commercial-lot-field-payment {
+  grid-column: span 4;
+}
+
+.commercial-lot-field-term-days {
+  grid-column: span 2;
+}
+
+.commercial-lot-field-contract,
+.commercial-lot-field-warehouse {
+  grid-column: span 4;
+}
+
+.commercial-lot-field-supplier {
+  grid-column: span 5;
+}
+
+.commercial-lot-field-note {
+  grid-column: span 6;
+}
+
+.commercial-lot-form-band .ant-form-item {
+  margin-bottom: 8px;
+}
+
+.commercial-lot-form-band .ant-form-item-label {
+  padding-bottom: 3px;
+}
+
+.commercial-lot-form-band .ant-input,
+.commercial-lot-form-band .ant-input-number,
+.commercial-lot-form-band .ant-picker,
+.commercial-lot-form-band .ant-select-selector,
+.commercial-lot-form-band .ant-radio-button-wrapper {
+  min-height: 30px;
+}
+
+.commercial-lot-contract-state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #f9fafb;
+  color: #667085;
+  font-size: 13px;
+}
+
+.commercial-lot-contract-state span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commercial-lot-contract-state.is-valid {
+  border-color: #a6d9b7;
+  background: #f0f9f4;
+  color: #18794e;
+}
+
+.commercial-lot-contract-state.is-invalid {
+  border-color: #f3aaa6;
+  background: #fff5f4;
+  color: #c4322b;
+}
+
+.commercial-lot-contract-state.is-loading {
+  color: #175cd3;
+}
+
+.commercial-lot-section {
+  border-top: 1px solid #d0d5dd;
+  padding-top: 12px;
+}
+
+.commercial-lot-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.commercial-lot-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 16px;
+  padding: 12px 0;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.commercial-lot-meta-label {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+}
+
+.commercial-lot-meta-value {
+  display: block;
+  margin-top: 2px;
+  color: #101828;
+  font-weight: 500;
+}
+
+.commercial-lot-workflow {
+  padding: 14px 4px 4px;
+}
+
+.commercial-lot-progress {
+  min-width: 120px;
+}
+
+.commercial-lot-progress-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  color: #475467;
+  font-size: 12px;
+}
+
+.commercial-lot-lines .ant-input-number,
+.commercial-lot-lines .ant-select {
+  width: 100%;
+}
+
+.commercial-lot-lines .ant-table-cell {
+  padding: 6px 8px !important;
+}
+
+.commercial-lot-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.commercial-lot-empty-position {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+@media (max-width: 1100px) {
+  .commercial-lot-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .commercial-lot-detail-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .commercial-lot-form-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .commercial-lot-field-order-no,
+  .commercial-lot-field-payment,
+  .commercial-lot-field-supplier,
+  .commercial-lot-field-contract,
+  .commercial-lot-field-warehouse,
+  .commercial-lot-field-note {
+    grid-column: span 3;
+  }
+}
+
+@media (max-width: 720px) {
+  .commercial-lot-header {
+    flex-direction: column;
+  }
+
+  .commercial-lot-toolbar,
+  .commercial-lot-detail-meta,
+  .commercial-lot-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .commercial-lot-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .commercial-lot-field-order-no,
+  .commercial-lot-field-payment,
+  .commercial-lot-field-supplier,
+  .commercial-lot-field-contract,
+  .commercial-lot-field-warehouse,
+  .commercial-lot-field-note {
+    grid-column: span 2;
+  }
+
+  .commercial-lot-kpi {
+    border-right: 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .commercial-lot-kpi:last-child {
+    border-bottom: 0;
+  }
+}

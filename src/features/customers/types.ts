@@ -3,6 +3,15 @@ export type CustomerType = "B2B" | "B2C" | "Distributor" | "Other";
 export type CustomerStatus = "Active" | "Inactive" | "Blacklisted";
 export type CustomerRole = "Agent" | "Retail" | "Wholesale" | "Other";
 export type PartyType = "SUPPLIER" | "CUSTOMER" | "INTERNAL";
+export type OperationalPartnerRole =
+  | "SHIP_OWNER"
+  | "SEA_CARRIER"
+  | "SURVEYOR"
+  | "SHIPPING_AGENT"
+  | "INSURER"
+  | "STORAGE_LESSOR"
+  | "ROAD_CARRIER";
+export type PartnerRole = PartyType | OperationalPartnerRole;
 
 export interface Customer {
   id: string;
@@ -12,6 +21,7 @@ export interface Customer {
   type: CustomerType;
   partyType: PartyType;
   roles?: CustomerRole[];
+  partnerRoles?: OperationalPartnerRole[];
 
   status: CustomerStatus;
 
@@ -134,7 +144,7 @@ export interface CustomerListQuery {
   keyword?: string;
   status?: CustomerStatus;
   // partyType?: PartyType;
-  role?: PartyType;
+  role?: PartnerRole;
   salesOwnerEmpId?: string;
   accountingOwnerEmpId?: string;
   documentOwnerEmpId?: string;
@@ -216,7 +226,7 @@ export interface CustomerListQuery {
   keyword?: string;
   status?: CustomerStatus;
   // partyType?: PartyType;
-  role?: PartyType;
+  role?: PartnerRole;
   salesOwnerEmpId?: string;
   accountingOwnerEmpId?: string;
   documentOwnerEmpId?: string;

@@ -7,10 +7,22 @@ import type {
   CreateSupplierLocationPayload,
   UpdateSupplierLocationPayload,
   SupplierOption,
+  SupplierOptionsResult,
   BatchUpdateSupplierLocationPayload,
+  CreateWarehouseAreaPayload,
+  WarehouseArea,
 } from "./types";
 
 export const SupplierLocationsApi = {
+  areas: (isActive?: boolean) =>
+    apiCall<ApiResponse<WarehouseArea[]>>("supplierLocations.areas", {
+      query: isActive === undefined ? undefined : { isActive: String(isActive) },
+    }).then((r) => r.data!.data),
+
+  createArea: (data: CreateWarehouseAreaPayload) =>
+    apiCall<ApiResponse<WarehouseArea>>("supplierLocations.createArea", { data })
+      .then((r) => r.data!.data),
+
   list: (query: SupplierLocationListQuery) =>
     apiCall<ApiResponse<SupplierLocationListResult>>("supplierLocations.list", {
       query: {
@@ -57,12 +69,12 @@ export const SupplierLocationsApi = {
     }).then((r) => r.data!.data),
 
   suppliersSelect: (keyword = "") =>
-    apiCall<ApiResponse<SupplierOption[]>>("customer.select", {
+    apiCall<ApiResponse<SupplierOptionsResult>>("customer.select", {
       query: {
         keyword: keyword,
         page: 1,
         pageSize: 100,
         role: "SUPPLIER",
       },
-    }).then((r) => r.data!.data ?? []),
+    }).then((r) => r.data!.data ?? { items: [] }),
 };

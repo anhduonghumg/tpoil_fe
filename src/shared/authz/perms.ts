@@ -23,6 +23,7 @@ export const PERMS = {
   OPERATIONS_ROAD_MANAGE: "operations.road.manage",
   OPERATIONS_PARTNERS_MANAGE: "operations.partners.manage",
   OPERATIONS_TERM_COSTS_POST: "operations.term_costs.post",
+  OPERATIONS_VESSEL_DOCUMENTS_OVERRIDE: "operations.charter.vessel_documents.override",
 } as const;
 
 export type PermCode = (typeof PERMS)[keyof typeof PERMS];

@@ -1,13 +1,28 @@
-// features/supplier-locations/ui/SupplierLocationUpsertModal.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Form, Input, Modal, Switch, Checkbox, Divider, Tooltip } from "antd";
+import {
+  Button,
+  Checkbox,
+  Col,
+  Divider,
+  Form,
+  Input,
+  Modal,
+  Row,
+  Select,
+  Space,
+  Switch,
+  Tooltip,
+} from "antd";
+import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import type {
   CreateSupplierLocationPayload,
   SupplierLocation,
   SupplierOption,
   UpdateSupplierLocationPayload,
+  WarehouseArea,
 } from "../types";
 import { SupplierLocationsApi } from "../api";
+import { notify } from "../../../shared/lib/notification";
 
 type Props = {
   open: boolean;
@@ -20,132 +35,110 @@ type Props = {
     supplierCustomerIds: string[];
     data: UpdateSupplierLocationPayload;
   }) => Promise<void> | void;
-
   saving?: boolean;
 };
 
-const useDebounced = (value: string, ms = 300) => {
+const WAREHOUSE_TYPES = [
+  { value: "OWNED", label: "Kho nội bộ" },
+  { value: "THIRD_PARTY", label: "Kho thuê / đối tác" },
+  { value: "TRANSIT", label: "Kho trung chuyển" },
+];
+
+function useDebounced(value: string, ms = 300) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), ms);
-    return () => clearTimeout(t);
+    const timer = window.setTimeout(() => setDebounced(value), ms);
+    return () => window.clearTimeout(timer);
   }, [value, ms]);
   return debounced;
-};
+}
 
-const CheckboxNccPicker: React.FC<{
-  fieldName: string;
-}> = ({ fieldName }) => {
+const OperatorSupplierPicker: React.FC = () => {
   const form = Form.useFormInstance();
-  const selected: string[] = Form.useWatch(fieldName, form) || [];
-
+  const selected: string[] = Form.useWatch("supplierCustomerIds", form) || [];
   const [keyword, setKeyword] = useState("");
-  const debounced = useDebounced(keyword, 300);
-
+  const debouncedKeyword = useDebounced(keyword);
   const [options, setOptions] = useState<SupplierOption[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const fetch = async (kw: string) => {
+  useEffect(() => {
+    let active = true;
     setLoading(true);
-    try {
-      const data = await SupplierLocationsApi.suppliersSelect(kw);
-      setOptions(data.items);
-    } finally {
-      setLoading(false);
-    }
-  };
+    SupplierLocationsApi.suppliersSelect(debouncedKeyword.trim())
+      .then((result) => {
+        if (active) setOptions(result.items ?? []);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [debouncedKeyword]);
 
-  useEffect(() => {
-    fetch("");
-  }, []);
-
-  useEffect(() => {
-    fetch(debounced.trim());
-  }, [debounced]);
-
-  const visibleIds = useMemo(() => options.map((x) => x.id), [options]);
+  const visibleIds = useMemo(() => options.map((item) => item.id), [options]);
 
   const selectAllVisible = () => {
-    const next = Array.from(new Set([...selected, ...visibleIds]));
-    form.setFieldValue(fieldName, next);
+    form.setFieldValue(
+      "supplierCustomerIds",
+      Array.from(new Set([...selected, ...visibleIds])),
+    );
   };
 
-  const unselectAllVisible = () => {
-    const visibleSet = new Set(visibleIds);
-    const next = selected.filter((id) => !visibleSet.has(id));
-    form.setFieldValue(fieldName, next);
+  const clearVisible = () => {
+    const visible = new Set(visibleIds);
+    form.setFieldValue(
+      "supplierCustomerIds",
+      selected.filter((id) => !visible.has(id)),
+    );
   };
 
   return (
     <div>
-      <div
-        style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}
-      >
+      <Input
+        size="small"
+        allowClear
+        value={keyword}
+        onChange={(event) => setKeyword(event.target.value)}
+        prefix={<SearchOutlined />}
+        placeholder="Tìm NCC"
+      />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
         <a onClick={selectAllVisible}>Chọn tất cả</a>
         <Divider type="vertical" />
-        <a onClick={unselectAllVisible}>Bỏ chọn</a>
-        <span style={{ marginLeft: "auto", color: "#666" }}>
-          Đã chọn: {selected.length}
-        </span>
+        <a onClick={clearVisible}>Bỏ chọn</a>
+        <span style={{ marginLeft: "auto", color: "#666" }}>Đã chọn: {selected.length}</span>
       </div>
-
       <div
         style={{
           marginTop: 8,
           border: "1px solid #f0f0f0",
-          borderRadius: 10,
-          padding: 12,
-          maxHeight: 360,
-          overflow: "auto",
-          opacity: loading ? 0.85 : 1,
+          borderRadius: 6,
+          padding: 8,
+          maxHeight: 126,
+          overflowY: "auto",
+          overflowX: "hidden",
+          opacity: loading ? 0.7 : 1,
         }}
       >
         <Checkbox.Group
           style={{ width: "100%" }}
           value={selected}
-          onChange={(vals) => form.setFieldValue(fieldName, vals)}
+          onChange={(values) => form.setFieldValue("supplierCustomerIds", values)}
         >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-              gap: 10,
-            }}
-          >
-            {options.map((x) => {
-              const code = (x.code || "").trim();
-              const label = code || x.name;
-
-              return (
-                <Checkbox
-                  key={x.id}
-                  value={x.id}
-                  style={{ marginInlineStart: 0 }}
-                >
-                  <Tooltip title={x.name} placement="topLeft">
-                    <span
-                      style={{
-                        display: "inline-block",
-                        maxWidth: "100%",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {label}
-                    </span>
-                  </Tooltip>
-                </Checkbox>
-              );
-            })}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "6px 12px" }}>
+            {options.map((item) => (
+              <Checkbox key={item.id} value={item.id} style={{ marginInlineStart: 0, minWidth: 0 }}>
+                <Tooltip title={item.name} placement="topLeft">
+                  <span style={{ display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", verticalAlign: "bottom" }}>
+                    {item.code || item.name}
+                  </span>
+                </Tooltip>
+              </Checkbox>
+            ))}
           </div>
         </Checkbox.Group>
-
-        {!loading && options.length === 0 ? (
-          <div style={{ color: "#999", marginTop: 8 }}>
-            Không có NCC phù hợp.
-          </div>
-        ) : null}
+        {!loading && !options.length ? <div style={{ color: "#999", marginTop: 8 }}>Không có NCC phù hợp.</div> : null}
       </div>
     </div>
   );
@@ -161,66 +154,97 @@ export const SupplierLocationUpsertModal: React.FC<Props> = ({
   saving,
 }) => {
   const [form] = Form.useForm();
+  const [areaForm] = Form.useForm();
+  const [areas, setAreas] = useState<WarehouseArea[]>([]);
+  const [areasLoading, setAreasLoading] = useState(false);
+  const [areaModalOpen, setAreaModalOpen] = useState(false);
+  const [areaSaving, setAreaSaving] = useState(false);
+
+  const loadAreas = async () => {
+    setAreasLoading(true);
+    try {
+      setAreas((await SupplierLocationsApi.areas(true)) ?? []);
+    } finally {
+      setAreasLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
+    void loadAreas();
 
     if (mode === "edit" && initial) {
       form.setFieldsValue({
-        supplierCustomerIds: initial.supplierCustomerId
-          ? [initial.supplierCustomerId]
-          : [],
+        supplierCustomerIds:
+          initial.supplierCustomerIds ??
+          initial.parties?.map((assignment) => assignment.partyId) ??
+          (initial.supplierCustomerId ? [initial.supplierCustomerId] : []),
+        areaId: initial.areaId,
         code: initial.code,
         name: initial.name,
         nameInvoice: initial.nameInvoice,
-        // address: initial.address ?? "",
-        // tankCode: initial.tankCode ?? "",
-        // tankName: initial.tankName ?? "",
+        address: initial.address,
+        warehouseType: initial.warehouseType,
+        isOperationalWarehouse: initial.isOperationalWarehouse ?? true,
+        note: initial.note,
         isActive: initial.isActive,
       });
-    } else {
-      form.resetFields();
-      form.setFieldsValue({
-        isActive: true,
-        supplierCustomerIds: [],
-      });
+      return;
     }
+
+    form.resetFields();
+    form.setFieldsValue({
+      supplierCustomerIds: [],
+      isOperationalWarehouse: true,
+      isActive: true,
+    });
   }, [open, mode, initial, form]);
 
+  const createArea = async () => {
+    const values = await areaForm.validateFields();
+    setAreaSaving(true);
+    try {
+      const area = await SupplierLocationsApi.createArea({
+        code: values.code.trim(),
+        name: values.name.trim(),
+      });
+      setAreas((current) => [...current, { ...area, isActive: true }]);
+      form.setFieldValue("areaId", area.id);
+      setAreaModalOpen(false);
+      areaForm.resetFields();
+      notify.success("Đã thêm khu vực kho.");
+    } finally {
+      setAreaSaving(false);
+    }
+  };
+
   const onOk = async () => {
-    const v = await form.validateFields();
+    const values = await form.validateFields();
+    const common = {
+      areaId: values.areaId,
+      name: values.name.trim(),
+      nameInvoice: values.nameInvoice?.trim() || undefined,
+      address: values.address?.trim() || undefined,
+      warehouseType: values.warehouseType || undefined,
+      isOperationalWarehouse: values.isOperationalWarehouse !== false,
+      note: values.note?.trim() || undefined,
+      isActive: !!values.isActive,
+    };
 
     if (mode === "create") {
-      const payload: CreateSupplierLocationPayload = {
-        code: v.code.trim(),
-        name: v.name.trim(),
-        nameInvoice: v.nameInvoice?.trim(),
-        address: v.address?.trim() || undefined,
-        tankCode: v.tankCode?.trim() || undefined,
-        tankName: v.tankName?.trim() || undefined,
-        isActive: !!v.isActive,
-        supplierCustomerIds: v.supplierCustomerIds,
-      };
-      await onCreate(payload);
+      await onCreate({
+        ...common,
+        code: values.code.trim(),
+        supplierCustomerIds: values.supplierCustomerIds || [],
+      });
       return;
     }
 
     if (!initial) return;
-
-    const supplierCustomerIds: string[] = v.supplierCustomerIds || [];
-    const payload: UpdateSupplierLocationPayload = {
-      name: v.name?.trim(),
-      nameInvoice: v.nameInvoice?.trim() || undefined,
-      address: v.address?.trim() || undefined,
-      tankCode: v.tankCode?.trim() || undefined,
-      tankName: v.tankName?.trim() || undefined,
-      isActive: !!v.isActive,
-    };
-
     await onUpdate({
       id: initial.id,
-      supplierCustomerIds,
-      data: payload,
+      supplierCustomerIds: values.supplierCustomerIds || [],
+      data: common,
     });
   };
 
@@ -232,66 +256,113 @@ export const SupplierLocationUpsertModal: React.FC<Props> = ({
       onOk={onOk}
       confirmLoading={saving}
       okText="Lưu"
+      cancelText="Hủy"
       destroyOnClose
       maskClosable={false}
-      width={980}
-      style={{ top: 24, maxHeight: "100vh", overflow: "auto" }}
+      centered
+      width={960}
+      styles={{ body: { paddingTop: 6, maxHeight: "76vh", overflowY: "auto", overflowX: "hidden" } }}
     >
-      <Form form={form} layout="vertical">
-        <Form.Item
-          label="Mã kho"
-          name="code"
-          rules={[{ required: true, message: "Nhập mã kho" }]}
-        >
-          <Input placeholder="VD: K1" disabled={mode === "edit"} />
-        </Form.Item>
+      <Form form={form} layout="vertical" size="small">
+        <Row gutter={12}>
+          <Col xs={24} md={8}>
+            <Form.Item label="Mã kho" name="code" style={{ marginBottom: 10 }} rules={[{ required: true, message: "Nhập mã kho" }]}>
+              <Input placeholder="VD: K1" disabled={mode === "edit"} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={8}>
+            <Form.Item label="Tên kho" name="name" style={{ marginBottom: 10 }} rules={[{ required: true, message: "Nhập tên kho" }]}>
+              <Input placeholder="VD: Nghi Sơn" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={8}>
+            <Form.Item label="Khu vực" required style={{ marginBottom: 10 }}>
+              <Space.Compact style={{ width: "100%" }}>
+                <Form.Item name="areaId" noStyle rules={[{ required: true, message: "Chọn khu vực kho" }]}>
+                  <Select
+                    showSearch
+                    loading={areasLoading}
+                    optionFilterProp="label"
+                    placeholder="Chọn khu vực"
+                    options={areas.map((area) => ({
+                      value: area.id,
+                      label: area.name || area.code,
+                    }))}
+                  />
+                </Form.Item>
+                <Tooltip title="Thêm khu vực">
+                  <Button
+                    icon={<PlusOutlined />}
+                    aria-label="Thêm khu vực kho"
+                    onClick={() => setAreaModalOpen(true)}
+                  />
+                </Tooltip>
+              </Space.Compact>
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={8}>
+            <Form.Item label="Tên trên hóa đơn" name="nameInvoice" style={{ marginBottom: 10 }}>
+              <Input placeholder="Tên hóa đơn" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={8}>
+            <Form.Item label="Loại kho" name="warehouseType" style={{ marginBottom: 10 }}>
+              <Select allowClear placeholder="Chọn loại kho" options={WAREHOUSE_TYPES} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={8}>
+            <Form.Item label="Địa chỉ" name="address" style={{ marginBottom: 10 }}>
+              <Input placeholder="Địa chỉ kho" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={8}>
+            <Form.Item label="Dùng cho nghiệp vụ nhập/xuất" name="isOperationalWarehouse" valuePropName="checked" style={{ marginBottom: 8 }}>
+              <Switch />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={8}>
+            <Form.Item label="Đang hoạt động" name="isActive" valuePropName="checked" style={{ marginBottom: 8 }}>
+              <Switch />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={8}>
+            <Form.Item label="Ghi chú" name="note" style={{ marginBottom: 8 }}>
+              <Input placeholder="Ghi chú" />
+            </Form.Item>
+          </Col>
+        </Row>
 
-        <Form.Item
-          label="Tên kho"
-          name="name"
-          rules={[{ required: true, message: "Nhập tên kho" }]}
-        >
-          <Input placeholder="VD: Kho Ninh Bình" />
-        </Form.Item>
-
-        <Form.Item
-          label="Tên kho theo hóa đơn"
-          name="nameInvoice"
-          rules={[{ required: true, message: "Nhập tên kho theo hóa đơn" }]}
-        >
-          <Input placeholder="VD: KHO NINH BINH" />
-        </Form.Item>
-
-        {/* <Form.Item label="Địa chỉ" name="address">
-          <Input placeholder="(Không bắt buộc)" />
-        </Form.Item>
-
-        <Form.Item label="Tank code" name="tankCode">
-          <Input placeholder="(Không bắt buộc)" />
-        </Form.Item>
-
-        <Form.Item label="Tank name" name="tankName">
-          <Input placeholder="(Không bắt buộc)" />
-        </Form.Item> */}
-
-        <Form.Item
-          label="Đang hoạt động"
-          name="isActive"
-          valuePropName="checked"
-        >
-          <Switch />
-        </Form.Item>
-
-        <Form.Item label="Áp dụng cho NCC" required>
-          <Form.Item
-            name="supplierCustomerIds"
-            noStyle
-            rules={[{ required: true, message: "Chọn ít nhất 1 NCC" }]}
-          >
-            <CheckboxNccPicker fieldName="supplierCustomerIds" />
-          </Form.Item>
+        <Divider orientation="left" style={{ margin: "8px 0" }}>NCC vận hành kho</Divider>
+        <Form.Item name="supplierCustomerIds" noStyle>
+          <OperatorSupplierPicker />
         </Form.Item>
       </Form>
+      <Modal
+        open={areaModalOpen}
+        title="Thêm khu vực kho"
+        width={420}
+        okText="Thêm"
+        cancelText="Hủy"
+        confirmLoading={areaSaving}
+        onOk={createArea}
+        onCancel={() => setAreaModalOpen(false)}
+        destroyOnClose
+      >
+        <Form form={areaForm} layout="vertical" size="small">
+          <Row gutter={10}>
+            <Col span={9}>
+              <Form.Item name="code" label="Mã khu vực" rules={[{ required: true, message: "Nhập mã" }]} style={{ marginBottom: 8 }}>
+                <Input placeholder="VD: TH" />
+              </Form.Item>
+            </Col>
+            <Col span={15}>
+              <Form.Item name="name" label="Tên khu vực" rules={[{ required: true, message: "Nhập tên" }]} style={{ marginBottom: 8 }}>
+                <Input placeholder="VD: Thanh Hóa" />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
     </Modal>
   );
 };

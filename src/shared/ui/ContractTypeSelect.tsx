@@ -8,6 +8,7 @@ export default function ContractTypeSelect({
   allowClear = true,
   disabled,
   mode,
+  excludeCodes = [],
   placeholder = "Chọn loại hợp đồng",
 }: {
   value?: string | string[];
@@ -15,6 +16,7 @@ export default function ContractTypeSelect({
   allowClear?: boolean;
   disabled?: boolean;
   mode?: "multiple";
+  excludeCodes?: string[];
   placeholder?: string;
 }) {
   const { data, isLoading } = useContractTypeOptions(true);
@@ -28,7 +30,7 @@ export default function ContractTypeSelect({
       mode={mode}
       loading={isLoading}
       placeholder={placeholder}
-      options={data?.data.map((x) => ({
+      options={data?.data.filter((x) => !excludeCodes.includes(x.code)).map((x) => ({
         label: `${x.name}`,
         value: x.id,
       }))}
