@@ -12,6 +12,40 @@
   gap: 16px;
 }
 
+.commercial-lot-header > .ant-space:first-child {
+  min-width: 0;
+  flex: 1;
+  flex-wrap: nowrap;
+}
+
+.commercial-lot-header > .ant-space:first-child > .ant-space-item:last-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.commercial-lot-identity {
+  min-width: 0;
+  flex-wrap: nowrap !important;
+}
+
+.commercial-lot-identity .commercial-lot-title {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.commercial-lot-identity .commercial-lot-subtitle {
+  min-width: 0;
+  flex: 1;
+}
+
+.commercial-lot-subtitle {
+  min-width: 0;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .commercial-lot-title {
   margin: 0 !important;
   font-size: 18px !important;
@@ -19,14 +53,17 @@
 }
 
 .commercial-lot-toolbar {
-  display: grid;
-  grid-template-columns: minmax(220px, 1.3fr) minmax(220px, 1fr) minmax(240px, 1fr) auto;
-  gap: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
   align-items: center;
   padding: 10px 0;
   border-top: 1px solid #e5e7eb;
   border-bottom: 1px solid #e5e7eb;
 }
+
+.commercial-lot-toolbar > .ant-input { width: 425px; max-width: 100%; }
+.commercial-lot-filter-panel { display: grid; width: 340px; gap: 8px; }
 
 .commercial-lot-tabs .ant-tabs-nav {
   margin: 0;
@@ -42,6 +79,24 @@
   font-weight: 600;
 }
 
+.commercial-lot-line-table .ant-table-cell {
+  overflow-wrap: anywhere;
+}
+
+.commercial-lot-line-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  padding: 2px 0;
+  color: #475467;
+  font-size: 13px;
+}
+
+.commercial-lot-line-details strong {
+  color: #101828;
+  font-weight: 600;
+}
+
 .commercial-lot-order-link {
   padding: 0;
   font-weight: 600;
@@ -49,14 +104,14 @@
 
 .commercial-lot-kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   border: 1px solid #e5e7eb;
   background: #fff;
 }
 
 .commercial-lot-kpi {
   min-width: 0;
-  padding: 12px 14px;
+  padding: 9px 16px;
   border-right: 1px solid #e5e7eb;
 }
 
@@ -72,11 +127,11 @@
 
 .commercial-lot-kpi-value {
   display: block;
-  margin-top: 3px;
+  margin-top: 2px;
   color: #101828;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 650;
-  line-height: 26px;
+  line-height: 24px;
 }
 
 .commercial-lot-form-band {
@@ -92,12 +147,33 @@
   max-width: 1180px;
 }
 
+.commercial-lot-withdrawal-form {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.1fr) minmax(190px, 1.2fr) minmax(210px, 1.4fr) minmax(160px, 1fr);
+  gap: 0 12px;
+}
+
+.commercial-lot-withdrawal-form .ant-form-item {
+  margin-bottom: 10px;
+}
+
+.commercial-lot-withdrawal-form .ant-input,
+.commercial-lot-withdrawal-form .ant-picker,
+.commercial-lot-withdrawal-form .ant-select {
+  width: 100%;
+}
+
+.commercial-lot-withdrawal-table .ant-table-cell {
+  overflow-wrap: anywhere;
+}
+
 .commercial-lot-field-order-no {
   grid-column: span 3;
 }
 
 .commercial-lot-field-order-date,
-.commercial-lot-field-expected-date {
+.commercial-lot-field-expected-date,
+.commercial-lot-field-region {
   grid-column: span 2;
 }
 
@@ -109,13 +185,12 @@
   grid-column: span 2;
 }
 
-.commercial-lot-field-contract,
-.commercial-lot-field-warehouse {
-  grid-column: span 4;
+.commercial-lot-field-contract {
+  grid-column: span 6;
 }
 
 .commercial-lot-field-supplier {
-  grid-column: span 5;
+  grid-column: span 6;
 }
 
 .commercial-lot-field-note {
@@ -179,6 +254,23 @@
   padding-top: 12px;
 }
 
+.commercial-lot-lines .ant-table-container table,
+.commercial-lot-lines .ant-table-content table {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+.commercial-lot-lines .ant-table-cell,
+.commercial-lot-lines .ant-form-item {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.commercial-lot-lines .ant-select,
+.commercial-lot-lines .ant-input-number {
+  width: 100%;
+}
+
 .commercial-lot-section-title {
   display: flex;
   align-items: center;
@@ -190,7 +282,7 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px 16px;
-  padding: 12px 0;
+  padding: 8px 0;
   border-top: 1px solid #e5e7eb;
   border-bottom: 1px solid #e5e7eb;
 }
@@ -201,6 +293,37 @@
   font-size: 12px;
 }
 
+.commercial-lot-financial-summary {
+  margin-top: 10px;
+  border-color: #cfd9e6;
+  background: #f8fbff;
+}
+
+.commercial-lot-actual-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef1f5;
+}
+
+.commercial-lot-actual-row > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.commercial-lot-actual-row .ant-form-item {
+  margin-bottom: 0;
+}
+
+.commercial-lot-financial-summary > div:last-child .commercial-lot-meta-value {
+  color: #175cd3;
+  font-size: 16px;
+  font-weight: 700;
+}
+
 .commercial-lot-meta-value {
   display: block;
   margin-top: 2px;
@@ -209,7 +332,7 @@
 }
 
 .commercial-lot-workflow {
-  padding: 14px 4px 4px;
+  padding: 4px;
 }
 
 .commercial-lot-progress {
@@ -254,8 +377,16 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .commercial-lot-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .commercial-lot-form-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .commercial-lot-withdrawal-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .commercial-lot-field-order-no,
@@ -281,6 +412,10 @@
 
   .commercial-lot-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .commercial-lot-withdrawal-form {
+    grid-template-columns: 1fr;
   }
 
   .commercial-lot-field-order-no,

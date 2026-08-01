@@ -34,6 +34,7 @@ export interface Customer {
 
   contactEmail?: string | null;
   contactPhone?: string | null;
+  bankAccountNo?: string | null;
 
   creditLimit?: number | null;
   paymentTermDays?: number | null;

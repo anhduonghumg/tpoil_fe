@@ -293,6 +293,12 @@ export default function CustomerCompactForm({
           </Col>
 
           <Col xs={24} md={8}>
+            <Form.Item name="bankAccountNo" label="Tài khoản ngân hàng">
+              <Input size="small" placeholder="Số tài khoản nhận thanh toán" />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={8}>
             <Form.Item name="roles" label="Vai trò">
               <Select
                 size="small"

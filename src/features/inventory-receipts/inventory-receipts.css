@@ -1,0 +1,104 @@
+.inventory-receipts-page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inventory-receipts-page h3 {
+  margin: 0 !important;
+  font-size: 20px !important;
+}
+
+.inventory-receipts-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inventory-receipts-toolbar > .ant-input-search {
+  width: 425px;
+  max-width: 100%;
+}
+
+.inventory-receipts-filter-panel {
+  width: 340px;
+}
+
+.inventory-receipts-filter-panel .ant-form-item {
+  margin-bottom: 10px;
+}
+
+.inventory-stock-card-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.inventory-receipt-link {
+  height: auto;
+  padding: 0;
+  font-weight: 600;
+}
+
+.inventory-stock-card-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid #e5e7eb;
+}
+
+.inventory-stock-card-summary > div {
+  display: grid;
+  gap: 3px;
+  padding: 10px 14px;
+  border-right: 1px solid #e5e7eb;
+}
+
+.inventory-stock-card-summary > div:last-child {
+  border-right: 0;
+}
+
+.inventory-stock-card-summary span,
+.inventory-receipt-detail-meta span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.inventory-stock-card-summary strong {
+  font-size: 18px;
+}
+
+.inventory-stock-card-summary .is-positive {
+  color: #168653;
+}
+
+.inventory-stock-card-summary .is-negative {
+  color: #d46b08;
+}
+
+.inventory-receipt-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 18px;
+}
+
+.inventory-receipt-detail-meta > div {
+  display: grid;
+  gap: 3px;
+}
+
+@media (max-width: 720px) {
+  .inventory-stock-card-summary,
+  .inventory-receipt-detail-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-receipts-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inventory-receipts-toolbar > .ant-space {
+    justify-content: flex-end;
+  }
+}

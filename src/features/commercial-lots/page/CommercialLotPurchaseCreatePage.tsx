@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   DatePicker,
@@ -22,33 +22,39 @@ import {
   SaveOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { PartySelect } from "../../../shared/ui/PartySelect";
 import { useProductSelect } from "../../products/hooks";
-import { useSupplierLocationsSelect } from "../../purchases/hooks";
-import type { UpsertPurchaseOrderPayload } from "../../purchases/types";
 import {
-  useActivePurchaseContract,
-  useCreateCommercialLot,
-} from "../hooks";
+  usePriceRegionsSelect,
+  useSupplierLocationsSelect,
+} from "../../purchases/hooks";
+import { PurchasesApi } from "../../purchases/api";
+import type { UpsertPurchaseOrderPayload } from "../../purchases/types";
+import { useActivePurchaseContract, useCommercialLotDetail, useCreateCommercialLot, useUpdateCommercialLot } from "../hooks";
 import { formatMoney } from "../ui/labels";
+import { useVatRatesSelect } from "../../tax-rates/hooks";
 import "../commercial-lots.css";
 
 type LineForm = {
   key: string;
   productId?: string;
+  supplierLocationId?: string;
   orderedQty?: number;
   unitPrice?: number;
   discountAmount?: number;
   taxRate?: number;
+  taxRateConfigId?: string;
+  isTaxAuto?: boolean;
+  isPriceAuto?: boolean;
 };
 
 type FormValues = {
-  orderNo: string;
   orderDate: dayjs.Dayjs;
   expectedDate?: dayjs.Dayjs;
   supplierCustomerId: string;
-  receivingWarehouseId: string;
+  receivingWarehouseId?: string;
+  priceRegionCode: string;
   paymentMode: "PREPAID" | "POSTPAID";
   paymentTermDays?: number;
   note?: string;
@@ -62,30 +68,61 @@ const emptyLine = (): LineForm => ({
   taxRate: 10,
 });
 
-function defaultOrderNo() {
-  return `LO-${dayjs().format("YYYYMMDD-HHmm")}`;
-}
-
 export default function CommercialLotPurchaseCreatePage() {
   const navigate = useNavigate();
+  const { id } = useParams();
   const [form] = Form.useForm<FormValues>();
   const [initialLine] = useState(emptyLine);
+  const [lineRows, setLineRows] = useState<LineForm[]>([initialLine]);
   const [productKeyword, setProductKeyword] = useState("");
+  const [regionKeyword, setRegionKeyword] = useState("");
   const supplierId = Form.useWatch("supplierCustomerId", form);
   const orderDate = Form.useWatch("orderDate", form);
+  const priceRegionCode = Form.useWatch("priceRegionCode", form) ?? "VUNG_I";
   const paymentMode = Form.useWatch("paymentMode", form);
   const lines = Form.useWatch("lines", form) ?? [initialLine];
   const productsQuery = useProductSelect(productKeyword);
+  const regionsQuery = usePriceRegionsSelect(regionKeyword);
+  const vatRatesQuery = useVatRatesSelect();
+  const currentVatRate = (vatRatesQuery.data ?? []).find(
+    (rate) => rate.isDefault,
+  );
   const warehousesQuery = useSupplierLocationsSelect(supplierId, "");
   const contractQuery = useActivePurchaseContract(
     supplierId,
     orderDate?.format("YYYY-MM-DD"),
   );
   const createMutation = useCreateCommercialLot();
+  const updateMutation = useUpdateCommercialLot(id);
+  const detailQuery = useCommercialLotDetail(id);
+  const lastQuoteKeyRef = useRef("");
   const contract = contractQuery.data;
   const hasValidContract =
     contract?.code === "CONTRACT_OK" ||
     contract?.code === "CONTRACT_EXPIRING_SOON";
+
+  useEffect(() => {
+    const order = detailQuery.data;
+    if (!id || !order) return;
+    const loadedLines = order.lines.map((line) => ({
+      key: line.id,
+      productId: line.productId,
+      supplierLocationId: line.receivingWarehouse?.id,
+      orderedQty: Number(line.orderedQty),
+      unitPrice: line.unitPrice == null ? undefined : Number(line.unitPrice),
+      discountAmount: Number(line.discountAmount ?? 0),
+      taxRate: Number(line.taxRate ?? 0),
+    }));
+    setLineRows(loadedLines);
+    form.setFieldsValue({
+      supplierCustomerId: order.supplier.id,
+      orderDate: dayjs(order.orderDate),
+      expectedDate: order.expectedDate ? dayjs(order.expectedDate) : undefined,
+      paymentMode: order.paymentMode,
+      note: order.note,
+      lines: loadedLines,
+    });
+  }, [detailQuery.data, form, id]);
 
   const totalAmount = useMemo(
     () =>
@@ -99,6 +136,131 @@ export default function CommercialLotPurchaseCreatePage() {
       }, 0),
     [lines],
   );
+
+  const quoteProductIds = useMemo(
+    () =>
+      Array.from(
+        new Set(lines.map((line) => line.productId).filter(Boolean)),
+      ) as string[],
+    [lines],
+  );
+  const quoteDate = orderDate?.format("YYYY-MM-DD");
+  const quoteKey = useMemo(
+    () =>
+      quoteDate && quoteProductIds.length
+        ? `${priceRegionCode}|${quoteDate}|${quoteProductIds.sort().join(",")}`
+        : "",
+    [priceRegionCode, quoteDate, quoteProductIds],
+  );
+
+  useEffect(() => {
+    if (!quoteKey || quoteKey === lastQuoteKeyRef.current) return;
+    lastQuoteKeyRef.current = quoteKey;
+    let cancelled = false;
+
+    PurchasesApi.quoteBatch({
+      productIds: quoteProductIds,
+      regionCode: priceRegionCode,
+      onDate: quoteDate,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        const priceByProduct = new Map(
+          result.items.map((item) => [
+            item.productId,
+            item.price == null ? null : Number(item.price),
+          ]),
+        );
+        const currentLines = form.getFieldValue("lines") ?? [];
+        const nextLines = currentLines.map((line: LineForm) => {
+          const price = line.productId
+            ? priceByProduct.get(line.productId)
+            : null;
+          if (
+            price == null ||
+            !Number.isFinite(price) ||
+            line.isPriceAuto === false
+          )
+            return line;
+          return { ...line, unitPrice: price, isPriceAuto: true };
+        });
+        form.setFieldsValue({ lines: nextLines });
+      })
+      .catch(() => {
+        // The price remains editable when no published price bulletin is available.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form, priceRegionCode, quoteDate, quoteKey, quoteProductIds]);
+
+  const updateLine = (index: number, patch: Partial<LineForm>) => {
+    const currentLines = form.getFieldValue("lines") ?? [];
+    form.setFieldsValue({
+      lines: currentLines.map((line: LineForm, lineIndex: number) =>
+        lineIndex === index ? { ...line, ...patch } : line,
+      ),
+    });
+  };
+
+  useEffect(() => {
+    const vatRates = vatRatesQuery.data ?? [];
+    if (!vatRates.length) return;
+    const currentLines = form.getFieldValue("lines") ?? [];
+    const nextLines = currentLines.map((line: LineForm) => {
+      if (line.isTaxAuto === false) return line;
+      const matched =
+        currentVatRate ??
+        vatRates.find(
+          (rate) =>
+            !rate.isExempt && Number(rate.rate) === Number(line.taxRate ?? 0),
+        );
+      const matchedRate = matched?.isExempt ? 0 : Number(matched?.rate ?? 0);
+      if (
+        matched &&
+        line.taxRateConfigId === matched.id &&
+        Number(line.taxRate ?? 0) === matchedRate
+      ) {
+        return line;
+      }
+      return matched
+        ? {
+            ...line,
+            taxRateConfigId: matched.id,
+            taxRate: matchedRate,
+            isTaxAuto: true,
+          }
+        : line;
+    });
+    if (
+      nextLines.some(
+        (line: LineForm, index: number) => line !== currentLines[index],
+      )
+    ) {
+      form.setFieldsValue({ lines: nextLines });
+    }
+  }, [currentVatRate, form, lines, vatRatesQuery.data]);
+
+  const addLine = () => {
+    const nextLine = emptyLine();
+    const currentLines = form.getFieldValue("lines") ?? [];
+    form.setFieldsValue({ lines: [...currentLines, nextLine] });
+    setLineRows((current) => [...current, nextLine]);
+  };
+
+  const removeLine = (index: number) => {
+    const currentLines = form.getFieldValue("lines") ?? [];
+    if (currentLines.length <= 1) return;
+    form.setFieldsValue({
+      lines: currentLines.filter(
+        (_: LineForm, lineIndex: number) => lineIndex !== index,
+      ),
+    });
+    setLineRows((current) =>
+      current.filter((_, lineIndex) => lineIndex !== index),
+    );
+  };
 
   const columns: ColumnsType<LineForm> = [
     {
@@ -121,6 +283,37 @@ export default function CommercialLotPurchaseCreatePage() {
             options={(productsQuery.data ?? []).map((product) => ({
               value: product.id,
               label: `${product.code} - ${product.name}`,
+            }))}
+            onChange={(productId) =>
+              updateLine(index, {
+                productId,
+                unitPrice: undefined,
+                isPriceAuto: true,
+              })
+            }
+          />
+        </Form.Item>
+      ),
+    },
+    {
+      title: "Kho nhận",
+      dataIndex: "supplierLocationId",
+      width: 220,
+      render: (_, __, index) => (
+        <Form.Item
+          name={["lines", index, "supplierLocationId"]}
+          rules={[{ required: true, message: "Chọn kho nhận" }]}
+          noStyle
+        >
+          <Select
+            size="small"
+            showSearch
+            disabled={!supplierId}
+            loading={warehousesQuery.isFetching}
+            placeholder="Chọn kho nhận"
+            options={(warehousesQuery.data ?? []).map((warehouse) => ({
+              value: warehouse.id,
+              label: warehouse.label,
             }))}
           />
         </Form.Item>
@@ -152,7 +345,18 @@ export default function CommercialLotPurchaseCreatePage() {
       width: 180,
       render: (_, __, index) => (
         <Form.Item name={["lines", index, "unitPrice"]} noStyle>
-          <InputNumber size="small" min={0} controls={false} placeholder="0" />
+          <InputNumber
+            size="small"
+            min={0}
+            controls={false}
+            placeholder="0"
+            onChange={(unitPrice) =>
+              updateLine(index, {
+                unitPrice: unitPrice == null ? undefined : Number(unitPrice),
+                isPriceAuto: false,
+              })
+            }
+          />
         </Form.Item>
       ),
     },
@@ -168,16 +372,28 @@ export default function CommercialLotPurchaseCreatePage() {
     },
     {
       title: "Thuế",
-      dataIndex: "taxRate",
+      dataIndex: "taxRateConfigId",
       width: 110,
       render: (_, __, index) => (
-        <Form.Item name={["lines", index, "taxRate"]} noStyle>
-          <InputNumber
+        <Form.Item name={["lines", index, "taxRateConfigId"]} noStyle>
+          <Select
             size="small"
-            min={0}
-            max={100}
-            controls={false}
-            addonAfter="%"
+            loading={vatRatesQuery.isFetching}
+            placeholder="Chọn thuế"
+            options={(vatRatesQuery.data ?? []).map((rate) => ({
+              value: rate.id,
+              label: rate.name,
+            }))}
+            onChange={(taxRateConfigId) => {
+              const selected = (vatRatesQuery.data ?? []).find(
+                (rate) => rate.id === taxRateConfigId,
+              );
+              updateLine(index, {
+                taxRateConfigId,
+                taxRate: selected?.isExempt ? 0 : Number(selected?.rate ?? 0),
+                isTaxAuto: false,
+              });
+            }}
           />
         </Form.Item>
       ),
@@ -193,12 +409,8 @@ export default function CommercialLotPurchaseCreatePage() {
           type="text"
           icon={<DeleteOutlined />}
           title="Xóa dòng"
-          disabled={lines.length === 1}
-          onClick={() => {
-            const next = [...lines];
-            next.splice(index, 1);
-            form.setFieldValue("lines", next);
-          }}
+          disabled={lineRows.length === 1}
+          onClick={() => removeLine(index)}
         />
       ),
     },
@@ -215,44 +427,47 @@ export default function CommercialLotPurchaseCreatePage() {
       const payload: UpsertPurchaseOrderPayload & {
         supplierLocationId?: string;
       } = {
-      orderNo: values.orderNo.trim(),
-      supplierCustomerId: values.supplierCustomerId,
-      supplierLocationId: values.receivingWarehouseId,
-      orderType: "LOT",
-      paymentMode: values.paymentMode,
-      priceRegionCode: "VUNG_I",
-      orderDate: values.orderDate.format("YYYY-MM-DD"),
-      expectedDate: values.expectedDate?.format("YYYY-MM-DD") ?? null,
-      paymentTermType:
-        values.paymentMode === "POSTPAID" ? "NET_DAYS" : "SAME_DAY",
-      paymentTermDays: values.paymentMode === "POSTPAID" ? termDays : null,
-      totalAmount,
-      note: values.note?.trim() || null,
-      paymentPlans:
-        values.paymentMode === "POSTPAID"
-          ? [
-              {
-                dueDate: values.orderDate
-                  .add(termDays, "day")
-                  .format("YYYY-MM-DD"),
-                amount: totalAmount,
-              },
-            ]
-          : [],
-      lines: values.lines.map((line) => ({
-        productId: line.productId!,
-        supplierLocationId: values.receivingWarehouseId,
-        orderedQty: Number(line.orderedQty),
-        unitPrice: line.unitPrice == null ? null : Number(line.unitPrice),
-        discountAmount: Number(line.discountAmount ?? 0),
-        taxRate: line.taxRate == null ? null : Number(line.taxRate),
-      })),
+        orderNo: "AUTO",
+        supplierCustomerId: values.supplierCustomerId,
+        orderType: "LOT",
+        paymentMode: values.paymentMode,
+        priceRegionCode,
+        orderDate: values.orderDate.format("YYYY-MM-DD"),
+        expectedDate: values.expectedDate?.format("YYYY-MM-DD") ?? null,
+        paymentTermType:
+          values.paymentMode === "POSTPAID" ? "NET_DAYS" : "SAME_DAY",
+        paymentTermDays: values.paymentMode === "POSTPAID" ? termDays : null,
+        totalAmount,
+        note: values.note?.trim() || null,
+        paymentPlans:
+          values.paymentMode === "POSTPAID"
+            ? [
+                {
+                  dueDate: values.orderDate
+                    .add(termDays, "day")
+                    .format("YYYY-MM-DD"),
+                  amount: totalAmount,
+                },
+              ]
+            : [],
+        lines: values.lines.map((line) => ({
+          productId: line.productId!,
+          supplierLocationId: line.supplierLocationId,
+          orderedQty: Number(line.orderedQty),
+          unitPrice: line.unitPrice == null ? null : Number(line.unitPrice),
+          discountAmount: Number(line.discountAmount ?? 0),
+          taxRate: line.taxRate == null ? null : Number(line.taxRate),
+        })),
       };
-      const result = await createMutation.mutateAsync(payload);
-      const id = result?.po?.id ?? result?.id;
-      navigate(id ? `/commercial-purchases/lots/${id}` : "/commercial-purchases/lots");
-    } catch {
-      // Field errors and API errors are displayed by their owning controls/mutation.
+      const result = id
+        ? await updateMutation.mutateAsync(payload)
+        : await createMutation.mutateAsync(payload);
+      const savedOrderId = result?.po?.id ?? result?.id;
+      navigate(
+        savedOrderId ? `/commercial-purchases/lots/${savedOrderId}` : "/commercial-purchases/lots",
+      );
+    } catch (error) {
+      console.error("Error creating purchase order:", error);
     }
   };
 
@@ -279,23 +494,16 @@ export default function CommercialLotPurchaseCreatePage() {
         layout="vertical"
         size="small"
         initialValues={{
-          orderNo: defaultOrderNo(),
           orderDate: dayjs(),
           paymentMode: "PREPAID",
           paymentTermDays: 7,
+          receivingWarehouseId: "PER_LINE",
+          priceRegionCode: "VUNG_I",
           lines: [initialLine],
         }}
       >
         <div className="commercial-lot-form-band">
           <div className="commercial-lot-form-grid">
-            <Form.Item
-              className="commercial-lot-field-order-no"
-              name="orderNo"
-              label="Số đơn"
-              rules={[{ required: true, message: "Nhập số đơn" }]}
-            >
-              <Input size="small" placeholder="LO-YYYYMMDD-..." />
-            </Form.Item>
             <Form.Item
               className="commercial-lot-field-order-date"
               name="orderDate"
@@ -321,6 +529,26 @@ export default function CommercialLotPurchaseCreatePage() {
             </Form.Item>
 
             <Form.Item
+              className="commercial-lot-field-region"
+              name="priceRegionCode"
+              label="Vùng giá"
+              rules={[{ required: true, message: "Chọn vùng giá" }]}
+            >
+              <Select
+                size="small"
+                showSearch
+                filterOption={false}
+                loading={regionsQuery.isFetching}
+                placeholder="Chọn vùng"
+                onSearch={setRegionKeyword}
+                options={(regionsQuery.data ?? []).map((region) => ({
+                  value: region.code,
+                  label: `${region.name} (${region.code})`,
+                }))}
+              />
+            </Form.Item>
+
+            <Form.Item
               className="commercial-lot-field-supplier"
               name="supplierCustomerId"
               label="Nhà cung cấp"
@@ -330,8 +558,14 @@ export default function CommercialLotPurchaseCreatePage() {
                 partyRole="SUPPLIER"
                 placeholder="Chọn nhà cung cấp"
                 onChange={(value) => {
+                  const currentLines = form.getFieldValue("lines") ?? [];
                   form.setFieldValue("supplierCustomerId", value);
-                  form.setFieldValue("receivingWarehouseId", undefined);
+                  form.setFieldsValue({
+                    lines: currentLines.map((line: LineForm) => ({
+                      ...line,
+                      supplierLocationId: undefined,
+                    })),
+                  });
                 }}
               />
             </Form.Item>
@@ -362,7 +596,9 @@ export default function CommercialLotPurchaseCreatePage() {
                   )}
                   <span>
                     {hasValidContract
-                      ? `${contract.contractCode} · đến ${dayjs(contract.endDate).format("DD/MM/YYYY")}`
+                      ? `${contract.contractCode} · đến ${dayjs(
+                          contract.endDate,
+                        ).format("DD/MM/YYYY")}`
                       : contract.message}
                   </span>
                 </div>
@@ -374,6 +610,7 @@ export default function CommercialLotPurchaseCreatePage() {
               )}
             </Form.Item>
             <Form.Item
+              hidden
               className="commercial-lot-field-warehouse"
               name="receivingWarehouseId"
               label="Kho nhận dự kiến"
@@ -438,7 +675,8 @@ export default function CommercialLotPurchaseCreatePage() {
             <Button
               size="small"
               icon={<PlusOutlined />}
-              onClick={() => form.setFieldValue("lines", [...lines, emptyLine()])}
+              htmlType="button"
+              onClick={addLine}
             >
               Thêm dòng
             </Button>
@@ -448,12 +686,14 @@ export default function CommercialLotPurchaseCreatePage() {
             rowKey="key"
             size="small"
             pagination={false}
+            tableLayout="fixed"
             columns={columns}
-            dataSource={lines}
-            scroll={{ x: 1000 }}
+            dataSource={lineRows}
             footer={() => (
               <div style={{ textAlign: "right" }}>
-                <Typography.Text type="secondary">Tổng dự kiến: </Typography.Text>
+                <Typography.Text type="secondary">
+                  Tổng dự kiến:{" "}
+                </Typography.Text>
                 <Typography.Text strong>
                   {formatMoney(totalAmount)} đ
                 </Typography.Text>
@@ -473,7 +713,7 @@ export default function CommercialLotPurchaseCreatePage() {
             size="small"
             type="primary"
             icon={<SaveOutlined />}
-            loading={createMutation.isPending}
+            loading={createMutation.isPending || updateMutation.isPending}
             disabled={!hasValidContract}
             onClick={submit}
           >

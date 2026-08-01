@@ -29,6 +29,7 @@ export type CommercialLotOrderLine = {
   lineNo: number;
   productId: string;
   orderedQty: string;
+  actualReceivedQty?: string | null;
   unitPrice?: string | null;
   taxRate?: string | null;
   discountAmount?: string | null;
@@ -90,6 +91,7 @@ export type CommercialLotPurchase = {
     code: string;
     name: string;
     taxCode?: string | null;
+    bankAccountNo?: string | null;
   };
   contract?: {
     id: string;
@@ -128,7 +130,62 @@ export type CommercialLotPurchase = {
       outstandingAmount: string;
     } | null;
   }>;
+  termPaymentRequests: Array<{
+    id: string;
+    supplierInvoiceId?: string | null;
+    requestNo: string;
+    requestDate: string;
+    amountVnd: string;
+    status: "DRAFT" | "PENDING_DIRECTOR_APPROVAL" | "DIRECTOR_REJECTED" | "SUBMITTED" | "BANK_VERIFIED" | "BANK_RETURNED" | "IN_BATCH" | "SENT_TO_BANK" | "PAID" | "PARTIALLY_PAID" | "CANCELLED";
+    beneficiaryAccountNo?: string | null;
+    beneficiaryAccountName?: string | null;
+    approvalNote?: string | null;
+    bankCheckNote?: string | null;
+    returnedReason?: string | null;
+    payments?: CommercialPayment[];
+    supplierInvoice?: { id: string; invoiceNo: string } | null;
+  }>;
   commercialLotWithdrawals: CommercialLotWithdrawal[];
+};
+
+export type CommercialPayment = {
+  id: string;
+  amountVnd: string;
+  paidAt: string;
+  proofFileUrl?: string | null;
+  proofFileName?: string | null;
+  note?: string | null;
+  sourceBankAccount?: {
+    id: string;
+    bankCode: string;
+    bankName?: string | null;
+    accountNo: string;
+  } | null;
+};
+
+export type CommercialPaymentRequest = {
+  id: string;
+  purchaseOrderId: string;
+  requestNo: string;
+  requestDate: string;
+  amountVnd: string;
+  paidAmount: string;
+  remainingAmount: string;
+  quantity: string;
+  status: CommercialLotPurchase["termPaymentRequests"][number]["status"];
+  beneficiaryAccountNo?: string | null;
+  beneficiaryAccountName?: string | null;
+  beneficiaryBankName?: string | null;
+  approvalNote?: string | null;
+  bankCheckNote?: string | null;
+  returnedReason?: string | null;
+  purchaseOrder: {
+    id: string;
+    orderNo: string;
+    supplier: { code: string; name: string };
+  };
+  supplierInvoice?: { id: string; invoiceNo: string; invoiceDate: string } | null;
+  payments: CommercialPayment[];
 };
 
 export type CommercialLotListResult = {
@@ -144,6 +201,28 @@ export type CommercialLotListQuery = {
   lifecycle?: CommercialLotLifecycle;
   dateFrom?: string;
   dateTo?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type CommercialLotWithdrawalQueueItem = CommercialLotWithdrawal & {
+  purchaseOrder: {
+    id: string;
+    orderNo: string;
+    supplier: { code: string; name: string };
+  };
+};
+
+export type CommercialLotWithdrawalListResult = {
+  items: CommercialLotWithdrawalQueueItem[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export type CommercialLotWithdrawalListQuery = {
+  keyword?: string;
+  status?: "DRAFT" | "CONFIRMED" | "CANCELLED";
   page?: number;
   limit?: number;
 };

@@ -54,6 +54,12 @@ export const DEFAULT_WORKSPACES: DepartmentWorkspace[] = [
     isPrimary: true,
   },
   {
+    key: "banking",
+    name: "Ngân hàng",
+    departmentCode: "BANKING",
+    dashboardKey: "banking.dashboard",
+  },
+  {
     key: "sales",
     name: "Bán hàng",
     departmentCode: "SALES",
@@ -99,12 +105,29 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
         { key: "/commercial-purchases/retail", label: "Mua thương mại lẻ" },
       ],
     },
-    { key: "/banking", label: "Đề nghị thanh toán", icon: <BankOutlined /> },
+    { key: "/operations/inventory-receipts", label: "Nhập kho mua hàng", icon: <DatabaseOutlined /> },
     { key: "/suppliers", label: "Công nợ NCC", icon: <TeamOutlined /> },
     { key: "/settings/products", label: "Hàng hóa, dịch vụ", icon: <GoldOutlined /> },
-    { key: "/purchase/platts-prices", label: "Platts/MOPS", icon: <BarChartOutlined /> },
-    { key: "/purchase/vcb-rates", label: "Tỷ giá VCB", icon: <DollarOutlined /> },
-    { key: "/purchase/environment-taxes", label: "Phí BVMT", icon: <DatabaseOutlined /> },
+    {
+      key: "purchase-price-config",
+      label: "Giá & thuế",
+      icon: <BarChartOutlined />,
+      children: [
+        { key: "/purchase/platts-prices", label: "Platts/MOPS" },
+        { key: "/purchase/vcb-rates", label: "Tỷ giá VCB" },
+        { key: "/purchase/tax-rates", label: "Thuế GTGT" },
+        { key: "/purchase/environment-taxes", label: "Phí BVMT" },
+      ],
+    },
+  ],
+  banking: [
+    { key: "/banking", label: "Dashboard cảnh báo", icon: <DashboardOutlined /> },
+    { key: "/banking/payment-approvals", label: "Đề nghị duyệt chi", icon: <CheckCircleOutlined /> },
+    { key: "/banking/payments", label: "Thanh toán", icon: <BankOutlined /> },
+    { key: "/banking/statements", label: "Sao kê", icon: <FileTextOutlined /> },
+    { key: "/banking/term-batches", label: "Bảng kê TERM", icon: <ReconciliationOutlined /> },
+    { key: "/bank-accounts", label: "Tài khoản công ty", icon: <BankOutlined /> },
+    { key: "/bank-import-templates", label: "Mẫu import sao kê", icon: <SettingOutlined /> },
   ],
   sales: [
     { key: "/dashboard", label: "Tổng quan bán hàng", icon: <DashboardOutlined /> },
@@ -113,7 +136,7 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
     { key: "/customers", label: "Khách hàng", icon: <TeamOutlined /> },
     { key: "/settings/products", label: "Hàng hóa", icon: <GoldOutlined /> },
     { key: "/settings/price-bulletins", label: "Bảng giá bán", icon: <BarChartOutlined /> },
-    { key: "/banking", label: "Thu tiền", icon: <BankOutlined /> },
+    { key: "/banking/statements", label: "Thu tiền", icon: <BankOutlined /> },
   ],
   operationsLegacy: [
     { key: "/dashboard", label: "Tổng quan vận hành", icon: <DashboardOutlined /> },
@@ -169,10 +192,12 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
       icon: <DatabaseOutlined />,
       need: PERMS.OPERATIONS_VIEW,
       children: [
+        { key: "/operations/warehouse-dashboard", label: "Dashboard kho" },
         { key: "/settings/inventory", label: "Danh mục kho" },
         { key: "/settings/products", label: "Danh mục sản phẩm" },
         { key: "/operations/storage-contracts", label: "Hợp đồng thuê kho" },
         { key: "/operations/inventory-availability", label: "Tồn kho kinh doanh" },
+        { key: "/operations/inventory-receipts", label: "Nhập kho mua hàng" },
         { key: "/operations/inventory-accounting", label: "Tồn kho kế toán" },
         { key: "/operations/expected-inventory", label: "Hàng dự kiến" },
         { key: "/operations/reservations", label: "Giữ hàng / đặt giữ hàng" },
@@ -288,6 +313,38 @@ const WORKSPACE_DASHBOARDS: Record<string, WorkspaceDefaultConfig> = {
       { label: "Platts / MOPS", href: "/purchase/platts-prices", icon: <BarChartOutlined /> },
       { label: "Tỷ giá VCB", href: "/purchase/vcb-rates", icon: <DollarOutlined /> },
       { label: "Phí BVMT", href: "/purchase/environment-taxes", icon: <DatabaseOutlined /> },
+    ],
+  },
+  "banking.dashboard": {
+    title: "Ngân hàng",
+    description: "Kiểm tra đề nghị chi, thực hiện thanh toán, đối chiếu sao kê và theo dõi cảnh báo.",
+    metrics: [
+      { label: "Đề nghị chờ duyệt", value: "-", hint: "Chờ giám đốc hoặc người có thẩm quyền" },
+      { label: "Chờ ngân hàng kiểm tra", value: "-", hint: "Đề nghị đã được duyệt" },
+      { label: "Sẵn sàng thanh toán", value: "-", hint: "Có thể ghi nhận chi tiền" },
+      { label: "Sao kê chưa đối chiếu", value: "-", hint: "Theo giao dịch ngân hàng" },
+    ],
+    quickActions: [
+      { label: "Mở đề nghị duyệt chi", href: "/banking/payment-approvals" },
+      { label: "Thanh toán", href: "/banking/payments" },
+    ],
+    processSteps: [
+      { label: "Dashboard cảnh báo", href: "/banking", icon: <DashboardOutlined /> },
+      { label: "Đề nghị duyệt chi", href: "/banking/payment-approvals", icon: <CheckCircleOutlined /> },
+      { label: "Kiểm tra thông tin chi", href: "/banking/payments", icon: <FileSearchOutlined /> },
+      { label: "Thanh toán nhiều lần", href: "/banking/payments", icon: <BankOutlined /> },
+      { label: "Import và đối chiếu sao kê", href: "/banking/statements", icon: <ReconciliationOutlined /> },
+      { label: "Bảng kê TERM", href: "/banking/term-batches", icon: <FileDoneOutlined /> },
+    ],
+    reports: [
+      { label: "Danh sách đề nghị chi", href: "/banking/payment-approvals" },
+      { label: "Lịch sử thanh toán", href: "/banking/payments" },
+      { label: "Sao kê ngân hàng", href: "/banking/statements" },
+    ],
+    shortcuts: [
+      { label: "Tài khoản công ty", href: "/bank-accounts", icon: <BankOutlined /> },
+      { label: "Mẫu import sao kê", href: "/bank-import-templates", icon: <SettingOutlined /> },
+      { label: "Mục đích thanh toán", href: "/bank-purposes", icon: <FileTextOutlined /> },
     ],
   },
   "sales.dashboard": {
@@ -477,6 +534,7 @@ const WORKSPACE_DASHBOARDS: Record<string, WorkspaceDefaultConfig> = {
 
 const DASHBOARD_BY_WORKSPACE: Record<string, string> = {
   purchase: "purchase.dashboard",
+  banking: "banking.dashboard",
   sales: "sales.dashboard",
   operations: "operations.dashboard",
   legal: "legal.dashboard",

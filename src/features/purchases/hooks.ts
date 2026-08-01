@@ -35,6 +35,29 @@ export const useCreatePurchaseOrder = () => {
   });
 };
 
+export const useUpdatePurchaseOrder = (id?: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpsertPurchaseOrderPayload) =>
+      PurchasesApi.updatePO(id!, payload),
+    onSuccess: () => {
+      notify.success("Đã cập nhật đơn mua hàng");
+      qc.invalidateQueries({ queryKey: ["purchaseOrders"] });
+    },
+  });
+};
+
+export const useActivePurchaseContract = (
+  supplierCustomerId?: string,
+  orderDate?: string,
+) =>
+  useQuery({
+    queryKey: ["purchaseOrders", "contract", supplierCustomerId, orderDate],
+    queryFn: () => PurchasesApi.validateContract(supplierCustomerId!, orderDate!),
+    enabled: Boolean(supplierCustomerId && orderDate),
+    retry: false,
+  });
+
 export const useApprovePurchaseOrder = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -86,6 +109,14 @@ export const useCancelPurchaseOrder = () => {
   });
 };
 
+/** All operational warehouses, for screens that pick one before a supplier is known. */
+export const useWarehouseSelect = (keyword: string = "") =>
+  useQuery<SupplierLocationOption[]>({
+    queryKey: ["supplierLocations", "select", "all", keyword],
+    queryFn: () => PurchasesApi.supplierLocationsSelect({ keyword, isActive: true, limit: 50 }),
+    staleTime: 5 * 60 * 1000,
+  });
+
 export const useSupplierLocationsSelect = (
   supplierCustomerId?: string,
   keyword: string = "",
@@ -105,13 +136,13 @@ export const useSupplierLocationsSelect = (
 export const useCreateGoodsReceipt = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: any) =>
-      PurchasesApi.createGoodsReceiptAutoConfirm(payload),
+    mutationFn: (payload: any) => PurchasesApi.createGoodsReceiptRequest(payload),
     onSuccess: (_res, payload) => {
       qc.invalidateQueries({
         queryKey: ["purchaseOrders", "detail", payload.purchaseOrderId],
       });
       qc.invalidateQueries({ queryKey: ["purchaseOrders", "list"] });
+      qc.invalidateQueries({ queryKey: ["inventory-receipts"] });
     },
   });
 };

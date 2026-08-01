@@ -1,22 +1,80 @@
 import { useMemo, useState } from "react";
 import {
   Badge,
-  Dropdown,
+  Button,
+  Drawer,
+  Empty,
+  List,
   Modal,
+  Segmented,
   Space,
+  Spin,
   Table,
+  Tag,
   Typography,
-  type MenuProps,
 } from "antd";
 import {
   BellOutlined,
+  CheckOutlined,
   FileTextOutlined,
   GiftOutlined,
-  WalletOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
+import {
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+  useNotificationRealtime,
+  useNotifications,
+  useNotificationUnreadCount,
+} from "../../../features/notifications/hooks";
+import type {
+  CommonNotification,
+  NotificationSeverity,
+} from "../../../features/notifications/types";
 import { useAppSession } from "../../authz/AppSessionProvider";
+import "../../../features/notifications/notification-center.css";
+
+const severityColor: Record<NotificationSeverity, string> = {
+  INFO: "blue",
+  SUCCESS: "green",
+  WARNING: "gold",
+  ERROR: "red",
+};
+
+function relativeTime(value: string) {
+  const timestamp = dayjs(value);
+  const minutes = dayjs().diff(timestamp, "minute");
+  if (minutes < 1) return "Vừa xong";
+  if (minutes < 60) return `${minutes} phút`;
+  const hours = dayjs().diff(timestamp, "hour");
+  if (hours < 24) return `${hours} giờ`;
+  const days = dayjs().diff(timestamp, "day");
+  if (days < 7) return `${days} ngày`;
+  return timestamp.format("DD/MM/YYYY");
+}
+
+function notificationPath(item: CommonNotification) {
+  if (item.action === "REVIEW_PURCHASE_PAYMENT") {
+    return "/banking/payment-approvals";
+  }
+  if (item.action === "PROCESS_PURCHASE_PAYMENT") {
+    return "/banking/payments";
+  }
+  if (item.entityType === "COMMERCIAL_PURCHASE" && item.entityId) {
+    return `/commercial-purchases/lots/${item.entityId}`;
+  }
+  if (item.entityType === "COMMERCIAL_PURCHASE_RETAIL" && item.entityId) {
+    return `/purchase-orders/${item.entityId}`;
+  }
+  if (item.entityType === "SALES_ORDER") {
+    return "/commercial-purchases/retail";
+  }
+  if (item.entityType === "PURCHASE_RECEIPT") {
+    return "/operations/inventory-receipts";
+  }
+  return null;
+}
 
 export default function NotificationsBell({
   extraCount = 0,
@@ -24,152 +82,234 @@ export default function NotificationsBell({
   extraCount?: number;
 }) {
   const navigate = useNavigate();
-  const [openModal, setOpenModal] = useState(false);
   const { ready, bootstrap } = useAppSession();
+  const [open, setOpen] = useState(false);
+  const [birthdayOpen, setBirthdayOpen] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+
+  useNotificationRealtime(ready);
+  const listQuery = useNotifications(unreadOnly);
+  const countQuery = useNotificationUnreadCount();
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
 
   const birthdays = bootstrap?.data?.notifications?.birthdays;
   const contracts = bootstrap?.data?.notifications?.contracts;
-  const termPayments = bootstrap?.data?.notifications?.termPayments;
-  const termPurchasePayments =
-    bootstrap?.data?.notifications?.termPurchasePayments;
-
-  const bdayCount = birthdays?.count ?? 0;
-  const hasBirthday = bdayCount > 0;
-  const month = birthdays?.month ?? new Date().getMonth() + 1;
-
+  const birthdayCount = birthdays?.count ?? 0;
   const expiringCount = contracts?.expiringCount ?? 0;
   const expiredCount = contracts?.expiredCount ?? 0;
+  const hasBirthday = birthdayCount > 0;
   const hasContracts = expiringCount + expiredCount > 0;
-
-  const pendingTermPaymentCount = termPayments?.pendingCount ?? 0;
-  const hasPendingTermPayments = pendingTermPaymentCount > 0;
-  const paidTermPaymentCount = termPurchasePayments?.paidCount ?? 0;
-  const hasPaidTermPayments = paidTermPaymentCount > 0;
-
+  const unreadCount = countQuery.data?.count ?? 0;
   const badgeCount =
     extraCount +
-    pendingTermPaymentCount +
-    paidTermPaymentCount +
+    unreadCount +
     (hasBirthday ? 1 : 0) +
     (hasContracts ? 1 : 0);
 
-  const dropdownItems: MenuProps["items"] = useMemo(() => {
-    const items: MenuProps["items"] = [];
-    if (!ready) {
-      return [{ key: "loading", disabled: true, label: "Đang tải..." }];
+  const rows = useMemo(() => {
+    const today = dayjs().date();
+    return (
+      birthdays?.items?.map((employee: any) => {
+        const dob = dayjs(employee.dob);
+        return {
+          ...employee,
+          dobFmt: dob.format("DD/MM/YYYY"),
+          isToday: dob.date() === today,
+        };
+      }) ?? []
+    );
+  }, [birthdays?.items]);
+
+  const openNotification = (item: CommonNotification) => {
+    if (item.status === "UNREAD") markRead.mutate(item.id);
+    const path = notificationPath(item);
+    if (path) {
+      setOpen(false);
+      navigate(path);
     }
+  };
 
-    if (hasPendingTermPayments) {
-      items.push({
-        key: "term-payment-requests",
-        icon: <WalletOutlined style={{ color: "#13c2c2" }} />,
-        label: `Có ${pendingTermPaymentCount} đề nghị thanh toán TERM chờ ngân hàng`,
-        onClick: () => navigate("/banking?tab=term-payments"),
-      });
-    }
-
-    if (hasPaidTermPayments) {
-      items.push({
-        key: "term-purchase-payments",
-        icon: <WalletOutlined style={{ color: "#52c41a" }} />,
-        label: `Có ${paidTermPaymentCount} đề nghị TERM đã có thanh toán`,
-        onClick: () => navigate("/purchase-terms?tab=paid"),
-      });
-    }
-
-    if (hasBirthday) {
-      items.push({
-        key: "birthday",
-        icon: <GiftOutlined style={{ color: "#faad14" }} />,
-        label: `Có ${bdayCount} sinh nhật trong tháng`,
-        onClick: () => setOpenModal(true),
-      });
-    }
-
-    if (hasContracts) {
-      items.push({
-        key: "contracts-expiry",
-        icon: <FileTextOutlined style={{ color: "#1890ff" }} />,
-        label: `Có ${expiringCount} sắp hết hạn, ${expiredCount} quá hạn`,
-        onClick: () => navigate("/contracts/expiry-report"),
-      });
-    }
-
-    if (!items.length) {
-      items.push({ key: "empty", disabled: true, label: "Không có thông báo" });
-    }
-
-    return items;
-  }, [
-    ready,
-    hasPendingTermPayments,
-    pendingTermPaymentCount,
-    hasPaidTermPayments,
-    paidTermPaymentCount,
-    hasBirthday,
-    hasContracts,
-    bdayCount,
-    expiringCount,
-    expiredCount,
-    navigate,
-  ]);
-
-  const today = dayjs().date();
-  const rows =
-    birthdays?.items?.map((u: any) => {
-      const dob = dayjs(u.dob);
-      return {
-        ...u,
-        day: dob.date(),
-        dobFmt: dob.format("DD/MM/YYYY"),
-        isToday: dob.date() === today,
-      };
-    }) ?? [];
+  const items = listQuery.data?.items ?? [];
+  const hasAny = items.length || hasBirthday || hasContracts;
 
   return (
     <>
-      <Dropdown
-        menu={{ items: dropdownItems }}
-        trigger={["click"]}
-        placement="bottomRight"
-        overlayStyle={{ width: 340 }}
+      <Badge count={badgeCount} size="small" offset={[-2, 3]}>
+        <button
+          type="button"
+          className="notification-bell-button"
+          aria-label={`Thông báo${badgeCount ? `, ${badgeCount} chưa đọc` : ""}`}
+          onClick={() => setOpen(true)}
+        >
+          <BellOutlined />
+        </button>
+      </Badge>
+
+      <Drawer
+        title={
+          <Space>
+            <BellOutlined />
+            <span>Trung tâm thông báo</span>
+            {unreadCount > 0 && <Tag color="blue">{unreadCount} chưa đọc</Tag>}
+          </Space>
+        }
+        placement="right"
+        width={460}
+        open={open}
+        onClose={() => setOpen(false)}
+        extra={
+          unreadCount > 0 ? (
+            <Button
+              type="text"
+              icon={<CheckOutlined />}
+              loading={markAllRead.isPending}
+              onClick={() => markAllRead.mutate()}
+            >
+              Đọc tất cả
+            </Button>
+          ) : null
+        }
       >
-        <Badge count={badgeCount} size="small" offset={[-2, 2]}>
-          <BellOutlined className="icon-btn" />
-        </Badge>
-      </Dropdown>
+        <div className="notification-center-toolbar">
+          <Segmented
+            value={unreadOnly ? "unread" : "all"}
+            options={[
+              { label: "Tất cả", value: "all" },
+              { label: "Chưa đọc", value: "unread" },
+            ]}
+            onChange={(value) => setUnreadOnly(value === "unread")}
+          />
+          <Typography.Text type="secondary">
+            Đồng bộ trên mọi thiết bị
+          </Typography.Text>
+        </div>
+
+        <Spin spinning={listQuery.isLoading}>
+          {hasAny ? (
+            <>
+              <List
+                className="notification-center-list"
+                dataSource={items}
+                locale={{ emptyText: "Không có thông báo phù hợp" }}
+                renderItem={(item) => (
+                  <List.Item
+                    className={`notification-center-item ${
+                      item.status === "UNREAD" ? "is-unread" : ""
+                    }`}
+                    onClick={() => openNotification(item)}
+                  >
+                    {item.status === "UNREAD" && (
+                      <span className="notification-center-dot" />
+                    )}
+                    <div style={{ width: "100%" }}>
+                      <div className="notification-center-title">
+                        <Space size={6} align="start">
+                          <Tag
+                            color={severityColor[item.severity]}
+                            style={{ marginInlineEnd: 0 }}
+                          >
+                            {item.moduleCode === "purchases"
+                              ? "Mua hàng"
+                              : item.moduleCode}
+                          </Tag>
+                          <Typography.Text strong>
+                            {item.title}
+                          </Typography.Text>
+                        </Space>
+                        <span className="notification-center-time">
+                          {relativeTime(item.occurredAt || item.createdAt)}
+                        </span>
+                      </div>
+                      <Typography.Text className="notification-center-body">
+                        {item.body}
+                      </Typography.Text>
+                    </div>
+                  </List.Item>
+                )}
+              />
+
+              {!unreadOnly && hasContracts && (
+                <div
+                  className="notification-legacy-card"
+                  onClick={() => {
+                    setOpen(false);
+                    navigate("/contracts/expiry-report");
+                  }}
+                >
+                  <Space align="start">
+                    <FileTextOutlined
+                      style={{ color: "#1677ff", marginTop: 4 }}
+                    />
+                    <div>
+                      <Typography.Text strong>
+                        Cảnh báo thời hạn hợp đồng
+                      </Typography.Text>
+                      <br />
+                      <Typography.Text type="secondary">
+                        {expiringCount} sắp hết hạn, {expiredCount} đã quá hạn
+                      </Typography.Text>
+                    </div>
+                  </Space>
+                </div>
+              )}
+
+              {!unreadOnly && hasBirthday && (
+                <div
+                  className="notification-legacy-card"
+                  onClick={() => setBirthdayOpen(true)}
+                >
+                  <Space align="start">
+                    <GiftOutlined style={{ color: "#faad14", marginTop: 4 }} />
+                    <div>
+                      <Typography.Text strong>
+                        Sinh nhật trong tháng
+                      </Typography.Text>
+                      <br />
+                      <Typography.Text type="secondary">
+                        Có {birthdayCount} nhân viên
+                      </Typography.Text>
+                    </div>
+                  </Space>
+                </div>
+              )}
+            </>
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="Không có thông báo"
+              style={{ marginTop: 72 }}
+            />
+          )}
+        </Spin>
+      </Drawer>
 
       <Modal
         title={
-          <Space style={{ alignItems: "center" }}>
-            <GiftOutlined style={{ color: "#faad14", fontSize: 18 }} />
-            <Typography.Text strong style={{ fontSize: 16 }}>
-              Sinh nhật tháng {month}
-            </Typography.Text>
+          <Space>
+            <GiftOutlined style={{ color: "#faad14" }} />
+            <span>Sinh nhật tháng {birthdays?.month ?? dayjs().month() + 1}</span>
           </Space>
         }
-        open={openModal}
-        onCancel={() => setOpenModal(false)}
+        open={birthdayOpen}
+        onCancel={() => setBirthdayOpen(false)}
         footer={null}
         width={560}
       >
         <Table
           rowKey="id"
           size="small"
-          columns={
-            [
-              { title: "Nhân viên", dataIndex: "fullName", key: "fullName" },
-              {
-                title: "Ngày sinh",
-                dataIndex: "dobFmt",
-                key: "dobFmt",
-                align: "center" as const,
-              },
-            ] as any
-          }
+          columns={[
+            { title: "Nhân viên", dataIndex: "fullName", key: "fullName" },
+            {
+              title: "Ngày sinh",
+              dataIndex: "dobFmt",
+              key: "dobFmt",
+              align: "center",
+            },
+          ]}
           dataSource={rows}
           pagination={{ pageSize: 8, hideOnSinglePage: true }}
-          locale={{ emptyText: "Tháng này chưa có sinh nhật." }}
         />
       </Modal>
     </>

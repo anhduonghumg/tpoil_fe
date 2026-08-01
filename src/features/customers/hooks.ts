@@ -45,6 +45,7 @@ export const useCreateCustomer = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["customers", "list"] });
       qc.invalidateQueries({ queryKey: ["customer", "select"] });
+      qc.invalidateQueries({ queryKey: ["party", "select"] });
     },
   });
 };
@@ -59,6 +60,7 @@ export const useUpdateCustomer = () => {
       qc.invalidateQueries({ queryKey: ["customers", "detail", vars.id] });
       qc.invalidateQueries({ queryKey: ["customers", "overview", vars.id] });
       qc.invalidateQueries({ queryKey: ["customer", "select"] });
+      qc.invalidateQueries({ queryKey: ["party", "select"] });
     },
   });
 };
@@ -71,6 +73,8 @@ export const useDeleteCustomer = () => {
       qc.invalidateQueries({ queryKey: ["customers", "list"] });
       qc.invalidateQueries({ queryKey: ["customers", "detail", id] });
       qc.invalidateQueries({ queryKey: ["customers", "overview", id] });
+      qc.invalidateQueries({ queryKey: ["customer", "select"] });
+      qc.invalidateQueries({ queryKey: ["party", "select"] });
     },
   });
 };

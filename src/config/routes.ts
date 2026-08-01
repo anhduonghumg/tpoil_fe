@@ -5,6 +5,16 @@ export const ROUTES = {
   app: {
     bootstrap: ["GET", "/app/bootstrap"] as RouteTuple,
   },
+  notifications: {
+    list: ["GET", "/notifications"] as RouteTuple,
+    unreadCount: ["GET", "/notifications/unread-count"] as RouteTuple,
+    markRead: ["PATCH", "/notifications/:id/read"] as RouteTuple,
+    markAllRead: ["PATCH", "/notifications/read-all"] as RouteTuple,
+    preferences: ["GET", "/notifications/preferences"] as RouteTuple,
+    updatePreference: ["PATCH", "/notifications/preferences"] as RouteTuple,
+    registerDevice: ["POST", "/notifications/devices"] as RouteTuple,
+    disableDevice: ["DELETE", "/notifications/devices/:deviceId"] as RouteTuple,
+  },
   auth: {
     login: ["POST", "/auth/login"] as const,
     logout: ["POST", "/auth/logout"] as const,
@@ -124,10 +134,12 @@ export const ROUTES = {
     detail: ["GET", "/purchase-orders/:id"] as RouteTuple,
     create: ["POST", "/purchase-orders"] as RouteTuple,
     update: ["PATCH", "/purchase-orders/:id"] as RouteTuple,
+    updateActualReceived: ["PATCH", "/purchase-orders/:id/actual-received"] as RouteTuple,
     delete: ["DELETE", "/purchase-orders/:id"] as RouteTuple,
     approve: ["POST", "/purchase-orders/:id/approve"] as RouteTuple,
     cancel: ["POST", "/purchase-orders/:id/cancel"] as RouteTuple,
     validateContract: ["GET", "/purchase-orders/validate-contract"] as RouteTuple,
+    paymentRequestPrint: ["GET", "/purchase-orders/payment-requests/:requestId/print"] as RouteTuple,
 
     approveMany: ["POST", "/purchase-orders/approve-many"] as RouteTuple,
     cancelMany: ["POST", "/purchase-orders/cancel-many"] as RouteTuple,
@@ -280,8 +292,23 @@ export const ROUTES = {
       "/purchase-terms/:purchaseOrderId/logistics-costs/:costId/void",
     ] as RouteTuple,
   },
+  // Invoice-based payment requests shared by lot and retail commercial purchases.
+  commercialPayments: {
+    list: ["GET", "/commercial-purchases/payment-requests"] as RouteTuple,
+    createPaymentRequest: [
+      "POST",
+      "/commercial-purchases/:id/payment-requests",
+    ] as RouteTuple,
+    approvePaymentRequest: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/approve"] as RouteTuple,
+    rejectPaymentRequest: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/reject"] as RouteTuple,
+    resubmitPaymentRequest: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/resubmit"] as RouteTuple,
+    bankVerifyPaymentRequest: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/bank-verify"] as RouteTuple,
+    bankReturnPaymentRequest: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/bank-return"] as RouteTuple,
+    recordPayment: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/payments"] as RouteTuple,
+  },
   commercialLots: {
     list: ["GET", "/commercial-lot-purchases"] as RouteTuple,
+    listWithdrawals: ["GET", "/commercial-lot-purchases/withdrawals"] as RouteTuple,
     detail: ["GET", "/commercial-lot-purchases/:id"] as RouteTuple,
     createWithdrawal: [
       "POST",
@@ -295,6 +322,17 @@ export const ROUTES = {
       "POST",
       "/commercial-lot-purchases/:id/withdrawals/:withdrawalId/cancel",
     ] as RouteTuple,
+  },
+
+  salesOrders: {
+    list: ["GET", "/sales-orders"] as RouteTuple,
+    create: ["POST", "/sales-orders"] as RouteTuple,
+    detail: ["GET", "/sales-orders/:id"] as RouteTuple,
+    createFromPurchaseOrder: [
+      "POST",
+      "/sales-orders/from-purchase-order/:purchaseOrderId",
+    ] as RouteTuple,
+    unlinkPurchaseOrder: ["DELETE", "/sales-orders/link/:purchaseOrderId"] as RouteTuple,
   },
 
   commodityPriceQuotes: {
@@ -315,6 +353,13 @@ export const ROUTES = {
     create: ["POST", "/environment-taxes"] as RouteTuple,
     update: ["PATCH", "/environment-taxes/:id"] as RouteTuple,
     delete: ["DELETE", "/environment-taxes/:id"] as RouteTuple,
+  },
+  vatRates: {
+    list: ["GET", "/vat-rates"] as RouteTuple,
+    select: ["GET", "/vat-rates/select"] as RouteTuple,
+    create: ["POST", "/vat-rates"] as RouteTuple,
+    update: ["PATCH", "/vat-rates/:id"] as RouteTuple,
+    delete: ["DELETE", "/vat-rates/:id"] as RouteTuple,
   },
 
   supplierInvoices: {
@@ -395,11 +440,14 @@ export const ROUTES = {
   goodsReceipts: {
     list: ["GET", "/goods-receipts"] as RouteTuple,
     detail: ["GET", "/goods-receipts/:id"] as RouteTuple,
+    stockCard: ["GET", "/goods-receipts/stock-card"] as RouteTuple,
     create: ["POST", "/goods-receipts"] as RouteTuple,
     update: ["PATCH", "/goods-receipts/:id"] as RouteTuple,
     delete: ["DELETE", "/goods-receipts/:id"] as RouteTuple,
 
-    createAutoConfirm: ["POST", "/goods-receipts/auto-confirm"] as RouteTuple,
+    createRequest: ["POST", "/goods-receipts/requests"] as RouteTuple,
+    confirm: ["POST", "/goods-receipts/:id/confirm"] as RouteTuple,
+    void: ["POST", "/goods-receipts/:id/void"] as RouteTuple,
   },
   products: {
     select: ["GET", "/products/select"] as RouteTuple,

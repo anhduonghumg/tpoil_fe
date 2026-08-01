@@ -41,6 +41,14 @@ type FilterValues = {
 
 type TermListTab = "ALL" | "PAID";
 
+const TERM_STATUSES = new Set(["DRAFT", "APPROVED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]);
+
+function parseTermStatus(value: string | null): PurchaseOrderStatus | undefined {
+  return value && TERM_STATUSES.has(value)
+    ? (value as PurchaseOrderStatus)
+    : undefined;
+}
+
 function money(v?: number | null) {
   if (v === null || v === undefined) return "--";
   return new Intl.NumberFormat("vi-VN").format(Math.round(Number(v)));
@@ -120,9 +128,10 @@ function nextActionTag(action: TermNextAction) {
 export default function TermPurchaseOrdersPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const initialStatus = parseTermStatus(searchParams.get("status"));
 
-  const [draft, setDraft] = useState<FilterValues>({});
-  const [filter, setFilter] = useState<FilterValues>({});
+  const [draft, setDraft] = useState<FilterValues>({ status: initialStatus });
+  const [filter, setFilter] = useState<FilterValues>({ status: initialStatus });
   const [activeTab, setActiveTab] = useState<TermListTab>(
     searchParams.get("tab") === "paid" ? "PAID" : "ALL",
   );

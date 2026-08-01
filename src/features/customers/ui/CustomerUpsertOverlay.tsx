@@ -163,6 +163,7 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
         shippingAddress: detail.shippingAddress,
         contactEmail: detail.contactEmail,
         contactPhone: detail.contactPhone,
+        bankAccountNo: detail.bankAccountNo,
         roles: detail.roles,
         type: detail.type,
         partnerRoles,
@@ -216,6 +217,7 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
       shippingAddress: values.shippingAddress || undefined,
       contactEmail: values.contactEmail || undefined,
       contactPhone: values.contactPhone || undefined,
+      bankAccountNo: values.bankAccountNo || undefined,
 
       creditLimit:
         values.creditLimit !== undefined

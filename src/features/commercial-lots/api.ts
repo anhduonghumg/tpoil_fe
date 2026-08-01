@@ -7,6 +7,9 @@ import type {
   CommercialLotListResult,
   CommercialLotPurchase,
   CommercialLotWithdrawal,
+  CommercialLotWithdrawalListQuery,
+  CommercialLotWithdrawalListResult,
+  CommercialPaymentRequest,
   CreateLotWithdrawalPayload,
 } from "./types";
 
@@ -29,6 +32,12 @@ export const CommercialLotsApi = {
       data: { ...payload, orderType: "LOT" },
     }).then(unwrap<any>),
 
+  updateOrder: (id: string, payload: UpsertPurchaseOrderPayload) =>
+    apiCall("purchaseOrders.update", { params: { id }, data: { ...payload, orderType: "LOT" } }).then(unwrap<any>),
+
+  updateActualReceived: (id: string, lines: Array<{ purchaseOrderLineId: string; actualReceivedQty: number }>) =>
+    apiCall("purchaseOrders.updateActualReceived", { params: { id }, data: { lines } }).then(unwrap<CommercialLotPurchase>),
+
   approveOrder: (id: string) =>
     apiCall("purchaseOrders.approve", {
       params: { id },
@@ -46,6 +55,32 @@ export const CommercialLotsApi = {
       "purchaseOrders.validateContract",
       { query: { supplierCustomerId, orderDate } },
     ).then(unwrap<ActivePurchaseContractResult>),
+
+  listPaymentRequests: () =>
+    apiCall<ApiResponse<CommercialPaymentRequest[]>>(
+      "commercialPayments.list",
+    ).then(unwrap<CommercialPaymentRequest[]>),
+
+  listWithdrawals: (query: CommercialLotWithdrawalListQuery) =>
+    apiCall<ApiResponse<CommercialLotWithdrawalListResult>>(
+      "commercialLots.listWithdrawals",
+      { query },
+    ).then(unwrap<CommercialLotWithdrawalListResult>),
+
+  createPaymentRequest: (id: string, data: { supplierInvoiceId: string; beneficiaryAccountNo?: string; note?: string }) =>
+    apiCall<ApiResponse<any>>("commercialPayments.createPaymentRequest", {
+      params: { id },
+      data,
+    }).then(unwrap<any>),
+
+  paymentAction: (id: string, requestId: string, action: "approve" | "reject" | "bank-verify" | "bank-return", note?: string) =>
+    apiCall(`commercialPayments.${action === "bank-verify" ? "bankVerifyPaymentRequest" : action === "bank-return" ? "bankReturnPaymentRequest" : action === "approve" ? "approvePaymentRequest" : "rejectPaymentRequest"}`, { params: { id, requestId }, data: { note } }).then(unwrap<any>),
+
+  resubmitPaymentRequest: (id: string, requestId: string, data: { note?: string; beneficiaryAccountNo?: string }) =>
+    apiCall("commercialPayments.resubmitPaymentRequest", { params: { id, requestId }, data }).then(unwrap<any>),
+
+  recordPayment: (id: string, requestId: string, data: any) =>
+    apiCall("commercialPayments.recordPayment", { params: { id, requestId }, data }).then(unwrap<any>),
 
   createWithdrawal: (id: string, payload: CreateLotWithdrawalPayload) =>
     apiCall<ApiResponse<CommercialLotWithdrawal>>(

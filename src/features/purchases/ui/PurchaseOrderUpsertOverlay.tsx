@@ -34,7 +34,6 @@ export type PurchaseOrderUpsertOverlayProps = {
   onCreated?: (poId: string) => void;
   products: ProductOption[];
   onSearchProducts: (keyword: string) => void;
-  defaultOrderNo?: string;
   fixedOrderType?: PurchaseOrderType;
 };
 
@@ -47,7 +46,6 @@ export default function PurchaseOrderUpsertOverlay(
     onCreated,
     products,
     onSearchProducts,
-    defaultOrderNo,
     fixedOrderType,
   } = props;
 
@@ -68,7 +66,7 @@ export default function PurchaseOrderUpsertOverlay(
     if (!open) return;
 
     form.setFieldsValue({
-      orderNo: defaultOrderNo ?? "",
+      orderNo: "AUTO",
       orderType: fixedOrderType ?? "SINGLE",
       paymentMode: "PREPAID",
       priceRegionCode: regionDefault,
@@ -90,7 +88,7 @@ export default function PurchaseOrderUpsertOverlay(
         },
       ],
     });
-  }, [open, regionDefault, defaultOrderNo, fixedOrderType]);
+  }, [open, regionDefault, fixedOrderType]);
 
   const paymentMode = Form.useWatch("paymentMode", form) as
     | PurchasePaymentMode
@@ -111,7 +109,6 @@ export default function PurchaseOrderUpsertOverlay(
 
   const canSubmit = useMemo(() => {
     const v = form.getFieldsValue();
-    if (!v.orderNo?.trim()) return false;
     if (!v.supplierCustomerId) return false;
     if (!v.priceRegionCode) return false;
     if (!v.orderDate) return false;
@@ -147,7 +144,7 @@ export default function PurchaseOrderUpsertOverlay(
       const payload: UpsertPurchaseOrderPayload = {
         ...values,
         orderType: fixedOrderType ?? values.orderType,
-        orderNo: values.orderNo.trim(),
+        orderNo: "AUTO",
         expectedDate: values.expectedDate ?? null,
         note: values.note ?? null,
         orderDate: dayjs(values.orderDate).format("YYYY-MM-DD"),
@@ -214,12 +211,14 @@ export default function PurchaseOrderUpsertOverlay(
           }}
         >
           <Form.Item
-            name="orderNo"
             label="Số đơn"
-            rules={[{ required: true, message: "Nhập số đơn" }]}
             style={{ marginBottom: 0 }}
           >
-            <Input size="small" placeholder="VD: PO-2026-0001" />
+            <Input
+              size="small"
+              disabled
+              value="Tự động theo NCC và tháng đặt hàng"
+            />
           </Form.Item>
 
           <Form.Item

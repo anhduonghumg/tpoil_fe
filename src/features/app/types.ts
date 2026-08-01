@@ -23,11 +23,19 @@ export interface TermPurchasePaymentNotifications {
   paidCount: number;
 }
 
+export interface CommercialPaymentNotifications {
+  directorPendingCount: number;
+  bankPendingCount: number;
+  purchaseApprovedCount: number;
+  purchaseReturnedCount: number;
+}
+
 export interface NotificationsPayload {
   birthdays: BirthdaysNotifications;
   contracts: ContractsNotifications;
   termPayments: TermPaymentsNotifications;
   termPurchasePayments: TermPurchasePaymentNotifications;
+  commercialPayments: CommercialPaymentNotifications;
 }
 
 export interface AuthBootstrapPayload {

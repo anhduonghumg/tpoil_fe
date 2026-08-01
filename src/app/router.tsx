@@ -18,6 +18,7 @@ import { RouteGuard } from "../shared/authz/RouteGuard";
 import { PERMS } from "../shared/authz/perms";
 import { CustomerGroupsPage } from "../features/customer-groups/page/CustomerGroupsPage";
 import PurchaseOrdersPage from "../features/purchases/page/PurchaseOrdersPage";
+import RetailPurchaseCreatePage from "../features/purchases/page/RetailPurchaseCreatePage";
 import { ProductsPage } from "../features/products/page/ProductsPage";
 import { SupplierLocationsPage } from "../features/supplierLocations/page/SupplierLocationsPage";
 import { WarehouseRentalContractsPage } from "../features/supplierLocations/page/WarehouseRentalContractsPage";
@@ -35,6 +36,7 @@ import BankPurposesPage from "../features/bank-purposes/page/BankPurposesPage";
 import PlattsPricesPage from "../features/platts-prices/page/PlattsPricesPage";
 import VcbRatesPage from "../features/vcb-rates/page/VcbRatesPage";
 import EnvironmentTaxesPage from "../features/environment-taxes/page/EnvironmentTaxesPage";
+import TaxRatesPage from "../features/tax-rates/page/TaxRatesPage";
 import TermPurchaseOrderCreatePage from "../features/purchase-term/ui/PurchaseTermCreatePage";
 import TermPurchaseOrdersPage from "../features/purchase-term/page/PurchaseTermPage";
 import TermPurchaseOrderDetailPage from "../features/purchase-term/page/TermPurchaseOrderDetailPage";
@@ -60,6 +62,8 @@ import {
   WarehouseTransferListPage,
 } from "../features/operations/pages";
 import OperationsDashboardPage from "../features/operations/OperationsDashboardPage";
+import WarehouseDashboardPage from "../features/operations/WarehouseDashboardPage";
+import InventoryReceiptsPage from "../features/inventory-receipts/page/InventoryReceiptsPage";
 import {
   ShipCharterOrderDetailPage,
   ShipCharterOrderFormPage,
@@ -111,12 +115,24 @@ export const router = createBrowserRouter([
             element: <CommercialLotPurchaseCreatePage />,
           },
           {
+            path: "/commercial-purchases/lots/:id/edit",
+            element: <CommercialLotPurchaseCreatePage />,
+          },
+          {
             path: "/commercial-purchases/lots/:id",
             element: <CommercialLotPurchaseDetailPage />,
           },
           {
             path: "/commercial-purchases/retail",
             element: <PurchaseOrdersPage fixedOrderType="SINGLE" />,
+          },
+          {
+            path: "/commercial-purchases/retail/create",
+            element: <RetailPurchaseCreatePage />,
+          },
+          {
+            path: "/commercial-purchases/retail/:id/edit",
+            element: <RetailPurchaseCreatePage />,
           },
           {
             path: "/purchase/platts-prices",
@@ -129,6 +145,10 @@ export const router = createBrowserRouter([
           {
             path: "/purchase/environment-taxes",
             element: <EnvironmentTaxesPage />,
+          },
+          {
+            path: "/purchase/tax-rates",
+            element: <TaxRatesPage />,
           },
           {
             path: "/purchase-terms",
@@ -177,7 +197,9 @@ export const router = createBrowserRouter([
           { path: "operations/charter-inspections", element: <ShipCharterInspectionListPage /> },
           { path: "operations/shipping-agent-registrations", element: <ShippingAgentRegistrationListPage /> },
            { path: "operations/storage-contracts", element: <WarehouseRentalContractsPage /> },
+          { path: "operations/warehouse-dashboard", element: <WarehouseDashboardPage /> },
           { path: "operations/inventory-availability", element: <InventoryAvailabilityPage /> },
+          { path: "operations/inventory-receipts", element: <InventoryReceiptsPage /> },
           { path: "operations/inventory-accounting", element: <InventoryAccountingPage /> },
           { path: "operations/inventory-matrix", element: <InventoryMatrixReportPage /> },
           { path: "operations/expected-inventory", element: <ExpectedInventoryPage /> },
@@ -202,6 +224,22 @@ export const router = createBrowserRouter([
           },
           {
             path: "/banking",
+            element: <BankStatementPage />,
+          },
+          {
+            path: "/banking/payment-approvals",
+            element: <BankStatementPage />,
+          },
+          {
+            path: "/banking/payments",
+            element: <BankStatementPage />,
+          },
+          {
+            path: "/banking/statements",
+            element: <BankStatementPage />,
+          },
+          {
+            path: "/banking/term-batches",
             element: <BankStatementPage />,
           },
           {

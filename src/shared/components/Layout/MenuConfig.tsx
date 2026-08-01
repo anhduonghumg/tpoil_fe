@@ -61,9 +61,11 @@ export const NAV_ITEMS: NavItem[] = [
         key: "/operations/inventory-availability",
         label: "Quản lý kho",
         children: [
+          { key: "/operations/warehouse-dashboard", label: "Dashboard kho" },
           { key: "/settings/inventory", label: "Danh mục kho" },
           { key: "/operations/storage-contracts", label: "Hợp đồng thuê kho" },
           { key: "/operations/inventory-availability", label: "Tồn kho kinh doanh" },
+          { key: "/operations/inventory-receipts", label: "Nhập kho mua hàng" },
           { key: "/operations/inventory-accounting", label: "Tồn kho kế toán" },
           { key: "/operations/expected-inventory", label: "Hàng dự kiến" },
           { key: "/operations/reservations", label: "Giữ hàng" },

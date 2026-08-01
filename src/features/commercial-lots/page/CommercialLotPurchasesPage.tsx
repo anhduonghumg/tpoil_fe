@@ -1,21 +1,26 @@
 import React, { useMemo, useState } from "react";
 import {
+  Badge,
   Button,
   DatePicker,
   Input,
+  Popover,
   Progress,
+  Space,
   Table,
   Tabs,
+  Tooltip,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
+  FilterOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { PartySelect } from "../../../shared/ui/PartySelect";
 import { useCommercialLotList } from "../hooks";
 import type {
@@ -23,7 +28,6 @@ import type {
   CommercialLotPurchase,
 } from "../types";
 import {
-  formatMoney,
   formatQty,
   LifecycleTag,
   LIFECYCLE_LABELS,
@@ -31,27 +35,63 @@ import {
 import "../commercial-lots.css";
 
 const ALL_TAB = "ALL";
+const WORKING_TAB = "WORKING";
+const WORKING_LIFECYCLES: CommercialLotLifecycle[] = [
+  "PENDING_INVOICE",
+  "PENDING_PAYMENT",
+  "READY_TO_WITHDRAW",
+  "WITHDRAWING",
+];
+const LOT_LIFECYCLES = new Set([
+  "PENDING_APPROVAL",
+  "PENDING_INVOICE",
+  "PENDING_PAYMENT",
+  "READY_TO_WITHDRAW",
+  "WITHDRAWING",
+  "COMPLETED",
+  "CANCELLED",
+]);
+
+function parseLifecycle(value: string | null): CommercialLotLifecycle | undefined {
+  return value && LOT_LIFECYCLES.has(value)
+    ? (value as CommercialLotLifecycle)
+    : undefined;
+}
 
 export default function CommercialLotPurchasesPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialLifecycle = parseLifecycle(searchParams.get("lifecycle"));
+  const initialLifecycleGroup =
+    searchParams.get("lifecycleGroup") === "working" ? WORKING_TAB : undefined;
   const [keyword, setKeyword] = useState("");
   const [supplierId, setSupplierId] = useState<string>();
   const [dates, setDates] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [draftSupplierId, setDraftSupplierId] = useState<string>();
+  const [draftDates, setDraftDates] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [lifecycle, setLifecycle] = useState<
     CommercialLotLifecycle | undefined
-  >();
+  >(initialLifecycle);
+  const [lifecycleGroup, setLifecycleGroup] = useState<string | undefined>(
+    initialLifecycleGroup,
+  );
   const [page, setPage] = useState(1);
 
   const query = useCommercialLotList({
     keyword: keyword.trim() || undefined,
     supplierCustomerId: supplierId,
-    lifecycle,
+    lifecycle: lifecycleGroup === WORKING_TAB ? undefined : lifecycle,
     dateFrom: dates?.[0].format("YYYY-MM-DD"),
     dateTo: dates?.[1].format("YYYY-MM-DD"),
     page,
-    limit: 20,
+    limit: lifecycleGroup === WORKING_TAB ? 200 : 20,
   });
   const items = query.data?.items ?? [];
+  const visibleItems =
+    lifecycleGroup === WORKING_TAB
+      ? items.filter((item) => WORKING_LIFECYCLES.includes(item.lifecycle))
+      : items;
 
   const columns = useMemo<ColumnsType<CommercialLotPurchase>>(
     () => [
@@ -79,16 +119,16 @@ export default function CommercialLotPurchasesPage() {
       {
         title: "Nhà cung cấp",
         dataIndex: "supplier",
-        width: 220,
+        width: 120,
         ellipsis: true,
-        render: (supplier) =>
-          supplier ? `${supplier.code} - ${supplier.name}` : "-",
+        render: (supplier) => supplier?.code ?? "-",
       },
       {
-        title: "Hợp đồng",
-        dataIndex: "contract",
-        width: 140,
-        render: (contract) => contract?.code ?? "-",
+        title: "Số lượng",
+        dataIndex: ["quantities", "orderedQty"],
+        width: 120,
+        align: "right",
+        render: (value) => formatQty(value),
       },
       {
         title: "Đã hóa đơn",
@@ -135,13 +175,6 @@ export default function CommercialLotPurchasesPage() {
         },
       },
       {
-        title: "Công nợ còn lại",
-        dataIndex: ["payment", "outstandingAmount"],
-        width: 150,
-        align: "right",
-        render: (value) => `${formatMoney(value)} đ`,
-      },
-      {
         title: "Trạng thái",
         dataIndex: "lifecycle",
         width: 140,
@@ -156,6 +189,7 @@ export default function CommercialLotPurchasesPage() {
 
   const tabItems = [
     { key: ALL_TAB, label: "Tất cả" },
+    { key: WORKING_TAB, label: "Working" },
     ...(
       [
         "PENDING_APPROVAL",
@@ -191,6 +225,7 @@ export default function CommercialLotPurchasesPage() {
 
       <div className="commercial-lot-toolbar">
         <Input
+          size="small"
           allowClear
           prefix={<SearchOutlined />}
           placeholder="Số đơn hoặc nhà cung cấp"
@@ -200,39 +235,29 @@ export default function CommercialLotPurchasesPage() {
             setPage(1);
           }}
         />
-        <PartySelect
-          partyRole="SUPPLIER"
-          placeholder="Nhà cung cấp"
-          value={supplierId}
-          onChange={(value) => {
-            setSupplierId(value ?? undefined);
-            setPage(1);
-          }}
-        />
-        <DatePicker.RangePicker
-          value={dates}
-          format="DD/MM/YYYY"
-          onChange={(value) => {
-            setDates(value as [dayjs.Dayjs, dayjs.Dayjs] | null);
-            setPage(1);
-          }}
-        />
-        <Button
-          icon={<ReloadOutlined />}
-          loading={query.isFetching}
-          onClick={() => query.refetch()}
-          title="Tải lại"
-        />
+        <Space size={6}>
+          <Popover trigger="click" placement="bottomRight" open={filterOpen} onOpenChange={(open) => { setFilterOpen(open); if (open) { setDraftSupplierId(supplierId); setDraftDates(dates); } }} content={<div className="commercial-lot-filter-panel"><Typography.Text strong>Nhà cung cấp</Typography.Text><PartySelect partyRole="SUPPLIER" placeholder="Chọn nhà cung cấp" value={draftSupplierId} onChange={(value) => setDraftSupplierId(value ?? undefined)} /><Typography.Text strong>Ngày đặt</Typography.Text><DatePicker.RangePicker value={draftDates} format="DD/MM/YYYY" onChange={(value) => setDraftDates(value as [dayjs.Dayjs, dayjs.Dayjs] | null)} style={{ width: "100%" }} /><Space style={{ width: "100%", justifyContent: "flex-end" }}><Button size="small" onClick={() => { setSupplierId(undefined); setDates(null); setFilterOpen(false); setPage(1); }}>Đặt lại</Button><Button size="small" type="primary" onClick={() => { setSupplierId(draftSupplierId); setDates(draftDates); setFilterOpen(false); setPage(1); }}>Áp dụng</Button></Space></div>}>
+            <Badge count={Number(Boolean(supplierId)) + Number(Boolean(dates))} size="small" offset={[-3, 3]}><Button size="small" icon={<FilterOutlined />}>Bộ lọc</Button></Badge>
+          </Popover>
+          <Tooltip title="Làm mới"><Button size="small" icon={<ReloadOutlined spin={query.isFetching} />} onClick={() => query.refetch()} /></Tooltip>
+        </Space>
       </div>
 
       <Tabs
         className="commercial-lot-tabs"
-        activeKey={lifecycle ?? ALL_TAB}
+        activeKey={lifecycleGroup ?? lifecycle ?? ALL_TAB}
         items={tabItems}
         onChange={(key) => {
-          setLifecycle(
-            key === ALL_TAB ? undefined : (key as CommercialLotLifecycle),
-          );
+          const nextLifecycle =
+            key === ALL_TAB || key === WORKING_TAB
+              ? undefined
+              : (key as CommercialLotLifecycle);
+          const nextGroup = key === WORKING_TAB ? WORKING_TAB : undefined;
+          setLifecycle(nextLifecycle);
+          setLifecycleGroup(nextGroup);
+          if (nextGroup) setSearchParams({ lifecycleGroup: "working" });
+          else if (nextLifecycle) setSearchParams({ lifecycle: nextLifecycle });
+          else setSearchParams({});
           setPage(1);
         }}
       />
@@ -243,12 +268,15 @@ export default function CommercialLotPurchasesPage() {
         size="small"
         loading={query.isLoading}
         columns={columns}
-        dataSource={items}
-        scroll={{ x: 1500 }}
+        dataSource={visibleItems}
+        scroll={{ x: 1150 }}
         pagination={{
           current: page,
           pageSize: 20,
-          total: query.data?.total ?? 0,
+          total:
+            lifecycleGroup === WORKING_TAB
+              ? visibleItems.length
+              : query.data?.total ?? 0,
           showSizeChanger: false,
           showTotal: (total) => `${total} đơn mua lô`,
           onChange: setPage,

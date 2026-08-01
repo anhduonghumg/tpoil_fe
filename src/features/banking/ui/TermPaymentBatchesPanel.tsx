@@ -493,7 +493,7 @@ export function TermPaymentBatchesPanel() {
           alignItems: "center",
         }}
       >
-        <b>Đề nghị thanh toán TERM chờ lập bảng kê</b>
+        <b>Đề nghị thanh toán chờ lập bảng kê</b>
         <Space>
           <DatePicker
             value={batchDate}

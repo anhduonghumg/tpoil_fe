@@ -29,6 +29,7 @@ import {
 } from "../hooks";
 import type { PurchaseOrderDetail } from "../types";
 import { notify } from "../../../shared/lib/notification";
+import { SalesOrderLinkCard } from "../../sales/ui/SalesOrderLinkCard";
 import { LeftOutlined } from "@ant-design/icons";
 
 function money(n: number): string {
@@ -478,10 +479,10 @@ export default function PurchaseOrderDetailPage() {
         receiptDate: v.receiptDate.toISOString(),
         qty: Number(v.qty || 0),
       });
-      notify.success("Đã nhận hàng");
+      notify.success("Đã gửi đề nghị nhập hàng sang kho");
       setGrOpen(false);
     } catch {
-      notify.error("Không nhận được hàng");
+      notify.error("Không gửi được đề nghị nhập hàng");
     }
   };
 
@@ -520,7 +521,7 @@ export default function PurchaseOrderDetailPage() {
           loading={createGRMut.isPending}
           onClick={openReceive}
         >
-          Nhận hàng
+          Đề nghị nhập hàng
         </Button>
       );
     }
@@ -550,7 +551,7 @@ export default function PurchaseOrderDetailPage() {
     if (canReceive) {
       return (
         <Button block loading={createGRMut.isPending} onClick={openReceive}>
-          Nhận hàng
+          Đề nghị nhập hàng
         </Button>
       );
     }
@@ -827,6 +828,14 @@ export default function PurchaseOrderDetailPage() {
               </div>
             </Card>
 
+            <div style={{ marginBottom: 16 }}>
+              <SalesOrderLinkCard
+                purchaseOrderId={po.id}
+                salesOrder={po.salesOrder}
+                purchaseLines={po.lines ?? []}
+              />
+            </div>
+
             {po.paymentMode === "POSTPAID" ? (
               <Card size="small" title="Kế hoạch thanh toán">
                 {po.paymentPlans?.length ? (
@@ -893,7 +902,7 @@ export default function PurchaseOrderDetailPage() {
                 loading={createGRMut.isPending}
                 onClick={openReceive}
               >
-                Nhận hàng
+                Đề nghị nhập hàng
               </Button>
 
               <Button
@@ -920,10 +929,10 @@ export default function PurchaseOrderDetailPage() {
       </Row>
       <Modal
         open={grOpen}
-        title="Nhận hàng"
+        title="Đề nghị nhập hàng"
         onCancel={() => setGrOpen(false)}
         onOk={submitReceive}
-        okText="Xác nhận nhận hàng"
+        okText="Gửi đề nghị sang kho"
         okButtonProps={{ loading: createGRMut.isPending }}
         destroyOnClose
       >

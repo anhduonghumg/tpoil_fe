@@ -1,9 +1,22 @@
-import { useMemo, useState } from "react";
-import { Button, Modal, Space, Tabs, Typography, message } from "antd";
-import PurchaseOrderFilters from "../ui/PurchaseOrderFilters";
+import { useState } from "react";
+import {
+  Badge,
+  Button,
+  DatePicker,
+  Input,
+  Modal,
+  Popover,
+  Space,
+  Tabs,
+  Tooltip,
+  Typography,
+} from "antd";
+import dayjs from "dayjs";
 import PurchaseOrderTable from "../ui/PurchaseOrderTable";
-import PurchaseOrderUpsertOverlay from "../ui/PurchaseOrderUpsertOverlay";
 import PrintBatchModal from "../ui/PrintBatchModal";
+import { PartySelect } from "../../../shared/ui/PartySelect";
+import { SalesOrderCreateModal } from "../../sales/ui/SalesOrderCreateModal";
+import "../../commercial-lots/commercial-lots.css";
 import {
   useApproveManyPurchaseOrders,
   useCancelManyPurchaseOrders,
@@ -15,16 +28,28 @@ import {
 import type {
   PurchaseOrderBusinessTab,
   PurchaseOrderListQuery,
+  PurchaseOrderStatus,
   PurchaseOrderType,
   UUID,
 } from "../types";
-import { useProductSelect } from "../../products/hooks";
-import { useNavigate } from "react-router-dom";
-import { PlusOutlined, PrinterOutlined } from "@ant-design/icons";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  FilterOutlined,
+  PlusOutlined,
+  PrinterOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import { notify } from "../../../shared/lib/notification";
 import { openPdfPreviewByPost } from "../../../shared/lib/helper";
 
-type ProductOption = { id: UUID; name: string; code?: string | null };
+const PURCHASE_STATUSES = new Set(["DRAFT", "APPROVED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]);
+
+function parsePurchaseStatus(value: string | null): PurchaseOrderStatus | undefined {
+  return value && PURCHASE_STATUSES.has(value)
+    ? (value as PurchaseOrderStatus)
+    : undefined;
+}
 
 export default function PurchaseOrdersPage({
   fixedOrderType,
@@ -32,10 +57,13 @@ export default function PurchaseOrdersPage({
   fixedOrderType?: PurchaseOrderType;
 } = {}) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialStatus = parsePurchaseStatus(searchParams.get("status"));
 
   const [query, setQuery] = useState<PurchaseOrderListQuery>({
     keyword: "",
     orderType: fixedOrderType,
+    status: initialStatus,
     businessState: undefined,
     page: 1,
     limit: 20,
@@ -50,11 +78,10 @@ export default function PurchaseOrdersPage({
   };
   const listQ = usePurchaseOrderList(effectiveQuery);
 
-  const [createOpen, setCreateOpen] = useState(false);
-
-  const [productKeyword, setProductKeyword] = useState("");
-  const productQ = useProductSelect(productKeyword);
-  const products: ProductOption[] = productQ.data ?? [];
+  const [salesOrderOpen, setSalesOrderOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [draftSupplierId, setDraftSupplierId] = useState<string>();
+  const [draftDates, setDraftDates] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const approveManyMut = useApproveManyPurchaseOrders();
@@ -69,11 +96,6 @@ export default function PurchaseOrdersPage({
 
   const tabCountsQ = usePurchaseOrderTabCounts(effectiveQuery);
   const counts = tabCountsQ.data ?? {};
-
-  const onSearchProducts = async (keyword: string) => {
-    setProductKeyword(keyword);
-    await productQ.refetch();
-  };
 
   const openDetail = (id: string) => {
     navigate(`/purchase-orders/${id}`);
@@ -144,56 +166,134 @@ export default function PurchaseOrdersPage({
     }
   };
 
-  const header = useMemo(
-    () => (
-      <Space
-        style={{
-          width: "100%",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-        }}
-      >
-        <div>
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            Đơn mua hàng
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            Theo dõi tiến độ từng đơn từ tạo đơn, duyệt, nhận hàng, hóa đơn NCC
-            đến thanh toán.
-          </Typography.Text>
-        </div>
-
-        <Button
-          type="primary"
-          onClick={() => setCreateOpen(true)}
-          size="small"
-          icon={<PlusOutlined />}
-        >
-          Thêm đơn
-        </Button>
-      </Space>
-    ),
-    [],
-  );
+  const activeFilterCount =
+    Number(Boolean(query.supplierCustomerId)) + Number(Boolean(query.dateFrom));
 
   return (
-    <div style={{ padding: 0 }}>
-      {header}
+    <div className="commercial-lot-page">
+      <div className="commercial-lot-header">
+        <div>
+          <Typography.Title level={3} className="commercial-lot-title">
+            Mua thương mại lẻ
+          </Typography.Title>
+          <Typography.Text className="commercial-lot-subtitle">
+            Theo dõi từ đơn đặt của khách, đơn mua, hóa đơn, thanh toán đến nhập kho
+          </Typography.Text>
+        </div>
+        <Space>
+          <Button icon={<PlusOutlined />} onClick={() => setSalesOrderOpen(true)}>
+            Tạo đơn đặt hàng (KD)
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => navigate("/commercial-purchases/retail/create")}
+          >
+            Tạo đơn mua lẻ
+          </Button>
+        </Space>
+      </div>
 
-      <div style={{ marginTop: 14, marginBottom: 12 }}>
-        <PurchaseOrderFilters
-          value={effectiveQuery}
-          onChange={(next) =>
-            setQuery({
-              ...next,
-              orderType: fixedOrderType ?? next.orderType,
-            })
+      <div className="commercial-lot-toolbar">
+        <Input
+          size="small"
+          allowClear
+          prefix={<SearchOutlined />}
+          placeholder="Số đơn hoặc nhà cung cấp"
+          value={query.keyword}
+          onChange={(event) =>
+            setQuery((s) => ({ ...s, keyword: event.target.value, page: 1 }))
           }
         />
+        <Space size={6}>
+          <Popover
+            trigger="click"
+            placement="bottomRight"
+            open={filterOpen}
+            onOpenChange={(open) => {
+              setFilterOpen(open);
+              if (open) {
+                setDraftSupplierId(query.supplierCustomerId);
+                setDraftDates(
+                  query.dateFrom && query.dateTo
+                    ? [dayjs(query.dateFrom), dayjs(query.dateTo)]
+                    : null,
+                );
+              }
+            }}
+            content={
+              <div className="commercial-lot-filter-panel">
+                <Typography.Text strong>Nhà cung cấp</Typography.Text>
+                <PartySelect
+                  partyRole="SUPPLIER"
+                  placeholder="Chọn nhà cung cấp"
+                  value={draftSupplierId}
+                  onChange={(value) => setDraftSupplierId(value ?? undefined)}
+                />
+                <Typography.Text strong>Ngày đặt</Typography.Text>
+                <DatePicker.RangePicker
+                  value={draftDates}
+                  format="DD/MM/YYYY"
+                  onChange={(value) =>
+                    setDraftDates(value as [dayjs.Dayjs, dayjs.Dayjs] | null)
+                  }
+                  style={{ width: "100%" }}
+                />
+                <Space style={{ width: "100%", justifyContent: "flex-end" }}>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setQuery((s) => ({
+                        ...s,
+                        supplierCustomerId: undefined,
+                        dateFrom: undefined,
+                        dateTo: undefined,
+                        page: 1,
+                      }));
+                      setFilterOpen(false);
+                    }}
+                  >
+                    Đặt lại
+                  </Button>
+                  <Button
+                    size="small"
+                    type="primary"
+                    onClick={() => {
+                      setQuery((s) => ({
+                        ...s,
+                        supplierCustomerId: draftSupplierId as UUID | undefined,
+                        dateFrom: draftDates?.[0].format("YYYY-MM-DD"),
+                        dateTo: draftDates?.[1].format("YYYY-MM-DD"),
+                        page: 1,
+                      }));
+                      setFilterOpen(false);
+                    }}
+                  >
+                    Áp dụng
+                  </Button>
+                </Space>
+              </div>
+            }
+          >
+            <Badge count={activeFilterCount} size="small" offset={[-3, 3]}>
+              <Button size="small" icon={<FilterOutlined />}>
+                Bộ lọc
+              </Button>
+            </Badge>
+          </Popover>
+          <Tooltip title="Làm mới">
+            <Button
+              size="small"
+              icon={<ReloadOutlined spin={listQ.isFetching} />}
+              onClick={() => listQ.refetch()}
+            />
+          </Tooltip>
+        </Space>
       </div>
 
       <div style={{ marginBottom: 12 }}>
         <Tabs
+          className="commercial-lot-tabs"
           activeKey={businessTab}
           onChange={(key) => {
             const tab = key as PurchaseOrderBusinessTab;
@@ -324,16 +424,9 @@ export default function PurchaseOrdersPage({
         onSelectionChange={setSelectedRowKeys}
       />
 
-      <PurchaseOrderUpsertOverlay
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={(poId) => {
-          navigate(`/purchase-orders/${poId}`);
-        }}
-        products={products}
-        onSearchProducts={onSearchProducts}
-        defaultOrderNo=""
-        fixedOrderType={fixedOrderType}
+      <SalesOrderCreateModal
+        open={salesOrderOpen}
+        onClose={() => setSalesOrderOpen(false)}
       />
 
       <PrintBatchModal

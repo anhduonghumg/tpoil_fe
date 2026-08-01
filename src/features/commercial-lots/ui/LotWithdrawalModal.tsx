@@ -87,26 +87,26 @@ export default function LotWithdrawalModal({
     {
       title: "Kho dự kiến",
       dataIndex: "receivingWarehouse",
-      width: 180,
+      width: 155,
       render: (warehouse) => warehouse?.name ?? "-",
     },
     {
       title: "Đã hóa đơn",
-      width: 130,
+      width: 110,
       align: "right",
       render: (_, line) =>
         formatQty(line.commercialLotPosition?.invoicedQty),
     },
     {
       title: "Đã rút",
-      width: 120,
+      width: 90,
       align: "right",
       render: (_, line) =>
         formatQty(line.commercialLotPosition?.withdrawnQty),
     },
     {
       title: "Còn lại",
-      width: 120,
+      width: 100,
       align: "right",
       render: (_, line) => {
         const position = line.commercialLotPosition;
@@ -118,7 +118,7 @@ export default function LotWithdrawalModal({
     },
     {
       title: "Số lượng rút",
-      width: 160,
+      width: 140,
       render: (_, line) => {
         const position = line.commercialLotPosition!;
         const max =
@@ -178,7 +178,7 @@ export default function LotWithdrawalModal({
       destroyOnClose
     >
       <Form<FormValues> form={form} layout="vertical">
-        <div className="commercial-lot-form-grid">
+        <div className="commercial-lot-withdrawal-form">
           <Form.Item
             name="withdrawalNo"
             label="Số phiếu rút"
@@ -208,7 +208,7 @@ export default function LotWithdrawalModal({
               }))}
             />
           </Form.Item>
-          <Form.Item name="note" label="Ghi chú" className="span-3">
+          <Form.Item name="note" label="Ghi chú">
             <Input />
           </Form.Item>
         </div>
@@ -220,7 +220,8 @@ export default function LotWithdrawalModal({
         pagination={false}
         columns={columns}
         dataSource={withdrawableLines}
-        scroll={{ x: 900 }}
+        className="commercial-lot-table commercial-lot-withdrawal-table"
+        scroll={{ y: 300 }}
       />
     </Modal>
   );

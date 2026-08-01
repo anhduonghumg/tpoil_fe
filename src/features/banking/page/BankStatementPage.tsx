@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Space, Modal, Typography, Tabs } from "antd";
 import dayjs from "dayjs";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   useBankTransactions,
   useBulkQuickMatchBankTransactions,
@@ -21,10 +21,14 @@ import { StatementMatchDrawer } from "../ui/StatementMatchDrawer";
 import ImportStatementModal from "../ui/ImportStatementModal";
 import { notify } from "../../../shared/lib/notification";
 import { TermPaymentBatchesPanel } from "../ui/TermPaymentBatchesPanel";
+import { CommercialPaymentRequestsPanel } from "../ui/CommercialPaymentRequestsPanel";
+import { BankingDashboardPanel } from "../ui/BankingDashboardPanel";
 import { ManualBankTransactionModal } from "../ui/ManualBankTransactionModal";
 
 export default function BankStatementPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [importOpen, setImportOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [selected, setSelected] = useState<BankTransactionItem | null>(null);
@@ -54,8 +58,26 @@ export default function BankStatementPage() {
 
   const rows = data?.data ?? [];
   const meta = data?.meta;
-  const activeTab =
-    searchParams.get("tab") === "term-payments" ? "term-payments" : "statements";
+  const legacyTab = searchParams.get("tab");
+  const tabByPath: Record<string, string> = {
+    "/banking": "dashboard",
+    "/banking/payment-approvals": "payment-approvals",
+    "/banking/payments": "payments",
+    "/banking/statements": "statements",
+    "/banking/term-batches": "term-batches",
+  };
+  const activeTab = tabByPath[location.pathname] ?? (
+    legacyTab === "term-payments" ? "term-batches" :
+    legacyTab === "commercial-payments" ? "payments" :
+    "dashboard"
+  );
+  const pathByTab: Record<string, string> = {
+    dashboard: "/banking",
+    "payment-approvals": "/banking/payment-approvals",
+    payments: "/banking/payments",
+    statements: "/banking/statements",
+    "term-batches": "/banking/term-batches",
+  };
 
   const handleSearch = () => {
     setQuery({
@@ -114,16 +136,23 @@ export default function BankStatementPage() {
       </Typography.Title>
       <Tabs
         activeKey={activeTab}
-        onChange={(key) => {
-          const next = new URLSearchParams(searchParams);
-          if (key === "term-payments") {
-            next.set("tab", key);
-          } else {
-            next.delete("tab");
-          }
-          setSearchParams(next, { replace: true });
-        }}
+        onChange={(key) => navigate(pathByTab[key] ?? "/banking")}
         items={[
+          {
+            key: "dashboard",
+            label: "Dashboard cảnh báo",
+            children: <BankingDashboardPanel />,
+          },
+          {
+            key: "payment-approvals",
+            label: "Đề nghị duyệt chi",
+            children: <CommercialPaymentRequestsPanel view="approval" />,
+          },
+          {
+            key: "payments",
+            label: "Thanh toán",
+            children: <CommercialPaymentRequestsPanel view="payment" />,
+          },
           {
             key: "statements",
             label: "Sao kê",
@@ -178,7 +207,7 @@ export default function BankStatementPage() {
             ),
           },
           {
-            key: "term-payments",
+            key: "term-batches",
             label: "Bảng kê TERM",
             children: <TermPaymentBatchesPanel />,
           },

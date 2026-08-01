@@ -16,7 +16,8 @@ function money(value?: number | null) {
 }
 
 function longDate(value?: string | null) {
-  const d = value ? dayjs(value) : dayjs();
+  const parsed = value ? dayjs(value) : null;
+  const d = parsed?.isValid() ? parsed : dayjs();
   return `Thanh Hóa, ngày ${d.format("DD")} tháng ${d.format("MM")} năm ${d.format("YYYY")}`;
 }
 

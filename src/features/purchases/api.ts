@@ -40,6 +40,17 @@ export const PurchasesApi = {
       data,
     }).then((r) => (r.data!.data ?? r.data) as any),
 
+  updatePO: (id: string, data: UpsertPurchaseOrderPayload) =>
+    apiCall<ApiResponse<CreatePurchaseOrderResponse>>("purchaseOrders.update", {
+      params: { id },
+      data,
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
+  validateContract: (supplierCustomerId: string, orderDate: string) =>
+    apiCall<ApiResponse<any>>("purchaseOrders.validateContract", {
+      query: { supplierCustomerId, orderDate },
+    }).then((r) => (r.data!.data ?? r.data) as any),
+
   approvePO: (id: string) =>
     apiCall<ApiResponse<CreatePurchaseOrderResponse>>(
       "purchaseOrders.approve",
@@ -119,7 +130,7 @@ export const PurchasesApi = {
     }).then((r) => (r.data!.data ?? r.data) as any),
 
   supplierLocationsSelect: (query: {
-    supplierCustomerId: string;
+    supplierCustomerId?: string;
     keyword?: string;
     limit?: number;
     isActive?: boolean;
@@ -133,7 +144,7 @@ export const PurchasesApi = {
       data,
     }).then((r) => (r.data!.data ?? r.data) as any),
 
-  createGoodsReceiptAutoConfirm: (data: {
+  createGoodsReceiptRequest: (data: {
     purchaseOrderId: string;
     purchaseOrderLineId: string;
     receiptNo: string;
@@ -147,7 +158,7 @@ export const PurchasesApi = {
     density?: number;
     standardQtyV15?: number;
   }) =>
-    apiCall<ApiResponse<{ receipt: any }>>("goodsReceipts.createAutoConfirm", {
+    apiCall<ApiResponse<{ receipt: any }>>("goodsReceipts.createRequest", {
       data,
     }).then((r) => (r.data!.data ?? r.data) as any),
 
@@ -187,7 +198,7 @@ export const PurchasesApi = {
 
   postSupplierInvoice: (id: string, payload?: { note?: string }) =>
     apiCall<ApiResponse<SupplierInvoiceDetail>>("supplierInvoices.post", {
-      query: { id },
+      params: { id },
       data: payload ?? {},
     }).then((r) => (r.data!.data ?? (r.data as any)) as SupplierInvoiceDetail),
 
