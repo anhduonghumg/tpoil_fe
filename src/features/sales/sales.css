@@ -1,0 +1,23 @@
+/* Numeric cells read better right-aligned, matching their column headers. */
+.sales-order-lines .ant-input-number-input {
+  text-align: right;
+}
+
+.sales-order-lines .ant-table-cell {
+  padding: 6px 8px !important;
+}
+
+.sales-order-lines .ant-table-tbody > tr > td {
+  vertical-align: middle;
+}
+
+/* Dòng đang chặn quy trình (vd. phiếu rút chưa có lô nguồn). */
+.sales-row-attention > td {
+  background: #fff7e6;
+}
+
+/* Dòng đối soát đã bị chứng từ điều chỉnh thay thế: giữ lịch sử nhưng làm mờ đi. */
+.sales-row-superseded > td {
+  opacity: 0.55;
+  text-decoration: line-through;
+}

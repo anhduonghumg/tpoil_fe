@@ -24,6 +24,30 @@ export const PERMS = {
   OPERATIONS_PARTNERS_MANAGE: "operations.partners.manage",
   OPERATIONS_TERM_COSTS_POST: "operations.term_costs.post",
   OPERATIONS_VESSEL_DOCUMENTS_OVERRIDE: "operations.charter.vessel_documents.override",
+
+  // Sales
+  SALES_VIEW: "sales.view",
+  SALES_CREATE: "sales.create",
+  SALES_UPDATE: "sales.update",
+  SALES_DELETE: "sales.delete",
+  SALES_SUBMIT: "sales.submit",
+  SALES_RECALL: "sales.recall",
+  SALES_CANCEL: "sales.cancel",
+  SALES_APPROVE_PRICE: "sales.approve_price",
+  SALES_APPROVE_CREDIT: "sales.approve_credit",
+  SALES_APPROVE_EXCEPTION: "sales.approve_exception",
+  SALES_DELIVERY_CONFIRM: "sales.delivery.confirm",
+  SALES_DELIVERY_RETURN: "sales.delivery.return",
+  SALES_DELIVERY_VOID: "sales.delivery.void",
+  SALES_RECONCILE: "sales.reconcile",
+  SALES_INVOICE_VIEW: "sales.invoice.view",
+  SALES_INVOICE_ISSUE: "sales.invoice.issue",
+  SALES_WITHDRAW_CREATE: "sales.withdraw.create",
+  SALES_RECEIVABLE_VIEW: "sales.receivable.view",
+  SALES_RECEIVABLE_ALLOCATE: "sales.receivable.allocate",
+  SALES_PROFITABILITY_VIEW: "sales.profitability.view",
+  SALES_QUICKENTRY_USE: "sales.quickentry.use",
+  SALES_ALIAS_MANAGE: "sales.alias.manage",
 } as const;
 
 export type PermCode = (typeof PERMS)[keyof typeof PERMS];

@@ -22,11 +22,12 @@ import {
   SaveOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PartySelect } from "../../../shared/ui/PartySelect";
 import { useProductSelect } from "../../products/hooks";
 import { useVatRatesSelect } from "../../tax-rates/hooks";
 import { SalesOrdersApi } from "../../sales/api";
+import { useSalesOrderDetail } from "../../sales/hooks";
 import { notify } from "../../../shared/lib/notification";
 import { PurchasesApi } from "../api";
 import {
@@ -79,6 +80,10 @@ const formatMoney = (value?: number | string | null) =>
 export default function RetailPurchaseCreatePage() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  // Set when purchasing starts from a customer order: prefill lines and link on save.
+  const salesOrderId = searchParams.get("salesOrderId") ?? undefined;
+  const salesOrderQuery = useSalesOrderDetail(salesOrderId);
   const [form] = Form.useForm<FormValues>();
   const [initialLine] = useState(emptyLine);
   const [lineRows, setLineRows] = useState<LineForm[]>([initialLine]);
@@ -132,6 +137,25 @@ export default function RetailPurchaseCreatePage() {
       lines: loadedLines,
     });
   }, [detailQuery.data, form, id]);
+
+  useEffect(() => {
+    const salesOrder = salesOrderQuery.data;
+    if (id || !salesOrder?.lines?.length) return;
+    const loadedLines = salesOrder.lines.map((line) => ({
+      key: line.id,
+      productId: line.productId,
+      supplierLocationId: line.receivingWarehouse?.id,
+      orderedQty: Number(line.orderedActualQty),
+      discountAmount: 0,
+      taxRate: 10,
+    }));
+    setLineRows(loadedLines);
+    form.setFieldsValue({
+      orderDate: dayjs(salesOrder.orderDate),
+      note: salesOrder.note ?? undefined,
+      lines: loadedLines,
+    });
+  }, [salesOrderQuery.data, form, id]);
 
   const totalAmount = useMemo(
     () =>
@@ -434,9 +458,17 @@ export default function RetailPurchaseCreatePage() {
         : await createMutation.mutateAsync(payload);
       const savedOrderId = result?.po?.id ?? result?.id ?? id;
 
-      // Entering the customer here creates the sales order in the same step, so the
-      // retail flow only needs the data once.
-      if (savedOrderId && values.customerPartyId) {
+      if (savedOrderId && salesOrderId) {
+        // Started from a customer order: link the two instead of creating a new one.
+        try {
+          await SalesOrdersApi.attachPurchaseOrder(salesOrderId, savedOrderId);
+          notify.success("Đã gắn đơn mua với đơn đặt hàng của khách");
+        } catch {
+          notify.warning("Đã lưu đơn mua nhưng chưa gắn được với đơn đặt hàng.");
+        }
+      } else if (savedOrderId && values.customerPartyId) {
+        // Entering the customer here creates the sales order in the same step, so the
+        // retail flow only needs the data once.
         try {
           await SalesOrdersApi.createFromPurchaseOrder(savedOrderId, {
             customerPartyId: values.customerPartyId,
@@ -582,14 +614,28 @@ export default function RetailPurchaseCreatePage() {
               )}
             </Form.Item>
 
-            {!id ? (
+            {!id && !salesOrderId ? (
               <Form.Item
                 className="commercial-lot-field-customer"
                 name="customerPartyId"
                 label="Khách hàng đặt (kinh doanh)"
                 tooltip="Nhập khách đặt hàng để tạo luôn đơn bán, khỏi nhập lại lần hai"
               >
-                <PartySelect partyRole="CUSTOMER" placeholder="Chọn khách hàng đặt (nếu có)" />
+                <PartySelect
+                  partyRole="CUSTOMER"
+                  displayMode="code"
+                  placeholder="Chọn khách hàng đặt (nếu có)"
+                />
+              </Form.Item>
+            ) : null}
+            {salesOrderId && salesOrderQuery.data ? (
+              <Form.Item className="commercial-lot-field-customer" label="Đơn khách đặt">
+                <div className="commercial-lot-contract-state is-valid">
+                  <CheckCircleFilled />
+                  <span>
+                    {salesOrderQuery.data.orderNo} · {salesOrderQuery.data.customer?.name}
+                  </span>
+                </div>
               </Form.Item>
             ) : null}
 

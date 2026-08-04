@@ -17,12 +17,17 @@ import { PartySelect } from "../../../shared/ui/PartySelect";
 import { useProductSelect } from "../../products/hooks";
 import { useWarehouseSelect } from "../../purchases/hooks";
 import { useCreateSalesOrder } from "../hooks";
+import "../sales.css";
 
 type LineForm = {
   key: string;
   productId?: string;
   receivingWarehouseId?: string;
+  vehiclePlate?: string;
+  driverName?: string;
   orderedActualQty?: number;
+  unitPrice?: number;
+  discountAmount?: number;
 };
 
 type FormValues = {
@@ -35,7 +40,15 @@ type FormValues = {
 const emptyLine = (): LineForm => ({
   key: `${Date.now()}-${Math.random()}`,
   orderedActualQty: 0,
+  discountAmount: 0,
 });
+
+const formatMoney = (value?: number | string | null) =>
+  new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Number(value ?? 0));
+
+const lineTotal = (line?: LineForm) =>
+  Number(line?.orderedActualQty ?? 0) *
+  Math.max(Number(line?.unitPrice ?? 0) - Number(line?.discountAmount ?? 0), 0);
 
 /**
  * Sales records the customer order here; saving notifies purchasing to go and buy.
@@ -57,6 +70,8 @@ export function SalesOrderCreateModal({
   const productsQuery = useProductSelect(productKeyword);
   const warehousesQuery = useWarehouseSelect(warehouseKeyword);
   const createMutation = useCreateSalesOrder();
+  const watchedLines = (Form.useWatch("lines", form) ?? []) as LineForm[];
+  const grandTotal = watchedLines.reduce((sum, line) => sum + lineTotal(line), 0);
 
   const resetForm = () => {
     const line = emptyLine();
@@ -92,7 +107,11 @@ export function SalesOrderCreateModal({
         .map((line) => ({
           productId: line.productId!,
           receivingWarehouseId: line.receivingWarehouseId,
+          vehiclePlate: line.vehiclePlate?.trim() || undefined,
+          driverName: line.driverName?.trim() || undefined,
           orderedActualQty: Number(line.orderedActualQty),
+          unitPrice: line.unitPrice == null ? undefined : Number(line.unitPrice),
+          discountAmount: Number(line.discountAmount ?? 0),
         })),
     });
     onCreated?.(result.id);
@@ -104,6 +123,7 @@ export function SalesOrderCreateModal({
     {
       title: "Mặt hàng",
       dataIndex: "productId",
+      width: 105,
       render: (_, __, index) => (
         <Form.Item
           name={["lines", index, "productId"]}
@@ -114,11 +134,14 @@ export function SalesOrderCreateModal({
             size="small"
             showSearch
             filterOption={false}
-            placeholder="Chọn mặt hàng"
+            placeholder="Mặt hàng"
+            style={{ width: "100%" }}
             loading={productsQuery.isFetching}
             onSearch={setProductKeyword}
+            optionLabelProp="shortLabel"
             options={(productsQuery.data ?? []).map((product) => ({
               value: product.id,
+              shortLabel: product.code,
               label: `${product.code} - ${product.name}`,
             }))}
           />
@@ -128,7 +151,7 @@ export function SalesOrderCreateModal({
     {
       title: "Kho nhận",
       dataIndex: "receivingWarehouseId",
-      width: 220,
+      width: 145,
       render: (_, __, index) => (
         <Form.Item
           name={["lines", index, "receivingWarehouseId"]}
@@ -139,7 +162,8 @@ export function SalesOrderCreateModal({
             size="small"
             showSearch
             filterOption={false}
-            placeholder="Chọn kho nhận"
+            placeholder="Kho nhận"
+            style={{ width: "100%" }}
             loading={warehousesQuery.isFetching}
             onSearch={setWarehouseKeyword}
             options={(warehousesQuery.data ?? []).map((warehouse) => ({
@@ -151,13 +175,34 @@ export function SalesOrderCreateModal({
       ),
     },
     {
-      title: "Số lượng khách đặt",
+      title: "BKS",
+      dataIndex: "vehiclePlate",
+      width: 100,
+      render: (_, __, index) => (
+        <Form.Item name={["lines", index, "vehiclePlate"]} noStyle>
+          <Input size="small" placeholder="29C-123.45" />
+        </Form.Item>
+      ),
+    },
+    {
+      title: "Lái xe",
+      dataIndex: "driverName",
+      width: 115,
+      render: (_, __, index) => (
+        <Form.Item name={["lines", index, "driverName"]} noStyle>
+          <Input size="small" placeholder="Tên lái xe" />
+        </Form.Item>
+      ),
+    },
+    {
+      title: "Số lượng",
       dataIndex: "orderedActualQty",
-      width: 170,
+      width: 95,
+      align: "right",
       render: (_, __, index) => (
         <Form.Item
           name={["lines", index, "orderedActualQty"]}
-          rules={[{ required: true, type: "number", min: 0.001, message: "Nhập số lượng" }]}
+          rules={[{ required: true, type: "number", min: 0.001, message: "Nhập SL" }]}
           noStyle
         >
           <InputNumber
@@ -172,9 +217,52 @@ export function SalesOrderCreateModal({
       ),
     },
     {
+      title: "Đơn giá",
+      dataIndex: "unitPrice",
+      width: 95,
+      align: "right",
+      render: (_, __, index) => (
+        <Form.Item name={["lines", index, "unitPrice"]} noStyle>
+          <InputNumber
+            size="small"
+            min={0}
+            controls={false}
+            placeholder="0"
+            style={{ width: "100%" }}
+          />
+        </Form.Item>
+      ),
+    },
+    {
+      title: "Chiết khấu",
+      dataIndex: "discountAmount",
+      width: 95,
+      align: "right",
+      render: (_, __, index) => (
+        <Form.Item name={["lines", index, "discountAmount"]} noStyle>
+          <InputNumber
+            size="small"
+            min={0}
+            controls={false}
+            placeholder="0"
+            style={{ width: "100%" }}
+          />
+        </Form.Item>
+      ),
+    },
+    {
+      title: "Thành tiền",
+      key: "amount",
+      width: 105,
+      align: "right",
+      render: (_, __, index) => (
+        <Typography.Text strong>{formatMoney(lineTotal(watchedLines[index]))}</Typography.Text>
+      ),
+    },
+    {
       title: "",
       key: "action",
-      width: 48,
+      width: 34,
       render: (_, __, index) => (
         <Button
           danger
@@ -193,8 +281,9 @@ export function SalesOrderCreateModal({
     <Modal
       open={open}
       title="Tạo đơn đặt hàng của khách"
-      width={720}
+      width={1000}
       okText="Lưu và báo mua hàng"
+      cancelText="Hủy"
       confirmLoading={createMutation.isPending}
       onOk={submit}
       onCancel={() => {
@@ -213,13 +302,23 @@ export function SalesOrderCreateModal({
         size="small"
         initialValues={{ orderDate: dayjs(), lines: [initialLine] }}
       >
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 10 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "260px 140px minmax(0, 1fr)",
+            gap: 12,
+          }}
+        >
           <Form.Item
             name="customerPartyId"
             label="Khách hàng"
             rules={[{ required: true, message: "Chọn khách hàng" }]}
           >
-            <PartySelect partyRole="CUSTOMER" placeholder="Chọn khách hàng đặt hàng" />
+            <PartySelect
+              partyRole="CUSTOMER"
+              displayMode="code"
+              placeholder="Chọn khách hàng đặt hàng"
+            />
           </Form.Item>
           <Form.Item
             name="orderDate"
@@ -228,11 +327,10 @@ export function SalesOrderCreateModal({
           >
             <DatePicker size="small" format="DD/MM/YYYY" style={{ width: "100%" }} />
           </Form.Item>
+          <Form.Item name="note" label="Ghi chú">
+            <Input size="small" placeholder="Yêu cầu thêm của khách (nếu có)" />
+          </Form.Item>
         </div>
-
-        <Form.Item name="note" label="Ghi chú">
-          <Input size="small" placeholder="Yêu cầu thêm của khách (nếu có)" />
-        </Form.Item>
 
         <div
           style={{
@@ -249,12 +347,20 @@ export function SalesOrderCreateModal({
         </div>
 
         <Table<LineForm>
+          className="sales-order-lines"
           rowKey="key"
           size="small"
           pagination={false}
           tableLayout="fixed"
           columns={columns}
           dataSource={lineRows}
+          scroll={{ x: 890 }}
+          footer={() => (
+            <div style={{ textAlign: "right" }}>
+              <Typography.Text type="secondary">Tổng tiền: </Typography.Text>
+              <Typography.Text strong>{formatMoney(grandTotal)} đ</Typography.Text>
+            </div>
+          )}
         />
       </Form>
     </Modal>

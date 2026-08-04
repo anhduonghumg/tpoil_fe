@@ -33,6 +33,8 @@ export interface PartySelectProps
   onChange?: (value: OptionValue | null) => void;
   partyRole?: PartyRole;
   pageSize?: number;
+  /** "code" keeps the picked value short; the dropdown still shows the full name. */
+  displayMode?: "full" | "code";
 }
 
 function useDebouncedValue<T>(value: T, delay = 300): T {
@@ -85,6 +87,7 @@ export const PartySelect: React.FC<PartySelectProps> = ({
   disabled,
   partyRole = "ALL",
   pageSize = 50,
+  displayMode = "full",
   ...rest
 }) => {
   const [search, setSearch] = useState("");
@@ -121,6 +124,7 @@ export const PartySelect: React.FC<PartySelectProps> = ({
 
       return {
         value: p.id,
+        shortLabel: p.code || p.name,
         label: (
           <Space size={8}>
             <span style={{ fontWeight: 500 }}>
@@ -165,6 +169,7 @@ export const PartySelect: React.FC<PartySelectProps> = ({
       onSearch={(val) => setSearch(val)}
       onPopupScroll={handleScroll}
       notFoundContent={isFetching ? <Spin size="small" /> : "Không tìm thấy"}
+      optionLabelProp={displayMode === "code" ? "shortLabel" : undefined}
       options={options as any}
       loading={isFetching && !isFetchingNextPage}
       {...rest}

@@ -306,6 +306,10 @@ export const ROUTES = {
     bankReturnPaymentRequest: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/bank-return"] as RouteTuple,
     recordPayment: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/payments"] as RouteTuple,
   },
+  commercialRetail: {
+    list: ["GET", "/commercial-retail-purchases"] as RouteTuple,
+    detail: ["GET", "/commercial-retail-purchases/:id"] as RouteTuple,
+  },
   commercialLots: {
     list: ["GET", "/commercial-lot-purchases"] as RouteTuple,
     listWithdrawals: ["GET", "/commercial-lot-purchases/withdrawals"] as RouteTuple,
@@ -332,7 +336,112 @@ export const ROUTES = {
       "POST",
       "/sales-orders/from-purchase-order/:purchaseOrderId",
     ] as RouteTuple,
+    attachPurchaseOrder: [
+      "POST",
+      "/sales-orders/:id/attach/:purchaseOrderId",
+    ] as RouteTuple,
     unlinkPurchaseOrder: ["DELETE", "/sales-orders/link/:purchaseOrderId"] as RouteTuple,
+
+    // Luồng bán hàng nội bộ (SINGLE/LOT)
+    update: ["PATCH", "/sales-orders/:id"] as RouteTuple,
+    remove: ["DELETE", "/sales-orders/:id"] as RouteTuple,
+    checks: ["GET", "/sales-orders/:id/checks"] as RouteTuple,
+    submit: ["POST", "/sales-orders/:id/submit"] as RouteTuple,
+    reserve: ["POST", "/sales-orders/:id/reserve"] as RouteTuple,
+    recall: ["POST", "/sales-orders/:id/recall"] as RouteTuple,
+    cancel: ["POST", "/sales-orders/:id/cancel"] as RouteTuple,
+  },
+
+  salesApprovals: {
+    list: ["GET", "/sales-approvals"] as RouteTuple,
+    approve: ["POST", "/sales-approvals/:id/approve"] as RouteTuple,
+    reject: ["POST", "/sales-approvals/:id/reject"] as RouteTuple,
+  },
+
+  salesDeliveries: {
+    list: ["GET", "/sales-deliveries"] as RouteTuple,
+    detail: ["GET", "/sales-deliveries/:id"] as RouteTuple,
+    fifoSuggestion: ["GET", "/sales-deliveries/:id/fifo-suggestion"] as RouteTuple,
+    confirm: ["POST", "/sales-deliveries/:id/confirm"] as RouteTuple,
+    returnToSales: ["POST", "/sales-deliveries/:id/return"] as RouteTuple,
+    resend: ["POST", "/sales-deliveries/:id/resend"] as RouteTuple,
+    voidPosted: ["POST", "/sales-deliveries/:id/void"] as RouteTuple,
+  },
+
+  salesReconciliations: {
+    byOrder: ["GET", "/sales-reconciliations/order/:salesOrderId"] as RouteTuple,
+    byWithdrawal: [
+      "GET",
+      "/sales-reconciliations/withdrawal/:withdrawalRequestId",
+    ] as RouteTuple,
+    updateLine: ["POST", "/sales-reconciliations/lines/:lineId"] as RouteTuple,
+    resolveLine: ["POST", "/sales-reconciliations/lines/:lineId/resolve"] as RouteTuple,
+  },
+
+  salesLotOrders: {
+    detail: ["GET", "/sales-lot-orders/:id"] as RouteTuple,
+    createAdjustment: ["POST", "/sales-lot-orders/adjustments"] as RouteTuple,
+    approveAdjustment: ["POST", "/sales-lot-orders/adjustments/:id/approve"] as RouteTuple,
+    rejectAdjustment: ["POST", "/sales-lot-orders/adjustments/:id/reject"] as RouteTuple,
+  },
+
+  salesWithdrawals: {
+    list: ["GET", "/sales-withdrawals"] as RouteTuple,
+    sourceCandidates: ["GET", "/sales-withdrawals/source-candidates"] as RouteTuple,
+    detail: ["GET", "/sales-withdrawals/:id"] as RouteTuple,
+    create: ["POST", "/sales-withdrawals"] as RouteTuple,
+    selectSource: ["POST", "/sales-withdrawals/:id/select-source"] as RouteTuple,
+    submit: ["POST", "/sales-withdrawals/:id/submit"] as RouteTuple,
+    cancel: ["POST", "/sales-withdrawals/:id/cancel"] as RouteTuple,
+  },
+
+  salesCustomerStock: {
+    list: ["GET", "/sales-customer-stock"] as RouteTuple,
+  },
+
+  salesInvoices: {
+    list: ["GET", "/sales-invoices"] as RouteTuple,
+    preview: ["POST", "/sales-invoices/preview"] as RouteTuple,
+    createDraft: ["POST", "/sales-invoices/drafts"] as RouteTuple,
+    detail: ["GET", "/sales-invoices/:id"] as RouteTuple,
+    issue: ["POST", "/sales-invoices/:id/issue"] as RouteTuple,
+    retry: ["POST", "/sales-invoices/:id/retry"] as RouteTuple,
+    cancel: ["POST", "/sales-invoices/:id/cancel"] as RouteTuple,
+  },
+
+  receivables: {
+    list: ["GET", "/receivables"] as RouteTuple,
+    aging: ["GET", "/receivables/aging"] as RouteTuple,
+    partyDebt: ["GET", "/receivables/party-debt"] as RouteTuple,
+    customerBalance: [
+      "GET",
+      "/receivables/customers/:customerPartyId/balance",
+    ] as RouteTuple,
+    detail: ["GET", "/receivables/:id"] as RouteTuple,
+    allocate: ["POST", "/receivables/allocations"] as RouteTuple,
+    reverseAllocation: ["POST", "/receivables/allocations/:id/reverse"] as RouteTuple,
+  },
+
+  salesProfitability: {
+    byPurchaseOrder: [
+      "GET",
+      "/sales-profitability/purchase-orders/:purchaseOrderId",
+    ] as RouteTuple,
+    bySalesOrder: ["GET", "/sales-profitability/sales-orders/:salesOrderId"] as RouteTuple,
+  },
+
+  salesAliases: {
+    list: ["GET", "/sales-aliases"] as RouteTuple,
+    unmatched: ["GET", "/sales-aliases/unmatched"] as RouteTuple,
+    create: ["POST", "/sales-aliases"] as RouteTuple,
+    import: ["POST", "/sales-aliases/import"] as RouteTuple,
+    update: ["PATCH", "/sales-aliases/:id"] as RouteTuple,
+    retire: ["DELETE", "/sales-aliases/:id"] as RouteTuple,
+  },
+
+  salesQuickEntry: {
+    parse: ["POST", "/sales-quick-entry/parse"] as RouteTuple,
+    confirm: ["POST", "/sales-quick-entry/confirm"] as RouteTuple,
   },
 
   commodityPriceQuotes: {

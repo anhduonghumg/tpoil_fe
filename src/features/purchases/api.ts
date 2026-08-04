@@ -4,6 +4,11 @@ import { apiCall } from "../../shared/lib/api";
 import { Paged } from "../../shared/lib/types";
 import { ApiResponse } from "../departments/types";
 import type {
+  RetailPurchaseDetail,
+  RetailPurchaseListQuery,
+  RetailPurchaseListResult,
+} from "./retail-detail.types";
+import type {
   BulkPurchaseOrderActionResult,
   CreateGoodsReceiptPayload,
   CreatePurchaseOrderResponse,
@@ -39,6 +44,16 @@ export const PurchasesApi = {
     apiCall<ApiResponse<CreatePurchaseOrderResponse>>("purchaseOrders.create", {
       data,
     }).then((r) => (r.data!.data ?? r.data) as any),
+
+  retailList: (query: RetailPurchaseListQuery) =>
+    apiCall<ApiResponse<RetailPurchaseListResult>>("commercialRetail.list", {
+      query,
+    }).then((r) => (r.data!.data ?? r.data) as RetailPurchaseListResult),
+
+  retailDetail: (id: string) =>
+    apiCall<ApiResponse<RetailPurchaseDetail>>("commercialRetail.detail", {
+      params: { id },
+    }).then((r) => (r.data!.data ?? r.data) as RetailPurchaseDetail),
 
   updatePO: (id: string, data: UpsertPurchaseOrderPayload) =>
     apiCall<ApiResponse<CreatePurchaseOrderResponse>>("purchaseOrders.update", {

@@ -9,6 +9,7 @@ import type {
   UUID,
 } from "./types";
 import { notify } from "../../shared/lib/notification";
+import type { RetailPurchaseListQuery } from "./retail-detail.types";
 
 export const usePurchaseOrderList = (params: PurchaseOrderListQuery) =>
   useQuery({
@@ -34,6 +35,19 @@ export const useCreatePurchaseOrder = () => {
     },
   });
 };
+
+export const useRetailPurchaseList = (query: RetailPurchaseListQuery) =>
+  useQuery({
+    queryKey: ["purchaseOrders", "retail-list", query],
+    queryFn: () => PurchasesApi.retailList(query),
+  });
+
+export const useRetailPurchaseDetail = (id?: string) =>
+  useQuery({
+    queryKey: ["purchaseOrders", "retail-detail", id],
+    queryFn: () => PurchasesApi.retailDetail(id!),
+    enabled: !!id,
+  });
 
 export const useUpdatePurchaseOrder = (id?: string) => {
   const qc = useQueryClient();

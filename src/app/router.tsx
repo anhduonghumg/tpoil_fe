@@ -19,16 +19,24 @@ import { PERMS } from "../shared/authz/perms";
 import { CustomerGroupsPage } from "../features/customer-groups/page/CustomerGroupsPage";
 import PurchaseOrdersPage from "../features/purchases/page/PurchaseOrdersPage";
 import RetailPurchaseCreatePage from "../features/purchases/page/RetailPurchaseCreatePage";
+import RetailPurchaseDetailPage from "../features/purchases/page/RetailPurchaseDetailPage";
 import { ProductsPage } from "../features/products/page/ProductsPage";
 import { SupplierLocationsPage } from "../features/supplierLocations/page/SupplierLocationsPage";
 import { WarehouseRentalContractsPage } from "../features/supplierLocations/page/WarehouseRentalContractsPage";
 import { PriceBulletinsPage } from "../features/price-bulletins/page/PriceBulletinsPage";
-import PurchaseOrderDetailPage from "../features/purchases/page/PurchaseOrderDetailPage";
 import PurchaseInvoiceUpsertPage from "../features/purchases/page/PurchaseInvoiceUpsertPage";
 import PurchaseInvoiceDetailPage from "../features/purchases/page/PurchaseInvoiceDetailPage";
 import CommercialLotPurchasesPage from "../features/commercial-lots/page/CommercialLotPurchasesPage";
 import CommercialLotPurchaseCreatePage from "../features/commercial-lots/page/CommercialLotPurchaseCreatePage";
 import CommercialLotPurchaseDetailPage from "../features/commercial-lots/page/CommercialLotPurchaseDetailPage";
+import SalesOrdersPage from "../features/sales/page/SalesOrdersPage";
+import SalesOrderDetailPage from "../features/sales/page/SalesOrderDetailPage";
+import SalesApprovalsPage from "../features/sales/page/SalesApprovalsPage";
+import SalesWithdrawalsPage from "../features/sales/page/SalesWithdrawalsPage";
+import CustomerStockPage from "../features/sales/page/CustomerStockPage";
+import SalesDeliveriesPage from "../features/sales/page/SalesDeliveriesPage";
+import SalesInvoicesPage from "../features/sales/page/SalesInvoicesPage";
+import ReceivablesPage from "../features/sales/page/ReceivablesPage";
 import BankStatementPage from "../features/banking/page/BankStatementPage";
 import BankAccountsPage from "../features/bank-accounts/page/BankAccountsPage";
 import BankImportTemplatesPage from "../features/bank-import-templates/ui/page/BankImportTemplatesPage";
@@ -101,10 +109,86 @@ export const router = createBrowserRouter([
               },
               {
                 path: "/purchase-orders/:id",
-                element: <PurchaseOrderDetailPage />,
+                element: <RetailPurchaseDetailPage />,
               },
             ],
             // element: <PurchaseOrdersPage />,
+          },
+          {
+            path: "/sales/orders",
+            element: (
+              <RouteGuard need={PERMS.SALES_VIEW}>
+                <SalesOrdersPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/orders/:id",
+            element: (
+              <RouteGuard need={PERMS.SALES_VIEW}>
+                <SalesOrderDetailPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/approvals",
+            element: (
+              <RouteGuard need={PERMS.SALES_VIEW}>
+                <SalesApprovalsPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/withdrawals",
+            element: (
+              <RouteGuard need={PERMS.SALES_VIEW}>
+                <SalesWithdrawalsPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/deliveries",
+            element: (
+              // Nhân viên kho có thể chỉ có quyền xác nhận xuất, không có sales.view —
+              // backend cũng chỉ đòi một trong hai (PermissionsGuard là ANY-of).
+              <RouteGuard
+                need={(ctx) =>
+                  ctx.permissions.has(PERMS.SALES_VIEW) ||
+                  ctx.permissions.has(PERMS.SALES_DELIVERY_CONFIRM)
+                }
+              >
+                <SalesDeliveriesPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/invoices",
+            element: (
+              <RouteGuard
+                need={(ctx) =>
+                  ctx.permissions.has(PERMS.SALES_INVOICE_VIEW) ||
+                  ctx.permissions.has(PERMS.SALES_INVOICE_ISSUE)
+                }
+              >
+                <SalesInvoicesPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/receivables",
+            element: (
+              <RouteGuard need={PERMS.SALES_RECEIVABLE_VIEW}>
+                <ReceivablesPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/customer-stock",
+            element: (
+              <RouteGuard need={PERMS.SALES_VIEW}>
+                <CustomerStockPage />
+              </RouteGuard>
+            ),
           },
           {
             path: "/commercial-purchases/lots",
@@ -124,7 +208,7 @@ export const router = createBrowserRouter([
           },
           {
             path: "/commercial-purchases/retail",
-            element: <PurchaseOrdersPage fixedOrderType="SINGLE" />,
+            element: <PurchaseOrdersPage />,
           },
           {
             path: "/commercial-purchases/retail/create",
