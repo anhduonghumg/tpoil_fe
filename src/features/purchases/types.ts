@@ -6,6 +6,7 @@ export type PriceBulletinStatus = "DRAFT" | "PUBLISHED" | "VOID";
 
 export type PurchasePaymentMode = "PREPAID" | "POSTPAID";
 export type PurchaseOrderType = "SINGLE" | "LOT";
+export type PurchaseReleaseCode = "TP" | "NCC";
 export type PurchaseOrderStatus =
   | "DRAFT"
   | "APPROVED"
@@ -114,6 +115,7 @@ export type UpsertPurchaseOrderPayload = {
   supplierCustomerId: UUID;
   orderType: PurchaseOrderType;
   paymentMode: PurchasePaymentMode;
+  releaseCode: PurchaseReleaseCode;
   priceRegionCode: string;
   orderDate: any;
   expectedDate?: string | null;
@@ -143,6 +145,7 @@ export type PurchaseOrderListItem = {
   supplierCustomerId: UUID;
   orderType: PurchaseOrderType;
   paymentMode: PurchasePaymentMode;
+  releaseCode?: PurchaseReleaseCode | null;
   status: PurchaseOrderStatus;
 
   orderDate: string;
@@ -190,6 +193,7 @@ export type PurchaseOrderDetail = {
 
   orderType: PurchaseOrderType;
   paymentMode: PurchasePaymentMode;
+  releaseCode?: PurchaseReleaseCode | null;
   status: PurchaseOrderStatus;
 
   priceRegionId?: UUID | null;

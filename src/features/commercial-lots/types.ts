@@ -22,6 +22,7 @@ export type CommercialLotPosition = {
   withdrawnQty: string;
   accountingValue: string;
   stockState: CommercialLotStockState;
+  releaseCode?: "TP" | "NCC" | null;
 };
 
 export type CommercialLotOrderLine = {
@@ -84,6 +85,7 @@ export type CommercialLotPurchase = {
   expectedDate?: string | null;
   status: "DRAFT" | "APPROVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
   paymentMode: "PREPAID" | "POSTPAID";
+  releaseCode?: "TP" | "NCC" | null;
   note?: string | null;
   lifecycle: CommercialLotLifecycle;
   supplier: {

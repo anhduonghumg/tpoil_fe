@@ -530,6 +530,20 @@ function supplierCodeOf(row: any) {
   return row.supplier?.code ?? row.ownerCustomer?.code ?? "NỘI BỘ";
 }
 
+function releaseCodeOf(row: any) {
+  return row.releaseCode ?? "UNCLASSIFIED";
+}
+
+function releaseCodeLabel(row: any) {
+  const code = releaseCodeOf(row);
+  return code === "UNCLASSIFIED" ? "Chưa xác định" : code;
+}
+
+function releaseQtyOf(row: any, code: "TP" | "NCC" | "UNCLASSIFIED") {
+  if (row.releaseTotals) return numberOf(row.releaseTotals[code]);
+  return releaseCodeOf(row) === code ? metricValue(row, "total") : 0;
+}
+
 function metricValue(row: any, metric: MatrixMetric) {
   if (metric === "total") {
     return (
@@ -548,7 +562,7 @@ function metricValue(row: any, metric: MatrixMetric) {
 function inventoryMatrix(rows: any[], metric: MatrixMetric) {
   const suppliers = new Map<
     string,
-    { id: string; name: string; products: Map<string, { code?: string; name: string }> }
+    { id: string; name: string; products: Map<string, { code?: string; name: string; releaseCode: string }> }
   >();
   const warehouses = new Map<string, any>();
 
@@ -560,15 +574,18 @@ function inventoryMatrix(rows: any[], metric: MatrixMetric) {
     const supplierId = supplierIdOf(row);
     const supplierName = supplierCodeOf(row);
     const productName = row.product?.name ?? "Chưa xác định";
-    const cellKey = `m:${supplierId}:${productId}`;
+    const releaseCode = releaseCodeOf(row);
+    const productReleaseKey = `${productId}:${releaseCode}`;
+    const cellKey = `m:${supplierId}:${productReleaseKey}`;
     const supplier = suppliers.get(supplierId) ?? {
       id: supplierId,
       name: supplierName,
       products: new Map<string, string>(),
     };
-    supplier.products.set(productId, {
+    supplier.products.set(productReleaseKey, {
       code: row.product?.code ?? undefined,
-      name: productName,
+      name: `${productName} - ${releaseCodeLabel(row)}`,
+      releaseCode,
     });
     suppliers.set(supplierId, supplier);
 
@@ -586,9 +603,9 @@ function inventoryMatrix(rows: any[], metric: MatrixMetric) {
       title: supplier.name,
       children: [...supplier.products.entries()]
         .sort(([, a], [, b]) => (a.code ?? a.name).localeCompare(b.code ?? b.name, "vi"))
-        .map(([productId, product]) => ({
-          title: <span title={product.name}>{product.code ?? product.name}</span>,
-          dataIndex: `m:${supplier.id}:${productId}`,
+        .map(([productReleaseKey, product]) => ({
+          title: <span title={product.name}>{product.code ?? product.name} ({product.releaseCode === "UNCLASSIFIED" ? "CXD" : product.releaseCode})</span>,
+          dataIndex: `m:${supplier.id}:${productReleaseKey}`,
           width: 100,
           align: "right" as const,
           render: (value: unknown) => (numberOf(value) ? n(value) : ""),
@@ -936,7 +953,10 @@ const BusinessInventoryMatrix: React.FC<{ rows: any[]; report: string; loading?:
           { title: "Nguồn", width: 170, render: (_: any, x: any) => sourceLabel(x.source) },
           { title: "Kho", render: (_: any, x: any) => x.supplierLocation?.name },
           { title: "Mã NCC", render: (_: any, x: any) => supplierCodeOf(x) },
+          { title: "Mã rút", width: 90, render: (_: any, x: any) => releaseCodeLabel(x) },
           { title: "Sản phẩm", render: (_: any, x: any) => x.product?.name },
+          { title: "Tồn TP", align: "right", render: (_: any, x: any) => n(releaseQtyOf(x, "TP")) },
+          { title: "Tồn NCC", align: "right", render: (_: any, x: any) => n(releaseQtyOf(x, "NCC")) },
           { title: "Được xuất", align: "right", render: (_: any, x: any) => n(x.exportableQty) },
           { title: "Tạm xuất", align: "right", render: (_: any, x: any) => n(x.temporaryExportQty) },
           { title: "Không được xuất", align: "right", render: (_: any, x: any) => n(x.nonExportableQty) },
@@ -982,6 +1002,7 @@ const AccountingInventoryMatrix: React.FC<{ rows: any[]; report: string; loading
           { title: "Nguồn", width: 170, render: (_: any, x: any) => sourceLabel(x.source) },
           { title: "Kho", render: (_: any, x: any) => x.supplierLocation?.name },
           { title: "Mã NCC", render: (_: any, x: any) => supplierCodeOf(x) },
+          { title: "Mã rút", width: 90, render: (_: any, x: any) => releaseCodeLabel(x) },
           { title: "Sản phẩm", render: (_: any, x: any) => x.product?.name },
           { title: "Tồn kế toán", align: "right", render: (_: any, x: any) => n(x.accountingQty) },
           { title: "Giá trị hóa đơn", align: "right", render: (_: any, x: any) => `${n(x.accountingValue)} đ` },

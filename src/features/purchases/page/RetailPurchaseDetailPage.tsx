@@ -596,6 +596,10 @@ export default function RetailPurchaseDetailPage() {
           <span className="commercial-lot-meta-value">{order.contract?.code ?? "-"}</span>
         </div>
         <div>
+          <span className="commercial-lot-meta-label">Mã rút</span>
+          <span className="commercial-lot-meta-value">{order.releaseCode ?? "Chưa xác định"}</span>
+        </div>
+        <div>
           <span className="commercial-lot-meta-label">Đã thanh toán</span>
           <span className="commercial-lot-meta-value">
             {formatMoney(order.payment.paidAmount)} đ

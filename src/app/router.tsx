@@ -37,6 +37,10 @@ import CustomerStockPage from "../features/sales/page/CustomerStockPage";
 import SalesDeliveriesPage from "../features/sales/page/SalesDeliveriesPage";
 import SalesInvoicesPage from "../features/sales/page/SalesInvoicesPage";
 import ReceivablesPage from "../features/sales/page/ReceivablesPage";
+import PurchaseSourceProfitPage from "../features/sales/page/PurchaseSourceProfitPage";
+import SalesAliasesPage from "../features/sales/page/SalesAliasesPage";
+import CreditConfigPage from "../features/sales/page/CreditConfigPage";
+import DiscountBoardPage from "../features/sales/page/DiscountBoardPage";
 import BankStatementPage from "../features/banking/page/BankStatementPage";
 import BankAccountsPage from "../features/bank-accounts/page/BankAccountsPage";
 import BankImportTemplatesPage from "../features/bank-import-templates/ui/page/BankImportTemplatesPage";
@@ -179,6 +183,55 @@ export const router = createBrowserRouter([
             element: (
               <RouteGuard need={PERMS.SALES_RECEIVABLE_VIEW}>
                 <ReceivablesPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/profitability",
+            element: (
+              <RouteGuard need={PERMS.SALES_PROFITABILITY_VIEW}>
+                <PurchaseSourceProfitPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/aliases",
+            element: (
+              <RouteGuard
+                need={(ctx) =>
+                  ctx.permissions.has(PERMS.SALES_ALIAS_MANAGE) ||
+                  ctx.permissions.has(PERMS.SALES_VIEW)
+                }
+              >
+                <SalesAliasesPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/discounts",
+            element: (
+              // Kinh doanh chỉ xem để biết chiết khấu; vận hành mới sửa được.
+              <RouteGuard
+                need={(ctx) =>
+                  ctx.permissions.has(PERMS.SALES_DISCOUNT_MANAGE) ||
+                  ctx.permissions.has(PERMS.SALES_VIEW)
+                }
+              >
+                <DiscountBoardPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/credit",
+            element: (
+              // Kế toán chỉ có quyền xem công nợ vẫn vào được, nhưng không sửa hạn mức.
+              <RouteGuard
+                need={(ctx) =>
+                  ctx.permissions.has(PERMS.SALES_CREDIT_MANAGE) ||
+                  ctx.permissions.has(PERMS.SALES_RECEIVABLE_VIEW)
+                }
+              >
+                <CreditConfigPage />
               </RouteGuard>
             ),
           },

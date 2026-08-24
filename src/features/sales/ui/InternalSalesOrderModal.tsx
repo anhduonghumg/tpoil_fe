@@ -10,6 +10,7 @@ import {
   Radio,
   Select,
   Table,
+  Tooltip,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -18,9 +19,13 @@ import dayjs from "dayjs";
 import { PartySelect } from "../../../shared/ui/PartySelect";
 import { useProductSelect } from "../../products/hooks";
 import { useWarehouseSelect } from "../../purchases/hooks";
-import { useCreateInternalSalesOrder, useUpdateSalesOrder } from "../hooks";
-import type { SalesOrder } from "../types";
-import { formatMoney, lineNetAmount } from "./labels";
+import {
+  useCreateInternalSalesOrder,
+  useCurrentDiscountBoard,
+  useUpdateSalesOrder,
+} from "../hooks";
+import type { SalesLotInvoiceMode, SalesOrder } from "../types";
+import { formatMoney } from "./labels";
 import "../sales.css";
 
 type LineForm = {
@@ -31,14 +36,26 @@ type LineForm = {
   driverName?: string;
   orderedActualQty?: number;
   unitPrice?: number;
-  discountAmount?: number;
+  /** CK công bố — lấy từ bảng thông báo, không sửa tay. */
+  discountBaseAmount?: number;
+  /** CK điều chỉnh — phần Sale/người duyệt tự thêm bớt, được phép âm. */
+  discountAdjustmentAmount?: number;
+  supplySource?: "TP" | "NCC";
   note?: string;
 };
+
+/** Chiết khấu là theo ĐƠN VỊ: thành tiền = SL × (giá − CK gốc − CK điều chỉnh). */
+const lineTotalOf = (line: Partial<LineForm>) =>
+  Number(line.orderedActualQty ?? 0) *
+  (Number(line.unitPrice ?? 0) -
+    Number(line.discountBaseAmount ?? 0) -
+    Number(line.discountAdjustmentAmount ?? 0));
 
 type FormValues = {
   kind: "SINGLE" | "LOT";
   customerPartyId: string;
   orderDate: dayjs.Dayjs;
+  lotInvoiceMode: SalesLotInvoiceMode;
   paymentTermType: "SAME_DAY" | "NET_DAYS";
   paymentTermDays?: number;
   note?: string;
@@ -47,7 +64,12 @@ type FormValues = {
 
 const newKey = () => `${Date.now()}-${Math.random()}`;
 
-const emptyLine = (): LineForm => ({ key: newKey(), orderedActualQty: undefined });
+const emptyLine = (): LineForm => ({
+  key: newKey(),
+  orderedActualQty: undefined,
+  discountAdjustmentAmount: 0,
+  supplySource: "TP",
+});
 
 function linesFromOrder(order: SalesOrder): LineForm[] {
   return order.lines.map((line) => ({
@@ -58,7 +80,10 @@ function linesFromOrder(order: SalesOrder): LineForm[] {
     driverName: line.driverName ?? undefined,
     orderedActualQty: Number(line.orderedActualQty),
     unitPrice: Number(line.unitPrice),
-    discountAmount: line.discountAmount == null ? undefined : Number(line.discountAmount),
+    discountBaseAmount:
+      line.discountBaseAmount == null ? undefined : Number(line.discountBaseAmount),
+    discountAdjustmentAmount: Number(line.discountAdjustmentAmount ?? 0),
+    supplySource: line.supplySource ?? "TP",
     note: line.note ?? undefined,
   }));
 }
@@ -91,8 +116,41 @@ export function InternalSalesOrderModal({
 
   const watchedLines = (Form.useWatch("lines", form) ?? []) as LineForm[];
   const kind = Form.useWatch("kind", form) ?? "SINGLE";
+  const orderDate = Form.useWatch("orderDate", form) as dayjs.Dayjs | undefined;
+
+  // Chiết khấu lấy từ bảng thông báo đang hiệu lực; Sale vẫn sửa được từng dòng.
+  const discountBoard = useCurrentDiscountBoard(open);
+  const discountOf = (warehouseId?: string, productId?: string) => {
+    if (!warehouseId || !productId) return undefined;
+    const line = discountBoard.data?.lines.find(
+      (row) => row.warehouseId === warehouseId && row.productId === productId,
+    );
+    return line ? Number(line.discountPerUnit) : undefined;
+  };
+
+  /**
+   * Chọn đủ kho + mặt hàng thì điền chiết khấu công bố. Chỉ điền khi ô còn trống hoặc
+   * đang bằng đúng giá trị công bố cũ — không đè lên con số Sale đã tự sửa.
+   */
+  const applyAnnouncedDiscount = (index: number, patch: Partial<LineForm>) => {
+    const current = (form.getFieldValue("lines") ?? []) as LineForm[];
+    const line = { ...current[index], ...patch };
+    const announced = discountOf(line.issueWarehouseId, line.productId);
+    if (announced == null) return;
+
+    const previous = discountOf(
+      patch.issueWarehouseId ? current[index]?.issueWarehouseId : line.issueWarehouseId,
+      patch.productId ? current[index]?.productId : line.productId,
+    );
+    const untouched = line.discountBaseAmount == null || line.discountBaseAmount === previous;
+    if (!untouched) return;
+
+    const next = [...current];
+    next[index] = { ...line, discountBaseAmount: announced };
+    form.setFieldsValue({ lines: next });
+  };
   const paymentTermType = Form.useWatch("paymentTermType", form);
-  const grandTotal = watchedLines.reduce((sum, line) => sum + lineNetAmount(line), 0);
+  const grandTotal = watchedLines.reduce((sum, line) => sum + lineTotalOf(line), 0);
 
   useEffect(() => {
     if (!open) return;
@@ -103,6 +161,7 @@ export function InternalSalesOrderModal({
         kind: order.kind === "LOT" ? "LOT" : "SINGLE",
         customerPartyId: order.customer.id,
         orderDate: dayjs(order.orderDate),
+        lotInvoiceMode: order.lotInvoiceMode ?? "ON_WITHDRAWAL",
         paymentTermType: order.paymentTermType ?? "SAME_DAY",
         paymentTermDays: order.paymentTermDays ?? undefined,
         note: order.note ?? undefined,
@@ -115,6 +174,7 @@ export function InternalSalesOrderModal({
         kind: "SINGLE",
         customerPartyId: undefined as unknown as string,
         orderDate: dayjs(),
+        lotInvoiceMode: "ON_WITHDRAWAL",
         paymentTermType: "SAME_DAY",
         paymentTermDays: undefined,
         note: undefined,
@@ -144,7 +204,10 @@ export function InternalSalesOrderModal({
       issueWarehouseId: line.issueWarehouseId!,
       orderedActualQty: Number(line.orderedActualQty),
       unitPrice: Number(line.unitPrice ?? 0),
-      discountAmount: line.discountAmount == null ? undefined : Number(line.discountAmount),
+      discountBaseAmount:
+        line.discountBaseAmount == null ? undefined : Number(line.discountBaseAmount),
+      discountAdjustmentAmount: Number(line.discountAdjustmentAmount ?? 0),
+      supplySource: line.supplySource ?? "TP",
       vehiclePlate: line.vehiclePlate?.trim() || undefined,
       driverName: line.driverName?.trim() || undefined,
       note: line.note?.trim() || undefined,
@@ -152,6 +215,8 @@ export function InternalSalesOrderModal({
     const common = {
       orderDate: values.orderDate.format("YYYY-MM-DD"),
       note: values.note?.trim() || undefined,
+      // Chỉ đơn lô mới có khái niệm này; gửi cho đơn lấy 1 lần sẽ bị backend từ chối.
+      lotInvoiceMode: values.kind === "LOT" ? values.lotInvoiceMode : undefined,
       paymentTermType: values.paymentTermType,
       paymentTermDays:
         values.paymentTermType === "NET_DAYS" ? Number(values.paymentTermDays ?? 0) : undefined,
@@ -187,6 +252,7 @@ export function InternalSalesOrderModal({
             style={{ width: "100%" }}
             loading={productsQuery.isFetching}
             onSearch={setProductKeyword}
+            onChange={(value) => applyAnnouncedDiscount(index, { productId: value })}
             optionLabelProp="shortLabel"
             options={(productsQuery.data ?? []).map((product) => ({
               value: product.id,
@@ -198,23 +264,24 @@ export function InternalSalesOrderModal({
       ),
     },
     {
-      title: "Kho xuất",
+      title: "Kho nhận",
       dataIndex: "issueWarehouseId",
       width: 170,
       render: (_, __, index) => (
         <Form.Item
           name={["lines", index, "issueWarehouseId"]}
-          rules={[{ required: true, message: "Chọn kho xuất" }]}
+          rules={[{ required: true, message: "Chọn kho nhận" }]}
           noStyle
         >
           <Select
             size="small"
             showSearch
             filterOption={false}
-            placeholder="Kho xuất"
+            placeholder="Kho nhận"
             style={{ width: "100%" }}
             loading={warehousesQuery.isFetching}
             onSearch={setWarehouseKeyword}
+            onChange={(value) => applyAnnouncedDiscount(index, { issueWarehouseId: value })}
             options={(warehousesQuery.data ?? []).map((warehouse) => ({
               value: warehouse.id,
               label: warehouse.label,
@@ -222,6 +289,12 @@ export function InternalSalesOrderModal({
           />
         </Form.Item>
       ),
+    },
+    {
+      title: "Mã NCC",
+      key: "supplierCode",
+      width: 110,
+      render: () => <Typography.Text type="secondary">Tự động FIFO</Typography.Text>,
     },
     {
       title: "Số lượng",
@@ -267,18 +340,64 @@ export function InternalSalesOrderModal({
       ),
     },
     {
-      title: "Chiết khấu",
-      dataIndex: "discountAmount",
+      // CK công bố: khóa lại đúng như bảng nhập nhanh. Muốn lệch bảng giá thì ghi vào
+      // CKDC, để lúc duyệt còn nhìn ra ai đã điều chỉnh bao nhiêu so với mức công bố.
+      title: "CK",
+      dataIndex: "discountBaseAmount",
       width: 100,
       align: "right",
+      render: (_, __, index) => {
+        const line: Partial<LineForm> = watchedLines[index] ?? {};
+        const announced = discountOf(line.issueWarehouseId, line.productId);
+        const missing = Boolean(line.issueWarehouseId && line.productId && announced == null);
+        return (
+          <div>
+            <Form.Item name={["lines", index, "discountBaseAmount"]} noStyle>
+              <InputNumber
+                size="small"
+                min={0}
+                controls={false}
+                disabled
+                placeholder="0"
+                status={missing ? "error" : undefined}
+                style={{ width: "100%" }}
+              />
+            </Form.Item>
+            {missing && (
+              <Tooltip title="Kho này chưa có thông báo chiết khấu cho mặt hàng — không gửi duyệt được">
+                <Typography.Text type="danger" style={{ fontSize: 11 }}>
+                  chưa công bố
+                </Typography.Text>
+              </Tooltip>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      title: "CKDC",
+      dataIndex: "discountAdjustmentAmount",
+      width: 95,
+      align: "right",
       render: (_, __, index) => (
-        <Form.Item name={["lines", index, "discountAmount"]} noStyle>
-          <InputNumber
+        <Form.Item name={["lines", index, "discountAdjustmentAmount"]} noStyle>
+          <InputNumber size="small" controls={false} placeholder="0" style={{ width: "100%" }} />
+        </Form.Item>
+      ),
+    },
+    {
+      title: "Nguồn",
+      dataIndex: "supplySource",
+      width: 80,
+      render: (_, __, index) => (
+        <Form.Item name={["lines", index, "supplySource"]} noStyle>
+          <Select
             size="small"
-            min={0}
-            controls={false}
-            placeholder="0"
             style={{ width: "100%" }}
+            options={[
+              { value: "TP", label: "TP" },
+              { value: "NCC", label: "NCC" },
+            ]}
           />
         </Form.Item>
       ),
@@ -321,7 +440,7 @@ export function InternalSalesOrderModal({
       width: 110,
       align: "right",
       render: (_, __, index) => (
-        <Typography.Text strong>{formatMoney(lineNetAmount(watchedLines[index] ?? {}))}</Typography.Text>
+        <Typography.Text strong>{formatMoney(lineTotalOf(watchedLines[index] ?? {}))}</Typography.Text>
       ),
     },
     {
@@ -373,7 +492,14 @@ export function InternalSalesOrderModal({
             label="Khách hàng"
             rules={[{ required: true, message: "Chọn khách hàng" }]}
           >
-            <PartySelect partyRole="CUSTOMER" disabled={isEdit} placeholder="Chọn khách hàng" />
+            <PartySelect
+              partyRole="SELLABLE"
+              effectiveAt={orderDate?.format("YYYY-MM-DD")}
+              disabled={isEdit}
+              // Không có nhãn dự phòng thì ô sửa đơn hiện trơ ra UUID của khách.
+              fallbackLabel={order ? (order.customer.code ?? order.customer.name) : undefined}
+              placeholder="Chọn khách hàng"
+            />
           </Form.Item>
           <Form.Item
             name="orderDate"
@@ -411,12 +537,29 @@ export function InternalSalesOrderModal({
         </div>
 
         {kind === "LOT" && (
-          <Alert
-            type="info"
-            showIcon
-            style={{ marginBottom: 12 }}
-            message="Đơn lô không có hạn rút. Sau khi duyệt, khách rút dần bằng phiếu rút lô — không tạo đơn bán mới."
-          />
+          <>
+            <Form.Item
+              name="lotInvoiceMode"
+              label="Thời gian xuất hóa đơn"
+              rules={[{ required: true, message: "Chọn cách xuất hóa đơn" }]}
+              style={{ marginBottom: 8 }}
+            >
+              <Radio.Group>
+                <Radio value="ON_CONFIRMATION">
+                  Ngay sau khi xác nhận đơn hàng (một hóa đơn cho cả lô)
+                </Radio>
+                <Radio value="ON_WITHDRAWAL">
+                  Theo tiến độ rút hàng (xuất hóa đơn nhiều lần)
+                </Radio>
+              </Radio.Group>
+            </Form.Item>
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="Đơn lô không có hạn rút. Sau khi duyệt, khách rút dần bằng phiếu rút lô — không tạo đơn bán mới."
+            />
+          </>
         )}
 
         <div
@@ -441,7 +584,7 @@ export function InternalSalesOrderModal({
           tableLayout="fixed"
           columns={columns}
           dataSource={lineKeys.map((key) => ({ key }))}
-          scroll={{ x: 1080 }}
+          scroll={{ x: 1190 }}
           footer={() => (
             <div style={{ textAlign: "right" }}>
               <Typography.Text type="secondary">Tổng tiền chưa thuế: </Typography.Text>

@@ -20,6 +20,13 @@ export type SalesOrderStatus =
  */
 export type SalesOrderKind = "DAY_TRADE" | "SINGLE" | "LOT";
 
+/**
+ * Đơn lô xuất hóa đơn thế nào — quyết định cả mẫu in lẫn cách lập hóa đơn.
+ * ON_CONFIRMATION: một hóa đơn cho cả lô ngay sau khi xác nhận đơn hàng.
+ * ON_WITHDRAWAL: xuất nhiều lần theo tiến độ khách rút hàng.
+ */
+export type SalesLotInvoiceMode = "ON_CONFIRMATION" | "ON_WITHDRAWAL";
+
 export type SalesOrderLine = {
   id: string;
   lineNo: number;
@@ -27,7 +34,10 @@ export type SalesOrderLine = {
   orderedActualQty: string;
   orderedV15Qty?: string | null;
   unitPrice: string;
+  discountBaseAmount?: string | null;
+  discountAdjustmentAmount?: string | null;
   discountAmount?: string | null;
+  supplySource?: "TP" | "NCC";
   vehiclePlate?: string | null;
   driverName?: string | null;
   taxRate?: string | null;
@@ -56,6 +66,7 @@ export type SalesOrder = {
   currency: string;
   note?: string | null;
   contractId?: string | null;
+  lotInvoiceMode?: SalesLotInvoiceMode | null;
   paymentTermType?: "SAME_DAY" | "NET_DAYS";
   paymentTermDays?: number | null;
   approvalCycle?: number;
@@ -80,6 +91,7 @@ export type CreateSalesOrderPayload = {
   note?: string;
   lines: Array<{
     productId: string;
+    supplySource?: "TP" | "NCC";
     receivingWarehouseId?: string;
     vehiclePlate?: string;
     driverName?: string;
@@ -102,7 +114,8 @@ export type CreateSalesOrderFromPurchasePayload = {
 
 // ===== Luồng bán hàng nội bộ =====
 
-export type SalesApprovalType = "PRICE" | "CREDIT" | "EXCEPTION";
+/** STANDARD = duyệt thường lệ: đơn không vi phạm gì nhưng quản lý vẫn phải ký. */
+export type SalesApprovalType = "STANDARD" | "PRICE" | "CREDIT" | "EXCEPTION";
 export type SalesApprovalStatus =
   | "PENDING"
   | "APPROVED"
@@ -128,9 +141,56 @@ export type SalesOrderCheckResult = {
   violations: SalesCheckViolation[];
   warnings: SalesCheckWarning[];
   orderValue: string;
-  creditExposure: string;
-  creditLimit: string | null;
 };
+/** Một dòng hàng của đơn đang chờ duyệt. */
+export type ApprovalOrderLine = {
+  id: string;
+  lineNo: number;
+  productId: string;
+  issueWarehouseId: string | null;
+  supplySource: "TP" | "NCC";
+  preferredSupplierPartyId?: string | null;
+  orderedActualQty: string;
+  unitPrice: string;
+  /** CK gốc theo bảng công bố — người duyệt không sửa được. */
+  discountBaseAmount: string;
+  /** CK điều chỉnh — người duyệt sửa được ngay trên hàng đợi. */
+  discountAdjustmentAmount: string;
+  /** Luôn = gốc + điều chỉnh. */
+  discountAmount: string;
+  taxRate?: string | null;
+  lineNetAmount: string;
+  product: { code?: string | null; name: string; uom: string };
+  issueWarehouse?: { name: string } | null;
+  preferredSupplier?: { id: string; code: string; name: string } | null;
+  supplierAllocations?: Array<{
+    inventoryLotId: string | null;
+    lotNo: string | null;
+    supplier: { id: string; code: string; name: string } | null;
+    releaseCode: "TP" | "NCC" | null;
+    actualQty: string;
+  }>;
+  supplierPreview?: {
+    fifoAllocations: Array<{
+      inventoryLotId: string;
+      lotNo: string;
+      supplierPartyId: string;
+      supplierCode: string;
+      supplierName: string;
+      releaseCode: "TP" | "NCC";
+      actualQty: string;
+    }>;
+    supplierOptions: Array<{
+      supplierPartyId: string;
+      supplierCode: string;
+      supplierName: string;
+      availableQty: string;
+    }>;
+    availableQty: string;
+    shortageQty: string;
+  } | null;
+};
+
 
 export type SalesApprovalRequest = {
   id: string;
@@ -153,6 +213,9 @@ export type SalesApprovalRequest = {
     orderDate: string;
     approvalCycle: number;
     customer: { id: string; code?: string | null; name: string };
+    /** Dòng hàng để người duyệt thấy đủ giá, chiết khấu, thành tiền ngay trên hàng đợi. */
+    lines: ApprovalOrderLine[];
+    orderNetAmount: string;
   } | null;
   /** Yêu cầu duyệt của phiếu rút lô thì không có salesOrder. */
   withdrawalRequest?: {
@@ -173,6 +236,8 @@ export type CreateInternalSalesOrderPayload = {
   orderDate?: string;
   note?: string;
   contractId?: string;
+  /** Bắt buộc về mặt nghiệp vụ cho đơn LOT; backend mặc định ON_WITHDRAWAL. */
+  lotInvoiceMode?: SalesLotInvoiceMode;
   paymentTermType?: "SAME_DAY" | "NET_DAYS";
   paymentTermDays?: number;
   lines: Array<{
@@ -180,7 +245,13 @@ export type CreateInternalSalesOrderPayload = {
     issueWarehouseId: string;
     orderedActualQty: number;
     unitPrice: number;
+    /** CK công bố theo bảng thông báo giá, tính trên mỗi đơn vị. */
+    discountBaseAmount?: number;
+    /** CK điều chỉnh trên mỗi đơn vị; được phép âm. */
+    discountAdjustmentAmount?: number;
+    /** Giữ lại cho dữ liệu cũ; backend coi như CK gốc nếu không gửi phần tách. */
     discountAmount?: number;
+    supplySource?: "TP" | "NCC";
     taxRate?: number;
     vehiclePlate?: string;
     driverName?: string;
@@ -189,7 +260,16 @@ export type CreateInternalSalesOrderPayload = {
 };
 
 export type UpdateSalesOrderPayload = Partial<
-  Pick<CreateInternalSalesOrderPayload, "orderDate" | "note" | "contractId" | "paymentTermType" | "paymentTermDays" | "lines">
+  Pick<
+    CreateInternalSalesOrderPayload,
+    | "orderDate"
+    | "note"
+    | "contractId"
+    | "lotInvoiceMode"
+    | "paymentTermType"
+    | "paymentTermDays"
+    | "lines"
+  >
 >;
 
 /** Kết quả submit: kèm kết quả kiểm tra để hiển thị ngay vì sao phải duyệt. */
@@ -315,6 +395,7 @@ export type SalesDeliveryLine = {
     id: string;
     lineNo: number;
     productId: string;
+    supplySource: "TP" | "NCC";
     orderedActualQty: string;
     note?: string | null;
     product: ProductRef;
@@ -362,6 +443,10 @@ export type DeliveryFifoLine = {
   suggestion: Array<{
     inventoryLotId: string;
     lotNo: string;
+    supplierPartyId: string;
+    supplierCode: string;
+    supplierName: string;
+    releaseCode: "TP" | "NCC";
     actualQty: string;
     availableQty: string;
   }>;
@@ -370,6 +455,10 @@ export type DeliveryFifoLine = {
     inventoryLotId: string;
     lotNo: string;
     receivedAt: string;
+    supplierPartyId: string;
+    supplierCode: string;
+    supplierName: string;
+    releaseCode: "TP" | "NCC";
     availableQty: string;
   }>;
   /** Còn thiếu so với kế hoạch — kho phải xử lý trước khi xác nhận. */
@@ -514,10 +603,19 @@ export type SalesInvoice = {
   misaSerial?: string | null;
   issuedAt?: string | null;
   cancelledAt?: string | null;
+  accountantEmployeeId?: string | null;
+  accountantEmployee?: { id: string; code: string; fullName?: string | null } | null;
   customer: EntityRef & { taxCode?: string | null };
   salesOrder?: { id: string; orderNo: string; orderDate?: string; kind?: SalesOrderKind } | null;
-  withdrawalRequest?: { id: string; requestNo: string; requestDate?: string } | null;
-  lines?: SalesInvoiceLine[];
+  withdrawalRequest?: {
+    id: string;
+    requestNo: string;
+    requestDate?: string;
+    salesOrder?: { id: string; orderNo: string; orderDate?: string } | null;
+  } | null;
+  lines?: Array<Pick<SalesInvoiceLine, "description"> & {
+    product?: { code?: string | null; name: string } | null;
+  }>;
   issuances?: SalesInvoiceIssuance[];
   receivableItem?: {
     id: string;
@@ -531,6 +629,18 @@ export type SalesInvoice = {
     documentType: SalesInvoiceDocumentType;
     status: SalesInvoiceStatus;
   }>;
+};
+
+export type UnissuedInvoiceSource = {
+  id: string;
+  source: { salesOrderId?: string; withdrawalRequestId?: string };
+  sourceNo: string;
+  sourceType: "SALES_ORDER" | "LOT_ORDER" | "WITHDRAWAL";
+  sourceDate: string;
+  customer: EntityRef;
+  accountantEmployee?: { id: string; code: string; fullName?: string | null } | null;
+  itemCodes: string[];
+  estimatedGrandTotal: string;
 };
 
 /** Xem trước nội dung hóa đơn — đọc từ những gì đã thực xuất, không ghi gì. */
@@ -661,6 +771,319 @@ export type AllocateReceivablePayload = {
   idempotencyKey?: string;
 };
 
+// ===== Lãi/lỗ theo nguồn hàng mua =====
+
+/**
+ * PROVISIONAL = giá vốn còn là giá tạm của đơn TERM; chốt bảng chính thức xong
+ * hệ thống tính lại nên biên lợi nhuận hiện tại chỉ là ước tính.
+ */
+export type CostStatus = "FINAL" | "PROVISIONAL" | "NO_COST_BASIS";
+
+export type ProfitTotals = {
+  revenue: string;
+  cost: string;
+  profit: string;
+  marginPercent: string | null;
+};
+
+/** Một lát bán ra rút từ một lô cụ thể của đơn mua này. */
+export type PurchaseSourceSaleRow = {
+  salesOrderId: string | null;
+  orderNo: string | null;
+  orderKind: SalesOrderKind | null;
+  withdrawalRequestNo: string | null;
+  customer: EntityRef | null;
+  deliveryNo: string | null;
+  deliveredAt: string | null;
+  invoiceNo: string | null;
+  invoiceStatus: SalesInvoiceStatus | null;
+  inventoryLotId: string;
+  qty: string;
+  revenue: string;
+  cost: string;
+  profit: string;
+  marginPercent: string | null;
+};
+
+export type PurchaseSourceReport = {
+  purchaseOrder: {
+    id: string;
+    orderNo: string;
+    orderType: string;
+    bizType: string;
+    orderDate: string;
+    supplier: EntityRef;
+  };
+  quantities: { receivedQty: string; soldQty: string; remainingQty: string };
+  totals: ProfitTotals;
+  costStatus: CostStatus;
+  lots: Array<{
+    inventoryLotId: string;
+    lotNo: string;
+    product: ProductRef;
+    receiptNo: string;
+    receiptDate: string;
+    receivedQty: string;
+    remainingQty: string;
+    isProvisional: boolean;
+  }>;
+  sales: PurchaseSourceSaleRow[];
+};
+
+/** Nhìn ngược từ đơn bán: hàng bán ra lấy từ những đơn mua nào. */
+export type SalesOrderSourceRow = {
+  deliveryNo: string;
+  lineNo: number;
+  product: EntityRef;
+  inventoryLotId: string;
+  lotNo: string;
+  purchaseOrderId: string | null;
+  purchaseOrderNo: string | null;
+  /** TERM hay thương mại là bizType; orderType chỉ nói lô hay lẻ. */
+  purchaseBizType: string | null;
+  purchaseOrderType: string | null;
+  supplier: EntityRef | null;
+  qty: string;
+  revenue: string;
+  cost: string;
+  profit: string;
+  /** Phần lô khách chưa rút: giá vốn mới là ước tính, chưa gắn lô mua nào. */
+  isEstimated?: boolean;
+};
+
+export type SalesOrderProfitability = {
+  salesOrder: {
+    id: string;
+    orderNo: string;
+    kind: SalesOrderKind;
+    orderDate: string;
+    customer: EntityRef;
+  };
+  totals: ProfitTotals;
+  costStatus: CostStatus;
+  hasEstimatedCost?: boolean;
+  sources: SalesOrderSourceRow[];
+};
+
+// ===== Alias: cách khách viết tên =====
+
+export type SalesAliasEntityType = "PARTY" | "WAREHOUSE" | "PRODUCT";
+export type SalesAliasSource = "IMPORTED" | "MANUAL" | "LEARNED";
+
+export type SalesEntityAlias = {
+  id: string;
+  entityType: SalesAliasEntityType;
+  externalName: string;
+  normalizedName: string;
+  source: SalesAliasSource;
+  note?: string | null;
+  /** Có giá trị = đã ngừng dùng; lịch sử vẫn giữ chứ không xóa. */
+  validTo?: string | null;
+  createdAt: string;
+  party?: EntityRef | null;
+  warehouse?: EntityRef | null;
+  product?: EntityRef | null;
+};
+
+/** Cách viết mà nhập nhanh liên tục không khớp được, nhiều nhất lên đầu. */
+export type UnmatchedAlias = {
+  entityType: SalesAliasEntityType;
+  text: string;
+  count: number;
+  lastSeenAt: string;
+};
+
+export type CreateAliasPayload = {
+  entityType: SalesAliasEntityType;
+  entityId: string;
+  aliases: string[];
+  source?: SalesAliasSource;
+  note?: string;
+};
+
+export type CreateAliasResult = {
+  entity: { id: string; code?: string | null; name: string };
+  added: number;
+  addedAliases: string[];
+  skipped: Array<{ alias: string; reason: string; conflictWith?: string }>;
+};
+
+export type ImportAliasResult = {
+  rows: number;
+  matchedEntities: number;
+  addedAliases: number;
+  unknownEntities: string[];
+  duplicates: string[];
+  /** Cách viết đang trỏ sang đơn vị khác — hệ thống không tự chuyển chủ. */
+  conflicts: Array<{ alias: string; wanted: string; currentlyPointsTo: string }>;
+};
+
+// ===== Cấu hình tín dụng (kế toán công nợ) =====
+
+type EmployeeRef = { id: string; code: string; fullName: string | null };
+
+export type CreditCustomerRow = {
+  id: string;
+  code: string;
+  name: string;
+  taxCode?: string | null;
+  creditLimit: string | null;
+  tempLimit: string | null;
+  tempFrom: string | null;
+  tempTo: string | null;
+  paymentTermDays: number | null;
+  accountingOwnerEmp: EmployeeRef | null;
+  /** Hạn mức đang thực sự áp dụng (ưu tiên hạn mức tạm còn hiệu lực). */
+  effectiveLimit: string | null;
+  effectiveLimitIsTemp: boolean;
+  receivableOutstanding: string;
+  overdueAmount: string;
+  /** Đơn đã duyệt nhưng chưa lên hóa đơn — vẫn đang chiếm hạn mức. */
+  committedOrderValue: string;
+  exposure: string;
+  availableCredit: string | null;
+  isOverLimit: boolean;
+  hasOverdue: boolean;
+};
+
+export type CreditLimitHistoryRow = {
+  id: string;
+  oldLimit: string | null;
+  newLimit: string | null;
+  tempLimit: string | null;
+  tempFrom: string | null;
+  tempTo: string | null;
+  reason: string | null;
+  changedBy: string;
+  changedAt: string;
+};
+
+/** Một kỳ hạn mức: áp dụng từ khi nào đến khi nào, kỳ chưa có ngày kết thúc là kỳ đang chạy. */
+export type CreditLimitPeriod = {
+  id: string;
+  creditLimit: string | null;
+  tempLimit: string | null;
+  tempFrom: string | null;
+  tempTo: string | null;
+  validFrom: string;
+  validTo: string | null;
+  isCurrent: boolean;
+  reason: string | null;
+  changedBy: string;
+  changedByName: string | null;
+};
+
+export type CreditCustomerDetail = CreditCustomerRow & {
+  salesOwnerEmp: EmployeeRef | null;
+  timeline: CreditLimitPeriod[];
+  history: CreditLimitHistoryRow[];
+};
+
+export type UpdateCustomerCreditPayload = {
+  creditLimit?: number | null;
+  tempLimit?: number | null;
+  tempFrom?: string | null;
+  tempTo?: string | null;
+  paymentTermDays?: number | null;
+  reason: string;
+};
+
+// ===== Bảng thông báo chiết khấu =====
+
+export type DiscountBoardStatus = "DRAFT" | "PUBLISHED" | "CANCELLED";
+
+export type DiscountBoardLine = {
+  id: string;
+  warehouseId: string;
+  productId: string;
+  /** Đồng trên mỗi lít. */
+  discountPerUnit: string;
+  note?: string | null;
+  warehouse: EntityRef;
+  product: ProductRef;
+};
+
+export type DiscountBoardRecipient = {
+  id: string;
+  customerPartyId: string;
+  email: string;
+  sentAt?: string | null;
+  errorMessage?: string | null;
+  customer: EntityRef;
+};
+
+export type DiscountBoard = {
+  id: string;
+  status: DiscountBoardStatus;
+  effectiveFrom: string;
+  announcerName?: string | null;
+  note?: string | null;
+  publishedAt?: string | null;
+  createdAt: string;
+  lines: DiscountBoardLine[];
+  recipients: DiscountBoardRecipient[];
+  /** Bản đang áp dụng ngay lúc này. */
+  isCurrent?: boolean;
+  /** Chỉ có ở API chi tiết — nội dung để copy gửi khách. */
+  announcementText?: string;
+};
+
+export type DiscountBoardListResult = {
+  items: DiscountBoard[];
+  total: number;
+  page: number;
+  limit: number;
+  currentBoardId: string | null;
+};
+
+export type DiscountRecipientCandidate = {
+  id: string;
+  code: string;
+  name: string;
+  contactEmail: string;
+};
+
+/** Đơn đã gửi duyệt trong lúc một bản chiết khấu đang hiệu lực. */
+export type DiscountAffectedOrders = {
+  window: { from: string; to: string | null } | null;
+  items: Array<{
+    id: string;
+    orderNo: string;
+    status: SalesOrderStatus;
+    submittedAt: string | null;
+    customer: EntityRef;
+  }>;
+};
+
+export type UpsertDiscountBoardPayload = {
+  effectiveFrom?: string;
+  /** Chép từ bản nào; bỏ trống thì chép bản đang chạy. */
+  cloneFromBoardId?: string;
+  announcerName?: string;
+  note?: string;
+  lines?: Array<{
+    warehouseId: string;
+    productId: string;
+    discountPerUnit: number;
+    note?: string;
+  }>;
+};
+
+export type SendDiscountBoardResult = {
+  sent: number;
+  failed: number;
+  /** Khách được chọn nhưng chưa có email hợp lệ. */
+  skipped: string[];
+  board: DiscountBoard;
+};
+
+export type ResolvedDiscount = {
+  warehouseId: string;
+  productId: string;
+  discountPerUnit: string | null;
+  hasDiscount: boolean;
+};
+
 // ===== Tồn kho thương mại của khách =====
 
 export type CustomerStockSummaryRow = {
@@ -695,7 +1118,7 @@ export type CustomerStockResult = {
 
 // ===== Nhập nhanh =====
 
-export type QuickEntryKind = "SINGLE" | "LOT" | "WITHDRAWAL";
+export type QuickEntryKind = "SINGLE" | "LOT" | "WITHDRAWAL" | "DAY_TRADE";
 
 export type QuickEntryCandidate = {
   id: string;
@@ -709,6 +1132,7 @@ export type QuickEntryCandidate = {
 export type QuickEntryField = {
   rawText: string | null;
   entityId: string | null;
+  entityCode: string | null;
   entityName: string | null;
   confidence: number;
   matchedBy: string | null;
@@ -721,6 +1145,8 @@ export type QuickEntryLine = {
   warehouse: QuickEntryField;
   quantity: number | null;
   quantityText: string;
+  /** A line can override the message-level kind, e.g. "rút tồn + mua mới". */
+  orderKind: QuickEntryKind | null;
   needsAttention: boolean;
 };
 
@@ -744,11 +1170,26 @@ export type QuickEntryConfirmResult = {
   id: string;
   orderNo?: string;
   requestNo?: string;
+  /** Những cách viết vừa được ghi nhớ trong lần xác nhận này. */
+  learnedAliases?: string[];
+};
+
+/** Một mốc phải trả của đơn trả chậm. */
+export type QuickEntryPaymentPlan = {
+  dueDays: number;
+  percent?: number;
+  amount?: number;
+  note?: string;
 };
 
 export type ConfirmQuickEntryPayload = {
   logId?: string;
   orderKind: QuickEntryKind;
+  /** Điều khoản đơn lô, đặt chung cho cả lượt nhập. */
+  lotInvoiceMode?: SalesLotInvoiceMode;
+  paymentTermType?: "SAME_DAY" | "NET_DAYS";
+  paymentTermDays?: number;
+  paymentPlans?: QuickEntryPaymentPlan[];
   customerPartyId: string;
   orderDate?: string;
   vehiclePlate?: string;
@@ -760,7 +1201,27 @@ export type ConfirmQuickEntryPayload = {
     warehouseId: string;
     quantity: number;
     unitPrice?: number;
+    discountAmount?: number;
+    discountBaseAmount?: number;
+    discountAdjustmentAmount?: number;
+    supplySource?: "TP" | "NCC";
     productRawText?: string;
     warehouseRawText?: string;
   }>;
+};
+
+/** Duyệt hàng loạt có thể thành công một phần — phải nói rõ cái nào hỏng và vì sao. */
+export type BulkDecideResult = {
+  succeeded: number;
+  failed: Array<{ id: string; orderNo: string | null; message: string }>;
+};
+
+export type AdjustDiscountResult = {
+  salesOrderLineId: string;
+  salesOrderId: string;
+  discountBaseAmount: string;
+  discountAdjustmentAmount: string;
+  discountAmount: string;
+  /** Thành tiền cả đơn sau khi tính lại. */
+  orderNetAmount: string;
 };

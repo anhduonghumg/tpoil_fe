@@ -77,16 +77,25 @@ export function OrderStatusTag({ status }: { status: SalesOrderStatus }) {
   );
 }
 
-export function OrderKindTag({ kind }: { kind: SalesOrderKind }) {
+/** Nhãn ngắn cho bảng nhiều cột; tên đầy đủ vẫn ở tooltip. */
+export const ORDER_KIND_SHORT_LABELS: Record<SalesOrderKind, string> = {
+  DAY_TRADE: "Trong ngày",
+  SINGLE: "Lấy 1 lần",
+  LOT: "Đơn lô",
+};
+
+export function OrderKindTag({ kind, short }: { kind: SalesOrderKind; short?: boolean }) {
   const color = kind === "LOT" ? "purple" : kind === "SINGLE" ? "blue" : "default";
-  return (
+  const tag = (
     <Tag color={color} style={{ marginInlineEnd: 0 }}>
-      {ORDER_KIND_LABELS[kind] ?? kind}
+      {(short ? ORDER_KIND_SHORT_LABELS[kind] : ORDER_KIND_LABELS[kind]) ?? kind}
     </Tag>
   );
+  return short ? <Tooltip title={ORDER_KIND_LABELS[kind] ?? kind}>{tag}</Tooltip> : tag;
 }
 
 export const APPROVAL_TYPE_LABELS: Record<SalesApprovalType, string> = {
+  STANDARD: "Đơn bán",
   PRICE: "Giá bán",
   CREDIT: "Công nợ",
   EXCEPTION: "Ngoại lệ",
@@ -116,8 +125,15 @@ export function ApprovalStatusTag({ status }: { status: SalesApprovalStatus }) {
   );
 }
 
+const APPROVAL_TYPE_COLORS: Record<SalesApprovalType, string> = {
+  STANDARD: "green",
+  PRICE: "blue",
+  CREDIT: "volcano",
+  EXCEPTION: "purple",
+};
+
 export function ApprovalTypeTag({ type }: { type: SalesApprovalType }) {
-  const color = type === "PRICE" ? "blue" : type === "CREDIT" ? "volcano" : "purple";
+  const color = APPROVAL_TYPE_COLORS[type] ?? "default";
   return (
     <Tag color={color} style={{ marginInlineEnd: 0 }}>
       {APPROVAL_TYPE_LABELS[type] ?? type}
@@ -270,7 +286,12 @@ export function formatMoney(value?: string | number | null) {
   return Number.isNaN(parsed) ? String(value) : moneyFormat.format(parsed);
 }
 
-/** Thành tiền chưa thuế của một dòng. */
+/**
+ * Thành tiền chưa thuế của một dòng.
+ *
+ * Chiết khấu là chiết khấu TRÊN MỖI ĐƠN VỊ (đúng như đơn đặt hàng giấy: SL × (giá −
+ * chiết khấu)), không phải một khoản trừ cho cả dòng.
+ */
 export function lineNetAmount(line: {
   orderedActualQty?: string | number | null;
   unitPrice?: string | number | null;
@@ -280,7 +301,7 @@ export function lineNetAmount(line: {
   const price = Number(line.unitPrice ?? 0);
   const discount = Number(line.discountAmount ?? 0);
   if (Number.isNaN(qty) || Number.isNaN(price)) return 0;
-  return qty * price - (Number.isNaN(discount) ? 0 : discount);
+  return qty * (price - (Number.isNaN(discount) ? 0 : discount));
 }
 
 /** Độ tin cậy của nhập nhanh: dưới 0.75 thì bắt Sale nhìn lại. */

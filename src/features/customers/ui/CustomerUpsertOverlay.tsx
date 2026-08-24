@@ -165,6 +165,7 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
         contactPhone: detail.contactPhone,
         bankAccountNo: detail.bankAccountNo,
         roles: detail.roles,
+        merchantRole: detail.merchantRole ?? undefined,
         type: detail.type,
         partnerRoles,
         creditLimit: detail.creditLimit,
@@ -205,6 +206,7 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
       name: values.name,
       type: values.type as CustomerType,
       roles: values.roles as CustomerRole[] | undefined,
+      merchantRole: values.merchantRole ?? null,
       // flags + partyType
       isCustomer,
       isSupplier,

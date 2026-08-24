@@ -18,6 +18,7 @@ import {
   ArrowLeftOutlined,
   DeleteOutlined,
   EditOutlined,
+  PrinterOutlined,
   ReloadOutlined,
   RollbackOutlined,
   SendOutlined,
@@ -25,6 +26,7 @@ import {
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate, useParams } from "react-router-dom";
+import { API_BASE } from "../../../config/env";
 import { useCan } from "../../../shared/authz/useCan";
 import { PERMS } from "../../../shared/authz/perms";
 import { confirmDialog } from "../../../shared/lib/confirm";
@@ -41,6 +43,7 @@ import {
 import type { SalesApprovalRequest, SalesOrderLine } from "../types";
 import { InternalSalesOrderModal } from "../ui/InternalSalesOrderModal";
 import { InvoicePanel } from "../ui/InvoicePanel";
+import { ProfitabilityPanel } from "../ui/ProfitabilityPanel";
 import { ReconciliationPanel } from "../ui/ReconciliationPanel";
 import "../sales.css";
 import {
@@ -253,6 +256,13 @@ export default function SalesOrderDetailPage() {
           <OrderKindTag kind={order.kind} />
         </Space>
         <Space wrap>
+          {/* Mở tab mới thay vì tải file: Sale thường xem rồi mới in hoặc gửi khách. */}
+          <Button
+            icon={<PrinterOutlined />}
+            onClick={() => window.open(`${API_BASE}/sales-orders/${order.id}/print`, "_blank")}
+          >
+            In đơn đặt hàng
+          </Button>
           {isEditable && can(PERMS.SALES_UPDATE) && (
             <Button icon={<EditOutlined />} onClick={() => setEditOpen(true)}>
               Sửa
@@ -321,6 +331,11 @@ export default function SalesOrderDetailPage() {
           showIcon
           style={{ marginBottom: 12 }}
           message="Đơn lô: khách rút dần bằng phiếu rút lô, không có hạn rút và không tạo đơn bán mới."
+          description={
+            order.lotInvoiceMode === "ON_CONFIRMATION"
+              ? "Hóa đơn: một hóa đơn cho cả lô, ngay sau khi xác nhận đơn hàng."
+              : "Hóa đơn: xuất nhiều lần theo tiến độ khách rút hàng."
+          }
         />
       )}
 
@@ -380,17 +395,6 @@ export default function SalesOrderDetailPage() {
                     <span>
                       Giá trị đơn: <strong>{formatMoney(checksQuery.data.orderValue)}</strong>
                     </span>
-                    <span>
-                      Dư nợ sau đơn: <strong>{formatMoney(checksQuery.data.creditExposure)}</strong>
-                    </span>
-                    <span>
-                      Hạn mức:{" "}
-                      <strong>
-                        {checksQuery.data.creditLimit == null
-                          ? "không đặt"
-                          : formatMoney(checksQuery.data.creditLimit)}
-                      </strong>
-                    </span>
                   </Space>
                 </div>
               )}
@@ -412,8 +416,15 @@ export default function SalesOrderDetailPage() {
 
       <ReconciliationPanel salesOrderId={order.id} />
 
-      {/* Đơn lô xuất hóa đơn theo từng lần rút, không xuất cho cả đơn. */}
-      {order.kind !== "LOT" && <InvoicePanel salesOrderId={order.id} />}
+      {/*
+        Đơn lô "theo tiến độ rút" xuất hóa đơn ở từng phiếu rút, không xuất cho cả đơn —
+        nên chỉ ẩn panel ở đúng trường hợp đó.
+      */}
+      {!(order.kind === "LOT" && order.lotInvoiceMode === "ON_WITHDRAWAL") && (
+        <InvoicePanel salesOrderId={order.id} />
+      )}
+
+      {can(PERMS.SALES_PROFITABILITY_VIEW) && <ProfitabilityPanel salesOrderId={order.id} />}
 
       {approvals.length > 0 && (
         <Card size="small" title="Lịch sử phê duyệt">

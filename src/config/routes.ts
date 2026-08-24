@@ -77,6 +77,8 @@ export const ROUTES = {
     assignContracts: ["POST", "/customers/:id/contracts/assign"],
     unassignContract: ["POST", "/customers/:id/contracts/unassign"],
     select: ["GET", "/customers/select"] as RouteTuple,
+    merchantRole: ["GET", "/customers/:id/merchant-role"] as RouteTuple,
+    setMerchantRole: ["PATCH", "/customers/:id/merchant-role"] as RouteTuple,
     purchaseDefaults: ["GET", "/customers/:id/purchase-defaults"] as RouteTuple,
     updatePurchaseDefaults: [
       "PATCH",
@@ -330,6 +332,7 @@ export const ROUTES = {
 
   salesOrders: {
     list: ["GET", "/sales-orders"] as RouteTuple,
+    statusCounts: ["GET", "/sales-orders/status-counts"] as RouteTuple,
     create: ["POST", "/sales-orders"] as RouteTuple,
     detail: ["GET", "/sales-orders/:id"] as RouteTuple,
     createFromPurchaseOrder: [
@@ -346,6 +349,8 @@ export const ROUTES = {
     update: ["PATCH", "/sales-orders/:id"] as RouteTuple,
     remove: ["DELETE", "/sales-orders/:id"] as RouteTuple,
     checks: ["GET", "/sales-orders/:id/checks"] as RouteTuple,
+    print: ["GET", "/sales-orders/:id/print"] as RouteTuple,
+    printBatch: ["POST", "/sales-orders/print-batch"] as RouteTuple,
     submit: ["POST", "/sales-orders/:id/submit"] as RouteTuple,
     reserve: ["POST", "/sales-orders/:id/reserve"] as RouteTuple,
     recall: ["POST", "/sales-orders/:id/recall"] as RouteTuple,
@@ -356,6 +361,11 @@ export const ROUTES = {
     list: ["GET", "/sales-approvals"] as RouteTuple,
     approve: ["POST", "/sales-approvals/:id/approve"] as RouteTuple,
     reject: ["POST", "/sales-approvals/:id/reject"] as RouteTuple,
+    returnToPending: ["POST", "/sales-approvals/:id/return-to-pending"] as RouteTuple,
+    approveMany: ["POST", "/sales-approvals/approve-many"] as RouteTuple,
+    rejectMany: ["POST", "/sales-approvals/reject-many"] as RouteTuple,
+    adjustLineDiscount: ["PATCH", "/sales-approvals/lines/:lineId/discount"] as RouteTuple,
+    adjustLineSupplier: ["PATCH", "/sales-approvals/lines/:lineId/supplier"] as RouteTuple,
   },
 
   salesDeliveries: {
@@ -401,6 +411,7 @@ export const ROUTES = {
 
   salesInvoices: {
     list: ["GET", "/sales-invoices"] as RouteTuple,
+    unissued: ["GET", "/sales-invoices/unissued"] as RouteTuple,
     preview: ["POST", "/sales-invoices/preview"] as RouteTuple,
     createDraft: ["POST", "/sales-invoices/drafts"] as RouteTuple,
     detail: ["GET", "/sales-invoices/:id"] as RouteTuple,
@@ -420,6 +431,27 @@ export const ROUTES = {
     detail: ["GET", "/receivables/:id"] as RouteTuple,
     allocate: ["POST", "/receivables/allocations"] as RouteTuple,
     reverseAllocation: ["POST", "/receivables/allocations/:id/reverse"] as RouteTuple,
+  },
+
+  salesCredit: {
+    list: ["GET", "/sales-credit"] as RouteTuple,
+    detail: ["GET", "/sales-credit/:customerPartyId"] as RouteTuple,
+    update: ["PATCH", "/sales-credit/:customerPartyId"] as RouteTuple,
+  },
+
+  salesDiscounts: {
+    list: ["GET", "/sales-discounts"] as RouteTuple,
+    current: ["GET", "/sales-discounts/current"] as RouteTuple,
+    resolve: ["GET", "/sales-discounts/resolve"] as RouteTuple,
+    recipientCandidates: ["GET", "/sales-discounts/recipient-candidates"] as RouteTuple,
+    detail: ["GET", "/sales-discounts/:id"] as RouteTuple,
+    create: ["POST", "/sales-discounts"] as RouteTuple,
+    update: ["PATCH", "/sales-discounts/:id"] as RouteTuple,
+    publish: ["POST", "/sales-discounts/:id/publish"] as RouteTuple,
+    unpublish: ["POST", "/sales-discounts/:id/unpublish"] as RouteTuple,
+    affectedOrders: ["GET", "/sales-discounts/:id/affected-orders"] as RouteTuple,
+    send: ["POST", "/sales-discounts/:id/send"] as RouteTuple,
+    cancel: ["DELETE", "/sales-discounts/:id"] as RouteTuple,
   },
 
   salesProfitability: {

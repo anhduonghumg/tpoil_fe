@@ -303,7 +303,7 @@ export function WithdrawalCreateModal({
             label="Khách hàng"
             rules={[{ required: true, message: "Chọn khách hàng" }]}
           >
-            <PartySelect partyRole="CUSTOMER" placeholder="Chọn khách hàng" />
+            <PartySelect partyRole="SELLABLE" placeholder="Chọn khách hàng" />
           </Form.Item>
           <Form.Item name="requestDate" label="Ngày rút" rules={[{ required: true }]}>
             <DatePicker size="small" format="DD/MM/YYYY" style={{ width: "100%" }} />

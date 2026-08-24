@@ -77,4 +77,26 @@ export const SupplierLocationsApi = {
         role: "SUPPLIER",
       },
     }).then((r) => r.data!.data ?? { items: [] }),
+
+  /** Kho đối tác có thể do NCC vận hành khi nhập hoặc khách hàng vận hành khi bán. */
+  operatorPartiesSelect: async (keyword = "") => {
+    const load = (role: "SUPPLIER" | "CUSTOMER") =>
+      apiCall<ApiResponse<SupplierOptionsResult>>("customer.select", {
+        query: { keyword, page: 1, pageSize: 100, role },
+      }).then((r) => r.data!.data ?? { items: [] });
+
+    const [suppliers, customers] = await Promise.all([load("SUPPLIER"), load("CUSTOMER")]);
+    const byId = new Map<string, SupplierOption>();
+    for (const item of suppliers.items ?? []) {
+      byId.set(item.id, { ...item, operatorType: "SUPPLIER" });
+    }
+    for (const item of customers.items ?? []) {
+      const previous = byId.get(item.id);
+      byId.set(item.id, {
+        ...item,
+        operatorType: previous?.operatorType ?? "CUSTOMER",
+      });
+    }
+    return { items: Array.from(byId.values()) };
+  },
 };

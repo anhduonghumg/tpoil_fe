@@ -124,6 +124,13 @@ export default function CommercialLotPurchasesPage() {
         render: (supplier) => supplier?.code ?? "-",
       },
       {
+        title: "Mã rút",
+        dataIndex: "releaseCode",
+        width: 80,
+        align: "center",
+        render: (value) => value ?? "-",
+      },
+      {
         title: "Số lượng",
         dataIndex: ["quantities", "orderedQty"],
         width: 120,

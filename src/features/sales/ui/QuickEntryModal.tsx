@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -15,7 +15,7 @@ import {
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { ThunderboltOutlined, WarningOutlined } from "@ant-design/icons";
+import { BulbOutlined, ThunderboltOutlined, WarningOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { PartySelect } from "../../../shared/ui/PartySelect";
 import { useProductSelect } from "../../products/hooks";
@@ -37,6 +37,7 @@ type EditableLine = {
   quantity?: number;
   quantityText: string;
   unitPrice?: number;
+  discountAmount?: number;
 };
 
 function lineFrom(preview: QuickEntryPreview, index: number): EditableLine {
@@ -90,7 +91,11 @@ export function QuickEntryModal({
   const [orderDate, setOrderDate] = useState<dayjs.Dayjs>(dayjs());
   const [plate, setPlate] = useState("");
   const [driver, setDriver] = useState("");
-  const [learnAliases, setLearnAliases] = useState(true);
+  const [customerName, setCustomerName] = useState<string>();
+  /** Những cách viết mới Sale đồng ý ghi nhớ; mặc định tick hết. */
+  const [learnKeys, setLearnKeys] = useState<Set<string>>(new Set());
+  /** Mục nào Sale đã tự bấm thì không tick lại đè lên lựa chọn của họ. */
+  const touchedLearnKeys = useRef<Set<string>>(new Set());
   const [lines, setLines] = useState<EditableLine[]>([]);
   const [productKeyword, setProductKeyword] = useState("");
   const [warehouseKeyword, setWarehouseKeyword] = useState("");
@@ -113,7 +118,7 @@ export function QuickEntryModal({
   }, [open]);
 
   const runParse = async () => {
-    const result = await parseMutation.mutateAsync(text);
+    const result = await parseMutation.mutateAsync({ text, useAi: true });
     setPreview(result);
     setOrderKind(result.orderKind ?? "SINGLE");
     setCustomerPartyId(result.customer.entityId ?? undefined);
@@ -125,6 +130,87 @@ export function QuickEntryModal({
 
   const patchLine = (key: string, patch: Partial<EditableLine>) =>
     setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
+
+  /**
+   * confidence === 1 nghĩa là đã có alias đúng cho cách viết này. Mọi trường hợp còn
+   * lại — không khớp gì, hay chỉ khớp nhờ trùng tên/mã — đều là "chưa có alias", nên
+   * đáng hỏi Sale có muốn nhớ lại không.
+   *
+   * Riêng khi alias đã tồn tại nhưng Sale chọn sang đơn vị khác thì không hỏi: backend
+   * không bao giờ ghi đè mapping cũ, việc đó phải xử lý ở màn quản lý cách viết.
+   */
+  const { newAliasCandidates, aliasConflicts } = useMemo(() => {
+    const items: Array<{ key: string; kind: string; rawText: string; entityName: string }> = [];
+    const conflicts: Array<{ rawText: string; pointsTo: string }> = [];
+    if (!preview) return { newAliasCandidates: items, aliasConflicts: conflicts };
+
+    const consider = (
+      key: string,
+      kind: string,
+      field: QuickEntryField,
+      chosenId: string | undefined,
+      chosenName: string,
+    ) => {
+      if (!field.rawText || !chosenId) return;
+      if (field.confidence >= 1) {
+        if (field.entityId && field.entityId !== chosenId) {
+          conflicts.push({ rawText: field.rawText, pointsTo: field.entityName ?? "đơn vị khác" });
+        }
+        return;
+      }
+      items.push({ key, kind, rawText: field.rawText, entityName: chosenName });
+    };
+
+    consider(
+      "customer",
+      "Khách hàng",
+      preview.customer,
+      customerPartyId,
+      customerName ?? preview.customer.entityName ?? "khách đã chọn",
+    );
+    lines.forEach((line, index) => {
+      const parsed = preview.lines[index];
+      if (!parsed) return;
+      consider(
+        `${line.key}:product`,
+        "Mặt hàng",
+        parsed.product,
+        line.productId,
+        (productsQuery.data ?? []).find((row) => row.id === line.productId)?.name ??
+          "mặt hàng đã chọn",
+      );
+      consider(
+        `${line.key}:warehouse`,
+        "Kho",
+        parsed.warehouse,
+        line.warehouseId,
+        (warehousesQuery.data ?? []).find((row) => row.id === line.warehouseId)?.label ??
+          "kho đã chọn",
+      );
+    });
+    return { newAliasCandidates: items, aliasConflicts: conflicts };
+  }, [preview, lines, customerPartyId, customerName, productsQuery.data, warehousesQuery.data]);
+
+  // Cái nào mới xuất hiện thì tick sẵn; Sale bỏ tick thì tôn trọng lựa chọn đó.
+  useEffect(() => {
+    setLearnKeys((current) => {
+      const next = new Set(current);
+      for (const item of newAliasCandidates) {
+        if (!touchedLearnKeys.current.has(item.key)) next.add(item.key);
+      }
+      return next;
+    });
+  }, [newAliasCandidates]);
+
+  const toggleLearn = (key: string, checked: boolean) => {
+    touchedLearnKeys.current.add(key);
+    setLearnKeys((current) => {
+      const next = new Set(current);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  };
 
   const blocking = useMemo(() => {
     const problems: string[] = [];
@@ -140,6 +226,10 @@ export function QuickEntryModal({
   }, [customerPartyId, lines, orderKind, plate, driver]);
 
   const confirm = async () => {
+    // Chỉ gửi rawText của những mục Sale đồng ý ghi nhớ — gửi rawText chính là đồng ý.
+    const rawTextIf = (id: string, rawText: string | null | undefined) =>
+      learnKeys.has(id) ? (rawText ?? undefined) : undefined;
+
     const result = await confirmMutation.mutateAsync({
       logId: preview?.logId,
       orderKind,
@@ -147,15 +237,15 @@ export function QuickEntryModal({
       orderDate: orderDate.format("YYYY-MM-DD"),
       vehiclePlate: plate.trim() || undefined,
       driverName: driver.trim() || undefined,
-      customerRawText: preview?.customer.rawText ?? undefined,
-      learnAliases,
+      customerRawText: rawTextIf("customer", preview?.customer.rawText),
       lines: lines.map((line) => ({
         productId: line.productId!,
         warehouseId: line.warehouseId!,
         quantity: Number(line.quantity),
         unitPrice: line.unitPrice == null ? undefined : Number(line.unitPrice),
-        productRawText: line.productRawText ?? undefined,
-        warehouseRawText: line.warehouseRawText ?? undefined,
+        discountAmount: line.discountAmount == null ? undefined : Number(line.discountAmount),
+        productRawText: rawTextIf(`${line.key}:product`, line.productRawText),
+        warehouseRawText: rawTextIf(`${line.key}:warehouse`, line.warehouseRawText),
       })),
     });
     onCreated?.(result);
@@ -213,7 +303,7 @@ export function QuickEntryModal({
       ),
     },
     {
-      title: "Kho xuất",
+      title: "Kho nhận",
       dataIndex: "warehouseId",
       width: 230,
       render: (_, line, index) => (
@@ -223,7 +313,7 @@ export function QuickEntryModal({
             showSearch
             filterOption={false}
             status={line.warehouseId ? undefined : "error"}
-            placeholder="Chọn kho"
+            placeholder="Chọn kho nhận"
             style={{ width: "100%" }}
             value={line.warehouseId}
             loading={warehousesQuery.isFetching}
@@ -240,6 +330,12 @@ export function QuickEntryModal({
           {preview && <MatchHint field={preview.lines[index].warehouse} />}
         </div>
       ),
+    },
+    {
+      title: "Mã NCC",
+      key: "supplierCode",
+      width: 120,
+      render: () => <span style={{ color: "#8c8c8c" }}>Tự động FIFO</span>,
     },
     {
       title: "Số lượng",
@@ -283,6 +379,23 @@ export function QuickEntryModal({
         />
       ),
     },
+    {
+      title: "CK / đơn vị",
+      dataIndex: "discountAmount",
+      width: 130,
+      align: "right",
+      render: (_, line) => (
+        <InputNumber
+          size="small"
+          min={0}
+          controls={false}
+          placeholder="0"
+          style={{ width: "100%" }}
+          value={line.discountAmount}
+          onChange={(value) => patchLine(line.key, { discountAmount: value ?? undefined })}
+        />
+      ),
+    },
   ];
 
   return (
@@ -299,9 +412,6 @@ export function QuickEntryModal({
       destroyOnClose
       footer={
         <Space>
-          <Checkbox checked={learnAliases} onChange={(e) => setLearnAliases(e.target.checked)}>
-            Ghi nhớ cách khách viết tên
-          </Checkbox>
           <Button onClick={onClose}>Đóng</Button>
           <Button
             type="primary"
@@ -373,9 +483,17 @@ export function QuickEntryModal({
                 Khách hàng
               </Typography.Text>
               <PartySelect
-                partyRole="CUSTOMER"
+                partyRole="SELLABLE"
+                effectiveAt={orderDate.format("YYYY-MM-DD")}
                 value={customerPartyId}
-                onChange={(value) => setCustomerPartyId(value ?? undefined)}
+                onChange={(value) => {
+                  setCustomerPartyId(value ?? undefined);
+                  if (!value) setCustomerName(undefined);
+                }}
+                // Giữ lại tên để khối "ghi nhớ cách viết" nói rõ đang gán cho ai.
+                onSelect={(_value: unknown, option: unknown) =>
+                  setCustomerName((option as { raw?: { name?: string } })?.raw?.name)
+                }
                 placeholder="Chọn khách hàng"
               />
               <MatchHint field={preview.customer} />
@@ -448,8 +566,59 @@ export function QuickEntryModal({
             pagination={false}
             columns={columns}
             dataSource={lines}
-            scroll={{ x: 700 }}
+            scroll={{ x: 950 }}
           />
+
+          {newAliasCandidates.length > 0 && (
+            <Alert
+              type="success"
+              showIcon
+              icon={<BulbOutlined />}
+              style={{ marginTop: 12 }}
+              message="Có cách viết mới — ghi nhớ để lần sau máy tự hiểu?"
+              description={
+                <Space direction="vertical" size={4} style={{ marginTop: 4 }}>
+                  {newAliasCandidates.map((item) => (
+                    <Checkbox
+                      key={item.key}
+                      checked={learnKeys.has(item.key)}
+                      onChange={(e) => toggleLearn(item.key, e.target.checked)}
+                    >
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {item.kind}:
+                      </Typography.Text>{" "}
+                      <Typography.Text strong>“{item.rawText}”</Typography.Text> →{" "}
+                      {item.entityName}
+                    </Checkbox>
+                  ))}
+                </Space>
+              }
+            />
+          )}
+
+          {aliasConflicts.length > 0 && (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginTop: 12 }}
+              message="Cách viết đang trỏ về đơn vị khác"
+              description={
+                <>
+                  <ul style={{ margin: 0, paddingInlineStart: 18 }}>
+                    {aliasConflicts.map((conflict) => (
+                      <li key={conflict.rawText}>
+                        “{conflict.rawText}” đang được hiểu là {conflict.pointsTo}
+                      </li>
+                    ))}
+                  </ul>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    Đơn vẫn tạo theo lựa chọn của bạn. Muốn đổi hẳn thì sửa ở màn “Cách khách viết
+                    tên”.
+                  </Typography.Text>
+                </>
+              }
+            />
+          )}
 
           {blocking.length > 0 && (
             <Alert

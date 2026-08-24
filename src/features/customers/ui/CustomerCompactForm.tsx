@@ -19,7 +19,8 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import type { FormInstance } from "antd";
-import type { CustomerRole, CustomerType, PartnerRole, PartyType } from "../types";
+import type { CustomerType, MerchantRole, PartnerRole, PartyType } from "../types";
+import { MERCHANT_ROLE_HINTS, MERCHANT_ROLE_LABELS } from "../types";
 import { notify } from "../../../shared/lib/notification";
 import { normalizeCode } from "../../../shared/lib/helper";
 import { useGenerateCustomerCode } from "../hooks";
@@ -27,12 +28,17 @@ import TextArea from "antd/es/input/TextArea";
 import { EmployeeSelect } from "../../../shared/ui/EmployeeSelect";
 import CustomerGroupSelect from "./CustomerGroupSelect";
 
-const ROLE_OPTIONS: { label: string; value: CustomerRole }[] = [
-  { label: "Đại lý", value: "Agent" },
-  { label: "Bán lẻ", value: "Retail" },
-  { label: "Bán buôn", value: "Wholesale" },
-  { label: "Khác", value: "Other" },
-];
+/**
+ * Ba loại thương nhân xăng dầu. Thay cho bộ "Vai trò" (Đại lý/Bán lẻ/Bán buôn) cũ vốn
+ * chồng lấn với chính nó và với "Loại hình" — cùng một chuyện khai ba chỗ.
+ */
+const MERCHANT_ROLE_OPTIONS = (Object.keys(MERCHANT_ROLE_LABELS) as MerchantRole[]).map(
+  (value) => ({
+    value,
+    label: `${value} — ${MERCHANT_ROLE_LABELS[value]}`,
+    title: MERCHANT_ROLE_HINTS[value],
+  }),
+);
 
 const TYPE_OPTIONS: { label: string; value: CustomerType }[] = [
   { label: "B2B", value: "B2B" },
@@ -299,13 +305,21 @@ export default function CustomerCompactForm({
           </Col>
 
           <Col xs={24} md={8}>
-            <Form.Item name="roles" label="Vai trò">
+            {/*
+              Loại thương nhân quyết định chiều giao dịch, và hệ thống tự suy ra
+              khách hàng / nhà cung cấp từ đây — không khai hai lần nữa.
+            */}
+            <Form.Item
+              name="merchantRole"
+              label="Loại thương nhân xăng dầu"
+              tooltip="Để trống nếu là đối tác dịch vụ (vận tải, giám định, bảo hiểm…) — họ không mua bán xăng dầu."
+            >
               <Select
                 size="small"
-                mode="multiple"
-                options={ROLE_OPTIONS}
                 allowClear
-                placeholder="Chọn 1 hoặc nhiều"
+                placeholder="Không phải thương nhân xăng dầu"
+                options={MERCHANT_ROLE_OPTIONS}
+                optionLabelProp="label"
               />
             </Form.Item>
           </Col>

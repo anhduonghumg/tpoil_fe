@@ -71,6 +71,7 @@ export function SalesOrderCreateModal({
   const warehousesQuery = useWarehouseSelect(warehouseKeyword);
   const createMutation = useCreateSalesOrder();
   const watchedLines = (Form.useWatch("lines", form) ?? []) as LineForm[];
+  const orderDate = Form.useWatch("orderDate", form) as dayjs.Dayjs | undefined;
   const grandTotal = watchedLines.reduce((sum, line) => sum + lineTotal(line), 0);
 
   const resetForm = () => {
@@ -315,7 +316,8 @@ export function SalesOrderCreateModal({
             rules={[{ required: true, message: "Chọn khách hàng" }]}
           >
             <PartySelect
-              partyRole="CUSTOMER"
+              partyRole="SELLABLE"
+              effectiveAt={orderDate?.format("YYYY-MM-DD")}
               displayMode="code"
               placeholder="Chọn khách hàng đặt hàng"
             />

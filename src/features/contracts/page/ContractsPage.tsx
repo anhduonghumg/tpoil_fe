@@ -1,5 +1,5 @@
 // features/contracts/page/ContractsPage.tsx
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Button, Flex, Space, Dropdown } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import {
@@ -7,7 +7,8 @@ import {
   useDeleteContract,
   useImportContracts,
 } from "../hooks";
-import type { ContractListQuery, ContractImportRow } from "../types";
+import type { ContractKind, ContractListQuery, ContractImportRow } from "../types";
+import { useDepartmentWorkspaceContext } from "../../workspaces/context";
 import { ContractUpsertOverlay } from "../ui/ContractUpsertOverlay";
 
 import { ContractFilters } from "../ui/ContractFilters";
@@ -22,12 +23,34 @@ import dayjs from "dayjs";
 
 const DEFAULT_PAGE_SIZE = 20;
 
+/**
+ * Cùng một màn hình phục vụ nhiều phân hệ, nên chiều hợp đồng lấy theo workspace đang
+ * mở: bán hàng chỉ thấy hợp đồng bán, mua hàng chỉ thấy hợp đồng mua. Phân hệ khác
+ * (pháp chế, ban giám đốc...) vẫn thấy cả hai.
+ */
+const WORKSPACE_CONTRACT_KIND: Record<string, ContractKind> = {
+  sales: "SALES",
+  purchase: "PURCHASE",
+};
+
 export const ContractsPage: React.FC = () => {
+  const workspace = useDepartmentWorkspaceContext();
+  const workspaceKind = workspace
+    ? WORKSPACE_CONTRACT_KIND[workspace.currentWorkspace.key]
+    : undefined;
+
   // ===== Query state =====
   const [query, setQuery] = useState<ContractListQuery>({
     page: 1,
     pageSize: DEFAULT_PAGE_SIZE,
   });
+
+  // Đổi workspace thì đổi luôn chiều hợp đồng, và bỏ lọc chiều nếu phân hệ không ép.
+  useEffect(() => {
+    setQuery((prev) =>
+      prev.kind === workspaceKind ? prev : { ...prev, kind: workspaceKind, page: 1 },
+    );
+  }, [workspaceKind]);
 
   const { data, isLoading } = useContractList(query);
   const deleteMutation = useDeleteContract();
@@ -306,7 +329,11 @@ export const ContractsPage: React.FC = () => {
             alignItems: "flex-start",
           }}
         >
-          <ContractFilters value={query} onChange={handleFilterChange} />
+          <ContractFilters
+            value={query}
+            onChange={handleFilterChange}
+            lockedKind={workspaceKind}
+          />
 
           <Dropdown
             menu={{ items: actionMenuItems, onClick: handleActionClick }}

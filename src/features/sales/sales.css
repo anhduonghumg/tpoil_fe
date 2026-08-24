@@ -16,8 +16,879 @@
   background: #fff7e6;
 }
 
+/* Lưới chiết khấu kho × mặt hàng — cùng phong cách với bảng giá Platts. */
+.discount-grid .ant-table-thead > tr > th {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  font-weight: 800 !important;
+  text-align: center;
+  border-bottom: 1px solid #e2e8f0 !important;
+  padding: 8px !important;
+}
+
+.discount-grid .ant-table-tbody > tr > td {
+  padding: 5px 8px !important;
+  border-bottom: 1px solid #eef2f7 !important;
+}
+
+.discount-grid .ant-table-tbody > tr:hover > td {
+  background: #f8fafc !important;
+}
+
+/* Ô đã có chiết khấu nổi hẳn lên, ô trống chìm xuống — nhìn một cái là biết còn thiếu đâu. */
+.discount-grid .discount-input.has-value .ant-input-number-input {
+  font-weight: 800;
+  color: #065f46;
+  text-align: center;
+}
+
+.discount-grid .discount-input.has-value {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.discount-grid .discount-input.empty {
+  background: #f8fafc;
+}
+
+.discount-grid .discount-input.empty .ant-input-number-input {
+  text-align: center;
+}
+
+.discount-grid .discount-cell {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.discount-grid .discount-cell.has-value {
+  font-weight: 800;
+  color: #065f46;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+}
+
+.discount-grid .discount-cell.empty {
+  color: #cbd5e1;
+}
+
+.discount-stat {
+  border-radius: 10px;
+  padding: 6px 12px;
+  min-width: 92px;
+}
+
+.discount-stat.filled {
+  background: #ecfdf5;
+}
+
+.discount-stat.empty {
+  background: #fff7ed;
+}
+
+.discount-stat-label {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* Kỳ hạn mức đang áp dụng. */
+.sales-row-current > td {
+  background: #f6ffed;
+}
+
 /* Dòng đối soát đã bị chứng từ điều chỉnh thay thế: giữ lịch sử nhưng làm mờ đi. */
 .sales-row-superseded > td {
   opacity: 0.55;
   text-decoration: line-through;
+}
+
+/* Điều khoản đơn lô đặt dưới bảng nhập nhanh. */
+.quick-entry-terms {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e8ebef;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.sales-orders-page {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.sales-orders-page-header {
+  min-height: 42px;
+}
+
+.sales-orders-page-header .ant-typography {
+  color: #172033;
+  font-size: 19px;
+  font-weight: 750;
+}
+
+.sales-orders-page-separator {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.sales-orders-tabs {
+  margin: 0 -16px 12px;
+  padding: 0 16px;
+  border-top: 1px solid #edf0f5;
+  border-bottom: 1px solid #edf0f5;
+  background: #fff;
+}
+
+.sales-orders-tabs .ant-tabs {
+  margin-bottom: -1px;
+}
+
+.sales-orders-tabs .ant-tabs-nav {
+  margin: 0;
+}
+
+.sales-orders-tabs .ant-tabs-tab {
+  padding: 13px 14px;
+  font-size: 13px;
+}
+
+.quick-entry-terms-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 20px;
+  margin-top: 8px;
+}
+
+/* Màn nhập nhanh đơn lẻ: bố cục đọc tin nhắn → xem đơn tạm → kiểm tra bảng. */
+.quick-entry {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Bảng nhiều cột ở dưới không được kéo giãn khung nhập phía trên. */
+.quick-entry > * {
+  min-width: 0;
+}
+
+.quick-entry-table-toolbar {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid #edf0f5;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #fff;
+}
+
+.quick-entry-composer {
+  grid-template-columns: minmax(0, 1fr) 290px !important;
+  grid-template-rows: auto auto;
+  gap: 16px !important;
+  width: 100%;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e6edf8;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 3px 14px rgb(15 23 42 / 4%);
+}
+
+.quick-entry-composer.is-hidden {
+  display: none !important;
+}
+
+.quick-entry-message {
+  display: contents;
+}
+
+.quick-entry-message .ant-input {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 164px !important;
+  padding: 12px 14px;
+  font-size: 14px;
+  border-color: #b7d0ff;
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.quick-entry-draft-card {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  min-height: 96px;
+  padding: 12px 16px;
+  border: 1px solid #e6edf8;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+.quick-entry-draft-heading {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.quick-entry-draft-summary {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  font-size: 12px;
+  line-height: 1.95;
+}
+
+.quick-entry-draft-summary .ant-typography {
+  display: inline-block;
+  width: 88px;
+  font-size: 12px;
+}
+
+.quick-entry-draft-date {
+  display: grid;
+  place-items: center;
+  height: 52px;
+  border-radius: 8px;
+  color: #1d4ed8;
+  background: #eaf2ff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.quick-entry-draft-divider {
+  display: none;
+  height: 1px;
+  background: #edf0f5;
+}
+
+/* Vùng giá và AI nằm trên thanh điều khiển dưới ô nhập, như màn hình nhập nhanh. */
+.quick-entry-draft-divider ~ * {
+  display: none !important;
+}
+
+.quick-entry-controls {
+  display: grid !important;
+  grid-column: 2;
+  grid-row: 1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  align-items: center;
+  gap: 12px 8px !important;
+  min-height: 0;
+  padding: 0;
+}
+
+.quick-entry-control-label,
+.quick-entry-ai-label {
+  color: #334155;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.quick-entry-control-label,
+.quick-entry-region-select,
+.quick-entry-controls > .ant-btn,
+.quick-entry-controls > .ant-typography {
+  grid-column: 1 / -1;
+}
+
+.quick-entry-region-select {
+  width: 100%;
+}
+
+.quick-entry-controls > .ant-typography {
+  display: block;
+  line-height: 1.45;
+}
+
+.quick-entry-controls > .ant-btn {
+  margin-left: 0;
+  width: 100%;
+}
+
+.quick-entry-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-height: 180px;
+  padding: 42px 16px;
+}
+
+.quick-entry-empty > .anticon {
+  color: #8db5ff;
+  font-size: 48px;
+}
+
+@media (max-width: 1100px) {
+  .quick-entry-terms-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-entry-composer {
+    grid-template-columns: 1fr !important;
+  }
+
+  .quick-entry-message .ant-input,
+  .quick-entry-controls,
+  .quick-entry-draft-card {
+    grid-column: 1;
+  }
+
+  .quick-entry-controls {
+    grid-row: 2;
+  }
+
+  .quick-entry-draft-card {
+    grid-row: 3;
+  }
+}
+
+/* Ô nhập nhanh: gợi ý phím tắt nằm góc trên phải. */
+.quick-entry-message {
+  position: relative;
+}
+
+.quick-entry-hotkey {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  z-index: 1;
+  font-size: 11px;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+/* Thẻ đơn tạm bên phải ô nhập. */
+.quick-entry-draft-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid #e8ebef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.quick-entry-draft-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.quick-entry-draft-summary {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.quick-entry-draft-date {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.quick-entry-draft-fields > div {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 6px;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.quick-entry-draft-fields span {
+  color: #6b7280;
+}
+
+/* Bố cục nhập nhanh: ô dán và Đơn tạm nằm cùng hàng, điều khiển thu gọn xuống dưới. */
+.quick-entry-composer {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 320px !important;
+  gap: 12px !important;
+  margin-bottom: 8px !important;
+}
+
+.quick-entry-controls {
+  display: flex !important;
+  grid-column: auto !important;
+  grid-row: auto !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px !important;
+  margin: 0 0 10px !important;
+  padding: 0 !important;
+}
+
+.quick-entry-controls > .ant-btn,
+.quick-entry-controls > .ant-typography,
+.quick-entry-control-label,
+.quick-entry-region-select {
+  grid-column: auto !important;
+  width: auto !important;
+}
+
+.quick-entry-region-select {
+  width: 170px !important;
+}
+
+/* Hàng thao tác của bảng chỉ còn các nút, dồn phải. */
+.quick-entry-table-toolbar {
+  justify-content: flex-end !important;
+  min-height: 0;
+  margin-bottom: 6px !important;
+}
+
+/* Hai thẻ ngang hàng: ô dán (kèm hàng điều khiển ở chân) và Đơn tạm. */
+.quick-entry-message {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e5e9ef;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.quick-entry-message .ant-input {
+  border-color: #e5e9ef;
+}
+
+.quick-entry-hotkey {
+  top: 16px;
+  right: 20px;
+}
+
+.quick-entry-controls {
+  display: flex !important;
+  grid-column: auto !important;
+  grid-row: auto !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Nút chính dồn về cuối hàng điều khiển. */
+.quick-entry-controls > .ant-btn {
+  margin-left: auto !important;
+}
+
+.quick-entry-ai-hint {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.quick-entry-draft-card {
+  padding: 12px;
+  border: 1px solid #e5e9ef;
+  border-radius: 10px;
+}
+
+.quick-entry-draft-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* Bố cục cuối: hai thẻ cùng một hàng, không để thẻ Đơn tạm rơi xuống dưới ô nhập. */
+.quick-entry-composer {
+  grid-template-columns: minmax(0, 1.65fr) minmax(340px, 1fr) !important;
+  align-items: stretch;
+}
+
+.quick-entry-message {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  min-width: 0;
+}
+
+.quick-entry-draft-card {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  grid-template-columns: 1fr !important;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.quick-entry-draft-heading {
+  grid-column: auto !important;
+}
+
+.quick-entry-draft-actions {
+  margin-top: auto;
+}
+
+@media (max-width: 900px) {
+  .quick-entry-composer {
+    grid-template-columns: 1fr !important;
+  }
+
+  .quick-entry-message,
+  .quick-entry-draft-card {
+    grid-column: 1 !important;
+  }
+
+  .quick-entry-message {
+    grid-row: 1 !important;
+  }
+
+  .quick-entry-draft-card {
+    grid-row: 2 !important;
+  }
+}
+
+/* Chế độ gọn: chỉ giữ viền của ô nhập, bỏ các card bao quanh không cần thiết. */
+.sales-orders-page-header {
+  min-height: 32px;
+}
+
+.sales-orders-page-header .ant-typography {
+  font-size: 16px;
+}
+
+.sales-orders-page-header .ant-btn {
+  height: 30px;
+  padding-inline: 10px;
+}
+
+.sales-orders-tabs {
+  margin: 0 -10px 8px;
+  padding: 0 10px;
+}
+
+.sales-orders-tabs .ant-tabs-tab {
+  padding: 7px 12px;
+}
+
+.quick-entry {
+  gap: 4px;
+}
+
+.quick-entry-composer {
+  gap: 12px !important;
+  margin-bottom: 4px !important;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.quick-entry-message {
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.quick-entry-message .ant-input {
+  min-height: 132px !important;
+  padding: 10px 12px;
+}
+
+.quick-entry-draft-card {
+  min-height: 0;
+  padding: 8px 12px;
+  border-color: #edf0f5;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.quick-entry-draft-heading {
+  padding-bottom: 6px;
+}
+
+.quick-entry-controls {
+  min-height: 32px;
+}
+
+.quick-entry-table-toolbar.is-empty {
+  display: none !important;
+}
+
+/* ===== Hàng đợi duyệt: nén tối đa để một màn hình chứa được nhiều đơn nhất ===== */
+.approval-queue .ant-table-tbody > tr > td,
+.approval-queue .ant-table-thead > tr > th {
+  padding: 2px 6px !important;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.approval-queue .ant-table-thead > tr > th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Ô nằm trong nhóm dòng của cùng một đơn: bỏ viền dưới để nhóm nhìn liền mạch. */
+.approval-queue .ant-table-tbody > tr > td {
+  border-bottom-color: #f0f0f0;
+}
+
+.approval-queue .approval-row-group-end > td {
+  border-bottom: 1px solid #d9d9d9;
+}
+
+.approval-queue .ant-table-tbody > tr.approval-row-selected > td {
+  background: #e6f4ff;
+}
+
+.approval-queue-order {
+  font-weight: 600;
+  font-size: 12px;
+  padding: 0 !important;
+  height: auto !important;
+}
+
+.approval-queue-sub {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+/* Ô sửa CK điều chỉnh: trông như chữ cho tới khi bấm vào. */
+.approval-queue .approval-discount-input .ant-input-number-input {
+  height: 20px;
+  padding: 0 4px;
+  font-size: 12px;
+  text-align: right;
+}
+
+/* Ô này sửa được ngay trên bảng, nên phải TRÔNG như ô nhập kể cả khi chưa rê chuột —
+   trước đây để trong suốt, người duyệt không biết là gõ được. */
+.approval-queue .approval-discount-input {
+  width: 100%;
+  background: #fffbe6;
+  border-color: #ffe08a;
+}
+
+.approval-queue .approval-discount-input:hover {
+  border-color: #faad14;
+}
+
+.approval-queue .approval-discount-input.ant-input-number-focused {
+  background: #ffffff;
+  border-color: #1677ff;
+}
+
+/* Đã gõ nhưng chưa lưu (chưa rời ô / chưa Enter). */
+.approval-queue .approval-discount-input.approval-discount-dirty {
+  border-color: #fa8c16;
+  background: #fff1e6;
+}
+
+.approval-queue .approval-discount-input.ant-input-number-disabled {
+  background: #f5f5f5;
+  border-color: #d9d9d9;
+}
+
+.approval-queue-bulkbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 5px 10px;
+  margin-bottom: 8px;
+  border: 1px solid #91caff;
+  background: #e6f4ff;
+  border-radius: 6px;
+}
+
+/* ===================================================================
+   .sales-grid — bảng danh sách của khối bán hàng.
+   Mục tiêu: vừa một màn 15" không cuộn ngang, và nhìn ra đầu ra đuôi.
+   =================================================================== */
+.sales-grid .ant-table {
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.sales-grid .ant-table-container {
+  border-start-start-radius: 8px;
+  border-start-end-radius: 8px;
+}
+
+/* Tiêu đề: nền xanh nhạt + chữ đậm để tách hẳn khỏi vùng dữ liệu. */
+.sales-grid .ant-table-thead > tr > th {
+  background: #eef4ff !important;
+  color: #21418f;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 7px 8px !important;
+  border-bottom: 1px solid #c9d9f7 !important;
+}
+
+/* Antd vẽ một vạch ngăn giữa các ô tiêu đề; bỏ đi cho nền liền một mảng. */
+.sales-grid .ant-table-thead > tr > th::before {
+  display: none !important;
+}
+
+.sales-grid .ant-table-tbody > tr > td {
+  padding: 5px 8px !important;
+  border-bottom: 1px solid #f2f4f7;
+}
+
+/* Kẻ sọc nhẹ: mắt dò ngang cả chục cột mà không lạc dòng. */
+.sales-grid .ant-table-tbody > tr:nth-child(even) > td {
+  background: #fbfcfe;
+}
+
+.sales-grid .ant-table-tbody > tr:hover > td,
+.sales-grid .ant-table-tbody > tr.ant-table-row-selected > td {
+  background: #e8f2ff !important;
+}
+
+.sales-grid .ant-table-tbody > tr > td.ant-table-cell-row-hover {
+  background: #e8f2ff !important;
+}
+
+/* Ô chỉ chứa link (số đơn, mã rút): bỏ chiều cao mặc định của Button. */
+.sales-grid .sales-grid-link.ant-btn {
+  padding: 0;
+  height: auto;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sales-grid-strong {
+  font-weight: 600;
+}
+
+/* Số căn phải bằng chữ số đều bề ngang thì cột tiền mới thẳng hàng. */
+.sales-grid-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Cắt gọn trong bề ngang cột; nội dung đầy đủ luôn có ở tooltip. */
+.sales-grid-clip {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sales-grid-sub {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 11px;
+}
+
+.sales-grid-empty {
+  color: rgba(0, 0, 0, 0.25);
+}
+
+.sales-grid-danger {
+  color: #cf1322;
+}
+
+/* Ô chọn dòng không cần rộng bằng ô dữ liệu. */
+.sales-grid .ant-table-selection-column {
+  padding-inline: 6px !important;
+  width: 34px;
+}
+
+.sales-grid .ant-pagination {
+  margin-block: 8px !important;
+}
+
+/* Cột ghim trái/phải có nền riêng để che phần cuộn bên dưới — phải nhuộm theo dòng,
+   nếu không kẻ sọc sẽ đứt ở hai đầu bảng. */
+.sales-grid .ant-table-tbody > tr > td.ant-table-cell-fix-left,
+.sales-grid .ant-table-tbody > tr > td.ant-table-cell-fix-right {
+  background: #ffffff;
+}
+
+.sales-grid .ant-table-tbody > tr:nth-child(even) > td.ant-table-cell-fix-left,
+.sales-grid .ant-table-tbody > tr:nth-child(even) > td.ant-table-cell-fix-right {
+  background: #fbfcfe;
+}
+
+/* Mọi ô đều một dòng: chiều cao hàng bằng nhau thì mắt dò danh sách mới nhanh, và
+   không ô nào tràn sang cột bên. Cột nào cần nhiều dòng thì tự khai báo riêng. */
+.sales-grid .ant-table-tbody > tr > td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Ô số đơn là một Button link: phải tự cắt trong bề ngang cột. */
+.sales-grid .sales-grid-link.sales-grid-clip.ant-btn > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sales-grid .sales-grid-link.sales-grid-clip.ant-btn {
+  max-width: 100%;
+}
+
+/* Nút tác vụ chỉ hiện rõ khi rê vào dòng, để bảng đỡ rối. */
+.sales-grid .ant-table-tbody > tr > td .ant-dropdown-trigger {
+  opacity: 0.45;
+  transition: opacity 0.15s;
+}
+
+.sales-grid .ant-table-tbody > tr:hover > td .ant-dropdown-trigger,
+.sales-grid .ant-table-tbody > tr > td .ant-dropdown-open {
+  opacity: 1;
+}
+
+/* Ô hai dòng (lái xe + biển số). Chiều cao chốt cứng để hàng nào cũng cao bằng nhau,
+   kể cả đơn không có biển số — nếu để tự co thì bảng lô nhô như răng cưa. */
+.sales-grid-stack {
+  height: 30px;
+  line-height: 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.sales-grid-stack .sales-grid-sub {
+  line-height: 15px;
+}
+
+/* Hàng đợi kho cần xem nhanh biển số + lái xe (hai dòng), nên giảm phần đệm để mỗi lệnh
+   chỉ cao vừa đủ cho hai dòng này. */
+.sales-deliveries-grid .ant-table-tbody > tr > td {
+  padding: 2px 6px !important;
+}
+
+.sales-deliveries-grid .sales-grid-stack {
+  height: 27px;
+  line-height: 13px;
+}
+
+.sales-deliveries-grid .sales-grid-stack .sales-grid-sub {
+  line-height: 13px;
+}
+
+/* .sales-grid được nạp sau nên kẻ sọc của nó đè mất nền dòng đang chọn của hàng đợi
+   duyệt. Chốt lại ở cuối file để dòng đã chọn luôn nổi hơn sọc. */
+.sales-grid.approval-queue .ant-table-tbody > tr.approval-row-selected > td {
+  background: #e6f4ff !important;
 }

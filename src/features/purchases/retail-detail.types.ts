@@ -50,6 +50,7 @@ export type RetailPurchaseListItem = {
   orderNo: string;
   orderDate: string;
   status: string;
+  releaseCode?: "TP" | "NCC" | null;
   lifecycle: RetailLifecycle;
   orderValue: number;
   supplier: { id: string; code: string; name: string };
@@ -86,6 +87,7 @@ export type RetailPurchaseDetail = {
   expectedDate?: string | null;
   status: "DRAFT" | "APPROVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
   paymentMode: "PREPAID" | "POSTPAID";
+  releaseCode?: "TP" | "NCC" | null;
   note?: string | null;
   lifecycle: RetailLifecycle;
   supplier: {

@@ -53,7 +53,7 @@ function useDebounced(value: string, ms = 300) {
   return debounced;
 }
 
-const OperatorSupplierPicker: React.FC = () => {
+const OperatorPartyPicker: React.FC = () => {
   const form = Form.useFormInstance();
   const selected: string[] = Form.useWatch("supplierCustomerIds", form) || [];
   const [keyword, setKeyword] = useState("");
@@ -64,7 +64,7 @@ const OperatorSupplierPicker: React.FC = () => {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    SupplierLocationsApi.suppliersSelect(debouncedKeyword.trim())
+    SupplierLocationsApi.operatorPartiesSelect(debouncedKeyword.trim())
       .then((result) => {
         if (active) setOptions(result.items ?? []);
       })
@@ -101,7 +101,7 @@ const OperatorSupplierPicker: React.FC = () => {
         value={keyword}
         onChange={(event) => setKeyword(event.target.value)}
         prefix={<SearchOutlined />}
-        placeholder="Tìm NCC"
+        placeholder="Tìm NCC / khách hàng"
       />
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
         <a onClick={selectAllVisible}>Chọn tất cả</a>
@@ -126,7 +126,7 @@ const OperatorSupplierPicker: React.FC = () => {
           value={selected}
           onChange={(values) => form.setFieldValue("supplierCustomerIds", values)}
         >
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "6px 12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px 12px" }}>
             {options.map((item) => (
               <Checkbox key={item.id} value={item.id} style={{ marginInlineStart: 0, minWidth: 0 }}>
                 <Tooltip title={item.name} placement="topLeft">
@@ -332,9 +332,9 @@ export const SupplierLocationUpsertModal: React.FC<Props> = ({
           </Col>
         </Row>
 
-        <Divider orientation="left" style={{ margin: "8px 0" }}>NCC vận hành kho</Divider>
+        <Divider orientation="left" style={{ margin: "8px 0" }}>Đối tác vận hành kho</Divider>
         <Form.Item name="supplierCustomerIds" noStyle>
-          <OperatorSupplierPicker />
+          <OperatorPartyPicker />
         </Form.Item>
       </Form>
       <Modal

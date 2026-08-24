@@ -1,10 +1,15 @@
 import React, { useState } from "react";
-import { Button, Card, Segmented, Space, Statistic, Table, Tabs, Typography } from "antd";
+import { Button, Card, Select, Space, Statistic, Table, Tabs, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { ReloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import { PartySelect } from "../../../shared/ui/PartySelect";
+import {
+  FilterButton,
+  FilterTags,
+  RefreshButton,
+} from "../../../shared/ui/TableFilter";
+import type { ActiveFilterTag } from "../../../shared/ui/TableFilter";
 import { usePartyDebt, useReceivableAging, useReceivables } from "../hooks";
 import type {
   PartyDebtRow,
@@ -27,6 +32,7 @@ export default function ReceivablesPage() {
   const [scope, setScope] = useState("OPEN");
   const [customerPartyId, setCustomerPartyId] = useState<string>();
   const [page, setPage] = useState(1);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [detailId, setDetailId] = useState<string>();
 
   const listQuery = useReceivables({
@@ -38,6 +44,76 @@ export default function ReceivablesPage() {
   });
   const agingQuery = useReceivableAging(customerPartyId, tab === "aging");
   const partyDebtQuery = usePartyDebt(customerPartyId, tab === "party");
+
+  const filterTags = [
+    scope !== "OPEN" && {
+      key: "scope",
+      label: `Phạm vi: ${SCOPE_FILTERS.find((row) => row.value === scope)?.label ?? scope}`,
+      onClear: () => {
+        setScope("OPEN");
+        setPage(1);
+      },
+    },
+    customerPartyId && {
+      key: "party",
+      label: "Đang lọc theo đối tác",
+      onClear: () => {
+        setCustomerPartyId(undefined);
+        setPage(1);
+      },
+    },
+  ].filter(Boolean) as ActiveFilterTag[];
+
+  const filterPanel = (
+    <div className="table-filter-panel">
+      <div style={{ marginBottom: 10 }}>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Đối tác
+        </Typography.Text>
+        <PartySelect
+          partyRole="ALL"
+          allowClear
+          style={{ width: "100%" }}
+          placeholder="Mọi đối tác"
+          value={customerPartyId}
+          onChange={(value) => {
+            setCustomerPartyId(value ?? undefined);
+            setPage(1);
+          }}
+        />
+      </div>
+      {/* Chỉ tab chi tiết mới lọc theo phạm vi; tuổi nợ và hai chiều luôn tính trên khoản còn mở. */}
+      {tab === "items" && (
+        <div style={{ marginBottom: 10 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Phạm vi
+          </Typography.Text>
+          <Select
+            size="small"
+            style={{ width: "100%" }}
+            value={scope}
+            options={SCOPE_FILTERS}
+            onChange={(value) => {
+              setScope(value);
+              setPage(1);
+            }}
+          />
+        </div>
+      )}
+      <div style={{ textAlign: "right" }}>
+        <Button
+          size="small"
+          onClick={() => {
+            setScope("OPEN");
+            setCustomerPartyId(undefined);
+            setPage(1);
+          }}
+        >
+          Đặt lại
+        </Button>
+      </div>
+    </div>
+  );
 
   const itemColumns: ColumnsType<ReceivableOpenItem> = [
     {
@@ -211,38 +287,18 @@ export default function ReceivablesPage() {
         <Typography.Title level={4} style={{ margin: 0 }}>
           Công nợ phải thu
         </Typography.Title>
-        <Button
-          icon={<ReloadOutlined />}
-          loading={listQuery.isFetching}
-          onClick={() => listQuery.refetch()}
-        >
-          Tải lại
-        </Button>
+        <Space>
+          <FilterButton
+            count={Number(Boolean(customerPartyId)) + Number(scope !== "OPEN")}
+            open={filterOpen}
+            onOpenChange={setFilterOpen}
+            content={filterPanel}
+          />
+          <RefreshButton loading={listQuery.isFetching} onClick={() => listQuery.refetch()} />
+        </Space>
       </div>
 
-      <Space wrap style={{ marginBottom: 12 }}>
-        <PartySelect
-          partyRole="ALL"
-          allowClear
-          style={{ width: 260 }}
-          placeholder="Lọc theo đối tác"
-          value={customerPartyId}
-          onChange={(value) => {
-            setCustomerPartyId(value ?? undefined);
-            setPage(1);
-          }}
-        />
-        {tab === "items" && (
-          <Segmented
-            value={scope}
-            options={SCOPE_FILTERS}
-            onChange={(value) => {
-              setScope(value as string);
-              setPage(1);
-            }}
-          />
-        )}
-      </Space>
+      <FilterTags items={filterTags} />
 
       <Tabs
         activeKey={tab}

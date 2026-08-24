@@ -56,6 +56,7 @@ type FormValues = {
   receivingWarehouseId?: string;
   priceRegionCode: string;
   paymentMode: "PREPAID" | "POSTPAID";
+  releaseCode: "TP" | "NCC";
   paymentTermDays?: number;
   note?: string;
   lines: LineForm[];
@@ -119,6 +120,7 @@ export default function CommercialLotPurchaseCreatePage() {
       orderDate: dayjs(order.orderDate),
       expectedDate: order.expectedDate ? dayjs(order.expectedDate) : undefined,
       paymentMode: order.paymentMode,
+      releaseCode: order.releaseCode ?? undefined,
       note: order.note,
       lines: loadedLines,
     });
@@ -431,6 +433,7 @@ export default function CommercialLotPurchaseCreatePage() {
         supplierCustomerId: values.supplierCustomerId,
         orderType: "LOT",
         paymentMode: values.paymentMode,
+        releaseCode: values.releaseCode,
         priceRegionCode,
         orderDate: values.orderDate.format("YYYY-MM-DD"),
         expectedDate: values.expectedDate?.format("YYYY-MM-DD") ?? null,
@@ -567,6 +570,21 @@ export default function CommercialLotPurchaseCreatePage() {
                     })),
                   });
                 }}
+              />
+            </Form.Item>
+            <Form.Item
+              className="commercial-lot-field-release-code"
+              name="releaseCode"
+              label="Mã rút"
+              rules={[{ required: true, message: "Chọn mã rút TP hoặc NCC" }]}
+            >
+              <Select
+                size="small"
+                placeholder="Chọn TP/NCC"
+                options={[
+                  { value: "TP", label: "TP" },
+                  { value: "NCC", label: "NCC" },
+                ]}
               />
             </Form.Item>
             <Form.Item

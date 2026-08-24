@@ -70,7 +70,7 @@ export const SupplierLocationsFilters: React.FC<Props> = ({
   const fetchSuppliers = async (keyword: string) => {
     setSupplierFetching(true);
     try {
-      const result = await SupplierLocationsApi.suppliersSelect(keyword);
+      const result = await SupplierLocationsApi.operatorPartiesSelect(keyword);
       setSupplierOptions(result.items ?? []);
     } finally {
       setSupplierFetching(false);
@@ -93,14 +93,14 @@ export const SupplierLocationsFilters: React.FC<Props> = ({
         onChange={setAreaId}
       />
       <Divider style={{ margin: "12px 0" }} />
-      <div style={{ color: "#596579", fontSize: 12, marginBottom: 6 }}>NCC vận hành kho</div>
+      <div style={{ color: "#596579", fontSize: 12, marginBottom: 6 }}>Đối tác vận hành kho</div>
       <Select
         size="small"
         style={{ width: "100%" }}
         showSearch
         allowClear
         value={supplierId}
-        placeholder="Chọn NCC"
+        placeholder="Chọn NCC / khách hàng"
         filterOption={false}
         onSearch={fetchSuppliers}
         onFocus={() => fetchSuppliers("")}

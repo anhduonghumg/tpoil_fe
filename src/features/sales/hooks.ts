@@ -8,8 +8,13 @@ import {
   SalesApprovalsApi,
   SalesDeliveriesApi,
   ReceivablesApi,
+  SalesAliasApi,
+  SalesCreditApi,
+  SalesDiscountApi,
   SalesInvoicesApi,
+  SalesOrderPrintApi,
   SalesOrdersApi,
+  SalesProfitabilityApi,
   SalesReconciliationApi,
   SalesWithdrawalsApi,
 } from "./api";
@@ -17,20 +22,27 @@ import type {
   AllocateReceivablePayload,
   ConfirmDeliveryPayload,
   ConfirmQuickEntryPayload,
+  CreateAliasPayload,
   CreateInternalSalesOrderPayload,
   CreateSalesOrderFromPurchasePayload,
   CreateSalesOrderPayload,
   CreateWithdrawalPayload,
+  DiscountBoardStatus,
   InvoiceSource,
   ReceivableStatus,
+  SalesAliasEntityType,
+  SalesAliasSource,
   SalesApprovalStatus,
   SalesApprovalType,
   SalesDeliveryStatus,
   SalesInvoiceStatus,
+  UnissuedInvoiceSource,
   SalesOrderKind,
   SalesOrderStatus,
   SalesWithdrawalStatus,
+  UpdateCustomerCreditPayload,
   UpdateSalesOrderPayload,
+  UpsertDiscountBoardPayload,
 } from "./types";
 
 export function useSalesOrders(query: { keyword?: string; page?: number; limit?: number } = {}) {
@@ -115,7 +127,8 @@ function useRefreshSalesOrder(id?: string) {
 export function useInternalSalesOrders(query: {
   keyword?: string;
   kind?: SalesOrderKind;
-  status?: SalesOrderStatus;
+  /** Một trạng thái, hoặc nhiều trạng thái ngăn bởi dấu phẩy cho tab gộp. */
+  status?: SalesOrderStatus | string;
   customerPartyId?: string;
   page?: number;
   limit?: number;
@@ -123,6 +136,18 @@ export function useInternalSalesOrders(query: {
   return useQuery({
     queryKey: ["salesOrders", "list", query],
     queryFn: () => InternalSalesApi.list(query),
+  });
+}
+
+/** Số đơn theo từng trạng thái, để dải tab hiện luôn con số. */
+export function useSalesOrderStatusCounts(query: {
+  keyword?: string;
+  kind?: SalesOrderKind;
+  customerPartyId?: string;
+} = {}) {
+  return useQuery({
+    queryKey: ["salesOrders", "status-counts", query],
+    queryFn: () => InternalSalesApi.statusCounts(query),
   });
 }
 
@@ -233,6 +258,30 @@ export function useCancelSalesOrder(id?: string) {
   });
 }
 
+// ===== In đơn đặt hàng =====
+
+/**
+ * Mở PDF ở tab mới thay vì tải xuống: kế toán thường xem qua rồi mới bấm in.
+ * URL blob được thu hồi sau khi tab đã đọc xong.
+ */
+export function usePrintSalesOrders() {
+  return useMutation({
+    mutationFn: (payload: {
+      ids?: string[];
+      customerPartyId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      kind?: SalesOrderKind;
+    }) => SalesOrderPrintApi.batch(payload),
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không in được đơn"),
+  });
+}
+
 // ===== Phê duyệt =====
 
 export function useSalesApprovals(query: {
@@ -241,6 +290,11 @@ export function useSalesApprovals(query: {
   salesOrderId?: string;
   withdrawalRequestId?: string;
   mine?: boolean;
+  keyword?: string;
+  customerPartyId?: string;
+  kind?: SalesOrderKind;
+  dateFrom?: string;
+  dateTo?: string;
   page?: number;
   limit?: number;
 } = {}, enabled = true) {
@@ -278,6 +332,21 @@ export function useDecideSalesApproval() {
 }
 
 // ===== Rút lô =====
+
+/** Trả đơn đã duyệt về đúng hàng đợi duyệt lại; backend sẽ giải phóng giữ hàng an toàn. */
+export function useReturnSalesApprovalToPending() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (approvalId: string) => SalesApprovalsApi.returnToPending(approvalId),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["salesApprovals"] });
+      client.invalidateQueries({ queryKey: ["salesOrders"] });
+      client.invalidateQueries({ queryKey: ["salesDeliveries"] });
+      notify.success("Đã trả đơn về chờ duyệt");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không thể trả đơn về chờ duyệt"),
+  });
+}
 
 function useRefreshWithdrawals() {
   const client = useQueryClient();
@@ -411,6 +480,8 @@ export function useSalesDeliveries(query: {
   status?: SalesDeliveryStatus;
   warehouseId?: string;
   salesOrderId?: string;
+  dateFrom?: string;
+  dateTo?: string;
   page?: number;
   limit?: number;
 } = {}) {
@@ -591,8 +662,9 @@ function useRefreshInvoices(id?: string) {
 }
 
 export function useSalesInvoices(query: {
-  status?: SalesInvoiceStatus;
-  customerPartyId?: string;
+    status?: SalesInvoiceStatus;
+    customerPartyId?: string;
+    accountantEmployeeId?: string;
   salesOrderId?: string;
   withdrawalRequestId?: string;
   page?: number;
@@ -601,6 +673,19 @@ export function useSalesInvoices(query: {
   return useQuery({
     queryKey: ["salesInvoices", "list", query],
     queryFn: () => SalesInvoicesApi.list(query),
+    enabled,
+  });
+}
+
+export function useUnissuedSalesInvoices(query: {
+  customerPartyId?: string;
+  accountantEmployeeId?: string;
+  page?: number;
+  limit?: number;
+} = {}, enabled = true) {
+  return useQuery({
+    queryKey: ["salesInvoices", "unissued", query],
+    queryFn: () => SalesInvoicesApi.unissued(query),
     enabled,
   });
 }
@@ -753,6 +838,323 @@ export function useReverseAllocation() {
   });
 }
 
+// ===== Lãi/lỗ theo nguồn hàng mua =====
+
+export function usePurchaseSourceProfit(purchaseOrderId?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["salesProfitability", "purchaseOrder", purchaseOrderId],
+    queryFn: () => SalesProfitabilityApi.byPurchaseOrder(purchaseOrderId!),
+    enabled: Boolean(purchaseOrderId) && enabled,
+    retry: false,
+  });
+}
+
+export function useSalesOrderProfit(salesOrderId?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["salesProfitability", "salesOrder", salesOrderId],
+    queryFn: () => SalesProfitabilityApi.bySalesOrder(salesOrderId!),
+    enabled: Boolean(salesOrderId) && enabled,
+    retry: false,
+  });
+}
+
+// ===== Alias: cách khách viết tên =====
+
+function useRefreshAliases() {
+  const client = useQueryClient();
+  return () => client.invalidateQueries({ queryKey: ["salesAliases"] });
+}
+
+export function useSalesAliases(query: {
+  entityType?: SalesAliasEntityType;
+  entityId?: string;
+  source?: SalesAliasSource;
+  keyword?: string;
+  includeRetired?: boolean;
+  page?: number;
+  limit?: number;
+} = {}) {
+  return useQuery({
+    queryKey: ["salesAliases", "list", query],
+    queryFn: () => SalesAliasApi.list(query),
+  });
+}
+
+export function useUnmatchedAliases(limit?: number, enabled = true) {
+  return useQuery({
+    queryKey: ["salesAliases", "unmatched", limit],
+    queryFn: () => SalesAliasApi.unmatched(limit),
+    enabled,
+  });
+}
+
+/**
+ * Thêm nhiều cách viết một lượt. Cách viết đang thuộc đơn vị khác thì bị bỏ qua kèm
+ * lý do chứ không âm thầm đổi chủ — thông báo phải nói rõ đã thêm mấy, bỏ mấy.
+ */
+export function useCreateAlias() {
+  const refresh = useRefreshAliases();
+  return useMutation({
+    mutationFn: (payload: CreateAliasPayload) => SalesAliasApi.create(payload),
+    onSuccess: (result) => {
+      refresh();
+      const conflicts = result.skipped.filter((row) => row.reason === "CONFLICT").length;
+      if (conflicts) {
+        notify.warning(
+          `Đã thêm ${result.added} cách viết, bỏ qua ${conflicts} vì đang thuộc đơn vị khác`,
+        );
+      } else if (result.added === 0) {
+        notify.info("Không có cách viết nào mới để thêm");
+      } else {
+        notify.success(`Đã thêm ${result.added} cách viết`);
+      }
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không thêm được alias"),
+  });
+}
+
+export function useImportAliases() {
+  const refresh = useRefreshAliases();
+  return useMutation({
+    mutationFn: (payload: { entityType: SalesAliasEntityType; text: string }) =>
+      SalesAliasApi.import(payload),
+    onSuccess: (result) => {
+      refresh();
+      notify.success(
+        `Đọc ${result.rows} dòng, khớp ${result.matchedEntities} đơn vị, thêm ${result.addedAliases} cách viết`,
+      );
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không nhập được danh sách"),
+  });
+}
+
+export function useUpdateAlias() {
+  const refresh = useRefreshAliases();
+  return useMutation({
+    mutationFn: ({
+      id,
+      externalName,
+      note,
+    }: {
+      id: string;
+      externalName: string;
+      note?: string;
+    }) => SalesAliasApi.update(id, { externalName, note }),
+    onSuccess: () => {
+      refresh();
+      notify.success("Đã sửa cách viết");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không sửa được"),
+  });
+}
+
+/** Ngừng dùng chứ không xóa, để cách viết cũ vẫn giải thích được dữ liệu cũ. */
+export function useRetireAlias() {
+  const refresh = useRefreshAliases();
+  return useMutation({
+    mutationFn: (id: string) => SalesAliasApi.retire(id),
+    onSuccess: () => {
+      refresh();
+      notify.success("Đã ngừng dùng cách viết này");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không ngừng được"),
+  });
+}
+
+// ===== Cấu hình tín dụng (kế toán công nợ) =====
+
+export function useCreditCustomers(query: {
+  keyword?: string;
+  accountingOwnerEmpId?: string;
+  missingLimitOnly?: boolean;
+  overdueOnly?: boolean;
+  overLimitOnly?: boolean;
+  page?: number;
+  limit?: number;
+} = {}) {
+  return useQuery({
+    queryKey: ["salesCredit", "list", query],
+    queryFn: () => SalesCreditApi.list(query),
+  });
+}
+
+export function useCreditCustomerDetail(customerPartyId?: string) {
+  return useQuery({
+    queryKey: ["salesCredit", "detail", customerPartyId],
+    queryFn: () => SalesCreditApi.detail(customerPartyId!),
+    enabled: Boolean(customerPartyId),
+  });
+}
+
+/** Sửa hạn mức chạm vào cả kiểm tra khi gửi duyệt, nên làm mới luôn danh sách đơn. */
+export function useUpdateCustomerCredit() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      customerPartyId,
+      payload,
+    }: {
+      customerPartyId: string;
+      payload: UpdateCustomerCreditPayload;
+    }) => SalesCreditApi.update(customerPartyId, payload),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["salesCredit"] });
+      client.invalidateQueries({ queryKey: ["salesOrders"] });
+      notify.success("Đã cập nhật hạn mức");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không cập nhật được hạn mức"),
+  });
+}
+
+// ===== Bảng thông báo chiết khấu =====
+
+function useRefreshDiscounts() {
+  const client = useQueryClient();
+  return () => client.invalidateQueries({ queryKey: ["salesDiscounts"] });
+}
+
+export function useDiscountBoards(query: {
+  status?: DiscountBoardStatus;
+  page?: number;
+  limit?: number;
+} = {}) {
+  return useQuery({
+    queryKey: ["salesDiscounts", "list", query],
+    queryFn: () => SalesDiscountApi.list(query),
+  });
+}
+
+export function useDiscountBoard(id?: string) {
+  return useQuery({
+    queryKey: ["salesDiscounts", "detail", id],
+    queryFn: () => SalesDiscountApi.detail(id!),
+    enabled: Boolean(id),
+  });
+}
+
+/** Bảng đang áp dụng — form đơn bán dùng để tự điền chiết khấu. */
+export function useCurrentDiscountBoard(enabled = true) {
+  return useQuery({
+    queryKey: ["salesDiscounts", "current"],
+    queryFn: () => SalesDiscountApi.current(),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useDiscountRecipientCandidates(enabled = true) {
+  return useQuery({
+    queryKey: ["salesDiscounts", "recipientCandidates"],
+    queryFn: () => SalesDiscountApi.recipientCandidates(),
+    enabled,
+  });
+}
+
+export function useCreateDiscountBoard() {
+  const refresh = useRefreshDiscounts();
+  return useMutation({
+    mutationFn: (payload: UpsertDiscountBoardPayload & { effectiveFrom: string }) =>
+      SalesDiscountApi.create(payload),
+    onSuccess: () => {
+      refresh();
+      notify.success("Đã tạo bảng chiết khấu nháp");
+    },
+    onError: (error) =>
+      notify.error(extractApiError(error).message || "Không tạo được bảng chiết khấu"),
+  });
+}
+
+export function useUpdateDiscountBoard() {
+  const refresh = useRefreshDiscounts();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpsertDiscountBoardPayload }) =>
+      SalesDiscountApi.update(id, payload),
+    onSuccess: () => {
+      refresh();
+      notify.success("Đã lưu bảng chiết khấu");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không lưu được"),
+  });
+}
+
+/** Phát hành xong là đơn bán từ mốc hiệu lực trở đi lấy chiết khấu theo bảng này. */
+export function usePublishDiscountBoard() {
+  const client = useQueryClient();
+  const refresh = useRefreshDiscounts();
+  return useMutation({
+    mutationFn: (id: string) => SalesDiscountApi.publish(id),
+    onSuccess: () => {
+      refresh();
+      client.invalidateQueries({ queryKey: ["salesOrders"] });
+      notify.success("Đã phát hành bảng chiết khấu");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không phát hành được"),
+  });
+}
+
+/**
+ * Gửi email cho khách. Báo rõ gửi được mấy, lỗi mấy, bỏ qua ai — gửi ra ngoài mà chỉ
+ * hiện "thành công" chung chung thì không ai biết khách nào chưa nhận.
+ */
+export function useSendDiscountBoard() {
+  const refresh = useRefreshDiscounts();
+  return useMutation({
+    mutationFn: ({
+      id,
+      customerPartyIds,
+      resend,
+    }: {
+      id: string;
+      customerPartyIds: string[];
+      resend?: boolean;
+    }) => SalesDiscountApi.send(id, { customerPartyIds, resend }),
+    onSuccess: (result) => {
+      refresh();
+      const parts = [`gửi ${result.sent}`];
+      if (result.failed) parts.push(`lỗi ${result.failed}`);
+      if (result.skipped.length) parts.push(`bỏ qua ${result.skipped.length} (chưa có email)`);
+      const message = `Đã ${parts.join(", ")}`;
+      if (result.failed) notify.warning(message);
+      else notify.success(message);
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không gửi được thông báo"),
+  });
+}
+
+/** Thu hồi bản đã phát hành về nháp để sửa — chỉ được khi chưa tới giờ hiệu lực. */
+export function useUnpublishDiscountBoard() {
+  const refresh = useRefreshDiscounts();
+  return useMutation({
+    mutationFn: (id: string) => SalesDiscountApi.unpublish(id),
+    onSuccess: () => {
+      refresh();
+      notify.success("Đã thu hồi về nháp — sửa xong nhớ phát hành lại");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không thu hồi được"),
+  });
+}
+
+/** Đơn đã gửi duyệt trong lúc bản này chạy — chỉ hỏi khi người dùng mở xem. */
+export function useDiscountAffectedOrders(id?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["salesDiscounts", "affectedOrders", id],
+    queryFn: () => SalesDiscountApi.affectedOrders(id!),
+    enabled: Boolean(id) && enabled,
+  });
+}
+
+export function useCancelDiscountBoard() {
+  const refresh = useRefreshDiscounts();
+  return useMutation({
+    mutationFn: (id: string) => SalesDiscountApi.cancel(id),
+    onSuccess: () => {
+      refresh();
+      notify.success("Đã hủy bảng nháp");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không hủy được"),
+  });
+}
+
 // ===== Tồn kho thương mại của khách =====
 
 export function useCustomerStock(query: { customerPartyId?: string; productId?: string } = {}) {
@@ -767,7 +1169,8 @@ export function useCustomerStock(query: { customerPartyId?: string; productId?: 
 /** Chỉ đọc và đề xuất — không tạo gì cho tới khi Sale xác nhận. */
 export function useParseQuickEntry() {
   return useMutation({
-    mutationFn: (text: string) => QuickEntryApi.parse(text),
+    mutationFn: ({ text, useAi }: { text: string; useAi?: boolean }) =>
+      QuickEntryApi.parse(text, useAi),
     onError: (error) => notify.error(extractApiError(error).message || "Không đọc được nội dung"),
   });
 }
@@ -780,12 +1183,88 @@ export function useConfirmQuickEntry() {
     onSuccess: (result) => {
       refresh();
       client.invalidateQueries({ queryKey: ["salesWithdrawals"] });
-      notify.success(
-        result.requestNo
-          ? `Đã tạo phiếu rút lô ${result.requestNo}`
-          : `Đã tạo đơn bán nháp ${result.orderNo ?? ""}`.trim(),
-      );
+      client.invalidateQueries({ queryKey: ["salesAliases"] });
+      const created = result.requestNo
+        ? `Đã tạo phiếu rút lô ${result.requestNo}`
+        : `Đã tạo đơn bán nháp ${result.orderNo ?? ""}`.trim();
+      const learned = result.learnedAliases?.length ?? 0;
+      notify.success(learned ? `${created} · đã nhớ ${learned} cách viết mới` : created);
     },
     onError: (error) => notify.error(extractApiError(error).message || "Không tạo được đơn"),
+  });
+}
+
+/**
+ * Duyệt/từ chối nhiều yêu cầu. Backend xử lý từng cái độc lập nên kết quả có thể thành
+ * công một phần — thông báo phải nói rõ cái nào hỏng, đừng gộp thành "xong".
+ */
+export function useDecideManyApprovals() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      ids,
+      decision,
+      note,
+    }: {
+      ids: string[];
+      decision: "APPROVE" | "REJECT";
+      note?: string;
+    }) =>
+      decision === "APPROVE"
+        ? SalesApprovalsApi.approveMany(ids, note)
+        : SalesApprovalsApi.rejectMany(ids, note ?? ""),
+    onSuccess: (result, variables) => {
+      client.invalidateQueries({ queryKey: ["salesApprovals"] });
+      client.invalidateQueries({ queryKey: ["salesOrders"] });
+      client.invalidateQueries({ queryKey: ["salesWithdrawals"] });
+      const verb = variables.decision === "APPROVE" ? "duyệt" : "từ chối";
+      if (result.failed.length) {
+        notify.warning(
+          `Đã ${verb} ${result.succeeded}, còn ${result.failed.length} không xử lý được: ` +
+            result.failed
+              .slice(0, 3)
+              .map((row) => `${row.orderNo ?? row.id} (${row.message})`)
+              .join("; "),
+        );
+      } else {
+        notify.success(`Đã ${verb} ${result.succeeded} đơn`);
+      }
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không xử lý được"),
+  });
+}
+
+/** Sửa CK điều chỉnh ngay trên hàng đợi; thành tiền đơn được backend tính lại. */
+export function useAdjustLineDiscount() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      lineId,
+      discountAdjustmentAmount,
+    }: {
+      lineId: string;
+      discountAdjustmentAmount: number;
+    }) => SalesApprovalsApi.adjustLineDiscount(lineId, discountAdjustmentAmount),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["salesApprovals"] });
+      client.invalidateQueries({ queryKey: ["salesOrders"] });
+      notify.success("Đã cập nhật chiết khấu, thành tiền tính lại theo mức mới");
+    },
+    onError: (error) =>
+      notify.error(extractApiError(error).message || "Không sửa được chiết khấu"),
+  });
+}
+
+/** Quản lý đổi Mã NCC ngay trên hàng đợi duyệt; null là quay lại AUTO FIFO. */
+export function useAdjustLineSupplier() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lineId, supplierPartyId }: { lineId: string; supplierPartyId: string | null }) =>
+      SalesApprovalsApi.adjustLineSupplier(lineId, supplierPartyId),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["salesApprovals"] });
+      notify.success("Đã cập nhật Mã NCC");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không đổi được Mã NCC"),
   });
 }

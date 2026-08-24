@@ -1,0 +1,1518 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  DatePicker,
+  Input,
+  InputNumber,
+  Modal,
+  Popconfirm,
+  Radio,
+  Select,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
+import {
+  ClearOutlined,
+  DeleteOutlined,
+  DownOutlined,
+  EditOutlined,
+  InfoCircleOutlined,
+  UpOutlined,
+  FileTextOutlined,
+  PlusOutlined,
+  SaveOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
+import dayjs from "dayjs";
+import { PartySelect } from "../../../shared/ui/PartySelect";
+import { useProductSelect } from "../../products/hooks";
+import { useWarehouseSelect, usePriceRegionsSelect } from "../../purchases/hooks";
+import { PurchasesApi } from "../../purchases/api";
+import { InternalSalesApi } from "../api";
+import { useConfirmQuickEntry, useCurrentDiscountBoard, useParseQuickEntry } from "../hooks";
+import type { QuickEntryKind, QuickEntryLine, QuickEntryPreview, SalesLotInvoiceMode } from "../types";
+import { notify } from "../../../shared/lib/notification";
+import "../sales.css";
+
+/** Sale asked for Vùng I prices by default; the point is not stopping to pick one. */
+const DEFAULT_REGION = "VUNG_I";
+
+/** Đơn lẻ gom ba loại lấy một lần; đơn lô là loại lấy nhiều lần. */
+export type QuickEntryMode = "RETAIL" | "LOT";
+
+const KIND_OPTIONS: Record<QuickEntryMode, Array<{ value: QuickEntryKind; label: string }>> = {
+  RETAIL: [
+    { value: "SINGLE", label: "Lấy 1 lần" },
+    { value: "WITHDRAWAL", label: "Rút lô" },
+    { value: "DAY_TRADE", label: "Đối ứng" },
+  ],
+  LOT: [{ value: "LOT", label: "Đơn lô" }],
+};
+
+/**
+ * Mẫu tin nhắn nói được là lấy 1 lần hay rút lô, nhưng không bao giờ nói được đơn đối
+ * ứng — loại đó Sale tự đánh dấu. Đơn đọc ra loại của tab kia thì kéo về mặc định.
+ */
+function kindForMode(mode: QuickEntryMode, parsed: QuickEntryKind | null): QuickEntryKind {
+  const allowed = KIND_OPTIONS[mode].map((option) => option.value);
+  if (parsed && allowed.includes(parsed)) return parsed;
+  return mode === "LOT" ? "LOT" : "SINGLE";
+}
+
+type DraftLine = {
+  key: string;
+  productId?: string;
+  productCode: string | null;
+  productRawText: string | null;
+  /** Đã có alias sẵn cho cách viết này chưa — nếu chưa thì lúc lưu sẽ hỏi có nhớ không. */
+  productAliasKnown: boolean;
+  warehouseId?: string;
+  warehouseCode: string | null;
+  warehouseRawText: string | null;
+  warehouseAliasKnown: boolean;
+  supplySource: "TP" | "NCC";
+  quantity?: number;
+  unitPrice?: number;
+  discountBaseAmount?: number;
+  discountAdjustmentAmount?: number;
+  /** CK gốc tự lấy từ bảng chiết khấu công bố. */
+};
+
+/** Một cách viết chưa có trong từ điển, đang chờ Sale quyết định có ghi nhớ hay không. */
+type AliasSuggestion = {
+  key: string;
+  entityType: "PARTY" | "PRODUCT" | "WAREHOUSE";
+  rawText: string;
+  /** Mã của đối tượng đang được gán, nếu biết. */
+  targetCode: string | null;
+};
+
+const ALIAS_TYPE_LABELS: Record<AliasSuggestion["entityType"], string> = {
+  PARTY: "Khách hàng",
+  PRODUCT: "Mặt hàng",
+  WAREHOUSE: "Kho",
+};
+
+/** Một mốc phải trả: sau bao nhiêu ngày, theo % hay theo số tiền chốt sẵn. */
+type PaymentPlanRow = {
+  key: string;
+  dueDays: number;
+  percent?: number;
+  amount?: number;
+};
+
+type SaveState =
+  | { kind: "PENDING" }
+  | { kind: "SAVING" }
+  | { kind: "SAVED"; orderNo?: string; orderId: string; violations: string[]; warnings: string[] }
+  | { kind: "FAILED"; message: string };
+
+type DraftOrder = {
+  key: string;
+  /** Nguyên văn đoạn tin đã đọc ra đơn này. */
+  rawText: string;
+  usedAi: boolean;
+  logId?: string;
+  orderKind: QuickEntryKind;
+  customerPartyId?: string;
+  customerCode: string | null;
+  customerRawText: string | null;
+  customerAliasKnown: boolean;
+  orderDate: dayjs.Dayjs;
+  plate: string;
+  driver: string;
+  lines: DraftLine[];
+  save: SaveState;
+};
+
+/** One table row per goods line; order-level cells span the group. */
+type FlatRow = {
+  key: string;
+  order: DraftOrder;
+  line: DraftLine | null;
+  rowSpan: number;
+};
+
+const formatMoney = (value?: number | string | null) =>
+  new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Number(value ?? 0));
+
+/**
+ * Older parser responses can contain the tail of the `Lxe:` label (`e: Tên`).
+ * The quick-entry table must only show and submit the driver's actual name.
+ */
+const driverNameOnly = (value?: string | null) =>
+  String(value ?? "")
+    .trim()
+    .replace(/^(?:(?:lái\s*xe|lai\s*xe|lxe|lx|e)\s*:\s*)/i, "")
+    .trim();
+
+const emptyLine = (): DraftLine => ({
+  key: `line-${Date.now()}-${Math.random()}`,
+  productCode: null,
+  productRawText: null,
+  productAliasKnown: true,
+  warehouseCode: null,
+  warehouseRawText: null,
+  warehouseAliasKnown: true,
+  supplySource: "TP",
+});
+
+/**
+ * `matchedBy === "alias"` nghĩa là từ điển đã có sẵn cách viết này. Mọi kiểu khớp khác
+ * (theo mã, theo tên, viết tắt, khớp gần đúng) đều là cơ hội để hỏi Sale có nhớ không.
+ */
+const aliasKnown = (field: { matchedBy: string | null }) => field.matchedBy === "alias";
+
+function draftFrom(
+  preview: QuickEntryPreview,
+  mode: QuickEntryMode,
+  rawText: string,
+  lines: QuickEntryLine[] = preview.lines,
+  parsedKind: QuickEntryKind | null = preview.orderKind,
+): DraftOrder {
+  return {
+    key: `draft-${Date.now()}-${Math.random()}`,
+    rawText,
+    usedAi: preview.usedAi,
+    logId: preview.logId,
+    orderKind: kindForMode(mode, parsedKind),
+    customerPartyId: preview.customer.entityId ?? undefined,
+    customerCode: preview.customer.entityCode,
+    customerRawText: preview.customer.rawText,
+    customerAliasKnown: aliasKnown(preview.customer),
+    orderDate: preview.orderDate ? dayjs(preview.orderDate) : dayjs(),
+    plate: preview.plate ?? "",
+    driver: driverNameOnly(preview.driver),
+    lines: lines.map((line, index) => ({
+      key: `line-${index}-${Math.random()}`,
+      productId: line.product.entityId ?? undefined,
+      productCode: line.product.entityCode,
+      productRawText: line.product.rawText,
+      productAliasKnown: aliasKnown(line.product),
+      warehouseId: line.warehouse.entityId ?? undefined,
+      warehouseCode: line.warehouse.entityCode,
+      warehouseRawText: line.warehouse.rawText,
+      warehouseAliasKnown: aliasKnown(line.warehouse),
+      supplySource: "TP",
+      quantity: line.quantity ?? undefined,
+    })),
+    save: { kind: "PENDING" },
+  };
+}
+
+/** "đơn 1", "Đơn 2:", "--- đơn 3 ---" — an explicit divider between pasted orders. */
+const ORDER_DIVIDER = /^[\s\-*=#]*đơn\s*\d*\s*[:.\-]?\s*$/i;
+/** A second "Khách hàng:" in the same block means the next order already started. */
+const CUSTOMER_LABEL = /^\s*(kh[áa]ch\s*h[àa]ng|kh)\s*[:：]/i;
+
+/**
+ * Sale usually pastes several orders at once. Each one has its own plate, driver and
+ * goods, so they must be split before parsing — otherwise they collapse into a single
+ * order carrying the last plate it saw.
+ */
+export function splitPastedOrders(text: string): string[] {
+  const chunks: string[] = [];
+  let current: string[] = [];
+
+  const flush = () => {
+    if (current.some((line) => line.trim())) chunks.push(current.join("\n").trim());
+    current = [];
+  };
+
+  for (const line of text.split(/\r?\n/)) {
+    if (ORDER_DIVIDER.test(line)) {
+      flush();
+      continue;
+    }
+    if (CUSTOMER_LABEL.test(line) && current.some((row) => CUSTOMER_LABEL.test(row))) {
+      flush();
+    }
+    current.push(line);
+  }
+  flush();
+
+  return chunks.length ? chunks : [text.trim()];
+}
+
+/** Anything the template could not pin down still needs a human before saving. */
+function blockingOf(order: DraftOrder) {
+  const problems: string[] = [];
+  if (!order.customerPartyId) problems.push("khách hàng");
+  if (!order.lines.length) problems.push("dòng hàng");
+  if (order.lines.some((line) => !line.productId)) problems.push("mặt hàng");
+  if (order.lines.some((line) => !line.warehouseId)) problems.push("kho");
+  if (order.lines.some((line) => !line.quantity || line.quantity <= 0)) problems.push("SL");
+  if (order.orderKind !== "LOT" && (!order.plate.trim() || !order.driver.trim()))
+    problems.push("BKS/lái xe");
+  return problems;
+}
+
+const aliasKeyOf = (entityType: string, rawText: string, targetId: string) =>
+  `${entityType}|${rawText.trim().toLowerCase()}|${targetId}`;
+
+/**
+ * Những cách viết trong tin nhắn đã gán được vào dữ liệu gốc nhưng chưa có trong từ
+ * điển. Viết y hệt mã có sẵn thì bỏ qua — nhớ thêm cũng không giúp lần sau nhanh hơn.
+ */
+function aliasSuggestionsOf(order: DraftOrder): AliasSuggestion[] {
+  const out: AliasSuggestion[] = [];
+  const push = (
+    entityType: AliasSuggestion["entityType"],
+    rawText: string | null,
+    targetId: string | undefined,
+    targetCode: string | null,
+  ) => {
+    const text = rawText?.trim();
+    if (!text || !targetId) return;
+    if (targetCode && text.toLowerCase() === targetCode.trim().toLowerCase()) return;
+    out.push({ key: aliasKeyOf(entityType, text, targetId), entityType, rawText: text, targetCode });
+  };
+
+  if (!order.customerAliasKnown) {
+    push("PARTY", order.customerRawText, order.customerPartyId, order.customerCode);
+  }
+  for (const line of order.lines) {
+    if (!line.productAliasKnown) {
+      push("PRODUCT", line.productRawText, line.productId, line.productCode);
+    }
+    if (!line.warehouseAliasKnown) {
+      push("WAREHOUSE", line.warehouseRawText, line.warehouseId, line.warehouseCode);
+    }
+  }
+  return out;
+}
+
+/**
+ * Paste a customer message, press Enter, the order lands in the table below. Nothing is
+ * written until Sale saves a row, and the heavy checks only run then so typing stays fast.
+ */
+export function QuickEntryPanel({
+  mode,
+  onSaved,
+}: {
+  mode: QuickEntryMode;
+  onSaved?: () => void;
+}) {
+  const [text, setText] = useState("");
+  const [useAi, setUseAi] = useState(true);
+  const [regionCode, setRegionCode] = useState(DEFAULT_REGION);
+  const [regionKeyword, setRegionKeyword] = useState("");
+  const [orders, setOrders] = useState<DraftOrder[]>([]);
+  /** Đơn tạm chỉ dùng khi Sale chủ động sửa lại; Enter sẽ đẩy thẳng xuống bảng. */
+  const [staged, setStaged] = useState<DraftOrder[]>([]);
+  const [draftOpen, setDraftOpen] = useState(true);
+  // Điều khoản đặt chung cho cả lượt nhập đơn lô.
+  const [lotInvoiceMode, setLotInvoiceMode] =
+    useState<SalesLotInvoiceMode>("ON_WITHDRAWAL");
+  const [paymentTermType, setPaymentTermType] = useState<"SAME_DAY" | "NET_DAYS">("SAME_DAY");
+  const [paymentPlans, setPaymentPlans] = useState<PaymentPlanRow[]>([]);
+  const [productKeyword, setProductKeyword] = useState("");
+  const [warehouseKeyword, setWarehouseKeyword] = useState("");
+  /** Hộp hỏi "có nhớ cách viết này không"; `resolve` mở khóa cho lượt lưu đang chờ. */
+  const [aliasPrompt, setAliasPrompt] = useState<{
+    suggestions: AliasSuggestion[];
+    resolve: (approved: Set<string>) => void;
+  } | null>(null);
+  const [aliasChecked, setAliasChecked] = useState<Set<string>>(new Set());
+
+  const productsQuery = useProductSelect(productKeyword);
+  const warehousesQuery = useWarehouseSelect(warehouseKeyword);
+  const regionsQuery = usePriceRegionsSelect(regionKeyword);
+  const parseMutation = useParseQuickEntry();
+  const confirmMutation = useConfirmQuickEntry();
+  const discountBoard = useCurrentDiscountBoard();
+  const announcedDiscounts = useMemo(
+    () =>
+      new Map(
+        (discountBoard.data?.lines ?? []).map((line) => [
+          `${line.warehouseId}:${line.productId}`,
+          Number(line.discountPerUnit),
+        ]),
+      ),
+    [discountBoard.data],
+  );
+
+  /**
+   * Tự điền chiết khấu đang công bố sau khi đủ kho + hàng. Nếu Sale đã sửa tay con số
+   * được tự điền trước đó thì giữ nguyên lựa chọn của họ khi đổi hàng/kho hoặc bảng giá đổi.
+   */
+  useEffect(() => {
+    if (!announcedDiscounts.size) return;
+
+    setOrders((current) => {
+      let changed = false;
+      const next = current.map((order) => {
+        if (order.orderKind === "WITHDRAWAL") return order;
+
+        const lines = order.lines.map((line) => {
+          if (!line.warehouseId || !line.productId) return line;
+          const announced = announcedDiscounts.get(`${line.warehouseId}:${line.productId}`);
+          if (announced == null || line.discountBaseAmount === announced) return line;
+
+          changed = true;
+          return { ...line, discountBaseAmount: announced };
+        });
+
+        return lines === order.lines || !lines.some((line, index) => line !== order.lines[index])
+          ? order
+          : { ...order, lines };
+      });
+
+      return changed ? next : current;
+    });
+  }, [announcedDiscounts, orders]);
+
+  const patchOrder = (key: string, patch: Partial<DraftOrder>) =>
+    setOrders((current) =>
+      current.map((order) => (order.key === key ? { ...order, ...patch } : order)),
+    );
+
+  const patchLine = (orderKey: string, lineKey: string, patch: Partial<DraftLine>) =>
+    setOrders((current) =>
+      current.map((order) =>
+        order.key === orderKey
+          ? {
+              ...order,
+              lines: order.lines.map((line) =>
+                line.key === lineKey ? { ...line, ...patch } : line,
+              ),
+            }
+          : order,
+      ),
+    );
+
+  const addLine = (orderKey: string) =>
+    setOrders((current) =>
+      current.map((order) =>
+        order.key === orderKey ? { ...order, lines: [...order.lines, emptyLine()] } : order,
+      ),
+    );
+
+  const removeLine = (orderKey: string, lineKey: string) =>
+    setOrders((current) =>
+      current.flatMap((order) => {
+        if (order.key !== orderKey) return [order];
+        const lines = order.lines.filter((line) => line.key !== lineKey);
+        // Không để lại một "đơn rỗng" chỉ còn các nút thao tác ở bên phải.
+        return lines.length ? [{ ...order, lines }] : [];
+      }),
+    );
+
+  /** Look up one product's price so manually added lines get filled in too. */
+  const fetchPrice = async (productId: string, onDate: string) => {
+    try {
+      const result: any = await PurchasesApi.quoteBatch({
+        productIds: [productId],
+        regionCode,
+        onDate,
+      });
+      const price = (result.items ?? []).find((item: any) => item.productId === productId)?.price;
+      return price == null ? undefined : Number(price);
+    } catch {
+      // No published bulletin for that day: leave it blank for Sale to fill.
+      return undefined;
+    }
+  };
+
+  const applyPrices = async (draft: DraftOrder): Promise<DraftOrder> => {
+    const productIds = [...new Set(draft.lines.map((line) => line.productId).filter(Boolean))];
+    if (!productIds.length) return draft;
+    try {
+      const result: any = await PurchasesApi.quoteBatch({
+        productIds: productIds as string[],
+        regionCode,
+        onDate: draft.orderDate.format("YYYY-MM-DD"),
+      });
+      const priceByProduct = new Map<string, number | null>(
+        (result.items ?? []).map((item: any) => [
+          item.productId,
+          item.price == null ? null : Number(item.price),
+        ]),
+      );
+      return {
+        ...draft,
+        lines: draft.lines.map((line) => {
+          const price = line.productId ? priceByProduct.get(line.productId) : null;
+          return price == null || !Number.isFinite(price) ? line : { ...line, unitPrice: price };
+        }),
+      };
+    } catch {
+      return draft;
+    }
+  };
+
+  const parseOne = async (chunk: string) => {
+    // Template first. AI is a deliberate second attempt, only when something is missing.
+    let preview = await parseMutation.mutateAsync({ text: chunk, useAi: false });
+    const incomplete =
+      !preview.customer.entityId ||
+      !preview.lines.length ||
+      preview.lines.some((line) => !line.product.entityId || line.quantity == null);
+    if (incomplete && useAi) {
+      preview = await parseMutation.mutateAsync({ text: chunk, useAi: true });
+    }
+    // One message can combine "rút tồn" and "mua mới". They must become separate
+    // drafts, otherwise the withdrawal type incorrectly locks every goods line.
+    const byKind = new Map<QuickEntryKind | null, QuickEntryLine[]>();
+    for (const line of preview.lines) {
+      const kind = line.orderKind ?? preview.orderKind;
+      byKind.set(kind, [...(byKind.get(kind) ?? []), line]);
+    }
+    const drafts = [...byKind.entries()].map(([kind, lines]) => draftFrom(preview, mode, chunk, lines, kind));
+    if (!drafts.length) return [{ ...draftFrom(preview, mode, chunk), lines: [emptyLine()] }];
+    return drafts;
+  };
+
+  /** Đọc tin nhắn và đưa thẳng các đơn đã nhận diện xuống bảng. */
+  const submitText = async () => {
+    const raw = text.trim();
+    if (!raw) return;
+
+    // One paste often holds several orders; each becomes its own draft.
+    const chunks = splitPastedOrders(raw);
+    const drafts: DraftOrder[] = [];
+    for (const chunk of chunks) {
+      drafts.push(...(await parseOne(chunk)));
+    }
+
+    const priced = await Promise.all(drafts.map((draft) => applyPrices(draft)));
+    setOrders((current) => [...current, ...priced]);
+    setStaged(priced);
+    setText("");
+    if (chunks.length > 1) notify.success(`Đã tách ${chunks.length} đơn từ tin nhắn`);
+  };
+
+  /** Trả một đơn tạm về ô nhập để sửa lại nguyên văn. */
+  const editStaged = (draft: DraftOrder) => {
+    setText(draft.rawText);
+    setStaged((current) => current.filter((item) => item.key !== draft.key));
+    setOrders((current) => current.filter((item) => item.key !== draft.key));
+  };
+
+  /**
+   * Hỏi trước khi ghi nhớ. Trả về tập cách viết Sale đồng ý; chỉ những khóa nằm trong
+   * tập này mới được gửi kèm rawText, tức là mới được backend học.
+   */
+  const askAliases = (batch: DraftOrder[]) =>
+    new Promise<Set<string>>((resolve) => {
+      const seen = new Map<string, AliasSuggestion>();
+      for (const order of batch) {
+        for (const suggestion of aliasSuggestionsOf(order)) {
+          if (!seen.has(suggestion.key)) seen.set(suggestion.key, suggestion);
+        }
+      }
+      const suggestions = [...seen.values()];
+      if (!suggestions.length) return resolve(new Set());
+      setAliasChecked(new Set(suggestions.map((row) => row.key)));
+      setAliasPrompt({ suggestions, resolve });
+    });
+
+  const closeAliasPrompt = (approved: Set<string>) => {
+    aliasPrompt?.resolve(approved);
+    setAliasPrompt(null);
+  };
+
+  const saveOrder = async (order: DraftOrder, approvedAliases: Set<string>) => {
+    /** rawText chỉ được gửi khi Sale đã đồng ý nhớ — gửi rawText chính là đồng ý. */
+    const learn = (entityType: string, rawText: string | null, targetId?: string) =>
+      rawText && targetId && approvedAliases.has(aliasKeyOf(entityType, rawText, targetId))
+        ? rawText
+        : undefined;
+
+    patchOrder(order.key, { save: { kind: "SAVING" } });
+    try {
+      const result = await confirmMutation.mutateAsync({
+        logId: order.logId,
+        orderKind: order.orderKind,
+        ...(mode === "LOT"
+          ? {
+              lotInvoiceMode,
+              paymentTermType,
+              paymentPlans:
+                paymentTermType === "NET_DAYS"
+                  ? paymentPlans.map((plan) => ({
+                      dueDays: plan.dueDays,
+                      percent: plan.percent,
+                      amount: plan.amount,
+                    }))
+                  : undefined,
+              paymentTermDays:
+                paymentTermType === "NET_DAYS"
+                  ? Math.max(0, ...paymentPlans.map((plan) => plan.dueDays), 0)
+                  : undefined,
+            }
+          : {}),
+        customerPartyId: order.customerPartyId!,
+        orderDate: order.orderDate.format("YYYY-MM-DD"),
+        vehiclePlate: order.plate.trim() || undefined,
+        driverName: order.driver.trim() || undefined,
+        customerRawText: learn("PARTY", order.customerRawText, order.customerPartyId),
+        lines: order.lines.map((line) => ({
+          productId: line.productId!,
+          warehouseId: line.warehouseId!,
+          quantity: Number(line.quantity),
+          unitPrice: line.unitPrice == null ? undefined : Number(line.unitPrice),
+          discountBaseAmount:
+            line.discountBaseAmount == null ? undefined : Number(line.discountBaseAmount),
+          discountAdjustmentAmount:
+            line.discountAdjustmentAmount == null ? undefined : Number(line.discountAdjustmentAmount),
+          supplySource: line.supplySource,
+          productRawText: learn("PRODUCT", line.productRawText, line.productId),
+          warehouseRawText: learn("WAREHOUSE", line.warehouseRawText, line.warehouseId),
+        })),
+      });
+
+      // The heavy rules (giá sàn, tồn kho, công nợ) only run once the draft exists.
+      let violations: string[] = [];
+      let warnings: string[] = [];
+      if (order.orderKind !== "WITHDRAWAL") {
+        try {
+          const checks: any = await InternalSalesApi.checks(result.id);
+          violations = (checks?.violations ?? []).map((item: any) => item.message);
+          warnings = (checks?.warnings ?? []).map((item: any) => item.message);
+        } catch {
+          warnings = ["Chưa lấy được kết quả kiểm tra điều kiện."];
+        }
+      }
+
+      patchOrder(order.key, {
+        save: {
+          kind: "SAVED",
+          orderId: result.id,
+          orderNo: result.orderNo ?? result.requestNo,
+          violations,
+          warnings,
+        },
+      });
+      onSaved?.();
+    } catch (error: any) {
+      patchOrder(order.key, {
+        save: {
+          kind: "FAILED",
+          message: error?.response?.data?.message ?? error?.message ?? "Không lưu được đơn",
+        },
+      });
+    }
+  };
+
+  /** Lưu một đơn: hỏi ghi nhớ cách viết trước, rồi mới ghi. */
+  const saveOne = async (order: DraftOrder) => {
+    const approved = await askAliases([order]);
+    await saveOrder(order, approved);
+  };
+
+  const saveAll = async () => {
+    const pending = orders.filter(
+      (order) => order.save.kind !== "SAVED" && !blockingOf(order).length,
+    );
+    if (!pending.length) return notify.warning("Không có đơn nào đủ điều kiện lưu");
+    // Hỏi một lần cho cả lượt, không hỏi lại từng đơn.
+    const approved = await askAliases(pending);
+    for (const order of pending) {
+      // Sequential on purpose: each order reports its own check result.
+      await saveOrder(order, approved);
+    }
+  };
+
+  /** Chỉ một chấm màu cho đỡ chật; nội dung đầy đủ nằm ở tooltip. */
+  const renderSaveState = (order: DraftOrder) => {
+    const dot = (color: string, title: string) => (
+      <Tooltip title={title}>
+        <span
+          style={{
+            display: "inline-block",
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            background: color,
+          }}
+        />
+      </Tooltip>
+    );
+    if (order.save.kind === "SAVING") return dot("#1677ff", "Đang lưu...");
+    if (order.save.kind === "FAILED") return dot("#cf1322", order.save.message);
+    if (order.save.kind === "SAVED") {
+      const { violations, warnings, orderNo } = order.save;
+      if (violations.length)
+        return dot("#cf1322", `${orderNo}: ${violations.join(" · ")}`);
+      if (warnings.length) return dot("#d46b08", `${orderNo}: ${warnings.join(" · ")}`);
+      return dot("#389e0d", `${orderNo} · đã lưu, không vướng gì`);
+    }
+    const problems = blockingOf(order);
+    if (problems.length) return dot("#d4b106", `Còn thiếu: ${problems.join(", ")}`);
+    return dot("#8c8c8c", "Sẵn sàng lưu");
+  };
+
+
+  const rows: FlatRow[] = orders.flatMap((order) => {
+    const lines = order.lines.length ? order.lines : [null];
+    return lines.map((line, index) => ({
+      key: line ? `${order.key}-${line.key}` : `${order.key}-empty`,
+      order,
+      line,
+      rowSpan: index === 0 ? lines.length : 0,
+    }));
+  });
+
+  /** Order-level cells are merged across the order's goods lines. */
+  const groupCell = (row: FlatRow) => ({ rowSpan: row.rowSpan });
+  const locked = (row: FlatRow) => row.order.save.kind === "SAVED";
+
+  const columns: ColumnsType<FlatRow> = [
+    {
+      title: "Khách hàng",
+      key: "customer",
+      width: 150,
+      fixed: "left",
+      onCell: groupCell,
+      render: (_, row) => (
+        <PartySelect
+          partyRole="SELLABLE"
+          effectiveAt={row.order.orderDate.format("YYYY-MM-DD")}
+          displayMode="code"
+          optionDisplayMode="code"
+          style={{ width: "100%", maxWidth: 180 }}
+          styles={{ popup: { root: { width: 280, minWidth: 280, maxWidth: 280 } } }}
+          fallbackLabel={row.order.customerCode}
+          size="small"
+          status={row.order.customerPartyId ? undefined : "error"}
+          value={row.order.customerPartyId}
+          disabled={locked(row)}
+          onChange={(value) =>
+            patchOrder(row.order.key, {
+              customerPartyId: value ?? undefined,
+              customerCode: null,
+              // Sale chọn lại: cách viết trong tin nhắn chắc chắn chưa trỏ về khách này.
+              customerAliasKnown: false,
+            })
+          }
+          placeholder={row.order.customerRawText ?? "Chọn khách"}
+        />
+      ),
+    },
+    {
+      title: "Ngày",
+      key: "orderDate",
+      width: 130,
+      onCell: groupCell,
+      render: (_, row) => (
+        <DatePicker
+          size="small"
+          format="DD/MM/YYYY"
+          style={{ width: "100%" }}
+          value={row.order.orderDate}
+          disabled={locked(row)}
+          onChange={(value) => patchOrder(row.order.key, { orderDate: value ?? dayjs() })}
+        />
+      ),
+    },
+    {
+      title: "Loại",
+      key: "kind",
+      width: 130,
+      onCell: groupCell,
+      render: (_, row) => (
+        <Select
+          size="small"
+          style={{ width: "100%" }}
+          value={row.order.orderKind}
+          disabled={locked(row)}
+          onChange={(value) =>
+            patchOrder(
+              row.order.key,
+              value === "WITHDRAWAL"
+                ? {
+                    orderKind: value,
+                    lines: row.order.lines.map((line) => ({
+                      ...line,
+                      discountBaseAmount: 0,
+                      discountAdjustmentAmount: 0,
+                    })),
+                  }
+                : { orderKind: value },
+            )
+          }
+          options={KIND_OPTIONS[mode]}
+        />
+      ),
+    },
+    {
+      title: "BKS",
+      key: "plate",
+      width: 105,
+      onCell: groupCell,
+      render: (_, row) => (
+        <Input
+          size="small"
+          value={row.order.plate}
+          title={row.order.plate}
+          disabled={locked(row)}
+          onChange={(event) => patchOrder(row.order.key, { plate: event.target.value })}
+        />
+      ),
+    },
+    {
+      title: "Lái xe",
+      key: "driver",
+      width: 145,
+      onCell: groupCell,
+      render: (_, row) => (
+        <Input
+          size="small"
+          value={row.order.driver}
+          title={row.order.driver}
+          disabled={locked(row)}
+          onChange={(event) => patchOrder(row.order.key, { driver: event.target.value })}
+        />
+      ),
+    },
+    {
+      title: "Mặt hàng",
+      key: "product",
+      width: 115,
+      render: (_, row) =>
+        row.line ? (
+          <Select
+            size="small"
+            showSearch
+            filterOption={false}
+            style={{ width: "100%" }}
+            status={row.line.productId ? undefined : "error"}
+            value={row.line.productId}
+            disabled={locked(row)}
+            placeholder={row.line.productRawText ?? "Mặt hàng"}
+            loading={productsQuery.isFetching}
+            onSearch={setProductKeyword}
+            onChange={async (value) => {
+              patchLine(row.order.key, row.line!.key, {
+                productId: value,
+                productCode: null,
+                productAliasKnown: false,
+              });
+              // A line added by hand has no price yet; fetch it the moment we know the product.
+              const price = await fetchPrice(value, row.order.orderDate.format("YYYY-MM-DD"));
+              if (price != null) patchLine(row.order.key, row.line!.key, { unitPrice: price });
+            }}
+            options={(productsQuery.data ?? []).map((product) => ({
+              value: product.id,
+              label: product.code,
+            }))}
+          />
+        ) : null,
+    },
+    {
+      title: "Kho nhận",
+      key: "warehouse",
+      width: 150,
+      render: (_, row) =>
+        row.line ? (
+          <Select
+            size="small"
+            showSearch
+            filterOption={false}
+            style={{ width: "100%" }}
+            status={row.line.warehouseId ? undefined : "error"}
+            value={row.line.warehouseId}
+            disabled={locked(row)}
+            placeholder={row.line.warehouseRawText ?? "Kho nhận"}
+            loading={warehousesQuery.isFetching}
+            onSearch={setWarehouseKeyword}
+            onChange={(value) =>
+              patchLine(row.order.key, row.line!.key, {
+                warehouseId: value,
+                warehouseCode: null,
+                warehouseAliasKnown: false,
+              })
+            }
+            options={(warehousesQuery.data ?? []).map((warehouse) => ({
+              value: warehouse.id,
+              label: warehouse.name,
+            }))}
+          />
+        ) : null,
+    },
+    {
+      title: "Mã NCC",
+      key: "supplierCode",
+      width: 105,
+      render: (_, row) =>
+        row.line ? (
+          <Tooltip title="Hệ thống tự chọn theo FIFO; quản lý kho có thể đổi trước khi xuất">
+            <span className="sales-grid-clip">Tự động FIFO</span>
+          </Tooltip>
+        ) : null,
+    },
+    {
+      title: "Số lượng",
+      key: "quantity",
+      width: 85,
+      align: "right",
+      render: (_, row) =>
+        row.line ? (
+          <InputNumber
+            size="small"
+            min={0.001}
+            precision={3}
+            controls={false}
+            style={{ width: "100%" }}
+            status={row.line.quantity ? undefined : "error"}
+            value={row.line.quantity}
+            disabled={locked(row)}
+            onChange={(value) =>
+              patchLine(row.order.key, row.line!.key, { quantity: value ?? undefined })
+            }
+          />
+        ) : null,
+    },
+    {
+      title: "Đơn giá",
+      key: "unitPrice",
+      width: 90,
+      align: "right",
+      render: (_, row) =>
+        row.line ? (
+          <InputNumber
+            size="small"
+            min={0}
+            controls={false}
+            style={{ width: "100%" }}
+            value={row.line.unitPrice}
+            disabled={locked(row)}
+            placeholder="Chưa có giá"
+            onChange={(value) =>
+              patchLine(row.order.key, row.line!.key, { unitPrice: value ?? undefined })
+            }
+          />
+        ) : null,
+    },
+    {
+      title: "CK",
+      key: "discountBaseAmount",
+      width: 85,
+      align: "right",
+      render: (_, row) =>
+        row.line ? (
+          <InputNumber
+            size="small"
+            min={0}
+            controls={false}
+            style={{ width: "100%" }}
+            value={row.order.orderKind === "WITHDRAWAL" ? 0 : row.line.discountBaseAmount}
+            disabled
+            placeholder="0"
+            onChange={(value) =>
+              patchLine(row.order.key, row.line!.key, { discountBaseAmount: value ?? undefined })
+            }
+          />
+        ) : null,
+    },
+    {
+      title: "CKDC",
+      key: "discountAdjustmentAmount",
+      width: 85,
+      align: "right",
+      render: (_, row) =>
+        row.line ? (
+          <InputNumber
+            size="small"
+            controls={false}
+            style={{ width: "100%" }}
+            value={
+              row.order.orderKind === "WITHDRAWAL" ? 0 : row.line.discountAdjustmentAmount
+            }
+            disabled={locked(row) || row.order.orderKind === "WITHDRAWAL"}
+            placeholder="0"
+            onChange={(value) =>
+              patchLine(row.order.key, row.line!.key, {
+                discountAdjustmentAmount: value ?? undefined,
+              })
+            }
+          />
+        ) : null,
+    },
+    {
+      title: "Nguồn",
+      key: "supplySource",
+      width: 80,
+      fixed: "right",
+      render: (_, row) =>
+        row.line ? (
+          <Select
+            size="small"
+            style={{ width: "100%" }}
+            value={row.line.supplySource}
+            disabled={locked(row)}
+            onChange={(value) =>
+              patchLine(row.order.key, row.line!.key, { supplySource: value as "TP" | "NCC" })
+            }
+            options={[
+              { value: "TP", label: "TP" },
+              { value: "NCC", label: "NCC" },
+            ]}
+          />
+        ) : null,
+    },
+    {
+      title: "",
+      key: "action",
+      width: 95,
+      fixed: "right",
+      render: (_, row) => (
+        <Space size={2}>
+          {row.line && !locked(row) ? (
+            <Tooltip title="Bỏ dòng hàng">
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => removeLine(row.order.key, row.line!.key)}
+              />
+            </Tooltip>
+          ) : null}
+          {row.rowSpan > 0 && !locked(row) ? (
+            <>
+              <Tooltip title="Thêm dòng hàng">
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<PlusOutlined />}
+                  onClick={() => addLine(row.order.key)}
+                />
+              </Tooltip>
+              <Tooltip title="Lưu đơn này">
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<SaveOutlined />}
+                  disabled={blockingOf(row.order).length > 0}
+                  loading={row.order.save.kind === "SAVING"}
+                  onClick={() => saveOne(row.order)}
+                />
+              </Tooltip>
+            </>
+          ) : null}
+          {row.rowSpan > 0 && locked(row) ? (
+            <Tooltip title="Bỏ khỏi bảng">
+              <Button
+                size="small"
+                type="text"
+                icon={<DeleteOutlined />}
+                onClick={() =>
+                  setOrders((current) =>
+                    current.filter((item) => item.key !== row.order.key),
+                  )
+                }
+              />
+            </Tooltip>
+          ) : null}
+        </Space>
+      ),
+    },
+  ];
+
+  const grandTotal = orders.reduce(
+    (sum, order) =>
+      sum +
+      order.lines.reduce(
+        (lineSum, line) =>
+          lineSum +
+          Number(line.quantity ?? 0) *
+            (Number(line.unitPrice ?? 0) -
+              Number(line.discountBaseAmount ?? 0) -
+              Number(line.discountAdjustmentAmount ?? 0)),
+        0,
+      ),
+    0,
+  );
+
+  const patchPlan = (key: string, patch: Partial<PaymentPlanRow>) =>
+    setPaymentPlans((current) =>
+      current.map((plan) => (plan.key === key ? { ...plan, ...patch } : plan)),
+    );
+
+  /** 50% / 100%: đặt lại thành đúng một mốc theo tỷ lệ đó. */
+  const applyPreset = (percent: number) =>
+    setPaymentPlans([{ key: `plan-${Date.now()}`, dueDays: 30, percent }]);
+
+  const addPlanRow = (byAmount: boolean) =>
+    setPaymentPlans((current) => [
+      ...current,
+      {
+        key: `plan-${Date.now()}-${Math.random()}`,
+        dueDays: 30,
+        ...(byAmount ? { amount: 0 } : { percent: 0 }),
+      },
+    ]);
+
+  const planPercentTotal = paymentPlans.reduce(
+    (sum, plan) => sum + Number(plan.percent ?? 0),
+    0,
+  );
+
+  const savedCount = orders.filter((order) => order.save.kind === "SAVED").length;
+  const unsavedCount = orders.length - savedCount;
+
+  return (
+    <div className="quick-entry">
+      <div
+        className="quick-entry-composer"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) 300px",
+          gap: 16,
+          marginBottom: 12,
+        }}
+      >
+        <div className="quick-entry-message">
+          <div className="quick-entry-hotkey">Ctrl + Enter</div>
+          <Input.TextArea
+            size="small"
+            autoSize={{ minRows: 2, maxRows: 5 }}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              // Enter sends; Ctrl/Shift+Enter is how you get a new line.
+              if (event.key !== "Enter") return;
+              if (event.ctrlKey || event.shiftKey || event.metaKey) return;
+              event.preventDefault();
+              void submitText();
+            }}
+            placeholder={
+              "Dán tin nhắn khách rồi bấm Enter. Ctrl+Enter để xuống dòng.\n\n" +
+              "14/7\nKhách hàng: Chí Linh HD\nXe: 34C-118.23\nLái xe: Nguyễn Đình Cường\n" +
+              "DO 05: 9.593 L - Kho HLHP"
+            }
+          />
+          <div className="quick-entry-controls" >
+            <span className="quick-entry-control-label">Vùng giá:</span>
+            <Select
+              size="small"
+              showSearch
+              filterOption={false}
+              className="quick-entry-region-select"
+              value={regionCode}
+              loading={regionsQuery.isFetching}
+              onSearch={setRegionKeyword}
+              onChange={setRegionCode}
+              options={(regionsQuery.data ?? []).map((region) => ({
+                value: region.code,
+                label: `${region.name} (${region.code})`,
+              }))}
+            />
+            <Switch size="small" checked={useAi} onChange={setUseAi} />
+            <span className="quick-entry-ai-label">Gọi AI khi đọc theo mẫu bị thiếu</span>
+            <Tooltip title="Đọc theo mẫu trước; chỉ khi thiếu khách, mặt hàng hay số lượng mới gọi AI.">
+              <InfoCircleOutlined className="quick-entry-ai-hint" />
+            </Tooltip>
+            <Button
+              size="small"
+              type="primary"
+              icon={<ThunderboltOutlined />}
+              loading={parseMutation.isPending}
+              disabled={!text.trim()}
+              onClick={submitText}
+            >
+              Thêm vào bảng (Enter)
+            </Button>
+          </div>
+        </div>
+
+        <div className="quick-entry-draft-card">
+          <div className="quick-entry-draft-heading">
+            <Space size={8}>
+              <Typography.Text strong>Đơn tạm ({staged.length})</Typography.Text>
+              {staged.some((draft) => draft.usedAi) ? <Tag color="blue">AI đã hỗ trợ đọc</Tag> : null}
+            </Space>
+            <Space size={2}>
+              {staged.length ? (
+                <Button size="small" type="text" danger onClick={() => setStaged([])}>
+                  Bỏ hết
+                </Button>
+              ) : null}
+              <Tooltip title={draftOpen ? "Thu gọn" : "Mở ra"}>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={draftOpen ? <UpOutlined /> : <DownOutlined />}
+                  onClick={() => setDraftOpen((open) => !open)}
+                />
+              </Tooltip>
+            </Space>
+          </div>
+
+          {!draftOpen ? null : staged.length ? (
+            <>
+              {staged.map((draft) => {
+                const products = draft.lines
+                  .map((line) => line.productCode ?? line.productRawText)
+                  .filter(Boolean)
+                  .join(", ");
+                return (
+                  <div key={draft.key} className="quick-entry-draft-summary">
+                    <div className="quick-entry-draft-date">{draft.orderDate.format("DD/MM")}</div>
+                    <div className="quick-entry-draft-fields">
+                      <div>
+                        <span>Khách hàng</span>
+                        <strong>{draft.customerCode ?? draft.customerRawText ?? "Chưa rõ"}</strong>
+                      </div>
+                      <div>
+                        <span>BKS</span>
+                        <strong>{draft.plate || "-"}</strong>
+                      </div>
+                      <div>
+                        <span>Lái xe</span>
+                        <strong>{draft.driver || "-"}</strong>
+                      </div>
+                      <div>
+                        <span>Mặt hàng</span>
+                        <strong>{products || "-"}</strong>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="quick-entry-draft-actions">
+                <Tooltip
+                  title={
+                    staged.length === 1
+                      ? "Trả tin nhắn về ô nhập để sửa lại"
+                      : "Chỉ sửa lại được khi đang có đúng một đơn tạm"
+                  }
+                >
+                  <Button
+                    size="small"
+                    icon={<EditOutlined />}
+                    disabled={staged.length !== 1}
+                    onClick={() => editStaged(staged[0])}
+                  >
+                    Sửa
+                  </Button>
+                </Tooltip>
+              </div>
+            </>
+          ) : (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Dán tin nhắn rồi bấm Enter — đơn đọc được sẽ hiện ở đây để bạn kiểm tra trước khi
+              đưa xuống bảng.
+            </Typography.Text>
+          )}
+        </div>
+      </div>
+
+      <div
+        className={`quick-entry-table-toolbar${orders.length ? "" : " is-empty"}`}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <Typography.Text type="secondary" style={{ display: "none" }}>
+            {orders.length} đơn trong bảng · đã lưu {savedCount}
+          </Typography.Text>
+          <Space style={{ visibility: orders.length ? "visible" : "hidden" }}>
+            <Button
+              size="small"
+              onClick={() =>
+                setOrders((current) => current.filter((order) => order.save.kind !== "SAVED"))
+              }
+            >
+              Dọn đơn đã lưu
+            </Button>
+            <Popconfirm
+              title="Xóa hết bảng?"
+              description={
+                unsavedCount
+                  ? `Còn ${unsavedCount} đơn chưa lưu sẽ mất.`
+                  : "Bảng sẽ trống lại từ đầu."
+              }
+              okText="Xóa hết"
+              okButtonProps={{ danger: true }}
+              cancelText="Đóng"
+              onConfirm={() => {
+                setOrders([]);
+                setStaged([]);
+                setText("");
+              }}
+            >
+              <Button size="small" danger icon={<ClearOutlined />}>
+                Xóa hết
+              </Button>
+            </Popconfirm>
+            <Button
+              size="small"
+              type="primary"
+              loading={confirmMutation.isPending}
+              onClick={saveAll}
+            >
+              Lưu tất cả
+            </Button>
+          </Space>
+      </div>
+
+      <Table<FlatRow>
+        className="sales-order-lines"
+        rowKey="key"
+        size="small"
+        pagination={false}
+        columns={columns}
+        dataSource={rows}
+        scroll={{ x: 1440 }}
+        footer={
+          orders.length
+            ? () => (
+                <div style={{ textAlign: "right" }}>
+                  <Typography.Text type="secondary">Tổng tiền: </Typography.Text>
+                  <Typography.Text strong>{formatMoney(grandTotal)} đ</Typography.Text>
+                </div>
+              )
+            : undefined
+        }
+        bordered
+        rowClassName={(row) =>
+          row.order.save.kind === "SAVED" && row.order.save.violations.length
+            ? "sales-row-attention"
+            : ""
+        }
+        locale={{
+          emptyText: (
+            <div className="quick-entry-empty">
+              <FileTextOutlined />
+              <Typography.Text strong>Chưa có đơn nào</Typography.Text>
+              <Typography.Text type="secondary">
+                Bấm “Thêm nhanh” rồi dán tin nhắn khách, hoặc nhấn Enter để thêm đơn.
+              </Typography.Text>
+            </div>
+          ),
+        }}
+      />
+
+      {mode === "LOT" ? (
+        <div className="quick-entry-terms">
+          <Typography.Text strong>Điều khoản đơn lô</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+            Áp cho mọi đơn lô lưu trong lượt nhập này.
+          </Typography.Text>
+
+          <div className="quick-entry-terms-grid">
+            <div>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Thời gian xuất hóa đơn
+              </Typography.Text>
+              <Radio.Group
+                style={{ display: "block", marginTop: 4 }}
+                value={lotInvoiceMode}
+                onChange={(event) => setLotInvoiceMode(event.target.value)}
+              >
+                <Radio value="ON_CONFIRMATION" style={{ display: "block" }}>
+                  Ngay sau khi xác nhận đơn hàng
+                  <Typography.Text type="secondary" style={{ fontSize: 11, marginLeft: 6 }}>
+                    (một hóa đơn cho cả lô)
+                  </Typography.Text>
+                </Radio>
+                <Radio value="ON_WITHDRAWAL" style={{ display: "block" }}>
+                  Theo tiến độ rút hàng
+                  <Typography.Text type="secondary" style={{ fontSize: 11, marginLeft: 6 }}>
+                    (xuất hóa đơn nhiều lần)
+                  </Typography.Text>
+                </Radio>
+              </Radio.Group>
+            </div>
+
+            <div>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Thời hạn thanh toán
+              </Typography.Text>
+              <Radio.Group
+                style={{ display: "block", marginTop: 4 }}
+                value={paymentTermType}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setPaymentTermType(next);
+                  // Trả chậm mà chưa có mốc nào thì dựng sẵn mốc 100% cho đỡ phải gõ.
+                  if (next === "NET_DAYS" && !paymentPlans.length) {
+                    setPaymentPlans([
+                      { key: `plan-${Date.now()}`, dueDays: 30, percent: 100 },
+                    ]);
+                  }
+                }}
+              >
+                <Radio value="SAME_DAY">Trong ngày</Radio>
+                <Radio value="NET_DAYS">Khoảng thời gian</Radio>
+              </Radio.Group>
+
+              {paymentTermType === "NET_DAYS" ? (
+                <div style={{ marginTop: 8 }}>
+                  <Space size={6} wrap style={{ marginBottom: 8 }}>
+                    <Button size="small" onClick={() => applyPreset(50)}>
+                      50%
+                    </Button>
+                    <Button size="small" onClick={() => applyPreset(100)}>
+                      100%
+                    </Button>
+                    <Button size="small" icon={<PlusOutlined />} onClick={() => addPlanRow(true)}>
+                      Số tiền tùy chỉnh
+                    </Button>
+                    <Button size="small" icon={<PlusOutlined />} onClick={() => addPlanRow(false)}>
+                      Thêm mốc %
+                    </Button>
+                  </Space>
+
+                  {paymentPlans.length ? (
+                    <Table<PaymentPlanRow>
+                      className="sales-order-lines"
+                      rowKey="key"
+                      size="small"
+                      pagination={false}
+                      dataSource={paymentPlans}
+                      columns={[
+                        {
+                          title: "Sau (ngày)",
+                          width: 110,
+                          align: "right",
+                          render: (_, plan) => (
+                            <InputNumber
+                              size="small"
+                              min={0}
+                              controls={false}
+                              style={{ width: "100%" }}
+                              value={plan.dueDays}
+                              onChange={(value) =>
+                                patchPlan(plan.key, { dueDays: Number(value ?? 0) })
+                              }
+                            />
+                          ),
+                        },
+                        {
+                          title: "Tỷ lệ %",
+                          width: 110,
+                          align: "right",
+                          render: (_, plan) => (
+                            <InputNumber
+                              size="small"
+                              min={0}
+                              max={100}
+                              controls={false}
+                              placeholder="—"
+                              style={{ width: "100%" }}
+                              value={plan.percent}
+                              onChange={(value) =>
+                                patchPlan(plan.key, {
+                                  percent: value == null ? undefined : Number(value),
+                                  amount: undefined,
+                                })
+                              }
+                            />
+                          ),
+                        },
+                        {
+                          title: "Hoặc số tiền",
+                          width: 150,
+                          align: "right",
+                          render: (_, plan) => (
+                            <InputNumber
+                              size="small"
+                              min={0}
+                              controls={false}
+                              placeholder="—"
+                              style={{ width: "100%" }}
+                              value={plan.amount}
+                              onChange={(value) =>
+                                patchPlan(plan.key, {
+                                  amount: value == null ? undefined : Number(value),
+                                  percent: undefined,
+                                })
+                              }
+                            />
+                          ),
+                        },
+                        {
+                          title: "",
+                          width: 40,
+                          render: (_, plan) => (
+                            <Button
+                              size="small"
+                              type="text"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() =>
+                                setPaymentPlans((current) =>
+                                  current.filter((row) => row.key !== plan.key),
+                                )
+                              }
+                            />
+                          ),
+                        },
+                      ]}
+                    />
+                  ) : (
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      Chưa có mốc nào — bấm 50% / 100% hoặc thêm mốc tùy chỉnh.
+                    </Typography.Text>
+                  )}
+
+                  {planPercentTotal > 0 && planPercentTotal !== 100 ? (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      style={{ marginTop: 8 }}
+                      message={`Tổng các mốc theo tỷ lệ đang là ${planPercentTotal}%, chưa đủ 100%.`}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <Modal
+        open={Boolean(aliasPrompt)}
+        title="Ghi nhớ cách viết này?"
+        okText="Nhớ mục đã chọn"
+        cancelText="Không nhớ, cứ lưu đơn"
+        onOk={() => closeAliasPrompt(new Set(aliasChecked))}
+        onCancel={() => closeAliasPrompt(new Set())}
+        width={520}
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 10 }}>
+          Những cách viết dưới đây chưa có trong từ điển. Nhớ lại thì lần sau hệ thống
+          nhận ra ngay, không phải chọn tay nữa.
+        </Typography.Paragraph>
+        <Space direction="vertical" size={6} style={{ width: "100%" }}>
+          {(aliasPrompt?.suggestions ?? []).map((suggestion) => (
+            <Checkbox
+              key={suggestion.key}
+              checked={aliasChecked.has(suggestion.key)}
+              onChange={(e) =>
+                setAliasChecked((current) => {
+                  const next = new Set(current);
+                  if (e.target.checked) next.add(suggestion.key);
+                  else next.delete(suggestion.key);
+                  return next;
+                })
+              }
+            >
+              <Tag color="blue" style={{ marginInlineEnd: 6 }}>
+                {ALIAS_TYPE_LABELS[suggestion.entityType]}
+              </Tag>
+              <Typography.Text strong>“{suggestion.rawText}”</Typography.Text>
+              <Typography.Text type="secondary">
+                {suggestion.targetCode ? ` → ${suggestion.targetCode}` : " → mục đang chọn"}
+              </Typography.Text>
+            </Checkbox>
+          ))}
+        </Space>
+      </Modal>
+    </div>
+  );
+}

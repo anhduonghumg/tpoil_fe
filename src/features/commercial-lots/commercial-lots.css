@@ -185,6 +185,10 @@
   grid-column: span 2;
 }
 
+.commercial-lot-field-release-code {
+  grid-column: span 2;
+}
+
 .commercial-lot-field-contract {
   grid-column: span 6;
 }

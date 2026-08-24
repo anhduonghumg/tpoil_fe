@@ -12,7 +12,7 @@ import {
 } from "antd";
 import type { FormInstance } from "antd";
 import type { Dayjs } from "dayjs";
-import type { ContractStatus, RiskLevel } from "../types";
+import type { ContractKind, ContractStatus, RiskLevel } from "../types";
 import { CustomerSelect } from "../../../shared/ui/CustomerSelect";
 import ContractTypeSelect from "../../../shared/ui/ContractTypeSelect";
 
@@ -23,6 +23,7 @@ export type ContractFormMode = "create" | "edit";
 export interface ContractFormValues {
   customerId?: string | null;
   contractTypeId: string;
+  kind: ContractKind;
 
   code: string;
   name: string;
@@ -87,6 +88,26 @@ export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
             rules={[{ required: true, message: "Vui lòng chọn loại hợp đồng" }]}
           >
             <ContractTypeSelect placeholder="Chọn loại hợp đồng" excludeCodes={["WAREHOUSE_RENTAL"]} />
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} md={8}>
+          {/*
+            "Hợp đồng mua bán xăng dầu" dùng cho cả hai chiều, nên loại hợp đồng không
+            nói được mình đang mua hay bán — phải hỏi thẳng.
+          */}
+          <Form.Item
+            label="Chiều hợp đồng"
+            name="kind"
+            rules={[{ required: true, message: "Chọn mình bán hay mình mua" }]}
+          >
+            <Select
+              placeholder="Chọn chiều hợp đồng"
+              options={[
+                { value: "SALES", label: "Mình bán cho đối tác" },
+                { value: "PURCHASE", label: "Mình mua của đối tác" },
+              ]}
+            />
           </Form.Item>
         </Col>
 

@@ -10,6 +10,8 @@ import type {
   CustomerContractBrief,
   CustomerGroupOption,
   CustomerListQuery,
+  MerchantRole,
+  MerchantRolePeriod,
   CustomerOverview,
   CustomerPurchaseDefaults,
   UpdateCustomerPurchaseDefaultsPayload,
@@ -179,4 +181,18 @@ export const CustomersApi = {
         data: payload,
       },
     ).then((r) => r.data?.data ?? (r.data as any)),
+
+  merchantRole: (id: string) =>
+    apiCall<ApiResponse<MerchantRolePeriod[]>>("customer.merchantRole", {
+      params: { id },
+    }).then((r) => r.data?.data ?? []),
+
+  setMerchantRole: (
+    id: string,
+    payload: { merchantRole: MerchantRole | null; effectiveFrom?: string },
+  ) =>
+    apiCall<ApiResponse<MerchantRolePeriod[]>>("customer.setMerchantRole", {
+      params: { id },
+      data: payload,
+    }).then((r) => r.data?.data ?? []),
 };

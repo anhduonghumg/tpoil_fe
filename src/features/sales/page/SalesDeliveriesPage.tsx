@@ -2,22 +2,29 @@ import React, { useState } from "react";
 import {
   Button,
   Checkbox,
+  DatePicker,
   Descriptions,
   Drawer,
   Input,
   Modal,
-  Segmented,
   Select,
   Skeleton,
   Space,
   Table,
-  Tag,
+  Tabs,
+  Tooltip,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { CheckOutlined, ReloadOutlined, RollbackOutlined, StopOutlined } from "@ant-design/icons";
+import { CheckOutlined, RedoOutlined, RollbackOutlined, StopOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
+import {
+  FilterButton,
+  FilterTags,
+  RefreshButton,
+} from "../../../shared/ui/TableFilter";
+import type { ActiveFilterTag } from "../../../shared/ui/TableFilter";
 import { useCan } from "../../../shared/authz/useCan";
 import { PERMS } from "../../../shared/authz/perms";
 import { useWarehouseSelect } from "../../purchases/hooks";
@@ -30,7 +37,7 @@ import {
 } from "../hooks";
 import type { SalesDelivery, SalesDeliveryLine, SalesDeliveryStatus } from "../types";
 import { DeliveryConfirmModal } from "../ui/DeliveryConfirmModal";
-import { DeliveryStatusTag, formatQty, OrderKindTag } from "../ui/labels";
+import { DeliveryStatusTag, formatQty } from "../ui/labels";
 
 const STATUS_FILTERS = [
   { value: "READY", label: "Chờ kho xuất" },
@@ -47,7 +54,10 @@ export default function SalesDeliveriesPage() {
   const [status, setStatus] = useState("READY");
   const [warehouseId, setWarehouseId] = useState<string>();
   const [warehouseKeyword, setWarehouseKeyword] = useState("");
+  const [dateFrom, setDateFrom] = useState<string>();
+  const [dateTo, setDateTo] = useState<string>();
   const [page, setPage] = useState(1);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [detailId, setDetailId] = useState<string>();
   const [confirmTarget, setConfirmTarget] = useState<SalesDelivery>();
   const [returnTarget, setReturnTarget] = useState<SalesDelivery>();
@@ -60,19 +70,106 @@ export default function SalesDeliveriesPage() {
   const query = useSalesDeliveries({
     status: status === "ALL" ? undefined : (status as SalesDeliveryStatus),
     warehouseId,
+    dateFrom,
+    dateTo,
     page,
     limit: 20,
   });
+  const allCountQuery = useSalesDeliveries({ warehouseId, dateFrom, dateTo, limit: 1 });
+  const readyCountQuery = useSalesDeliveries({ status: "READY", warehouseId, dateFrom, dateTo, limit: 1 });
+  const postedCountQuery = useSalesDeliveries({ status: "POSTED", warehouseId, dateFrom, dateTo, limit: 1 });
+  const returnedCountQuery = useSalesDeliveries({ status: "RETURNED", warehouseId, dateFrom, dateTo, limit: 1 });
+  const voidedCountQuery = useSalesDeliveries({ status: "VOIDED", warehouseId, dateFrom, dateTo, limit: 1 });
   const detailQuery = useSalesDeliveryDetail(detailId);
   const returnMutation = useReturnDeliveryToSales(returnTarget?.id);
   const resendMutation = useResendDelivery();
   const voidMutation = useVoidDelivery(voidTarget?.id);
 
+  const warehouseName = (warehousesQuery.data ?? []).find((row) => row.id === warehouseId)?.label;
+
+  const filterTags = [
+    warehouseId && {
+      key: "warehouse",
+      label: `Kho: ${warehouseName ?? "đã chọn"}`,
+      onClear: () => {
+        setWarehouseId(undefined);
+        setPage(1);
+      },
+    },
+    (dateFrom || dateTo) && {
+      key: "date",
+      label: `Ngày lệnh: ${dateFrom ? dayjs(dateFrom).format("DD/MM/YYYY") : "…"} – ${dateTo ? dayjs(dateTo).format("DD/MM/YYYY") : "…"}`,
+      onClear: () => {
+        setDateFrom(undefined);
+        setDateTo(undefined);
+        setPage(1);
+      },
+    },
+  ].filter(Boolean) as ActiveFilterTag[];
+
+  const filterPanel = (
+    <div className="table-filter-panel">
+      <div style={{ marginBottom: 10 }}>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Kho
+        </Typography.Text>
+        <Select
+          allowClear
+          showSearch
+          size="small"
+          filterOption={false}
+          style={{ width: "100%" }}
+          placeholder="Mọi kho"
+          value={warehouseId}
+          loading={warehousesQuery.isFetching}
+          onSearch={setWarehouseKeyword}
+          onChange={(value) => {
+            setWarehouseId(value);
+            setPage(1);
+          }}
+          options={(warehousesQuery.data ?? []).map((warehouse) => ({
+            value: warehouse.id,
+            label: warehouse.label,
+          }))}
+        />
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Ngày lệnh xuất
+        </Typography.Text>
+        <DatePicker.RangePicker
+          size="small"
+          style={{ width: "100%" }}
+          format="DD/MM/YYYY"
+          value={[dateFrom ? dayjs(dateFrom) : null, dateTo ? dayjs(dateTo) : null]}
+          onChange={(dates) => {
+            setDateFrom(dates?.[0]?.format("YYYY-MM-DD"));
+            setDateTo(dates?.[1]?.format("YYYY-MM-DD"));
+            setPage(1);
+          }}
+        />
+      </div>
+      <div style={{ textAlign: "right" }}>
+        <Button
+          size="small"
+          onClick={() => {
+            setWarehouseId(undefined);
+            setDateFrom(undefined);
+            setDateTo(undefined);
+            setPage(1);
+          }}
+        >
+          Đặt lại
+        </Button>
+      </div>
+    </div>
+  );
+
   const columns: ColumnsType<SalesDelivery> = [
     {
       title: "Số lệnh",
       dataIndex: "deliveryNo",
-      width: 150,
+      width: 130,
       render: (value: string, delivery) => (
         <Button type="link" style={{ padding: 0 }} onClick={() => setDetailId(delivery.id)}>
           {value}
@@ -80,59 +177,61 @@ export default function SalesDeliveriesPage() {
       ),
     },
     {
-      title: "Đơn / Khách",
+      title: "Ngày xuất",
+      dataIndex: "plannedAt",
+      width: 105,
+      render: (value) => (value ? dayjs(value).format("DD/MM/YYYY") : "—"),
+    },
+    {
+      title: "Số đơn hàng",
       key: "order",
+      width: 145,
       render: (_, delivery) => (
-        <div>
-          <Space size={6}>
-            <Button
-              type="link"
-              style={{ padding: 0 }}
-              onClick={() => navigate(`/sales/orders/${delivery.salesOrder.id}`)}
-            >
-              {delivery.salesOrder.orderNo}
-            </Button>
-            <OrderKindTag kind={delivery.salesOrder.kind} />
-            {delivery.withdrawalRequestId && <Tag color="purple">Rút lô</Tag>}
-          </Space>
-          <div>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {delivery.salesOrder.customer.name}
-            </Typography.Text>
-          </div>
-        </div>
+        <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/sales/orders/${delivery.salesOrder.id}`)}>
+          {delivery.salesOrder.orderNo}
+        </Button>
       ),
     },
-    { title: "Kho", key: "warehouse", width: 170, render: (_, d) => d.warehouse.name },
+    { title: "Khách hàng", key: "customer", width: 130, ellipsis: true, render: (_, d) => d.salesOrder.customer.code ?? "—" },
+    { title: "Kho xuất", key: "warehouse", width: 120, ellipsis: true, render: (_, d) => d.warehouse.name },
     {
       title: "Hàng",
       key: "lines",
-      width: 240,
+      width: 100,
       render: (_, delivery) => (
         <div>
           {delivery.lines.map((line) => (
             <div key={line.id} style={{ fontSize: 12 }}>
-              {line.orderLine.product.name}:{" "}
-              <strong>
-                {formatQty(line.actualQty ?? line.plannedActualQty)} {line.orderLine.product.uom}
-              </strong>
-              {line.actualQty == null && (
-                <Typography.Text type="secondary"> (kế hoạch)</Typography.Text>
-              )}
+              {line.orderLine.product.code ?? line.orderLine.product.name}
             </div>
           ))}
         </div>
       ),
     },
     {
-      title: "Xe / Lái xe",
-      key: "vehicle",
-      width: 140,
+      title: "Số lượng",
+      key: "quantity",
+      width: 110,
+      align: "right",
       render: (_, delivery) => (
         <div>
-          <div>{delivery.vehiclePlate ?? "—"}</div>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {delivery.driverName ?? ""}
+          {delivery.lines.map((line) => (
+            <div key={line.id} style={{ fontSize: 12 }}>
+              <strong>{formatQty(line.actualQty ?? line.plannedActualQty)}</strong>
+            </div>
+          ))}
+        </div>
+      ),
+    },
+    {
+      title: "Xe / lái xe",
+      key: "vehicleDriver",
+      width: 190,
+      render: (_, delivery) => (
+        <div className="sales-grid-stack">
+          <div className="sales-grid-clip">{delivery.vehiclePlate ?? "—"}</div>
+          <Typography.Text className="sales-grid-sub" type="secondary" ellipsis>
+            {delivery.driverName ?? "—"}
           </Typography.Text>
         </div>
       ),
@@ -140,53 +239,26 @@ export default function SalesDeliveriesPage() {
     {
       title: "Trạng thái",
       dataIndex: "status",
-      width: 160,
+      width: 130,
       render: (value: SalesDeliveryStatus) => <DeliveryStatusTag status={value} />,
     },
     {
-      title: "",
+      title: "Thao tác",
       key: "actions",
-      width: 230,
-      fixed: "right",
+      width: 96,
       render: (_, delivery) => (
-        <Space>
+        <Space size={4}>
           {delivery.status === "READY" && can(PERMS.SALES_DELIVERY_CONFIRM) && (
-            <Button
-              type="primary"
-              size="small"
-              icon={<CheckOutlined />}
-              onClick={() => setConfirmTarget(delivery)}
-            >
-              Xác nhận xuất
-            </Button>
+            <Tooltip title="Xác nhận xuất"><Button type="primary" size="small" shape="circle" icon={<CheckOutlined />} onClick={() => setConfirmTarget(delivery)} /></Tooltip>
           )}
           {delivery.status === "READY" && can(PERMS.SALES_DELIVERY_RETURN) && (
-            <Button
-              size="small"
-              icon={<RollbackOutlined />}
-              onClick={() => setReturnTarget(delivery)}
-            >
-              Trả lại
-            </Button>
+            <Tooltip title="Trả lại kinh doanh"><Button size="small" shape="circle" icon={<RollbackOutlined />} onClick={() => setReturnTarget(delivery)} /></Tooltip>
           )}
           {delivery.status === "RETURNED" && can(PERMS.SALES_UPDATE) && (
-            <Button
-              size="small"
-              loading={resendMutation.isPending}
-              onClick={() => resendMutation.mutate(delivery.id)}
-            >
-              Gửi lại kho
-            </Button>
+            <Tooltip title="Gửi lại kho"><Button size="small" shape="circle" icon={<RedoOutlined />} loading={resendMutation.isPending} onClick={() => resendMutation.mutate(delivery.id)} /></Tooltip>
           )}
           {delivery.status === "POSTED" && can(PERMS.SALES_DELIVERY_VOID) && (
-            <Button
-              danger
-              size="small"
-              icon={<StopOutlined />}
-              onClick={() => setVoidTarget(delivery)}
-            >
-              Hủy phiếu
-            </Button>
+            <Tooltip title="Hủy phiếu xuất"><Button danger size="small" shape="circle" icon={<StopOutlined />} onClick={() => setVoidTarget(delivery)} /></Tooltip>
           )}
         </Space>
       ),
@@ -235,61 +307,51 @@ export default function SalesDeliveriesPage() {
   ];
 
   return (
-    <div style={{ padding: 16 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 12,
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
+    <div className="sales-page sales-deliveries-page">
+      <div className="sales-toolbar">
         <Typography.Title level={4} style={{ margin: 0 }}>
           Lệnh xuất kho
         </Typography.Title>
-        <Button icon={<ReloadOutlined />} loading={query.isFetching} onClick={() => query.refetch()}>
-          Tải lại
-        </Button>
+        <Space>
+          <FilterButton
+            count={Number(status !== "ALL") + Number(Boolean(warehouseId)) + Number(Boolean(dateFrom || dateTo))}
+            open={filterOpen}
+            onOpenChange={setFilterOpen}
+            content={filterPanel}
+          />
+          <RefreshButton loading={query.isFetching} onClick={() => query.refetch()} />
+        </Space>
       </div>
 
-      <Space wrap style={{ marginBottom: 12 }}>
-        <Segmented
-          value={status}
-          options={STATUS_FILTERS}
-          onChange={(value) => {
-            setStatus(value as string);
-            setPage(1);
-          }}
-        />
-        <Select
-          allowClear
-          showSearch
-          filterOption={false}
-          style={{ width: 240 }}
-          placeholder="Lọc theo kho"
-          value={warehouseId}
-          loading={warehousesQuery.isFetching}
-          onSearch={setWarehouseKeyword}
-          onChange={(value) => {
-            setWarehouseId(value);
-            setPage(1);
-          }}
-          options={(warehousesQuery.data ?? []).map((warehouse) => ({
-            value: warehouse.id,
-            label: warehouse.label,
-          }))}
-        />
-      </Space>
+      <Tabs
+        className="sales-status-tabs"
+        activeKey={status}
+        onChange={(value) => {
+          setStatus(value);
+          setPage(1);
+        }}
+        items={STATUS_FILTERS.map((item) => {
+          const total =
+            item.value === "READY" ? readyCountQuery.data?.total :
+            item.value === "POSTED" ? postedCountQuery.data?.total :
+            item.value === "RETURNED" ? returnedCountQuery.data?.total :
+            item.value === "VOIDED" ? voidedCountQuery.data?.total :
+            allCountQuery.data?.total;
+          return { key: item.value, label: `${item.label} (${total ?? 0})` };
+        })}
+      />
+
+      <FilterTags items={filterTags} />
 
       <Table<SalesDelivery>
+        className="sales-grid sales-deliveries-grid"
         rowKey="id"
         size="small"
+        tableLayout="fixed"
         loading={query.isLoading}
         columns={columns}
         dataSource={query.data?.items ?? []}
-        scroll={{ x: 1300 }}
+        scroll={{ x: 1260 }}
         pagination={{
           current: page,
           pageSize: 20,

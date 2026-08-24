@@ -176,6 +176,13 @@ export default function PurchaseOrdersPage() {
         render: (supplier) => supplier?.code ?? "-",
       },
       {
+        title: "Mã rút",
+        dataIndex: "releaseCode",
+        width: 80,
+        align: "center",
+        render: (value) => value ?? "-",
+      },
+      {
         title: "Đơn khách đặt",
         key: "salesOrder",
         width: 150,

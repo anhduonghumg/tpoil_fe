@@ -103,7 +103,7 @@ export function SalesOrderLinkCard({
               label="Khách hàng"
               rules={[{ required: true, message: "Chọn khách hàng" }]}
             >
-              <PartySelect partyRole="CUSTOMER" placeholder="Chọn khách hàng đặt hàng" />
+              <PartySelect partyRole="SELLABLE" placeholder="Chọn khách hàng đặt hàng" />
             </Form.Item>
             <Form.Item name="note" label="Ghi chú">
               <Input placeholder="Thông tin cần lưu ý" />

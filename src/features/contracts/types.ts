@@ -32,6 +32,7 @@ export interface Contract {
 
   customerId?: string | null;
   contractTypeId: string;
+  kind?: ContractKind;
 
   startDate: string;
   endDate: string;
@@ -124,10 +125,14 @@ export interface ContractListItem {
 
 // ===== Query & payload types =====
 
+/** Chiều của hợp đồng: mình bán hay mình mua. */
+export type ContractKind = "SALES" | "PURCHASE";
+
 export interface ContractListQuery {
   keyword?: string;
   customerId?: string;
   contractTypeId?: string;
+  kind?: ContractKind;
   status?: ContractStatus;
   riskLevel?: RiskLevel;
   startFrom?: string;
@@ -148,6 +153,7 @@ export interface ContractListResponse {
 export interface ContractUpsertPayload {
   customerId?: string | null;
   contractTypeId: string;
+  kind?: ContractKind;
 
   code: string;
   name: string;

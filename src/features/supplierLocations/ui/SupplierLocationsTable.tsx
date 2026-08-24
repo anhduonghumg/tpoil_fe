@@ -48,7 +48,7 @@ export const SupplierLocationsTable: React.FC<{
       render: (value) => value || <span style={{ color: "#999" }}>-</span>,
     },
     {
-      title: "NCC vận hành",
+      title: "Đối tác vận hành",
       dataIndex: "parties",
       render: (_, row) => {
         const parties = row.parties ?? (row.supplier ? [{ party: row.supplier }] : []);

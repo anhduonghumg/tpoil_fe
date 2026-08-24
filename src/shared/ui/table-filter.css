@@ -1,0 +1,38 @@
+.table-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.table-filter-toolbar-left,
+.table-filter-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Panel trong Popover: đủ hẹp để không che bảng, các ô xếp dọc. */
+.table-filter-panel {
+  width: 360px;
+}
+
+.table-filter-panel .ant-form-item {
+  margin-bottom: 9px;
+}
+
+.table-filter-tags {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+/* Không có điều kiện nào thì không chiếm chỗ. */
+.table-filter-tags:empty {
+  display: none;
+}

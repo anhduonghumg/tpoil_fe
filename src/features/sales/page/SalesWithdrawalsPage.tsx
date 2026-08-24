@@ -1,9 +1,16 @@
 import React, { useState } from "react";
-import { Badge, Button, Segmented, Space, Table, Tooltip, Typography } from "antd";
+import { Badge, Button, Select, Space, Table, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { PartySelect } from "../../../shared/ui/PartySelect";
+import {
+  FilterButton,
+  FilterTags,
+  FilterToolbar,
+  RefreshButton,
+} from "../../../shared/ui/TableFilter";
+import type { ActiveFilterTag } from "../../../shared/ui/TableFilter";
 import { PermissionGate } from "../../../shared/authz/PermissionGate";
 import { PERMS } from "../../../shared/authz/perms";
 import { useSalesWithdrawals } from "../hooks";
@@ -28,6 +35,7 @@ export default function SalesWithdrawalsPage() {
   const [status, setStatus] = useState<string>("ALL");
   const [customerPartyId, setCustomerPartyId] = useState<string>();
   const [page, setPage] = useState(1);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string>();
 
@@ -39,6 +47,73 @@ export default function SalesWithdrawalsPage() {
   });
   const needSourceQuery = useSalesWithdrawals({ status: "NEED_SOURCE", limit: 1 });
   const needSourceCount = needSourceQuery.data?.total ?? 0;
+
+  const filterTags = [
+    status !== "ALL" && {
+      key: "status",
+      label: `Trạng thái: ${STATUS_FILTERS.find((row) => row.value === status)?.label ?? status}`,
+      onClear: () => {
+        setStatus("ALL");
+        setPage(1);
+      },
+    },
+    customerPartyId && {
+      key: "customer",
+      label: "Đang lọc theo khách hàng",
+      onClear: () => {
+        setCustomerPartyId(undefined);
+        setPage(1);
+      },
+    },
+  ].filter(Boolean) as ActiveFilterTag[];
+
+  const filterPanel = (
+    <div className="table-filter-panel">
+      <div style={{ marginBottom: 10 }}>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Trạng thái
+        </Typography.Text>
+        <Select
+          size="small"
+          style={{ width: "100%" }}
+          value={status}
+          options={STATUS_FILTERS}
+          onChange={(value) => {
+            setStatus(value);
+            setPage(1);
+          }}
+        />
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Khách hàng
+        </Typography.Text>
+        <PartySelect
+          partyRole="CUSTOMER"
+          allowClear
+          style={{ width: "100%" }}
+          placeholder="Mọi khách hàng"
+          value={customerPartyId}
+          onChange={(value) => {
+            setCustomerPartyId(value ?? undefined);
+            setPage(1);
+          }}
+        />
+      </div>
+      <div style={{ textAlign: "right" }}>
+        <Button
+          size="small"
+          onClick={() => {
+            setStatus("ALL");
+            setCustomerPartyId(undefined);
+            setPage(1);
+          }}
+        >
+          Đặt lại
+        </Button>
+      </div>
+    </div>
+  );
 
   const columns: ColumnsType<SalesWithdrawalRequest> = [
     {
@@ -142,33 +217,24 @@ export default function SalesWithdrawalsPage() {
               Tạo phiếu rút
             </Button>
           </PermissionGate>
-          <Button icon={<ReloadOutlined />} loading={query.isFetching} onClick={() => query.refetch()}>
-            Tải lại
-          </Button>
         </Space>
       </div>
 
-      <Space wrap style={{ marginBottom: 12 }}>
-        <Segmented
-          value={status}
-          options={STATUS_FILTERS}
-          onChange={(value) => {
-            setStatus(value as string);
-            setPage(1);
-          }}
-        />
-        <PartySelect
-          partyRole="CUSTOMER"
-          allowClear
-          style={{ width: 240 }}
-          placeholder="Lọc theo khách hàng"
-          value={customerPartyId}
-          onChange={(value) => {
-            setCustomerPartyId(value ?? undefined);
-            setPage(1);
-          }}
-        />
-      </Space>
+      <FilterToolbar
+        right={
+          <>
+            <FilterButton
+              count={Number(status !== "ALL") + Number(Boolean(customerPartyId))}
+              open={filterOpen}
+              onOpenChange={setFilterOpen}
+              content={filterPanel}
+            />
+            <RefreshButton loading={query.isFetching} onClick={() => query.refetch()} />
+          </>
+        }
+      />
+
+      <FilterTags items={filterTags} />
 
       <Table<SalesWithdrawalRequest>
         rowKey="id"

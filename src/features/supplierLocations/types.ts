@@ -102,6 +102,8 @@ export type SupplierOption = {
   id: string;
   code: string;
   name: string;
+  /** NCC dùng cho nhập hàng; khách hàng dùng cho đơn bán. */
+  operatorType?: "SUPPLIER" | "CUSTOMER";
 };
 
 export type SupplierOptionsResult = {

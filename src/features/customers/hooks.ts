@@ -10,6 +10,7 @@ import type {
   CustomerGroupOption,
   CustomerListQuery,
   CustomerOverview,
+  MerchantRole,
   Paged,
   UpdateCustomerPurchaseDefaultsPayload,
 } from "./types";
@@ -265,5 +266,34 @@ export function useUpdateCustomerPurchaseDefaults(customerId?: string) {
       });
       queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
     },
+  });
+}
+
+// ===== Loại thương nhân xăng dầu =====
+
+export function useMerchantRole(customerId?: string) {
+  return useQuery({
+    queryKey: ["customers", "merchant-role", customerId],
+    queryFn: () => CustomersApi.merchantRole(customerId!),
+    enabled: Boolean(customerId),
+  });
+}
+
+/**
+ * Đổi loại thương nhân. CUSTOMER/SUPPLIER do backend tự đóng/mở kỳ theo loại mới, nên
+ * phải làm mới cả danh sách đối tác — ô chọn khách/NCC lọc theo chính vai trò đó.
+ */
+export function useSetMerchantRole(customerId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { merchantRole: MerchantRole | null; effectiveFrom?: string }) =>
+      CustomersApi.setMerchantRole(customerId!, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["party", "select"] });
+      notify.success("Đã cập nhật loại thương nhân");
+    },
+    onError: (e: any) =>
+      notify.error(e?.response?.data?.message || "Không cập nhật được loại thương nhân"),
   });
 }

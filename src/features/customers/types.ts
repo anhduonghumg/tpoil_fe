@@ -20,6 +20,7 @@ export interface Customer {
 
   type: CustomerType;
   partyType: PartyType;
+  merchantRole?: MerchantRole | null;
   roles?: CustomerRole[];
   partnerRoles?: OperationalPartnerRole[];
 
@@ -234,3 +235,32 @@ export interface CustomerListQuery {
   page?: number;
   pageSize?: number;
 }
+
+/**
+ * Ba loại thương nhân xăng dầu — quyết định chiều được phép giao dịch.
+ * TNPP mua và bán, TNDM chỉ mua của họ, TNDL chỉ bán cho họ.
+ */
+export type MerchantRole = "TNPP" | "TNDM" | "TNDL";
+
+export const MERCHANT_ROLE_LABELS: Record<MerchantRole, string> = {
+  TNPP: "Thương nhân phân phối",
+  TNDM: "Thương nhân đầu mối",
+  TNDL: "Thương nhân đại lý",
+};
+
+export const MERCHANT_ROLE_HINTS: Record<MerchantRole, string> = {
+  TNPP: "Mua và bán",
+  TNDM: "Chỉ mua của họ",
+  TNDL: "Chỉ bán cho họ",
+};
+
+/** Một kỳ phân loại: loại nào áp dụng từ ngày nào đến ngày nào. */
+export type MerchantRolePeriod = {
+  id: string;
+  role: MerchantRole;
+  label: string;
+  validFrom: string;
+  validTo: string | null;
+  note?: string | null;
+  isCurrent: boolean;
+};

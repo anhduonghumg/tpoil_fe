@@ -98,7 +98,7 @@ export function DeliveryConfirmModal({
         fifo.salesDeliveryLineId,
         (fifo.availableLots ?? []).map((lot) => ({
           value: lot.inventoryLotId,
-          label: `${lot.lotNo} (còn ${formatQty(lot.availableQty)})`,
+          label: `${lot.supplierCode} · ${lot.lotNo} (còn ${formatQty(lot.availableQty)})`,
           availableQty: Number(lot.availableQty),
         })),
       );
@@ -232,13 +232,13 @@ export function DeliveryConfirmModal({
 
   const allocationColumns = (line: LineForm): ColumnsType<AllocationForm> => [
     {
-      title: "Lô hàng",
+      title: "Mã NCC / Lô hàng",
       dataIndex: "inventoryLotId",
       render: (_, allocation) => (
         <Select
           size="small"
           style={{ width: "100%" }}
-          placeholder="Chọn lô"
+          placeholder="Chọn mã NCC / lô"
           status={allocation.inventoryLotId ? undefined : "error"}
           value={allocation.inventoryLotId}
           options={lotOptionsByLine.get(line.salesDeliveryLineId) ?? []}

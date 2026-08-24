@@ -10,8 +10,9 @@ import {
   useContractsForRenewal,
   useCreateContractAttachment, // <-- NEW
 } from "../hooks";
-import type { Contract, ContractFormValues } from "../types";
+import type { Contract, ContractFormValues, ContractKind } from "../types";
 import type { ContractUpsertPayload } from "../types";
+import { useDepartmentWorkspaceContext } from "../../workspaces/context";
 import OverlayForm from "../../employees/ui/OverlayForm";
 import {
   ContractAttachmentsCreateSection,
@@ -131,6 +132,7 @@ function mapFormToPayload(values: ContractFormValues): ContractUpsertPayload {
   return {
     customerId: values.customerId ?? null,
     contractTypeId: values.contractTypeId,
+    kind: values.kind,
     code: values.code,
     name: values.name,
     startDate: values.startDate.format("YYYY-MM-DD"),
@@ -184,6 +186,15 @@ const ContractUpsertFormContent: React.FC<ContractUpsertFormContentProps> = ({
 }) => {
   const isEdit = mode === "edit";
 
+  // Tạo hợp đồng từ phân hệ bán thì mặc định là hợp đồng bán, và ngược lại.
+  const workspace = useDepartmentWorkspaceContext();
+  const defaultKind: ContractKind | undefined =
+    workspace?.currentWorkspace.key === "sales"
+      ? "SALES"
+      : workspace?.currentWorkspace.key === "purchase"
+        ? "PURCHASE"
+        : undefined;
+
   const watchedCustomerId =
     Form.useWatch("customerId", form) ?? defaultCustomerId ?? null;
 
@@ -200,6 +211,7 @@ const ContractUpsertFormContent: React.FC<ContractUpsertFormContentProps> = ({
       form.setFieldsValue({
         customerId: detail.customerId ?? defaultCustomerId,
         contractTypeId: detail.contractTypeId,
+        kind: detail.kind,
         code: detail.code,
         name: detail.name,
         startDate: dayjs(detail.startDate),
@@ -219,6 +231,8 @@ const ContractUpsertFormContent: React.FC<ContractUpsertFormContentProps> = ({
         status: "Active",
         riskLevel: "Low",
         paymentTermDays: 15,
+        // Tạo từ phân hệ nào thì mặc định đúng chiều của phân hệ đó.
+        kind: defaultKind,
       });
     }
   }, [open, isEdit, detail, defaultCustomerId, form]);
@@ -227,6 +241,7 @@ const ContractUpsertFormContent: React.FC<ContractUpsertFormContentProps> = ({
     const payload: ContractFormValues = {
       customerId: values.customerId ?? null,
       contractTypeId: values.contractTypeId,
+      kind: values.kind,
 
       code: values.code,
       name: values.name,
