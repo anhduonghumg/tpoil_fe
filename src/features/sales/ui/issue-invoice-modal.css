@@ -1,0 +1,250 @@
+/* Hộp xác nhận phát hành hóa đơn — bố cục theo mẫu hộp của MISA: một dải xám gom các
+   thông tin định danh chứng từ, tổng tiền nằm bên phải cỡ lớn, rồi tới bảng hàng. */
+
+/* Chỉ thân hộp cuộn. Chốt trần theo chiều cao cửa sổ, trừ phần tiêu đề + nút và lề của
+   antd, để hộp không bao giờ dài quá màn hình — trước đây hóa đơn nhiều dòng đẩy cả
+   trang chạy theo và nút "Phát hành" bị đùn xuống dưới mép. */
+.issue-invoice-modal .ant-modal-body {
+  max-height: calc(100vh - 200px);
+  padding-top: 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Dải xám tràn lề trái/phải; khi thân cuộn thì phải chặn thanh cuộn ngang do -24px. */
+.issue-invoice-modal .ant-modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.issue-invoice-modal .ant-modal-body::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: #d4d9e2;
+}
+
+.issue-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 0 -24px 12px;
+  padding: 12px 24px;
+  background: #f4f6f9;
+}
+
+.issue-head-facts,
+.issue-buyer-facts,
+.issue-totals {
+  margin: 0;
+}
+
+.issue-head-facts > div,
+.issue-buyer-facts > div {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+
+.issue-head-facts > div + div,
+.issue-buyer-facts > div + div {
+  margin-top: 5px;
+}
+
+.issue-head-facts dt,
+.issue-buyer-facts dt {
+  color: #697386;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.issue-head-facts dd,
+.issue-buyer-facts dd {
+  margin: 0;
+  color: #172033;
+  font-size: 13px;
+}
+
+.issue-buyer {
+  font-weight: 600;
+}
+
+.issue-head-total {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.issue-head-total span {
+  display: block;
+  color: #697386;
+  font-size: 12px;
+}
+
+/* Số lớn dùng chữ số tỷ lệ tự nhiên, không tabular. */
+.issue-head-total strong {
+  display: block;
+  margin-top: 2px;
+  color: #172033;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 30px;
+}
+
+.issue-buyer-facts {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.issue-muted {
+  color: #a1a8b5;
+}
+
+.issue-warn-tag {
+  margin-left: 8px;
+  font-size: 11px;
+}
+
+/* Dải cảnh báo là ghi chú bên lề, không phải nội dung chính của hóa đơn — giữ đúng một
+   dòng chữ nhỏ để không cướp chỗ của bảng hàng. */
+.issue-alert {
+  align-items: center;
+  margin-top: 10px;
+  padding: 5px 10px;
+}
+
+.issue-alert .ant-alert-message {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.issue-alert .ant-alert-description {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.issue-alert .ant-alert-icon {
+  margin-inline-end: 8px;
+  font-size: 14px;
+}
+
+.issue-line-table {
+  margin-top: 10px;
+}
+
+.issue-line-table .ant-table-thead > tr > th {
+  background: #eef4ff !important;
+  color: #21418f;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.issue-line-table .ant-table-tbody > tr > td {
+  padding: 6px 8px !important;
+  font-size: 12px;
+}
+
+.issue-line-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Khối tổng dồn phải, cột số thẳng hàng bằng chữ số đều bề ngang. */
+.issue-totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.issue-totals > div {
+  display: grid;
+  grid-template-columns: auto 150px;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.issue-totals dt {
+  color: #697386;
+  text-align: right;
+}
+
+.issue-totals dd {
+  margin: 0;
+  color: #172033;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.issue-totals .is-grand {
+  margin-top: 3px;
+  padding-top: 7px;
+  border-top: 1px solid #edf0f5;
+  font-size: 15px;
+}
+
+.issue-totals .is-grand dt {
+  color: #172033;
+  font-weight: 600;
+}
+
+.issue-totals .is-grand dd {
+  font-weight: 700;
+}
+
+.issue-words {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #edf0f5;
+  font-size: 13px;
+}
+
+.issue-words span {
+  color: #697386;
+}
+
+.issue-words em {
+  color: #172033;
+  font-style: italic;
+}
+
+.issue-footnote {
+  display: block;
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Màn thấp (laptop 13") thì bỏ luôn phần trang trí thừa để bảng hàng còn chỗ. */
+@media (max-height: 780px) {
+  .issue-invoice-modal .ant-modal-body {
+    max-height: calc(100vh - 160px);
+  }
+
+  .issue-head-total strong {
+    font-size: 21px;
+    line-height: 26px;
+  }
+}
+
+@media (max-width: 640px) {
+  .issue-head {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .issue-head-total {
+    text-align: left;
+  }
+}
+
+/* Ký hiệu đã biết trước (lấy từ cấu hình), số hóa đơn thì chưa — nói rõ phần nào là dự kiến. */
+.issue-serial-note {
+  margin-left: 8px;
+  font-size: 11px;
+}

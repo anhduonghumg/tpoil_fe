@@ -76,6 +76,12 @@ function normalizeMenu(items: WorkspaceMenuItem[] | undefined) {
   }));
 }
 
+function menuContains(items: WorkspaceMenuItem[], key: string): boolean {
+  return items.some(
+    (item) => item.key === key || (item.children ? menuContains(item.children, key) : false),
+  );
+}
+
 function normalizeIconItems<T extends { icon?: React.ReactNode | string | null }>(
   items: T[] | undefined,
 ) {
@@ -183,8 +189,27 @@ export function useDepartmentWorkspaceValue({
 
   const menu = useMemo(() => {
     const apiMenu = normalizeMenu(menuQuery.data);
-    return apiMenu.length ? apiMenu : getDefaultMenu(currentWorkspace.key);
-  }, [currentWorkspace.key, menuQuery.data]);
+    const baseMenu = apiMenu.length ? apiMenu : getDefaultMenu(currentWorkspace.key);
+    const canViewOpeningBalances =
+      isAdmin || permissions.has(PERMS.SYSTEM_OPENING_BALANCES_VIEW);
+
+    if (
+      !canViewOpeningBalances ||
+      menuContains(baseMenu, "/settings/opening-balances")
+    ) {
+      return baseMenu;
+    }
+
+    return [
+      ...baseMenu,
+      {
+        key: "/settings/opening-balances",
+        label: "Số dư đầu kỳ",
+        icon: ICONS.database,
+        need: PERMS.SYSTEM_OPENING_BALANCES_VIEW,
+      },
+    ];
+  }, [currentWorkspace.key, isAdmin, menuQuery.data, permissions]);
 
   const dashboard = useMemo(
     () => {

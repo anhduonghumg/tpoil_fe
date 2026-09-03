@@ -19,6 +19,9 @@ import dayjs from "dayjs";
 import { PartySelect } from "../../../shared/ui/PartySelect";
 import { useProductSelect } from "../../products/hooks";
 import { useWarehouseSelect } from "../../purchases/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { SupplierLocationsApi } from "../../supplierLocations/api";
+import { decodeWarehouseSource, WarehouseSourceSelect } from "../../supplierLocations/ui/WarehouseSourceSelect";
 import {
   useCreateInternalSalesOrder,
   useCurrentDiscountBoard,
@@ -31,7 +34,7 @@ import "../sales.css";
 type LineForm = {
   key: string;
   productId?: string;
-  issueWarehouseId?: string;
+  receivingScope?: string;
   vehiclePlate?: string;
   driverName?: string;
   orderedActualQty?: number;
@@ -42,6 +45,12 @@ type LineForm = {
   discountAdjustmentAmount?: number;
   supplySource?: "TP" | "NCC";
   note?: string;
+};
+
+type PaymentPlanForm = {
+  key: string;
+  dueDate: dayjs.Dayjs;
+  percent: number;
 };
 
 /** Chiết khấu là theo ĐƠN VỊ: thành tiền = SL × (giá − CK gốc − CK điều chỉnh). */
@@ -75,7 +84,11 @@ function linesFromOrder(order: SalesOrder): LineForm[] {
   return order.lines.map((line) => ({
     key: line.id,
     productId: line.productId,
-    issueWarehouseId: line.issueWarehouseId ?? undefined,
+    receivingScope: line.issueWarehouseId
+      ? `warehouse:${line.issueWarehouseId}`
+      : line.receivingWarehouseArea?.id
+        ? `area:${line.receivingWarehouseArea.id}`
+        : undefined,
     vehiclePlate: line.vehiclePlate ?? undefined,
     driverName: line.driverName ?? undefined,
     orderedActualQty: Number(line.orderedActualQty),
@@ -107,10 +120,18 @@ export function InternalSalesOrderModal({
   const isEdit = Boolean(order);
   const [form] = Form.useForm<FormValues>();
   const [lineKeys, setLineKeys] = useState<string[]>([]);
+  const [paymentPlans, setPaymentPlans] = useState<PaymentPlanForm[]>([]);
   const [productKeyword, setProductKeyword] = useState("");
   const [warehouseKeyword, setWarehouseKeyword] = useState("");
   const productsQuery = useProductSelect(productKeyword);
   const warehousesQuery = useWarehouseSelect(warehouseKeyword);
+  const areasQuery = useQuery({
+    queryKey: ["supplierLocations", "areas", "active"],
+    queryFn: () => SupplierLocationsApi.areas(true),
+  });
+  const selectableAreas = (areasQuery.data ?? []).filter((area) =>
+    (warehousesQuery.data ?? []).some((warehouse) => warehouse.areaId === area.id),
+  );
   const createMutation = useCreateInternalSalesOrder();
   const updateMutation = useUpdateSalesOrder(order?.id);
 
@@ -120,10 +141,16 @@ export function InternalSalesOrderModal({
 
   // Chiết khấu lấy từ bảng thông báo đang hiệu lực; Sale vẫn sửa được từng dòng.
   const discountBoard = useCurrentDiscountBoard(open);
-  const discountOf = (warehouseId?: string, productId?: string) => {
-    if (!warehouseId || !productId) return undefined;
+  const discountOf = (receivingScope?: string, productId?: string) => {
+    if (!receivingScope || !productId) return undefined;
+    const receiving = decodeWarehouseSource(receivingScope, (warehousesQuery.data ?? []) as any);
+    const warehouseIds = receiving?.warehouseId
+      ? [receiving.warehouseId]
+      : (warehousesQuery.data ?? [])
+          .filter((warehouse) => warehouse.areaId === receiving?.areaId)
+          .map((warehouse) => warehouse.id);
     const line = discountBoard.data?.lines.find(
-      (row) => row.warehouseId === warehouseId && row.productId === productId,
+      (row) => warehouseIds.includes(row.warehouseId) && row.productId === productId,
     );
     return line ? Number(line.discountPerUnit) : undefined;
   };
@@ -135,11 +162,11 @@ export function InternalSalesOrderModal({
   const applyAnnouncedDiscount = (index: number, patch: Partial<LineForm>) => {
     const current = (form.getFieldValue("lines") ?? []) as LineForm[];
     const line = { ...current[index], ...patch };
-    const announced = discountOf(line.issueWarehouseId, line.productId);
+    const announced = discountOf(line.receivingScope, line.productId);
     if (announced == null) return;
 
     const previous = discountOf(
-      patch.issueWarehouseId ? current[index]?.issueWarehouseId : line.issueWarehouseId,
+      patch.receivingScope ? current[index]?.receivingScope : line.receivingScope,
       patch.productId ? current[index]?.productId : line.productId,
     );
     const untouched = line.discountBaseAmount == null || line.discountBaseAmount === previous;
@@ -167,6 +194,25 @@ export function InternalSalesOrderModal({
         note: order.note ?? undefined,
         lines,
       });
+      if (order.kind === "LOT" && order.paymentTermType === "NET_DAYS") {
+        setPaymentPlans(
+          order.paymentPlans?.length
+            ? order.paymentPlans.map((plan) => ({
+                key: plan.id ?? newKey(),
+                dueDate: dayjs(plan.dueDate),
+                percent: Number(plan.percent ?? 0),
+              }))
+            : [
+                {
+                  key: newKey(),
+                  dueDate: dayjs(order.orderDate).add(order.paymentTermDays ?? 0, "day"),
+                  percent: 100,
+                },
+              ],
+        );
+      } else {
+        setPaymentPlans([]);
+      }
     } else {
       const line = emptyLine();
       setLineKeys([line.key]);
@@ -180,6 +226,7 @@ export function InternalSalesOrderModal({
         note: undefined,
         lines: [line],
       });
+      setPaymentPlans([]);
     }
   }, [open, order, form]);
 
@@ -197,21 +244,73 @@ export function InternalSalesOrderModal({
     setLineKeys((keys) => keys.filter((_, i) => i !== index));
   };
 
+  const applyPaymentPreset = (preset: "FULL" | "HALF") => {
+    const baseDate = orderDate ?? dayjs();
+    setPaymentPlans(
+      preset === "FULL"
+        ? [{ key: newKey(), dueDate: baseDate, percent: 100 }]
+        : [
+            { key: newKey(), dueDate: baseDate, percent: 50 },
+            { key: newKey(), dueDate: baseDate.add(3, "day"), percent: 50 },
+          ],
+    );
+  };
+
+  const addPaymentPlan = () => {
+    const assigned = paymentPlans.reduce((sum, plan) => sum + Number(plan.percent || 0), 0);
+    const lastDate = paymentPlans.at(-1)?.dueDate ?? orderDate ?? dayjs();
+    setPaymentPlans((plans) => [
+      ...plans,
+      {
+        key: newKey(),
+        dueDate: lastDate.add(plans.length ? 1 : 0, "day"),
+        percent: Math.max(0, 100 - assigned),
+      },
+    ]);
+  };
+
+  const paymentPlanError = (() => {
+    if (kind !== "LOT" || paymentTermType !== "NET_DAYS") return undefined;
+    if (!paymentPlans.length) return "Cần ít nhất một đợt thanh toán.";
+    if (paymentPlans.some((plan) => !plan.dueDate || plan.percent <= 0)) {
+      return "Ngày thanh toán và tỷ lệ của mỗi đợt phải hợp lệ.";
+    }
+    if (
+      orderDate &&
+      paymentPlans.some((plan) => plan.dueDate.startOf("day").isBefore(orderDate.startOf("day")))
+    ) {
+      return "Ngày thanh toán không được trước ngày đơn hàng.";
+    }
+    const total = paymentPlans.reduce((sum, plan) => sum + Number(plan.percent || 0), 0);
+    return Math.abs(total - 100) > 0.001 ? "Tổng tỷ lệ các đợt phải bằng 100%." : undefined;
+  })();
+
   const submit = async () => {
     const values = await form.validateFields();
-    const lines = values.lines.map((line) => ({
-      productId: line.productId!,
-      issueWarehouseId: line.issueWarehouseId!,
-      orderedActualQty: Number(line.orderedActualQty),
-      unitPrice: Number(line.unitPrice ?? 0),
-      discountBaseAmount:
-        line.discountBaseAmount == null ? undefined : Number(line.discountBaseAmount),
-      discountAdjustmentAmount: Number(line.discountAdjustmentAmount ?? 0),
-      supplySource: line.supplySource ?? "TP",
-      vehiclePlate: line.vehiclePlate?.trim() || undefined,
-      driverName: line.driverName?.trim() || undefined,
-      note: line.note?.trim() || undefined,
-    }));
+    if (paymentPlanError) {
+      Modal.error({ title: "Lịch thanh toán chưa hợp lệ", content: paymentPlanError });
+      return;
+    }
+    const lines = values.lines.map((line) => {
+      const receiving = decodeWarehouseSource(
+        line.receivingScope!,
+        (warehousesQuery.data ?? []) as any,
+      );
+      return {
+        productId: line.productId!,
+        issueWarehouseId: receiving?.warehouseId,
+        receivingWarehouseAreaId: receiving?.warehouseId ? undefined : receiving?.areaId,
+        orderedActualQty: Number(line.orderedActualQty),
+        unitPrice: Number(line.unitPrice ?? 0),
+        discountBaseAmount:
+          line.discountBaseAmount == null ? undefined : Number(line.discountBaseAmount),
+        discountAdjustmentAmount: Number(line.discountAdjustmentAmount ?? 0),
+        supplySource: line.supplySource ?? "TP",
+        vehiclePlate: values.kind === "LOT" ? undefined : line.vehiclePlate?.trim() || undefined,
+        driverName: values.kind === "LOT" ? undefined : line.driverName?.trim() || undefined,
+        note: line.note?.trim() || undefined,
+      };
+    });
     const common = {
       orderDate: values.orderDate.format("YYYY-MM-DD"),
       note: values.note?.trim() || undefined,
@@ -219,7 +318,24 @@ export function InternalSalesOrderModal({
       lotInvoiceMode: values.kind === "LOT" ? values.lotInvoiceMode : undefined,
       paymentTermType: values.paymentTermType,
       paymentTermDays:
-        values.paymentTermType === "NET_DAYS" ? Number(values.paymentTermDays ?? 0) : undefined,
+        values.paymentTermType === "NET_DAYS"
+          ? values.kind === "LOT"
+            ? Math.max(
+                0,
+                ...paymentPlans.map((plan) =>
+                  plan.dueDate.startOf("day").diff(values.orderDate.startOf("day"), "day"),
+                ),
+              )
+            : Number(values.paymentTermDays ?? 0)
+          : undefined,
+      paymentPlans:
+        values.kind === "LOT" && values.paymentTermType === "NET_DAYS"
+          ? paymentPlans.map((plan, index) => ({
+              dueDate: plan.dueDate.format("YYYY-MM-DD"),
+              percent: plan.percent,
+              sortOrder: index,
+            }))
+          : undefined,
       lines,
     };
     const saved = isEdit
@@ -265,27 +381,23 @@ export function InternalSalesOrderModal({
     },
     {
       title: "Kho nhận",
-      dataIndex: "issueWarehouseId",
+      dataIndex: "receivingScope",
       width: 170,
       render: (_, __, index) => (
         <Form.Item
-          name={["lines", index, "issueWarehouseId"]}
+          name={["lines", index, "receivingScope"]}
           rules={[{ required: true, message: "Chọn kho nhận" }]}
           noStyle
         >
-          <Select
+          <WarehouseSourceSelect
             size="small"
-            showSearch
             filterOption={false}
             placeholder="Kho nhận"
-            style={{ width: "100%" }}
             loading={warehousesQuery.isFetching}
             onSearch={setWarehouseKeyword}
-            onChange={(value) => applyAnnouncedDiscount(index, { issueWarehouseId: value })}
-            options={(warehousesQuery.data ?? []).map((warehouse) => ({
-              value: warehouse.id,
-              label: warehouse.label,
-            }))}
+            onChange={(value) => applyAnnouncedDiscount(index, { receivingScope: value })}
+            areas={selectableAreas}
+            warehouses={warehousesQuery.data ?? []}
           />
         </Form.Item>
       ),
@@ -348,8 +460,8 @@ export function InternalSalesOrderModal({
       align: "right",
       render: (_, __, index) => {
         const line: Partial<LineForm> = watchedLines[index] ?? {};
-        const announced = discountOf(line.issueWarehouseId, line.productId);
-        const missing = Boolean(line.issueWarehouseId && line.productId && announced == null);
+        const announced = discountOf(line.receivingScope, line.productId);
+        const missing = Boolean(line.receivingScope && line.productId && announced == null);
         return (
           <div>
             <Form.Item name={["lines", index, "discountBaseAmount"]} noStyle>
@@ -405,6 +517,7 @@ export function InternalSalesOrderModal({
     {
       title: "BKS",
       dataIndex: "vehiclePlate",
+      hidden: kind === "LOT",
       width: 110,
       render: (_, __, index) => (
         <Form.Item
@@ -421,6 +534,7 @@ export function InternalSalesOrderModal({
     {
       title: "Lái xe",
       dataIndex: "driverName",
+      hidden: kind === "LOT",
       width: 120,
       render: (_, __, index) => (
         <Form.Item
@@ -513,14 +627,22 @@ export function InternalSalesOrderModal({
               <Form.Item name="paymentTermType" noStyle rules={[{ required: true }]}>
                 <Select
                   size="small"
-                  style={{ width: paymentTermType === "NET_DAYS" ? "60%" : "100%" }}
+                  style={{
+                    width: paymentTermType === "NET_DAYS" && kind !== "LOT" ? "60%" : "100%",
+                  }}
+                  onChange={(value) => {
+                    if (kind === "LOT" && value === "NET_DAYS" && !paymentPlans.length) {
+                      applyPaymentPreset("FULL");
+                    }
+                    if (value === "SAME_DAY") setPaymentPlans([]);
+                  }}
                   options={[
                     { value: "SAME_DAY", label: "Trong ngày" },
-                    { value: "NET_DAYS", label: "Công nợ" },
+                    { value: "NET_DAYS", label: kind === "LOT" ? "Theo lịch" : "Công nợ" },
                   ]}
                 />
               </Form.Item>
-              {paymentTermType === "NET_DAYS" && (
+              {paymentTermType === "NET_DAYS" && kind !== "LOT" && (
                 <Form.Item
                   name="paymentTermDays"
                   noStyle
@@ -553,6 +675,131 @@ export function InternalSalesOrderModal({
                 </Radio>
               </Radio.Group>
             </Form.Item>
+            {paymentTermType === "NET_DAYS" && (
+              <div
+                style={{
+                  border: "1px solid #d9e5f5",
+                  borderRadius: 8,
+                  background: "#f8fbff",
+                  padding: 10,
+                  marginBottom: 10,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    marginBottom: 8,
+                  }}
+                >
+                  <div>
+                    <Typography.Text strong>Lịch thanh toán</Typography.Text>
+                    <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                      Chọn ngày thực tế, tổng tỷ lệ phải bằng 100%
+                    </Typography.Text>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Button size="small" onClick={() => applyPaymentPreset("FULL")}>
+                      100% một lần
+                    </Button>
+                    <Button size="small" onClick={() => applyPaymentPreset("HALF")}>
+                      50% - 50%
+                    </Button>
+                    <Button size="small" icon={<PlusOutlined />} onClick={addPaymentPlan}>
+                      Thêm đợt
+                    </Button>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "140px 110px minmax(140px, 1fr) 32px",
+                    gap: 8,
+                    padding: "0 4px 4px",
+                    color: "#64748b",
+                    fontSize: 12,
+                  }}
+                >
+                  <span>Ngày thanh toán</span>
+                  <span>Tỷ lệ</span>
+                  <span>Thành tiền dự kiến</span>
+                  <span />
+                </div>
+                {paymentPlans.map((plan, index) => (
+                  <div
+                    key={plan.key}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "140px 110px minmax(140px, 1fr) 32px",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: index === paymentPlans.length - 1 ? 0 : 6,
+                    }}
+                  >
+                    <DatePicker
+                      size="small"
+                      value={plan.dueDate}
+                      minDate={orderDate?.startOf("day")}
+                      format="DD/MM/YYYY"
+                      style={{ width: "100%" }}
+                      onChange={(dueDate) =>
+                        setPaymentPlans((plans) =>
+                          plans.map((item) =>
+                            item.key === plan.key
+                              ? { ...item, dueDate: dueDate ?? item.dueDate }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                    <InputNumber
+                      size="small"
+                      min={0.001}
+                      max={100}
+                      precision={3}
+                      controls={false}
+                      addonAfter="%"
+                      value={plan.percent}
+                      style={{ width: "100%" }}
+                      onChange={(percent) =>
+                        setPaymentPlans((plans) =>
+                          plans.map((item) =>
+                            item.key === plan.key
+                              ? { ...item, percent: Number(percent ?? 0) }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                    <Typography.Text strong>
+                      {formatMoney((grandTotal * Number(plan.percent || 0)) / 100)} đ
+                    </Typography.Text>
+                    <Button
+                      danger
+                      type="text"
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      title="Xóa đợt"
+                      onClick={() =>
+                        setPaymentPlans((plans) =>
+                          plans.filter((item) => item.key !== plan.key),
+                        )
+                      }
+                    />
+                  </div>
+                ))}
+                <div style={{ textAlign: "right", marginTop: 7 }}>
+                  <Typography.Text type={paymentPlanError ? "danger" : "success"}>
+                    {paymentPlanError ?? "Lịch thanh toán hợp lệ"}
+                  </Typography.Text>
+                  <Typography.Text strong style={{ marginLeft: 12 }}>
+                    Tổng: {paymentPlans.reduce((sum, plan) => sum + Number(plan.percent || 0), 0)}%
+                  </Typography.Text>
+                </div>
+              </div>
+            )}
             <Alert
               type="info"
               showIcon

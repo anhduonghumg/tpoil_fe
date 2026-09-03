@@ -16,7 +16,8 @@ export type CommercialLotPosition = {
   id: string;
   purchaseOrderLineId: string;
   supplierCustomerId: string;
-  plannedWarehouseId: string;
+  plannedWarehouseId?: string | null;
+  plannedWarehouseAreaId?: string | null;
   productId: string;
   invoicedQty: string;
   withdrawnQty: string;
@@ -45,6 +46,11 @@ export type CommercialLotOrderLine = {
     code: string;
     name: string;
   } | null;
+  plannedReceivingArea?: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
   commercialLotPosition?: CommercialLotPosition | null;
 };
 
@@ -67,6 +73,11 @@ export type CommercialLotWithdrawal = {
     v15Qty?: string | null;
     temperatureC?: string | null;
     density?: string | null;
+    destinationWarehouse?: {
+      id: string;
+      code: string;
+      name: string;
+    } | null;
     commercialLotPosition: CommercialLotPosition & {
       product: {
         id: string;
@@ -231,11 +242,13 @@ export type CommercialLotWithdrawalListQuery = {
 
 export type CreateLotWithdrawalPayload = {
   withdrawalNo: string;
-  destinationWarehouseId: string;
+  /** Kho đích cấp phiếu, chỉ dùng để tương thích dữ liệu cũ. */
+  destinationWarehouseId?: string;
   withdrawalDate: string;
   note?: string;
   lines: Array<{
     commercialLotPositionId: string;
+    destinationWarehouseId: string;
     actualQty: number;
     v15Qty?: number;
     temperatureC?: number;

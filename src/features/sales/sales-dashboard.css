@@ -1,0 +1,688 @@
+/* Tổng quan bán hàng.
+   Các khối là widget rời nổi trên một nền phẳng: nền xám nhạt làm mặt bàn, thẻ
+   trắng bo góc có đổ bóng nhẹ nằm bên trên, hover thì nhấc lên thêm một chút.
+
+   Bảng màu dữ liệu: một hue xanh cho mọi biểu đồ đơn chuỗi (độ dài cột đã mang
+   thông tin, không tô thang màu theo giá trị), và bộ màu trạng thái riêng cho
+   công nợ. Màu trạng thái luôn đi kèm nhãn chữ, không bao giờ đứng một mình. */
+.sales-dashboard {
+  --surface: #ffffff;
+  --plane: #eef1f6;
+  --border-soft: #edf0f5;
+  --ink: #172033;
+  --ink-2: #697386;
+  --ink-3: #8a94a5;
+  --grid: #eef1f5;
+
+  --series-1: #2a78d6;
+  --series-1-wash: #eef4fc;
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-critical: #d03b3b;
+
+  /* Bóng hai tầng: một viền mảnh sát mép + một quầng khuếch tán tạo độ cao. */
+  --lift-1:
+    0 1px 2px rgb(16 24 40 / 5%), 0 6px 16px -6px rgb(16 24 40 / 12%);
+  --lift-2:
+    0 2px 4px rgb(16 24 40 / 6%), 0 16px 32px -12px rgb(16 24 40 / 20%);
+
+  width: 100%;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--plane);
+  color: var(--ink);
+}
+
+.sales-dashboard.is-loading {
+  opacity: 0.72;
+}
+
+/* Nhịp dọc đặt ở một chỗ: mọi khối con cách nhau đúng 12px, bất kể sau này
+   thêm bớt hay đảo thứ tự thẻ nào. */
+.sales-dashboard > * + * {
+  margin-top: 12px;
+}
+
+/* ---------- Header ---------- */
+
+.sd-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 4px 4px;
+}
+
+.sd-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 5px;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.sd-eyebrow span + span {
+  padding-left: 12px;
+  border-left: 1px solid #d6dce4;
+  color: var(--ink-3);
+  font-weight: 500;
+  text-transform: none;
+}
+
+.sd-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sd-title-row h2 {
+  margin: 0 !important;
+  color: var(--ink) !important;
+  font-size: 24px !important;
+  line-height: 32px !important;
+}
+
+.sd-title-row .ant-tag {
+  margin: 0;
+  border-color: #b9d9ca;
+  background: #eef8f3;
+  color: #176b46;
+}
+
+.sd-header > div:first-child > .ant-typography {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.sd-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sd-actions .ant-select {
+  min-width: 150px;
+}
+
+/* Nút trên nền phẳng cũng nổi nhẹ để cùng một lớp với widget. */
+.sd-actions .ant-btn,
+.sd-actions .ant-select-selector {
+  border-color: transparent !important;
+  box-shadow: var(--lift-1) !important;
+}
+
+/* ---------- Widget nền chung ---------- */
+
+.sd-kpi,
+.sd-card {
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--lift-1);
+  transition:
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.sd-kpi:hover,
+.sd-card:hover {
+  box-shadow: var(--lift-2);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sd-kpi,
+  .sd-card {
+    transition: none;
+  }
+
+  .sd-kpi:hover,
+  .sd-card:hover {
+    transform: none;
+  }
+}
+
+/* ---------- Ô chỉ số ---------- */
+
+.sd-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sd-kpi {
+  display: flex;
+  flex-direction: column;
+  min-height: 128px;
+  padding: 15px 16px;
+}
+
+.sd-kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sd-kpi-label .anticon {
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* Số lớn dùng chữ số tỷ lệ tự nhiên; tabular-nums chỉ dành cho cột số xếp dọc. */
+.sd-kpi-value {
+  margin: 7px 0 2px;
+  color: var(--ink);
+  font-size: 27px;
+  font-weight: 650;
+  line-height: 30px;
+}
+
+.sd-kpi-unit {
+  margin-left: 4px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sd-kpi-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+.sd-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 650;
+}
+
+.sd-delta.is-up {
+  color: #006300;
+}
+
+.sd-delta.is-down {
+  color: var(--status-critical);
+}
+
+.sd-delta.is-flat {
+  color: var(--ink-3);
+}
+
+.sd-kpi-spark {
+  margin: 6px 0 8px;
+}
+
+/* ---------- Khung thẻ ---------- */
+
+.sd-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sd-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.sd-card-head h4 {
+  margin: 0 !important;
+  color: var(--ink) !important;
+  font-size: 14px !important;
+  line-height: 20px !important;
+}
+
+.sd-card-head .sd-card-sub {
+  display: block;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+.sd-card-body {
+  flex: 1;
+  padding: 14px 16px 16px;
+}
+
+/* ---------- Việc cần xử lý ---------- */
+
+.sd-action-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
+  gap: 8px;
+}
+
+/* Ô việc là widget con: chìm vào nền thẻ, hover mới nổi lên. */
+.sd-action-list button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #f6f8fb;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    box-shadow 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+.sd-action-list button:hover {
+  background: var(--surface);
+  box-shadow: var(--lift-1);
+  transform: translateY(-1px);
+}
+
+.sd-action-list .sd-action-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 8%);
+  font-size: 14px;
+}
+
+.sd-action-list .tone-critical .sd-action-icon {
+  color: var(--status-critical);
+}
+
+.sd-action-list .tone-warning .sd-action-icon {
+  color: #b57b04;
+}
+
+.sd-action-list .tone-normal .sd-action-icon {
+  color: var(--series-1);
+}
+
+.sd-action-list button span:nth-child(2) {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sd-action-list button strong {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sd-action-list button .anticon-right {
+  color: var(--ink-3);
+  font-size: 10px;
+}
+
+.sd-empty-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 4px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.sd-empty-note .anticon {
+  color: var(--status-good);
+  font-size: 16px;
+}
+
+/* ---------- Lưới nội dung ---------- */
+
+.sd-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.sd-grid.cols-2 {
+  grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr);
+}
+
+.sd-grid.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* ---------- Biểu đồ đường doanh thu ---------- */
+
+.sd-chart {
+  position: relative;
+}
+
+.sd-chart svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.sd-chart-grid {
+  stroke: var(--grid);
+  stroke-width: 1;
+}
+
+.sd-chart-baseline {
+  stroke: #c3c9d4;
+  stroke-width: 1;
+}
+
+.sd-chart-area {
+  fill: var(--series-1);
+  opacity: 0.1;
+}
+
+.sd-chart-line {
+  fill: none;
+  stroke: var(--series-1);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sd-chart-dot {
+  fill: var(--series-1);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.sd-chart-cursor {
+  stroke: #b9c2d0;
+  stroke-width: 1;
+}
+
+.sd-chart-tick {
+  fill: var(--ink-3);
+  font-size: 10px;
+}
+
+.sd-chart-tick.is-end {
+  fill: var(--ink-2);
+  font-weight: 600;
+}
+
+.sd-chart-hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.sd-tooltip {
+  position: absolute;
+  z-index: 3;
+  min-width: 132px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--lift-2);
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+
+.sd-tooltip small {
+  display: block;
+  color: var(--ink-3);
+  font-size: 10px;
+}
+
+.sd-tooltip strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Danh sách thanh ngang ---------- */
+
+.sd-bar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.sd-bar-row {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sd-bar-row:disabled {
+  cursor: default;
+}
+
+.sd-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+
+.sd-bar-name {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sd-bar-value {
+  flex: 0 0 auto;
+  color: var(--ink);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.sd-bar-value small {
+  margin-left: 5px;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+/* Cột mảnh, bo 4px ở đầu số liệu, vuông ở gốc trục. */
+.sd-bar-track {
+  height: 8px;
+  border-radius: 0 4px 4px 0;
+  background: var(--grid);
+}
+
+.sd-bar-fill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: 0 4px 4px 0;
+  background: var(--series-1);
+}
+
+.sd-bar-row:hover .sd-bar-name {
+  color: var(--series-1);
+}
+
+/* ---------- Công nợ ---------- */
+
+.sd-debt-figure {
+  padding-bottom: 4px;
+}
+
+.sd-debt-total {
+  color: var(--ink);
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 30px;
+}
+
+.sd-debt-caption {
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+/* Thanh phần trăm: khe 2px màu nền tách các đoạn, không viền quanh mark. */
+.sd-debt-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  margin: 12px 0 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--grid);
+}
+
+.sd-debt-bar i {
+  display: block;
+  height: 100%;
+}
+
+.sd-debt-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.sd-debt-legend > div {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.sd-debt-legend .sd-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.sd-debt-legend span:nth-child(2) {
+  color: var(--ink-2);
+}
+
+.sd-debt-legend strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Tồn kho ----------
+   Hai sắc độ của cùng một hue xanh: đậm = bán được, nhạt = đang giữ. Cùng một
+   đại lượng chia phần nên không dùng hue thứ hai; bậc nhạt vẫn đủ tương phản
+   với nền trắng để không biến mất. */
+
+.sd-stock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin-top: 4px;
+}
+
+.sd-stock-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  border-radius: 0 4px 4px 0;
+  background: var(--grid);
+}
+
+.sd-stock-bar i {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+}
+
+.sd-stock-bar i:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.sd-stock-bar .is-sellable,
+.sd-debt-legend .sd-swatch.is-sellable {
+  background: var(--series-1);
+}
+
+.sd-stock-bar .is-reserved,
+.sd-debt-legend .sd-swatch.is-reserved {
+  background: #86b6ef;
+}
+
+.sd-stock-legend {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* ---------- Bảng phụ ---------- */
+
+.sd-table-toggle {
+  padding: 0;
+  font-size: 11px;
+}
+
+.sd-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.sd-mini-table th,
+.sd-mini-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+}
+
+.sd-mini-table th {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.sd-mini-table td:last-child,
+.sd-mini-table th:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Đáp ứng màn hẹp ---------- */
+
+@media (max-width: 1280px) {
+  .sd-grid.cols-2,
+  .sd-grid.cols-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sd-kpi-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .sales-dashboard {
+    padding: 12px;
+  }
+
+  .sd-header {
+    flex-direction: column;
+  }
+
+  .sd-kpi-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -5,9 +5,11 @@ import {
   Col,
   DatePicker,
   Form,
+  InputNumber,
   Input,
   Row,
   Space,
+  Table,
   Typography,
   Upload,
   Tag,
@@ -38,6 +40,11 @@ type InvoiceLineDraft = {
   key: string;
   supplierLocationId: string;
   productId: string;
+  purchaseOrderLineId: string;
+  orderedQty: number;
+  invoicedQty: number;
+  remainingQty: number;
+  selected: boolean;
   qty: number;
   unitPrice?: number;
   goodsReceiptId?: string;
@@ -78,16 +85,36 @@ export default function PurchaseInvoiceUpsertPage() {
   useEffect(() => {
     if (!po?.lines?.length) return;
 
+    const invoicedByLine = new Map<string, number>();
+    (po.supplierInvoices ?? []).forEach((invoice: any) => {
+      (invoice.lines ?? []).forEach((line: any) => {
+        if (!line.purchaseOrderLineId) return;
+        const previous = invoicedByLine.get(line.purchaseOrderLineId) ?? 0;
+        invoicedByLine.set(
+          line.purchaseOrderLineId,
+          previous + toNumber(line.actualQty),
+        );
+      });
+    });
+
     const defaults: InvoiceLineDraft[] = po.lines
       .map((l: any, idx: number) => {
-        const qty = toNumber(l.withdrawnQty || l.orderedQty);
-        if (qty <= 0) return null;
+        const orderedQty = toNumber(l.orderedQty);
+        const invoicedQty =
+          invoicedByLine.get(l.id) ??
+          toNumber(l.commercialLotPosition?.invoicedQty);
+        const remainingQty = Math.max(orderedQty - invoicedQty, 0);
 
         return {
           key: l.id ?? String(idx),
           supplierLocationId: l.supplierLocationId,
           productId: l.productId,
-          qty,
+          purchaseOrderLineId: l.id,
+          orderedQty,
+          invoicedQty,
+          remainingQty,
+          selected: remainingQty > 0,
+          qty: remainingQty,
           unitPrice: toNumber(l.unitPrice || 0),
           goodsReceiptId: undefined,
           productLabel: l?.product?.name
@@ -102,6 +129,107 @@ export default function PurchaseInvoiceUpsertPage() {
 
     setInvoiceLines(defaults);
   }, [po]);
+
+  const selectedInvoiceLines = invoiceLines.filter(
+    (line) => line.selected && line.qty > 0,
+  );
+
+  const selectedQty = selectedInvoiceLines.reduce(
+    (sum, line) => sum + line.qty,
+    0,
+  );
+
+  const updateInvoiceLine = (
+    key: string,
+    values: Partial<InvoiceLineDraft>,
+  ) => {
+    setInvoiceLines((current) =>
+      current.map((line) =>
+        line.key === key ? { ...line, ...values } : line,
+      ),
+    );
+  };
+
+  const selectAllRemaining = () => {
+    setInvoiceLines((current) =>
+      current.map((line) => ({
+        ...line,
+        selected: line.remainingQty > 0,
+        qty: line.remainingQty,
+      })),
+    );
+  };
+
+  const invoiceColumns: ColumnsType<InvoiceLineDraft> = [
+    {
+      title: "Mặt hàng",
+      dataIndex: "productLabel",
+      render: (value: string) => <Typography.Text strong>{value}</Typography.Text>,
+    },
+    {
+      title: "Kho",
+      dataIndex: "locationLabel",
+    },
+    {
+      title: "Đặt mua",
+      dataIndex: "orderedQty",
+      align: "right",
+      render: (value: number) => money(value),
+    },
+    {
+      title: "Đã HĐ",
+      dataIndex: "invoicedQty",
+      align: "right",
+      render: (value: number) => money(value),
+    },
+    {
+      title: "Còn lại",
+      dataIndex: "remainingQty",
+      align: "right",
+      render: (value: number) => (
+        <Typography.Text type={value > 0 ? undefined : "secondary"}>
+          {money(value)}
+        </Typography.Text>
+      ),
+    },
+    {
+      title: "SL hóa đơn",
+      dataIndex: "qty",
+      width: 150,
+      render: (value: number, line) => (
+        <InputNumber
+          min={0}
+          max={line.remainingQty}
+          precision={3}
+          value={value}
+          disabled={line.remainingQty <= 0}
+          style={{ width: "100%" }}
+          onChange={(next) => {
+            const qty = Math.min(
+              Math.max(Number(next ?? 0), 0),
+              line.remainingQty,
+            );
+            updateInvoiceLine(line.key, {
+              qty,
+              selected: qty > 0,
+            });
+          }}
+        />
+      ),
+    },
+    {
+      title: "Trạng thái",
+      width: 110,
+      render: (_value, line) =>
+        line.remainingQty > 0 ? (
+          <Tag color={line.selected ? "blue" : "default"}>
+            {line.selected ? "Chọn" : "Bỏ chọn"}
+          </Tag>
+        ) : (
+          <Tag>Đủ HĐ</Tag>
+        ),
+    },
+  ];
 
   const applyImportResult = (res: any) => {
     form.setFieldsValue({
@@ -185,8 +313,19 @@ export default function PurchaseInvoiceUpsertPage() {
       return;
     }
 
-    if (!invoiceLines.length) {
-      notify.error("Hóa đơn phải có ít nhất 1 dòng hàng");
+    if (!selectedInvoiceLines.length) {
+      notify.error("Chọn ít nhất một dòng và nhập số lượng hóa đơn");
+      return;
+    }
+
+    const invalidLine = selectedInvoiceLines.find(
+      (line) =>
+        !line.supplierLocationId ||
+        line.qty <= 0 ||
+        line.qty > line.remainingQty,
+    );
+    if (invalidLine) {
+      notify.error("Số lượng hóa đơn phải lớn hơn 0 và không vượt số còn lại");
       return;
     }
 
@@ -208,9 +347,10 @@ export default function PurchaseInvoiceUpsertPage() {
         sourceFileName: pdfMeta.fileName,
         sourceFileChecksum: pdfMeta.checksum,
 
-        lines: invoiceLines.map((l) => ({
+        lines: selectedInvoiceLines.map((l) => ({
           supplierLocationId: l.supplierLocationId,
           productId: l.productId,
+          purchaseOrderLineId: l.purchaseOrderLineId,
           qty: Number(l.qty || 0),
           unitPrice: Number(l.unitPrice || 0),
           goodsReceiptId: l.goodsReceiptId,
@@ -251,19 +391,19 @@ export default function PurchaseInvoiceUpsertPage() {
   };
 
   return (
-    <div style={{ padding: 16 }}>
+    <div style={{ padding: 12, maxWidth: 1600, margin: "0 auto" }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          marginBottom: 16,
+          marginBottom: 10,
           gap: 12,
         }}
       >
         <div>
           <Space size={8} wrap>
-            <Typography.Title level={4} style={{ margin: 0 }}>
+            <Typography.Title level={5} style={{ margin: 0, fontSize: 18 }}>
               Hóa đơn NCC
             </Typography.Title>
             {po?.orderNo ? (
@@ -275,6 +415,7 @@ export default function PurchaseInvoiceUpsertPage() {
         </div>
 
         <Button
+          size="small"
           icon={<LeftOutlined />}
           onClick={() =>
             poId
@@ -290,8 +431,8 @@ export default function PurchaseInvoiceUpsertPage() {
         </Button>
       </div>
 
-      <Row gutter={16} align="top">
-        <Col xs={24} xl={14}>
+      <Row gutter={12} align="top">
+        <Col xs={24} xl={24}>
           <Card
             title={
               <div
@@ -308,7 +449,11 @@ export default function PurchaseInvoiceUpsertPage() {
                     showUploadList={false}
                     disabled={!po?.supplierCustomerId || loadingPdf}
                   >
-                    <Button icon={<UploadOutlined />} loading={loadingPdf}>
+                    <Button
+                      size="small"
+                      icon={<UploadOutlined />}
+                      loading={loadingPdf}
+                    >
                       Import PDF
                     </Button>
                   </Upload>
@@ -319,6 +464,7 @@ export default function PurchaseInvoiceUpsertPage() {
 
                   {pdfMeta.fileUrl ? (
                     <Button
+                      size="small"
                       onClick={() => window.open(pdfMeta.fileUrl, "_blank")}
                     >
                       Mở file PDF
@@ -329,49 +475,115 @@ export default function PurchaseInvoiceUpsertPage() {
             }
             size="small"
           >
-            <Form layout="vertical" form={form}>
-              <Form.Item
-                name="invoiceNo"
-                label="Số hóa đơn"
-                rules={[{ required: true, message: "Nhập số hóa đơn" }]}
+            <Form layout="vertical" form={form} size="small">
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: "0 12px",
+                  alignItems: "start",
+                }}
               >
-                <Input />
-              </Form.Item>
+                <Form.Item
+                  name="invoiceNo"
+                  label="Số hóa đơn"
+                  rules={[{ required: true, message: "Nhập số hóa đơn" }]}
+                  style={{ marginBottom: 8 }}
+                >
+                  <Input placeholder="Nhập số hóa đơn" />
+                </Form.Item>
 
-              <Form.Item name="invoiceSymbol" label="Ký hiệu">
-                <Input />
-              </Form.Item>
+                <Form.Item
+                  name="invoiceSymbol"
+                  label="Ký hiệu"
+                  style={{ marginBottom: 8 }}
+                >
+                  <Input placeholder="Ký hiệu" />
+                </Form.Item>
 
-              <Form.Item
-                name="invoiceDate"
-                label="Ngày hóa đơn"
-                rules={[{ required: true, message: "Chọn ngày hóa đơn" }]}
-              >
-                <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
-              </Form.Item>
+                <Form.Item
+                  name="invoiceDate"
+                  label="Ngày hóa đơn"
+                  rules={[{ required: true, message: "Chọn ngày hóa đơn" }]}
+                  style={{ marginBottom: 8 }}
+                >
+                  <DatePicker
+                    format="DD/MM/YYYY"
+                    style={{ width: "100%" }}
+                    placeholder="Chọn ngày"
+                  />
+                </Form.Item>
 
-              <Form.Item name="note" label="Ghi chú">
-                <Input.TextArea rows={4} />
-              </Form.Item>
+                <Form.Item
+                  name="note"
+                  label="Ghi chú"
+                  style={{ marginBottom: 8 }}
+                >
+                  <Input placeholder="Ghi chú (không bắt buộc)" />
+                </Form.Item>
+              </div>
             </Form>
-
-            {/* <Typography.Title level={5}>Dòng hàng hóa đơn</Typography.Title>
-            <Table
-              size="small"
-              rowKey="key"
-              dataSource={invoiceLines}
-              columns={columns}
-              pagination={false}
-            /> */}
 
             <Space
               style={{
-                marginTop: 16,
+                width: "100%",
+                marginTop: 8,
+                marginBottom: 8,
+                justifyContent: "space-between",
+              }}
+              align="center"
+            >
+              <Typography.Text strong>
+                Dòng hàng hóa đơn ({selectedInvoiceLines.length}/
+                {invoiceLines.length})
+              </Typography.Text>
+              <Space size={8}>
+                <Typography.Text type="secondary">
+                  Đã chọn: {money(selectedQty)}
+                </Typography.Text>
+                <Button size="small" onClick={selectAllRemaining}>
+                  Chọn toàn bộ còn lại
+                </Button>
+              </Space>
+            </Space>
+            <Table<InvoiceLineDraft>
+              size="small"
+              rowKey="key"
+              dataSource={invoiceLines}
+              columns={invoiceColumns}
+              pagination={false}
+              scroll={{ x: 930 }}
+              rowClassName={(line) =>
+                line.remainingQty <= 0 ? "invoice-line-complete" : ""
+              }
+              rowSelection={{
+                selectedRowKeys: invoiceLines
+                  .filter((line) => line.selected)
+                  .map((line) => line.key),
+                onChange: (keys) => {
+                  const selected = new Set(keys.map(String));
+                  setInvoiceLines((current) =>
+                    current.map((line) => ({
+                      ...line,
+                      selected: selected.has(line.key),
+                    })),
+                  );
+                },
+                getCheckboxProps: (line) => ({
+                  disabled: line.remainingQty <= 0,
+                }),
+              }}
+            />
+
+            <Space
+              style={{
+                marginTop: 10,
                 display: "flex",
                 justifyContent: "flex-end",
               }}
             >
               <Button
+                size="small"
                 type="primary"
                 onClick={onSave}
                 loading={createMut.isPending}
@@ -384,7 +596,7 @@ export default function PurchaseInvoiceUpsertPage() {
           </Card>
         </Col>
 
-        <Col xs={24} xl={10}>
+        <Col xs={24} xl={10} style={{ display: "none" }}>
           <Card title="Tệp đính kèm" size="small">
             {loadingPdf ? (
               <Typography.Text type="secondary">

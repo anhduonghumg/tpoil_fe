@@ -1,0 +1,164 @@
+/* ===================================================================
+   .data-grid — bảng danh sách dùng chung cho các màn danh mục / hàng đợi.
+
+   Cùng quy ước với bảng ở màn Lệnh xuất kho (.sales-grid trong sales.css):
+   tiêu đề nền xanh nhạt viết hoa, dòng cao đều nhau, mỗi ô đúng một dòng và
+   cắt bằng dấu ba chấm, kẻ sọc nhẹ để mắt dò ngang không lạc dòng.
+   Mục tiêu: vừa một màn 15" không phải cuộn ngang.
+   =================================================================== */
+
+.data-grid .ant-table {
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.data-grid .ant-table-container {
+  border-start-start-radius: 8px;
+  border-start-end-radius: 8px;
+}
+
+/* Tiêu đề: nền xanh nhạt + chữ đậm để tách hẳn khỏi vùng dữ liệu. */
+.data-grid .ant-table-thead > tr > th {
+  background: #eef4ff !important;
+  color: #21418f;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 7px 8px !important;
+  border-bottom: 1px solid #c9d9f7 !important;
+}
+
+/* Antd vẽ một vạch ngăn giữa các ô tiêu đề; bỏ đi cho nền liền một mảng. */
+.data-grid .ant-table-thead > tr > th::before {
+  display: none !important;
+}
+
+/* Mọi ô đều một dòng: chiều cao hàng bằng nhau thì mắt dò danh sách mới nhanh, và
+   không ô nào tràn sang cột bên. Cột nào cần nhiều dòng thì tự khai báo riêng. */
+.data-grid .ant-table-tbody > tr > td {
+  padding: 5px 8px !important;
+  border-bottom: 1px solid #f2f4f7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Kẻ sọc nhẹ: mắt dò ngang cả chục cột mà không lạc dòng. */
+.data-grid .ant-table-tbody > tr:nth-child(even) > td {
+  background: #fbfcfe;
+}
+
+.data-grid .ant-table-tbody > tr:hover > td,
+.data-grid .ant-table-tbody > tr.ant-table-row-selected > td {
+  background: #e8f2ff !important;
+}
+
+.data-grid .ant-table-tbody > tr > td.ant-table-cell-row-hover {
+  background: #e8f2ff !important;
+}
+
+/* Cột ghim trái/phải có nền riêng để che phần cuộn bên dưới — phải nhuộm theo dòng,
+   nếu không kẻ sọc sẽ đứt ở hai đầu bảng. */
+.data-grid .ant-table-tbody > tr > td.ant-table-cell-fix-left,
+.data-grid .ant-table-tbody > tr > td.ant-table-cell-fix-right {
+  background: #ffffff;
+}
+
+.data-grid .ant-table-tbody > tr:nth-child(even) > td.ant-table-cell-fix-left,
+.data-grid .ant-table-tbody > tr:nth-child(even) > td.ant-table-cell-fix-right {
+  background: #fbfcfe;
+}
+
+.data-grid .ant-pagination {
+  margin-block: 8px !important;
+}
+
+/* Nút tác vụ chỉ hiện rõ khi rê vào dòng, để bảng đỡ rối. */
+.data-grid .ant-table-tbody > tr > td .ant-dropdown-trigger {
+  opacity: 0.45;
+  transition: opacity 0.15s;
+}
+
+.data-grid .ant-table-tbody > tr:hover > td .ant-dropdown-trigger,
+.data-grid .ant-table-tbody > tr > td .ant-dropdown-open {
+  opacity: 1;
+}
+
+/* ---------- Bộ helper cho nội dung ô ---------- */
+
+/* Cắt gọn trong bề ngang cột; nội dung đầy đủ luôn có ở tooltip. */
+.data-grid-clip {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-grid-strong {
+  font-weight: 600;
+}
+
+/* Số căn phải bằng chữ số đều bề ngang thì cột số mới thẳng hàng. */
+.data-grid-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.data-grid-sub {
+  display: block;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 11px;
+}
+
+.data-grid-empty {
+  color: rgba(0, 0, 0, 0.25);
+}
+
+/* Ô hai dòng (tên chính + dòng phụ). Chiều cao chốt cứng để hàng nào cũng cao bằng
+   nhau, kể cả dòng không có nội dung phụ — nếu để tự co thì bảng lô nhô như răng cưa. */
+.data-grid-stack {
+  height: 30px;
+  line-height: 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.data-grid-stack .data-grid-sub {
+  line-height: 15px;
+}
+
+/* Nhóm thẻ trong một ô: luôn một dòng, phần dư gói vào thẻ "+N". */
+.data-grid-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.data-grid-tags .ant-tag {
+  margin: 0;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.data-grid-tags .ant-tag.data-grid-tag-more {
+  flex: 0 0 auto;
+  color: #21418f;
+  background: #eef4ff;
+  border-color: #c9d9f7;
+  cursor: default;
+}
+
+/* Chú thích phụ nằm cùng dòng với nội dung chính (vd. mã khu vực sau tên khu vực). */
+.data-grid-sub-inline {
+  color: rgba(0, 0, 0, 0.45);
+}
+

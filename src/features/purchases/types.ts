@@ -103,7 +103,8 @@ export type PaymentPlanLine = {
 
 export type UpsertPurchaseOrderLinePayload = {
   productId: UUID;
-  supplierLocationId: UUID;
+  supplierLocationId?: UUID;
+  plannedReceivingAreaId?: UUID;
   orderedQty: number;
   unitPrice?: number | null;
   discountAmount?: number | null;
@@ -233,6 +234,11 @@ export type PurchaseOrderDetail = {
     sourceFileName?: string | null;
     sourceFileUrl?: string | null;
     sourceFileChecksum?: string | null;
+    lines?: Array<{
+      id: string;
+      purchaseOrderLineId?: UUID | null;
+      actualQty?: string | null;
+    }>;
   }>;
 };
 
@@ -254,6 +260,8 @@ export type SupplierLocationOption = {
   code: string;
   name: string;
   label: string;
+  areaId?: UUID | null;
+  area?: { id: UUID; code: string; name: string } | null;
 };
 
 export type CreateGoodsReceiptPayload = {
@@ -316,6 +324,7 @@ export type SupplierInvoiceDetail = {
     id: UUID;
     supplierLocationId: UUID;
     productId: UUID;
+    purchaseOrderLineId?: UUID | null;
     qty: number | string;
     tempC?: number | string | null;
     density?: number | string | null;
@@ -390,6 +399,8 @@ export type CreateSupplierInvoicePayload = {
   lines: Array<{
     supplierLocationId: string;
     productId: string;
+    /** Exact source row when this invoice is created from a purchase order. */
+    purchaseOrderLineId?: string;
     qty: number;
     tempC?: number;
     density?: number;

@@ -12,6 +12,7 @@ import type {
   CreditCustomerRow,
   CreateSalesOrderFromPurchasePayload,
   CreateSalesOrderPayload,
+  CreateSalesOrderAdjustmentPayload,
   CreateWithdrawalPayload,
   CustomerBalance,
   CustomerStockResult,
@@ -23,9 +24,11 @@ import type {
   DiscountRecipientCandidate,
   ImportAliasResult,
   InvoiceSource,
+  IssueSalesInvoicePayload,
   PartyDebtRow,
   PurchaseSourceReport,
   QuickEntryConfirmResult,
+  QuickConfirmDeliveriesResult,
   QuickEntryPreview,
   ReceivableAgingRow,
   ReceivableListResult,
@@ -41,12 +44,17 @@ import type {
   SalesApprovalType,
   SalesEntityAlias,
   SalesOrder,
+  SalesOrderAdjustment,
   SalesOrderCheckResult,
   SalesOrderProfitability,
+  SalesDashboard,
   SalesDelivery,
   SalesDeliveryStatus,
   SalesInvoice,
   SalesInvoicePreview,
+  InvoiceEnvironment,
+  MisaSettings,
+  UpdateMisaSettingsPayload,
   SalesInvoiceStatus,
   UnissuedInvoiceSource,
   SalesOrderKind,
@@ -101,6 +109,30 @@ export const SalesOrdersApi = {
     apiCall("salesOrders.unlinkPurchaseOrder", { params: { purchaseOrderId } }).then(
       unwrap<{ success: boolean }>,
     ),
+};
+
+export const SalesOrderAdjustmentsApi = {
+  list: (salesOrderId: string) =>
+    apiCall<ApiResponse<SalesOrderAdjustment[]>>("salesOrderAdjustments.list", {
+      query: { salesOrderId },
+    }).then(unwrap<SalesOrderAdjustment[]>),
+
+  create: (payload: CreateSalesOrderAdjustmentPayload) =>
+    apiCall<ApiResponse<SalesOrderAdjustment>>("salesOrderAdjustments.create", {
+      data: payload,
+    }).then(unwrap<SalesOrderAdjustment>),
+
+  approve: (id: string, note?: string) =>
+    apiCall<ApiResponse<SalesOrderAdjustment>>("salesOrderAdjustments.approve", {
+      params: { id },
+      data: { note },
+    }).then(unwrap<SalesOrderAdjustment>),
+
+  reject: (id: string, note: string) =>
+    apiCall<ApiResponse<SalesOrderAdjustment>>("salesOrderAdjustments.reject", {
+      params: { id },
+      data: { note },
+    }).then(unwrap<SalesOrderAdjustment>),
 };
 
 // ===== Luồng bán hàng nội bộ (SINGLE/LOT) =====
@@ -254,11 +286,27 @@ export const SalesApprovalsApi = {
     }).then(unwrap<AdjustDiscountResult>),
 
   /** Chọn Mã NCC cụ thể; null = để hệ thống tự phân bổ FIFO. */
-  adjustLineSupplier: (lineId: string, supplierPartyId: string | null) =>
-    apiCall<ApiResponse<{ id: string; preferredSupplierPartyId: string | null }>>(
+  adjustLineSupplier: (
+    lineId: string,
+    supplierPartyId: string | null,
+    supplySource?: "TP" | "NCC",
+  ) =>
+    apiCall<
+      ApiResponse<{
+        id: string;
+        supplySource: "TP" | "NCC";
+        preferredSupplierPartyId: string | null;
+      }>
+    >(
       "salesApprovals.adjustLineSupplier",
-      { params: { lineId }, data: { supplierPartyId } },
-    ).then(unwrap<{ id: string; preferredSupplierPartyId: string | null }>),
+      { params: { lineId }, data: { supplierPartyId, supplySource } },
+    ).then(
+      unwrap<{
+        id: string;
+        supplySource: "TP" | "NCC";
+        preferredSupplierPartyId: string | null;
+      }>,
+    ),
 };
 
 export const SalesWithdrawalsApi = {
@@ -342,6 +390,12 @@ export const SalesDeliveriesApi = {
       params: { id },
       data: payload,
     }).then(unwrap<SalesDelivery>),
+
+  /** Ghi sổ ngay theo số kế hoạch và phương án lô đề xuất, không qua form. */
+  quickConfirm: (ids: string[]) =>
+    apiCall<ApiResponse<QuickConfirmDeliveriesResult>>("salesDeliveries.quickConfirm", {
+      data: { ids },
+    }).then(unwrap<QuickConfirmDeliveriesResult>),
 
   /** Kho không sửa dữ liệu bán — sai thì trả về cho Sale kèm lý do. */
   returnToSales: (id: string, reason: string) =>
@@ -427,16 +481,35 @@ export const SalesInvoicesApi = {
       unwrap<SalesInvoice>,
     ),
 
-  issue: (id: string) =>
-    apiCall<ApiResponse<SalesInvoice>>("salesInvoices.issue", { params: { id }, data: {} }).then(
+  issue: (id: string, payload: IssueSalesInvoicePayload = {}) =>
+    apiCall<ApiResponse<SalesInvoice>>("salesInvoices.issue", { params: { id }, data: payload }).then(
       unwrap<SalesInvoice>,
     ),
 
   /** Cùng một lệnh: hỏi MISA trước nên không bao giờ phát hành hai lần. */
-  retry: (id: string) =>
-    apiCall<ApiResponse<SalesInvoice>>("salesInvoices.retry", { params: { id }, data: {} }).then(
+  retry: (id: string, payload: IssueSalesInvoicePayload = {}) =>
+    apiCall<ApiResponse<SalesInvoice>>("salesInvoices.retry", { params: { id }, data: payload }).then(
       unwrap<SalesInvoice>,
     ),
+
+  updateSettings: (payload: UpdateMisaSettingsPayload) =>
+    apiCall<ApiResponse<MisaSettings>>("salesInvoices.updateSettings", { data: payload }).then(
+      unwrap<MisaSettings>,
+    ),
+
+  activateSettings: (environment: InvoiceEnvironment) =>
+    apiCall<ApiResponse<MisaSettings>>("salesInvoices.activateSettings", {
+      data: { environment },
+    }).then(unwrap<MisaSettings>),
+
+  /** Link xem bản PDF trên meInvoice. */
+  document: (id: string) =>
+    apiCall<ApiResponse<{ url: string; invoiceNo: string | null }>>("salesInvoices.document", {
+      params: { id },
+    }).then(unwrap<{ url: string; invoiceNo: string | null }>),
+
+  settings: () =>
+    apiCall<ApiResponse<MisaSettings>>("salesInvoices.settings").then(unwrap<MisaSettings>),
 
   cancel: (id: string, reason: string) =>
     apiCall<ApiResponse<SalesInvoice>>("salesInvoices.cancel", {
@@ -655,4 +728,9 @@ export const QuickEntryApi = {
     apiCall<ApiResponse<QuickEntryConfirmResult>>("salesQuickEntry.confirm", {
       data: payload,
     }).then(unwrap<QuickEntryConfirmResult>),
+};
+
+export const SalesDashboardApi = {
+  get: () =>
+    apiCall<ApiResponse<SalesDashboard>>("salesDashboard.get").then(unwrap<SalesDashboard>),
 };

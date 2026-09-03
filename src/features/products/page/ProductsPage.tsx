@@ -1,39 +1,47 @@
 import React, { useMemo, useState } from "react";
-import { Space } from "antd";
-import { ProductsFilters } from "../ui/ProductsFilters";
+import { Button, Input, Space, Typography } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
 import { ProductsTable } from "../ui/ProductsTable";
 import { ProductUpsertOverlay } from "../ui/ProductUpsertOverlay";
+import { FilterTags, RefreshButton } from "../../../shared/ui/TableFilter";
+import type { ActiveFilterTag } from "../../../shared/ui/TableFilter";
 import { useCreateProduct, useProductList, useUpdateProduct } from "../hooks";
 import type { Product, ProductUpsertPayload } from "../types";
+import "../products-catalog.css";
 
 export const ProductsPage: React.FC = () => {
   const [keyword, setKeyword] = useState<string | undefined>(undefined);
-  const [query, setQuery] = useState({
-    page: 1,
-    pageSize: 50,
-    keyword: undefined as string | undefined,
-  });
+  const [draftKeyword, setDraftKeyword] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
-  const listQ = useProductList(query);
-  const paged = listQ?.data;
-  const rows: Product[] = useMemo(() => (paged ?? []) as any, [paged]);
-  const total = paged?.total ?? 0;
+  const listQuery = useProductList({ keyword });
+  const rows: Product[] = useMemo(
+    () => (Array.isArray(listQuery.data) ? listQuery.data : []) as Product[],
+    [listQuery.data],
+  );
 
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"create" | "edit">("create");
   const [editing, setEditing] = useState<Product | null>(null);
 
-  const createM = useCreateProduct();
-  const updateM = useUpdateProduct();
-  const submitting = createM.isPending || updateM.isPending;
+  const createMutation = useCreateProduct();
+  const updateMutation = useUpdateProduct();
+  const submitting = createMutation.isPending || updateMutation.isPending;
 
-  const onSearch = (kw?: string) => {
-    setKeyword(kw);
-    setQuery((q) => ({ ...q, page: 1, keyword: kw }));
-  };
-  const onPageChange = (page: number, pageSize: number) => {
-    setQuery((q) => ({ ...q, page, pageSize }));
-  };
+  const filterTags: ActiveFilterTag[] = keyword
+    ? [
+        {
+          key: "keyword",
+          label: `Từ khóa: ${keyword}`,
+          onClear: () => {
+            setKeyword(undefined);
+            setDraftKeyword("");
+            setPage(1);
+          },
+        },
+      ]
+    : [];
 
   const openCreate = () => {
     setMode("create");
@@ -48,25 +56,49 @@ export const ProductsPage: React.FC = () => {
   };
 
   const onSubmit = async (payload: ProductUpsertPayload) => {
-    if (mode === "create") return createM.mutateAsync(payload);
-    return updateM.mutateAsync({ id: editing!.id, data: payload });
+    if (mode === "create") return createMutation.mutateAsync(payload);
+    return updateMutation.mutateAsync({ id: editing!.id, data: payload });
   };
 
   return (
-    <Space direction="vertical" style={{ width: "100%" }} size={12}>
-      <ProductsFilters
-        defaultKeyword={keyword}
-        loading={listQ.isFetching}
-        onSearch={onSearch}
-        onCreate={openCreate}
-      />
+    <div className="products-page">
+      <div className="products-toolbar">
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          Danh mục sản phẩm
+        </Typography.Title>
+
+        <Space size={6}>
+          <Input.Search
+            size="small"
+            allowClear
+            value={draftKeyword}
+            placeholder="Tìm theo mã hoặc tên"
+            onChange={(event) => setDraftKeyword(event.target.value)}
+            onSearch={(value) => {
+              setKeyword(value.trim() || undefined);
+              setPage(1);
+            }}
+            loading={listQuery.isFetching}
+            style={{ width: 280 }}
+          />
+          <RefreshButton loading={listQuery.isFetching} onClick={() => listQuery.refetch()} />
+          <Button size="small" type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+            Thêm sản phẩm
+          </Button>
+        </Space>
+      </div>
+
+      <FilterTags items={filterTags} />
+
       <ProductsTable
         rows={rows}
-        loading={listQ.isFetching}
-        total={total}
-        page={query.page}
-        pageSize={query.pageSize}
-        onPageChange={onPageChange}
+        loading={listQuery.isFetching}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={(nextPage, nextPageSize) => {
+          setPage(nextPage);
+          setPageSize(nextPageSize);
+        }}
         onEdit={openEdit}
       />
 
@@ -78,6 +110,6 @@ export const ProductsPage: React.FC = () => {
         onClose={() => setOpen(false)}
         onSubmit={onSubmit}
       />
-    </Space>
+    </div>
   );
 };

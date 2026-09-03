@@ -31,6 +31,7 @@ import type {
 } from "../types";
 import "./workspace.css";
 import OperationsDashboardPage from "../../operations/OperationsDashboardPage";
+import SalesDashboardPage from "../../sales/page/SalesDashboardPage";
 
 function canSee(
   item: { need?: string | string[] | null },
@@ -298,6 +299,10 @@ export default function DepartmentWorkspacePage() {
 
   if (workspace?.currentWorkspace.key === "operations") {
     return <OperationsDashboardPage />;
+  }
+
+  if (workspace?.currentWorkspace.key === "sales") {
+    return <SalesDashboardPage />;
   }
 
   return (

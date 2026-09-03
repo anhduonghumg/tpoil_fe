@@ -435,7 +435,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
         />
       ),
       key: "select",
-      width: 34,
+      width: 32,
       fixed: "left",
       onCell: orderCell,
       render: (_, row) =>
@@ -504,7 +504,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: "Ngày",
       key: "date",
-      width: 62,
+      width: 58,
       onCell: orderCell,
       render: (_, { group }) => {
         const value =
@@ -516,7 +516,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
       // Chỉ mã khách; tên đầy đủ để ở tooltip cho khỏi chiếm chỗ.
       title: "Khách",
       key: "customer",
-      width: 110,
+      width: 100,
       onCell: orderCell,
       render: (_, { group }) => {
         const customer =
@@ -532,9 +532,9 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
       },
     },
     {
-      title: "Loại đơn",
+      title: <Tooltip title="Loại đơn">Loại</Tooltip>,
       key: "kind",
-      width: 84,
+      width: 74,
       onCell: orderCell,
       render: (_, { group }) =>
         group.head.salesOrder ? (
@@ -548,11 +548,12 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: "Mặt hàng",
       key: "product",
-      width: 100,
+      width: 90,
       render: (_, { line }) => {
         if (!line) return <span className="sales-grid-empty">—</span>;
-        const title = line.issueWarehouse
-          ? line.product.name + " · kho " + line.issueWarehouse.name
+        const receivingName = line.issueWarehouse?.name ?? line.receivingWarehouseArea?.name;
+        const title = receivingName
+          ? line.product.name + " · kho " + receivingName
           : line.product.name;
         return (
           <Tooltip title={title}>
@@ -564,7 +565,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: "Số lượng",
       key: "quantity",
-      width: 82,
+      width: 76,
       align: "right",
       render: (_, { line }) =>
         line ? <span className="sales-grid-num">{formatQty(line.orderedActualQty)}</span> : "—",
@@ -575,14 +576,15 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
       width: 110,
       ellipsis: true,
       render: (_, { line }) => {
-        const name = line?.issueWarehouse?.name;
+        const name = line?.issueWarehouse?.name ?? line?.receivingWarehouseArea?.name;
         return name ? <Tooltip title={name}><span className="sales-grid-clip">{name}</span></Tooltip> : "—";
       },
     },
     {
       title: "Mã NCC",
       key: "supplierCode",
-      width: 118,
+      // Đủ chỗ cho mã NCC dài nhất đang dùng (PETROBMHOABINH) kèm mũi tên của ô chọn.
+      width: 142,
       render: (_, { line, group }) => {
         if (!line) return "—";
         const codes = [
@@ -596,14 +598,28 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
           const value = codes.join(", ");
           return <Tooltip title={value}><span className="sales-grid-clip">{value}</span></Tooltip>;
         }
-        if (group.head.salesOrder?.kind !== "SINGLE") return "—";
-
         const preview = line.supplierPreview;
         const fifoCodes = [
           ...new Set((preview?.fifoAllocations ?? []).map((allocation) => allocation.supplierCode)),
         ];
+        const fifoSupplierKeys = [
+          ...new Set(
+            (preview?.fifoAllocations ?? []).map(
+              (allocation) => `${allocation.supplierPartyId}|${allocation.releaseCode}`,
+            ),
+          ),
+        ];
         const fifoLabel = fifoCodes.length ? fifoCodes.join(" + ") : "Không có tồn";
-        const preferredLabel = line.preferredSupplier?.code ?? fifoLabel;
+        // Khi FIFO chỉ chọn một NCC, dùng luôn option NCC đó để không hiển thị hai dòng
+        // giống nhau (AUTO và cố định). DB vẫn giữ null nên lúc duyệt vẫn chạy FIFO.
+        const singleFifoSupplierKey = fifoSupplierKeys.length === 1 ? fifoSupplierKeys[0] : null;
+        const selectValue =
+          (line.preferredSupplierPartyId
+            ? `${line.preferredSupplierPartyId}|${line.supplySource}`
+            : null) ?? singleFifoSupplierKey ?? AUTO_FIFO_SUPPLIER;
+        const preferredLabel = line.preferredSupplier?.code
+          ? `${line.preferredSupplier.code} (${line.supplySource})`
+          : `${fifoLabel} (${line.supplySource})`;
         if (!isActionable(group)) {
           return (
             <Tooltip title={line.preferredSupplier?.name ?? `FIFO: ${fifoLabel}`}>
@@ -616,13 +632,13 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
           <Tooltip
             title={
               line.preferredSupplier
-                ? `${line.preferredSupplier.code} — ${line.preferredSupplier.name}`
-                : `Tự động FIFO: ${fifoLabel}`
+                ? `${line.preferredSupplier.code} (${line.supplySource}) — ${line.preferredSupplier.name}`
+                : `Tự động FIFO (${line.supplySource}): ${fifoLabel}`
             }
           >
             <Select
               size="small"
-              value={line.preferredSupplierPartyId ?? AUTO_FIFO_SUPPLIER}
+              value={selectValue}
               style={{ width: "100%" }}
               popupMatchSelectWidth={230}
               loading={
@@ -630,26 +646,33 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
                 adjustSupplierMutation.variables?.lineId === line.id
               }
               options={[
-                {
-                  value: AUTO_FIFO_SUPPLIER,
-                  label: fifoLabel,
-                  title: `Tự động FIFO${fifoCodes.length > 1 ? " (tách nhiều mã)" : ""}`,
-                },
+                ...(singleFifoSupplierKey
+                  ? []
+                  : [
+                      {
+                        value: AUTO_FIFO_SUPPLIER,
+                        label: `FIFO (${line.supplySource}): ${fifoLabel}`,
+                        title: `Tự động FIFO${fifoCodes.length > 1 ? " (tách nhiều mã)" : ""}`,
+                      },
+                    ]),
                 ...(preview?.supplierOptions ?? []).map((option) => ({
-                  value: option.supplierPartyId,
-                  label: option.supplierCode,
-                  title: `${option.supplierName} — còn ${formatQty(option.availableQty)}`,
+                  value: `${option.supplierPartyId}|${option.supplySource}`,
+                  label: `${option.supplierCode} (${option.supplySource})`,
+                  title: `${option.supplierName} — mã ${option.supplySource} — còn ${formatQty(option.availableQty)}`,
                   disabled: Number(option.availableQty) < Number(line.orderedActualQty),
                 })),
               ]}
-              onChange={(value) =>
+              onChange={(value) => {
+                const [supplierPartyId, supplySource] =
+                  value === AUTO_FIFO_SUPPLIER ? [null, undefined] : value.split("|");
                 void adjustSupplierMutation
                   .mutateAsync({
                     lineId: line.id,
-                    supplierPartyId: value === AUTO_FIFO_SUPPLIER ? null : value,
+                    supplierPartyId,
+                    supplySource: supplySource as "TP" | "NCC" | undefined,
                   })
-                  .catch(() => undefined)
-              }
+                  .catch(() => undefined);
+              }}
             />
           </Tooltip>
         );
@@ -658,15 +681,15 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: "Đơn giá",
       key: "unitPrice",
-      width: 84,
+      width: 78,
       align: "right",
       render: (_, { line }) =>
         line ? <span className="sales-grid-num">{formatMoney(line.unitPrice)}</span> : "—",
     },
     {
-      title: "Chiết khấu",
+      title: <Tooltip title="Chiết khấu gốc">CK gốc</Tooltip>,
       key: "discountBase",
-      width: 84,
+      width: 78,
       align: "right",
       render: (_, { line }) =>
         line ? (
@@ -676,9 +699,9 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
         ),
     },
     {
-      title: "CK điều chỉnh",
+      title: <Tooltip title="Chiết khấu điều chỉnh — sửa trực tiếp">CK ĐC</Tooltip>,
       key: "discountAdjustment",
-      width: 104,
+      width: 64,
       align: "right",
       render: (_, { group, line }) =>
         line ? (
@@ -718,7 +741,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: "",
       key: "actions",
-      width: 86,
+      width: 84,
       fixed: "right",
       onCell: orderCell,
       render: (_, { group }) => {
@@ -832,7 +855,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
   };
 
   return (
-    <div style={{ padding: embedded ? 0 : 12 }}>
+    <div className={embedded ? undefined : "approval-queue-page"}>
       <div className="table-filter-toolbar">
         <div className="table-filter-toolbar-left">
           {/* Nhúng trong tab "Chờ duyệt" thì tiêu đề và dải trạng thái đã nằm ở màn ngoài. */}
@@ -917,7 +940,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
         loading={query.isLoading}
         columns={columns}
         dataSource={rows}
-        scroll={{ x: 1373 }}
+        scroll={{ x: 1240 }}
         rowClassName={(row) =>
           [
             row.isLast ? "approval-row-group-end" : "",

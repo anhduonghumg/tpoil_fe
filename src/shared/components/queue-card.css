@@ -1,0 +1,138 @@
+/* Thẻ hàng đợi chứng từ.
+   Thay cho bảng 7 cột: mỗi phiếu là một thẻ nhỏ đọc theo chiều dọc — mã phiếu và
+   số lượng ở dòng đầu, tuyến đi ở dòng giữa, nút duyệt ở dòng cuối. Kho chỉ cần
+   quyết định duyệt hay không, nên thông tin phụ lùi xuống cỡ chữ nhỏ. */
+
+.queue-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+  gap: 10px;
+}
+
+.queue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 13px;
+  border-radius: 11px;
+  background: #f6f8fb;
+  transition:
+    background 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.queue-card:hover {
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 5%),
+    0 6px 16px -6px rgb(16 24 40 / 12%);
+  transform: translateY(-1px);
+}
+
+.queue-card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.queue-card-no {
+  overflow: hidden;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-card-qty {
+  flex: 0 0 auto;
+  color: #172033;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.queue-card-qty small {
+  margin-left: 3px;
+  color: #8a94a5;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.queue-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #697386;
+  font-size: 11px;
+}
+
+.queue-card-meta > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-card-meta .anticon {
+  margin-right: 5px;
+  color: #8a94a5;
+}
+
+.queue-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 1px;
+  padding-top: 8px;
+  border-top: 1px solid #e6ebf2;
+}
+
+.queue-card-date {
+  color: #8a94a5;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.queue-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.queue-card-link {
+  padding: 0;
+  height: auto;
+  font-size: 11px;
+}
+
+.queue-card-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 4px;
+  color: #697386;
+  font-size: 13px;
+}
+
+.queue-card-empty .anticon {
+  color: #0ca30c;
+  font-size: 16px;
+}
+
+.queue-card-loading {
+  padding: 16px 4px;
+  color: #8a94a5;
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .queue-card {
+    transition: none;
+  }
+
+  .queue-card:hover {
+    transform: none;
+  }
+}

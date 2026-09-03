@@ -10,16 +10,29 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import { FilePdfOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import { useCan } from "../../../shared/authz/useCan";
 import { PERMS } from "../../../shared/authz/perms";
-import { useCancelInvoice, useIssueInvoice, useSalesInvoiceDetail } from "../hooks";
-import type { SalesInvoiceIssuance, SalesInvoiceLine } from "../types";
+import {
+  useCancelInvoice,
+  useIssueInvoice,
+  useSalesInvoiceDetail,
+  useViewInvoiceDocument,
+  openBlankTab,
+} from "../hooks";
+import type { InvoiceCreditAssessment, SalesInvoiceIssuance, SalesInvoiceLine } from "../types";
 import { formatMoney, formatQty, INVOICE_DOC_TYPE_LABELS, InvoiceStatusTag } from "./labels";
+import { IssueInvoiceModal } from "./IssueInvoiceModal";
+import { CreditWarningModal, creditAssessmentFromError } from "./CreditWarningModal";
+
+/** Backend bắt buộc có lý do hủy; nháp bỏ đi thì lý do lúc nào cũng là câu này. */
+const DISCARD_DRAFT_REASON = "Hủy nháp, trả chứng từ về Chưa xuất HĐ";
 
 export function SalesInvoiceDrawer({
   id,
@@ -34,11 +47,34 @@ export function SalesInvoiceDrawer({
   const { can } = useCan();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [creditOpen, setCreditOpen] = useState(false);
+  const [creditAssessment, setCreditAssessment] = useState<InvoiceCreditAssessment | null>(null);
+  const [creditRetry, setCreditRetry] = useState(false);
+  /** Hộp xác nhận trước khi gửi chứng từ ra ngoài; giữ cờ "thử lại" để đổi nhãn. */
+  const [confirmIssue, setConfirmIssue] = useState<false | { isRetry: boolean }>(false);
 
   const detailQuery = useSalesInvoiceDetail(open ? id : undefined);
   const invoice = detailQuery.data;
   const issueMutation = useIssueInvoice(id);
   const cancelMutation = useCancelInvoice(id);
+  const viewDocumentMutation = useViewInvoiceDocument();
+  const isDraft = invoice?.status === "DRAFT";
+
+  const requestIssue = async (isRetry: boolean) => {
+    if (!invoice) return;
+    try {
+      await issueMutation.mutateAsync({ invoiceId: invoice.id, isRetry });
+      setConfirmIssue(false);
+    } catch (error) {
+      const assessment = creditAssessmentFromError(error);
+      if (!assessment) return;
+      // Nhường chỗ cho hộp cảnh báo công nợ, không chồng hai hộp lên nhau.
+      setConfirmIssue(false);
+      setCreditAssessment(assessment);
+      setCreditRetry(isRetry);
+      setCreditOpen(true);
+    }
+  };
 
   const lineColumns: ColumnsType<SalesInvoiceLine> = [
     { title: "#", dataIndex: "lineNo", width: 44 },
@@ -51,11 +87,20 @@ export function SalesInvoiceDrawer({
       render: (value, line) => `${formatQty(value)} ${line.uom}`,
     },
     {
-      title: "Đơn giá",
+      title: "Đơn giá HĐ (sau CK)",
       dataIndex: "unitPrice",
       width: 110,
       align: "right",
-      render: (value) => formatMoney(value),
+      render: (_, line) => {
+        const qty = Number(line.qty ?? 0);
+        const netUnitPrice = qty > 0 ? Number(line.netAmount) / qty : Number(line.unitPrice ?? 0);
+        const paymentUnitPrice = qty > 0 ? Number(line.lineTotal) / qty : netUnitPrice;
+        return (
+          <Tooltip title={`Giá gốc: ${formatMoney(line.unitPrice)} · Đơn giá thanh toán sau VAT: ${formatMoney(paymentUnitPrice)}`}>
+            {formatMoney(netUnitPrice)}
+          </Tooltip>
+        );
+      },
     },
     {
       title: "Chiết khấu",
@@ -70,7 +115,8 @@ export function SalesInvoiceDrawer({
       dataIndex: "taxRate",
       width: 80,
       align: "right",
-      render: (value) => (value == null ? "—" : `${Number(value) * 100}%`),
+      render: (value, line) =>
+        line.taxRateName ?? (value == null ? "KCT" : `${Number(value) * 100}%`),
     },
     {
       title: "Tiền thuế",
@@ -137,7 +183,7 @@ export function SalesInvoiceDrawer({
               <Button
                 type="primary"
                 loading={issueMutation.isPending}
-                onClick={() => issueMutation.mutate({ invoiceId: invoice.id })}
+                onClick={() => setConfirmIssue({ isRetry: false })}
               >
                 Phát hành
               </Button>
@@ -146,15 +192,38 @@ export function SalesInvoiceDrawer({
               <Button
                 type="primary"
                 loading={issueMutation.isPending}
-                onClick={() => issueMutation.mutate({ invoiceId: invoice.id, isRetry: true })}
+                onClick={() => setConfirmIssue({ isRetry: true })}
               >
                 Thử lại
               </Button>
             )}
-            {invoice.status === "ISSUED" && (
-              <Button danger onClick={() => setCancelOpen(true)}>
-                Hủy hóa đơn
+            {invoice.status === "DRAFT" && (
+              <Button
+                danger
+                onClick={() => {
+                  setCancelReason(DISCARD_DRAFT_REASON);
+                  setCancelOpen(true);
+                }}
+              >
+                Trả về chưa xuất HĐ
               </Button>
+            )}
+            {invoice.status === "ISSUED" && (
+              <>
+                <Button
+                  type="primary"
+                  icon={<FilePdfOutlined />}
+                  loading={viewDocumentMutation.isPending}
+                  onClick={() =>
+                    viewDocumentMutation.mutate({ invoiceId: invoice.id, tab: openBlankTab() })
+                  }
+                >
+                  Xem hóa đơn
+                </Button>
+                <Button danger onClick={() => setCancelOpen(true)}>
+                  Hủy hóa đơn
+                </Button>
+              </>
             )}
           </Space>
         )
@@ -176,7 +245,7 @@ export function SalesInvoiceDrawer({
 
           <Descriptions size="small" column={2} style={{ marginBottom: 12 }}>
             <Descriptions.Item label="Trạng thái">
-              <Space>
+              <Space size={4} wrap>
                 <InvoiceStatusTag status={invoice.status} />
                 <Tag>{INVOICE_DOC_TYPE_LABELS[invoice.documentType] ?? invoice.documentType}</Tag>
               </Space>
@@ -215,8 +284,13 @@ export function SalesInvoiceDrawer({
               </strong>
             </Descriptions.Item>
             <Descriptions.Item label="Còn phải thu">
-              {invoice.receivableItem
-                ? formatMoney(invoice.receivableItem.outstandingAmount)
+              {invoice.receivableItems?.length
+                ? `${formatMoney(
+                    invoice.receivableItems.reduce(
+                      (sum, item) => sum + Number(item.outstandingAmount),
+                      0,
+                    ),
+                  )}${invoice.receivableItems.length > 1 ? ` (${invoice.receivableItems.length} đợt)` : ""}`
                 : "—"}
             </Descriptions.Item>
           </Descriptions>
@@ -275,10 +349,46 @@ export function SalesInvoiceDrawer({
         </>
       )}
 
+      <IssueInvoiceModal
+        open={Boolean(confirmIssue)}
+        invoice={invoice}
+        loading={issueMutation.isPending}
+        isRetry={confirmIssue ? confirmIssue.isRetry : false}
+        onCancel={() => setConfirmIssue(false)}
+        onConfirm={() => void requestIssue(confirmIssue ? confirmIssue.isRetry : false)}
+      />
+
+      <CreditWarningModal
+        open={creditOpen}
+        assessment={creditAssessment}
+        loading={issueMutation.isPending}
+        onCancel={() => setCreditOpen(false)}
+        onConfirm={async () => {
+          if (!invoice || !creditAssessment) return;
+          try {
+            await issueMutation.mutateAsync({
+              invoiceId: invoice.id,
+              isRetry: creditRetry,
+              overrideCredit: true,
+              creditSnapshotHash: creditAssessment.snapshotHash,
+            });
+            setCreditOpen(false);
+            setCreditAssessment(null);
+          } catch (error) {
+            const current = creditAssessmentFromError(error);
+            if (current) setCreditAssessment(current);
+          }
+        }}
+      />
+
       <Modal
         open={cancelOpen}
-        title={`Hủy hóa đơn ${invoice?.misaInvoiceNo ?? invoice?.invoiceNoInternal ?? ""}`}
-        okText="Hủy hóa đơn"
+        title={
+          isDraft
+            ? `Trả ${invoice?.invoiceNoInternal ?? "chứng từ"} về Chưa xuất HĐ`
+            : `Hủy hóa đơn ${invoice?.misaInvoiceNo ?? invoice?.invoiceNoInternal ?? ""}`
+        }
+        okText={isDraft ? "Trả về chưa xuất HĐ" : "Hủy hóa đơn"}
         cancelText="Đóng"
         okButtonProps={{ danger: true, disabled: !cancelReason.trim() }}
         confirmLoading={cancelMutation.isPending}
@@ -291,13 +401,24 @@ export function SalesInvoiceDrawer({
           });
           setCancelOpen(false);
           setCancelReason("");
+          // Nháp bỏ đi thì không còn gì để xem — đóng luôn, người dùng quay lại danh sách.
+          if (isDraft) onClose();
         }}
       >
+        {isDraft && (
+          <Alert
+            showIcon
+            type="info"
+            style={{ marginBottom: 12 }}
+            message="Bản nháp này chưa gửi sang MISA"
+            description="Hủy nháp không đụng gì tới bên ngoài. Chứng từ nguồn quay lại tab “Chưa xuất HĐ” và dựng lại hóa đơn được bình thường."
+          />
+        )}
         <Input.TextArea
           rows={3}
           value={cancelReason}
           onChange={(e) => setCancelReason(e.target.value)}
-          placeholder="Lý do hủy (bắt buộc)"
+          placeholder={isDraft ? "Lý do hủy nháp (bắt buộc)" : "Lý do hủy (bắt buộc)"}
         />
       </Modal>
     </Drawer>

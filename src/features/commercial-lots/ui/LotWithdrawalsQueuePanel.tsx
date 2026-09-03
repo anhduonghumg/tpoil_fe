@@ -1,7 +1,11 @@
-import { useMemo } from "react";
-import { Button, Empty, Popconfirm, Space, Table, Typography } from "antd";
-import type { ColumnsType } from "antd/es/table";
-import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
+import { Button, Popconfirm, Tooltip, Typography } from "antd";
+import {
+  CheckCircleOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  HomeOutlined,
+  ShopOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import {
@@ -10,12 +14,27 @@ import {
   useConfirmLotWithdrawalQueueItem,
 } from "../hooks";
 import type { CommercialLotWithdrawalQueueItem } from "../types";
-import { formatQty } from "./labels";
+import "../../../shared/components/queue-card.css";
 
 export const LOT_WITHDRAWALS_QUEUE_QUERY = { status: "DRAFT" as const, limit: 50 };
 
+const qtyFormat = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 });
+
 function withdrawalQty(item: CommercialLotWithdrawalQueueItem) {
   return item.lines.reduce((sum, line) => sum + Number(line.actualQty ?? 0), 0);
+}
+
+/** Một phiếu có thể rút về nhiều kho; gộp tên lại cho gọn một dòng. */
+function warehouseLabel(item: CommercialLotWithdrawalQueueItem) {
+  const warehouses = Array.from(
+    new Map(
+      item.lines.map((line) => {
+        const warehouse = line.destinationWarehouse ?? item.destinationWarehouse;
+        return [warehouse.id, warehouse];
+      }),
+    ).values(),
+  );
+  return warehouses.map((warehouse) => warehouse.name).join(", ") || "Chưa có kho nhận";
 }
 
 export function LotWithdrawalsQueuePanel() {
@@ -26,106 +45,104 @@ export function LotWithdrawalsQueuePanel() {
 
   const items = queueQuery.data?.items ?? [];
 
-  const columns: ColumnsType<CommercialLotWithdrawalQueueItem> = useMemo(
-    () => [
-      {
-        title: "Mã đơn",
-        dataIndex: ["purchaseOrder", "orderNo"],
-        render: (_, item) => (
-          <Typography.Link
-            onClick={() => navigate(`/commercial-purchases/lots/${item.purchaseOrder.id}`)}
-          >
-            {item.purchaseOrder.orderNo}
-          </Typography.Link>
-        ),
-      },
-      {
-        title: "Nhà cung cấp",
-        dataIndex: ["purchaseOrder", "supplier", "name"],
-        render: (_, item) => item.purchaseOrder.supplier.name,
-      },
-      {
-        title: "Phiếu rút",
-        dataIndex: "withdrawalNo",
-      },
-      {
-        title: "Kho nhận",
-        dataIndex: ["destinationWarehouse", "name"],
-        render: (_, item) => item.destinationWarehouse.name,
-      },
-      {
-        title: "Ngày rút",
-        dataIndex: "withdrawalDate",
-        render: (value) => dayjs(value).format("DD/MM/YYYY"),
-      },
-      {
-        title: "Số lượng",
-        key: "qty",
-        align: "right",
-        render: (_, item) => formatQty(withdrawalQty(item)),
-      },
-      {
-        title: "",
-        key: "actions",
-        width: 200,
-        render: (_, item) => (
-          <Space size={4}>
-            <Popconfirm
-              title="Xác nhận rút lô"
-              description="Xác nhận đã xuất hàng thực tế cho phiếu này?"
-              onConfirm={() =>
-                confirmMutation.mutate({
-                  orderId: item.purchaseOrder.id,
-                  withdrawalId: item.id,
-                })
-              }
-            >
-              <Button
-                size="small"
-                type="primary"
-                icon={<CheckOutlined />}
-                loading={confirmMutation.isPending}
-              >
-                Xác nhận
-              </Button>
-            </Popconfirm>
-            <Popconfirm
-              title="Hủy phiếu rút"
-              description="Hủy phiếu rút lô này?"
-              onConfirm={() =>
-                cancelMutation.mutate({
-                  orderId: item.purchaseOrder.id,
-                  withdrawalId: item.id,
-                })
-              }
-            >
-              <Button size="small" danger icon={<CloseOutlined />} loading={cancelMutation.isPending}>
-                Hủy
-              </Button>
-            </Popconfirm>
-          </Space>
-        ),
-      },
-    ],
-    [confirmMutation, cancelMutation, navigate],
-  );
+  if (!items.length) {
+    return queueQuery.isFetching ? (
+      <div className="queue-card-loading">Đang tải…</div>
+    ) : (
+      <div className="queue-card-empty">
+        <CheckCircleOutlined />
+        Không có phiếu rút lô nào đang chờ duyệt.
+      </div>
+    );
+  }
 
   return (
-    <Table<CommercialLotWithdrawalQueueItem>
-      rowKey="id"
-      size="small"
-      loading={queueQuery.isFetching}
-      columns={columns}
-      dataSource={items}
-      pagination={false}
-      locale={{
-        emptyText: (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="Không có phiếu rút lô nào đang chờ duyệt"
-          />
-        ),
-      }}
-    />
+    <div className="queue-card-grid">
+      {items.map((item) => (
+        <article className="queue-card" key={item.id}>
+          <div className="queue-card-top">
+            <span className="queue-card-no">{item.withdrawalNo}</span>
+            <span className="queue-card-qty">
+              {qtyFormat.format(withdrawalQty(item))}
+              <small>lít</small>
+            </span>
+          </div>
+
+          <div className="queue-card-meta">
+            <span>
+              <ShopOutlined />
+              {item.purchaseOrder.supplier.name}
+            </span>
+            <span>
+              <HomeOutlined />
+              {warehouseLabel(item)}
+            </span>
+          </div>
+
+          <div className="queue-card-foot">
+            <span className="queue-card-date">
+              {dayjs(item.withdrawalDate).format("DD/MM/YYYY")}
+              {" · "}
+              <Typography.Link
+                className="queue-card-link"
+                onClick={() =>
+                  navigate(`/commercial-purchases/lots/${item.purchaseOrder.id}`)
+                }
+              >
+                {item.purchaseOrder.orderNo}
+              </Typography.Link>
+            </span>
+
+            <span className="queue-card-actions">
+              <Popconfirm
+                title="Xác nhận rút lô"
+                description="Xác nhận đã xuất hàng thực tế cho phiếu này?"
+                okText="Xác nhận"
+                cancelText="Đóng"
+                onConfirm={() =>
+                  confirmMutation.mutate({
+                    orderId: item.purchaseOrder.id,
+                    withdrawalId: item.id,
+                  })
+                }
+              >
+                <Tooltip title="Xác nhận rút lô">
+                  <Button
+                    size="small"
+                    type="primary"
+                    aria-label={`Xác nhận phiếu rút ${item.withdrawalNo}`}
+                    icon={<CheckOutlined />}
+                    loading={confirmMutation.isPending}
+                  />
+                </Tooltip>
+              </Popconfirm>
+              <Popconfirm
+                title="Hủy phiếu rút"
+                description="Hủy phiếu rút lô này?"
+                okText="Hủy phiếu"
+                okButtonProps={{ danger: true }}
+                cancelText="Đóng"
+                onConfirm={() =>
+                  cancelMutation.mutate({
+                    orderId: item.purchaseOrder.id,
+                    withdrawalId: item.id,
+                  })
+                }
+              >
+                <Tooltip title="Hủy phiếu rút">
+                  <Button
+                    size="small"
+                    danger
+                    aria-label={`Hủy phiếu rút ${item.withdrawalNo}`}
+                    icon={<CloseOutlined />}
+                    loading={cancelMutation.isPending}
+                  />
+                </Tooltip>
+              </Popconfirm>
+            </span>
+          </div>
+        </article>
+      ))}
+    </div>
   );
 }

@@ -131,6 +131,12 @@ export const NAV_ITEMS: NavItem[] = [
     need: PERMS.SYSTEM_RBAC_ADMIN,
   },
   {
+    key: "/settings/opening-balances",
+    label: "Số dư đầu kỳ",
+    icon: <DatabaseOutlined />,
+    need: PERMS.SYSTEM_OPENING_BALANCES_VIEW,
+  },
+  {
     key: "/settings/customer-groups",
     label: "Nhóm khách hàng",
     icon: <TeamOutlined />,

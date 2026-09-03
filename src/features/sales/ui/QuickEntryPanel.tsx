@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Button,
@@ -34,6 +35,11 @@ import dayjs from "dayjs";
 import { PartySelect } from "../../../shared/ui/PartySelect";
 import { useProductSelect } from "../../products/hooks";
 import { useWarehouseSelect, usePriceRegionsSelect } from "../../purchases/hooks";
+import { SupplierLocationsApi } from "../../supplierLocations/api";
+import {
+  decodeWarehouseSource,
+  WarehouseSourceSelect,
+} from "../../supplierLocations/ui/WarehouseSourceSelect";
 import { PurchasesApi } from "../../purchases/api";
 import { InternalSalesApi } from "../api";
 import { useConfirmQuickEntry, useCurrentDiscountBoard, useParseQuickEntry } from "../hooks";
@@ -74,6 +80,8 @@ type DraftLine = {
   /** Đã có alias sẵn cho cách viết này chưa — nếu chưa thì lúc lưu sẽ hỏi có nhớ không. */
   productAliasKnown: boolean;
   warehouseId?: string;
+  /** Đơn lô có thể chỉ chốt khu vực, kho lấy hàng quyết định ở từng lượt rút. */
+  warehouseAreaId?: string;
   warehouseCode: string | null;
   warehouseRawText: string | null;
   warehouseAliasKnown: boolean;
@@ -100,12 +108,11 @@ const ALIAS_TYPE_LABELS: Record<AliasSuggestion["entityType"], string> = {
   WAREHOUSE: "Kho",
 };
 
-/** Một mốc phải trả: sau bao nhiêu ngày, theo % hay theo số tiền chốt sẵn. */
+/** Một đợt phải trả theo ngày thực tế và tỷ lệ của tổng đơn. */
 type PaymentPlanRow = {
   key: string;
-  dueDays: number;
-  percent?: number;
-  amount?: number;
+  dueDate: dayjs.Dayjs;
+  percent: number;
 };
 
 type SaveState =
@@ -152,6 +159,14 @@ const driverNameOnly = (value?: string | null) =>
     .trim()
     .replace(/^(?:(?:lái\s*xe|lai\s*xe|lxe|lx|e)\s*:\s*)/i, "")
     .trim();
+
+/** Giá trị cho ô chọn kho dùng chung: "area:<id>" khi mới chốt khu vực, "warehouse:<id>" khi đã có kho. */
+const warehouseScopeOf = (line: DraftLine) =>
+  line.warehouseAreaId
+    ? `area:${line.warehouseAreaId}`
+    : line.warehouseId
+      ? `warehouse:${line.warehouseId}`
+      : undefined;
 
 const emptyLine = (): DraftLine => ({
   key: `line-${Date.now()}-${Math.random()}`,
@@ -247,7 +262,7 @@ function blockingOf(order: DraftOrder) {
   if (!order.customerPartyId) problems.push("khách hàng");
   if (!order.lines.length) problems.push("dòng hàng");
   if (order.lines.some((line) => !line.productId)) problems.push("mặt hàng");
-  if (order.lines.some((line) => !line.warehouseId)) problems.push("kho");
+  if (order.lines.some((line) => !line.warehouseId && !line.warehouseAreaId)) problems.push("kho");
   if (order.lines.some((line) => !line.quantity || line.quantity <= 0)) problems.push("SL");
   if (order.orderKind !== "LOT" && (!order.plate.trim() || !order.driver.trim()))
     problems.push("BKS/lái xe");
@@ -308,11 +323,17 @@ export function QuickEntryPanel({
   /** Đơn tạm chỉ dùng khi Sale chủ động sửa lại; Enter sẽ đẩy thẳng xuống bảng. */
   const [staged, setStaged] = useState<DraftOrder[]>([]);
   const [draftOpen, setDraftOpen] = useState(true);
+  /**
+   * Màn đơn lô chủ yếu được nhập tay, ô dán tin nhắn chỉ thỉnh thoảng mới dùng — nên ở
+   * chế độ LOT nó thu lại thành một nút, nhường chiều cao cho bảng nhập.
+   */
+  const [composerOpen, setComposerOpen] = useState(mode !== "LOT");
   // Điều khoản đặt chung cho cả lượt nhập đơn lô.
   const [lotInvoiceMode, setLotInvoiceMode] =
     useState<SalesLotInvoiceMode>("ON_WITHDRAWAL");
   const [paymentTermType, setPaymentTermType] = useState<"SAME_DAY" | "NET_DAYS">("SAME_DAY");
   const [paymentPlans, setPaymentPlans] = useState<PaymentPlanRow[]>([]);
+  const [lotTermsOpen, setLotTermsOpen] = useState(false);
   const [productKeyword, setProductKeyword] = useState("");
   const [warehouseKeyword, setWarehouseKeyword] = useState("");
   /** Hộp hỏi "có nhớ cách viết này không"; `resolve` mở khóa cho lượt lưu đang chờ. */
@@ -324,6 +345,14 @@ export function QuickEntryPanel({
 
   const productsQuery = useProductSelect(productKeyword);
   const warehousesQuery = useWarehouseSelect(warehouseKeyword);
+  const areasQuery = useQuery({
+    queryKey: ["supplierLocations", "areas", "active"],
+    queryFn: () => SupplierLocationsApi.areas(true),
+  });
+  // Khu vực chưa có kho nào thì chọn cũng không rút được hàng — ẩn khỏi danh sách.
+  const selectableAreas = (areasQuery.data ?? []).filter((area) =>
+    (warehousesQuery.data ?? []).some((warehouse) => warehouse.areaId === area.id),
+  );
   const regionsQuery = usePriceRegionsSelect(regionKeyword);
   const parseMutation = useParseQuickEntry();
   const confirmMutation = useConfirmQuickEntry();
@@ -340,6 +369,32 @@ export function QuickEntryPanel({
   );
 
   /**
+   * Bảng chiết khấu công bố theo từng kho. Dòng mới chốt tới khu vực thì lấy mức của kho
+   * đầu tiên trong khu vực có công bố — cùng cách màn tạo đơn thủ công đang làm.
+   */
+  const announcedDiscountFor = (line: DraftLine) => {
+    if (!line.productId) return undefined;
+    if (line.warehouseId) return announcedDiscounts.get(`${line.warehouseId}:${line.productId}`);
+    if (!line.warehouseAreaId) return undefined;
+    for (const warehouse of warehousesQuery.data ?? []) {
+      if (warehouse.areaId !== line.warehouseAreaId) continue;
+      const announced = announcedDiscounts.get(`${warehouse.id}:${line.productId}`);
+      if (announced != null) return announced;
+    }
+    return undefined;
+  };
+
+  // Đổi tab thì trả ô dán về mặc định của tab đó: mở ở đơn lẻ, thu ở đơn lô.
+  useEffect(() => {
+    setComposerOpen(mode !== "LOT");
+  }, [mode]);
+
+  // Có đơn tạm mà ô dán đang thu thì Sale không thấy đơn vừa đọc được — luôn mở lại.
+  useEffect(() => {
+    if (staged.length) setComposerOpen(true);
+  }, [staged.length]);
+
+  /**
    * Tự điền chiết khấu đang công bố sau khi đủ kho + hàng. Nếu Sale đã sửa tay con số
    * được tự điền trước đó thì giữ nguyên lựa chọn của họ khi đổi hàng/kho hoặc bảng giá đổi.
    */
@@ -352,8 +407,8 @@ export function QuickEntryPanel({
         if (order.orderKind === "WITHDRAWAL") return order;
 
         const lines = order.lines.map((line) => {
-          if (!line.warehouseId || !line.productId) return line;
-          const announced = announcedDiscounts.get(`${line.warehouseId}:${line.productId}`);
+          if (!line.productId) return line;
+          const announced = announcedDiscountFor(line);
           if (announced == null || line.discountBaseAmount === announced) return line;
 
           changed = true;
@@ -394,6 +449,30 @@ export function QuickEntryPanel({
         order.key === orderKey ? { ...order, lines: [...order.lines, emptyLine()] } : order,
       ),
     );
+
+  /**
+   * Đơn lô thường được chốt qua trao đổi chứ không có tin nhắn để dán, nên phải mở
+   * được một đơn trống mà gõ thẳng. Mọi ô trong bảng đều sửa tại chỗ nên đơn trống là
+   * điểm bắt đầu hợp lệ; bước kiểm tra lúc lưu vẫn chặn đơn còn thiếu dữ liệu.
+   */
+  const addBlankOrder = () =>
+    setOrders((current) => [
+      ...current,
+      {
+        key: `draft-${Date.now()}-${Math.random()}`,
+        rawText: "",
+        usedAi: false,
+        orderKind: kindForMode(mode, null),
+        customerCode: null,
+        customerRawText: null,
+        customerAliasKnown: true,
+        orderDate: dayjs(),
+        plate: "",
+        driver: "",
+        lines: [emptyLine()],
+        save: { kind: "PENDING" },
+      },
+    ]);
 
   const removeLine = (orderKey: string, lineKey: string) =>
     setOrders((current) =>
@@ -538,25 +617,30 @@ export function QuickEntryPanel({
               paymentPlans:
                 paymentTermType === "NET_DAYS"
                   ? paymentPlans.map((plan) => ({
-                      dueDays: plan.dueDays,
+                      dueDate: plan.dueDate.format("YYYY-MM-DD"),
                       percent: plan.percent,
-                      amount: plan.amount,
                     }))
                   : undefined,
               paymentTermDays:
                 paymentTermType === "NET_DAYS"
-                  ? Math.max(0, ...paymentPlans.map((plan) => plan.dueDays), 0)
+                  ? Math.max(
+                      0,
+                      ...paymentPlans.map((plan) =>
+                        Math.max(0, plan.dueDate.startOf("day").diff(order.orderDate.startOf("day"), "day")),
+                      ),
+                    )
                   : undefined,
             }
           : {}),
         customerPartyId: order.customerPartyId!,
         orderDate: order.orderDate.format("YYYY-MM-DD"),
-        vehiclePlate: order.plate.trim() || undefined,
-        driverName: order.driver.trim() || undefined,
+        vehiclePlate: mode === "LOT" ? undefined : order.plate.trim() || undefined,
+        driverName: mode === "LOT" ? undefined : order.driver.trim() || undefined,
         customerRawText: learn("PARTY", order.customerRawText, order.customerPartyId),
         lines: order.lines.map((line) => ({
           productId: line.productId!,
-          warehouseId: line.warehouseId!,
+          warehouseId: line.warehouseId,
+          warehouseAreaId: line.warehouseId ? undefined : line.warehouseAreaId,
           quantity: Number(line.quantity),
           unitPrice: line.unitPrice == null ? undefined : Number(line.unitPrice),
           discountBaseAmount:
@@ -604,11 +688,13 @@ export function QuickEntryPanel({
 
   /** Lưu một đơn: hỏi ghi nhớ cách viết trước, rồi mới ghi. */
   const saveOne = async (order: DraftOrder) => {
+    if (paymentPlanError) return notify.error(paymentPlanError);
     const approved = await askAliases([order]);
     await saveOrder(order, approved);
   };
 
   const saveAll = async () => {
+    if (paymentPlanError) return notify.error(paymentPlanError);
     const pending = orders.filter(
       (order) => order.save.kind !== "SAVED" && !blockingOf(order).length,
     );
@@ -716,6 +802,7 @@ export function QuickEntryPanel({
     {
       title: "Loại",
       key: "kind",
+      hidden: mode === "LOT",
       width: 130,
       onCell: groupCell,
       render: (_, row) => (
@@ -746,6 +833,7 @@ export function QuickEntryPanel({
     {
       title: "BKS",
       key: "plate",
+      hidden: mode === "LOT",
       width: 105,
       onCell: groupCell,
       render: (_, row) => (
@@ -761,6 +849,7 @@ export function QuickEntryPanel({
     {
       title: "Lái xe",
       key: "driver",
+      hidden: mode === "LOT",
       width: 145,
       onCell: groupCell,
       render: (_, row) => (
@@ -813,28 +902,29 @@ export function QuickEntryPanel({
       width: 150,
       render: (_, row) =>
         row.line ? (
-          <Select
+          <WarehouseSourceSelect
             size="small"
-            showSearch
             filterOption={false}
-            style={{ width: "100%" }}
-            status={row.line.warehouseId ? undefined : "error"}
-            value={row.line.warehouseId}
+            // Đơn lô được phép dừng ở khu vực; đơn lẻ xuất ngay nên bắt buộc kho cụ thể.
+            warehouseOnly={mode !== "LOT"}
+            value={warehouseScopeOf(row.line)}
             disabled={locked(row)}
             placeholder={row.line.warehouseRawText ?? "Kho nhận"}
             loading={warehousesQuery.isFetching}
             onSearch={setWarehouseKeyword}
-            onChange={(value) =>
+            onChange={(value) => {
+              const scope = value
+                ? decodeWarehouseSource(value, (warehousesQuery.data ?? []) as any)
+                : undefined;
               patchLine(row.order.key, row.line!.key, {
-                warehouseId: value,
+                warehouseId: scope?.warehouseId,
+                warehouseAreaId: scope?.warehouseId ? undefined : scope?.areaId,
                 warehouseCode: null,
                 warehouseAliasKnown: false,
-              })
-            }
-            options={(warehousesQuery.data ?? []).map((warehouse) => ({
-              value: warehouse.id,
-              label: warehouse.name,
-            }))}
+              });
+            }}
+            areas={selectableAreas}
+            warehouses={warehousesQuery.data ?? []}
           />
         ) : null,
     },
@@ -895,6 +985,8 @@ export function QuickEntryPanel({
     {
       title: "CK",
       key: "discountBaseAmount",
+      // Chỉ ẩn khỏi nhập nhanh; dữ liệu CK công bố vẫn được tự tính và gửi xuống backend.
+      hidden: true,
       width: 85,
       align: "right",
       render: (_, row) =>
@@ -916,6 +1008,8 @@ export function QuickEntryPanel({
     {
       title: "CKDC",
       key: "discountAdjustmentAmount",
+      // Chỉ ẩn giao diện, không bỏ trường và không thay đổi cách lưu CK cuối.
+      hidden: true,
       width: 85,
       align: "right",
       render: (_, row) =>
@@ -960,7 +1054,21 @@ export function QuickEntryPanel({
         ) : null,
     },
     {
-      title: "",
+      title:
+        mode === "LOT" ? (
+          <div className="quick-entry-action-title">
+            <Tooltip title="Thêm một đơn trống để tự nhập">
+              <Button
+                size="small"
+                type="dashed"
+                icon={<PlusOutlined />}
+                onClick={addBlankOrder}
+              />
+            </Tooltip>
+          </div>
+        ) : (
+          ""
+        ),
       key: "action",
       width: 95,
       fixed: "right",
@@ -1038,32 +1146,99 @@ export function QuickEntryPanel({
       current.map((plan) => (plan.key === key ? { ...plan, ...patch } : plan)),
     );
 
-  /** 50% / 100%: đặt lại thành đúng một mốc theo tỷ lệ đó. */
-  const applyPreset = (percent: number) =>
-    setPaymentPlans([{ key: `plan-${Date.now()}`, dueDays: 30, percent }]);
+  const paymentBaseDate = [...orders, ...staged].reduce(
+    (latest, order) => (order.orderDate.isAfter(latest, "day") ? order.orderDate : latest),
+    orders[0]?.orderDate ?? staged[0]?.orderDate ?? dayjs(),
+  );
 
-  const addPlanRow = (byAmount: boolean) =>
-    setPaymentPlans((current) => [
-      ...current,
-      {
-        key: `plan-${Date.now()}-${Math.random()}`,
-        dueDays: 30,
-        ...(byAmount ? { amount: 0 } : { percent: 0 }),
-      },
-    ]);
+  const applyPreset = (preset: "FULL" | "HALF") => {
+    const stamp = Date.now();
+    setPaymentPlans(
+      preset === "FULL"
+        ? [{ key: `plan-${stamp}`, dueDate: paymentBaseDate, percent: 100 }]
+        : [
+            { key: `plan-${stamp}-1`, dueDate: paymentBaseDate, percent: 50 },
+            { key: `plan-${stamp}-2`, dueDate: paymentBaseDate.add(3, "day"), percent: 50 },
+          ],
+    );
+    setLotTermsOpen(true);
+  };
+
+  const addPlanRow = () =>
+    setPaymentPlans((current) => {
+      const used = current.reduce((sum, plan) => sum + Number(plan.percent || 0), 0);
+      const latest = current.reduce(
+        (date, plan) => (plan.dueDate.isAfter(date, "day") ? plan.dueDate : date),
+        paymentBaseDate,
+      );
+      return [
+        ...current,
+        {
+          key: `plan-${Date.now()}-${Math.random()}`,
+          dueDate: current.length ? latest.add(1, "day") : paymentBaseDate,
+          percent: Math.max(0, 100 - used),
+        },
+      ];
+    });
 
   const planPercentTotal = paymentPlans.reduce(
     (sum, plan) => sum + Number(plan.percent ?? 0),
     0,
   );
+  const paymentPlanError =
+    mode !== "LOT" || paymentTermType !== "NET_DAYS"
+      ? null
+      : !paymentPlans.length
+        ? "Hãy thêm ít nhất một đợt thanh toán."
+        : paymentPlans.some((plan) => !plan.dueDate || plan.dueDate.isBefore(paymentBaseDate, "day"))
+          ? "Ngày thanh toán không được trước ngày đặt hàng."
+          : Math.abs(planPercentTotal - 100) > 0.001
+            ? `Tổng tỷ lệ phải bằng 100% (hiện tại ${planPercentTotal}%).`
+            : null;
+  const paymentPlanSummary = paymentPlans
+    .map((plan) => `${plan.percent}% ngày ${plan.dueDate.format("DD/MM")}`)
+    .join(" · ");
 
   const savedCount = orders.filter((order) => order.save.kind === "SAVED").length;
   const unsavedCount = orders.length - savedCount;
 
   return (
     <div className="quick-entry">
+      {/* Thanh gọn thay cho ô dán khi đang thu: vẫn giữ vùng giá (nó quyết định giá tự
+          điền cho cả dòng nhập tay) và đưa "Thêm đơn" lên làm việc chính. */}
+      {composerOpen ? null : (
+        <div className="quick-entry-compact-bar">
+          <span className="quick-entry-control-label">Vùng giá:</span>
+          <Select
+            size="small"
+            showSearch
+            filterOption={false}
+            className="quick-entry-region-select"
+            value={regionCode}
+            loading={regionsQuery.isFetching}
+            onSearch={setRegionKeyword}
+            onChange={setRegionCode}
+            options={(regionsQuery.data ?? []).map((region) => ({
+              value: region.code,
+              label: `${region.name} (${region.code})`,
+            }))}
+          />
+          <span className="quick-entry-compact-spacer" />
+          <Button
+            size="small"
+            icon={<ThunderboltOutlined />}
+            onClick={() => setComposerOpen(true)}
+          >
+            Dán tin nhắn
+          </Button>
+          <Button size="small" type="primary" icon={<PlusOutlined />} onClick={addBlankOrder}>
+            Thêm đơn
+          </Button>
+        </div>
+      )}
+
       <div
-        className="quick-entry-composer"
+        className={`quick-entry-composer${composerOpen ? "" : " is-hidden"}`}
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) 300px",
@@ -1086,9 +1261,12 @@ export function QuickEntryPanel({
               void submitText();
             }}
             placeholder={
-              "Dán tin nhắn khách rồi bấm Enter. Ctrl+Enter để xuống dòng.\n\n" +
-              "14/7\nKhách hàng: Chí Linh HD\nXe: 34C-118.23\nLái xe: Nguyễn Đình Cường\n" +
-              "DO 05: 9.593 L - Kho HLHP"
+              mode === "LOT"
+                ? "Dán đơn đặt lô rồi bấm Enter. Ctrl+Enter để xuống dòng.\n\n" +
+                  "18/8\nKhách hàng: HFC\nE10: 300.000 L - Kho Hoàng Huy"
+                : "Dán tin nhắn khách rồi bấm Enter. Ctrl+Enter để xuống dòng.\n\n" +
+                  "14/7\nKhách hàng: Chí Linh HD\nXe: 34C-118.23\nLái xe: Nguyễn Đình Cường\n" +
+                  "DO 05: 9.593 L - Kho HLHP"
             }
           />
           <div className="quick-entry-controls" >
@@ -1122,6 +1300,17 @@ export function QuickEntryPanel({
             >
               Thêm vào bảng (Enter)
             </Button>
+            {mode === "LOT" ? (
+              <Button
+                size="small"
+                type="text"
+                icon={<UpOutlined />}
+                disabled={staged.length > 0}
+                onClick={() => setComposerOpen(false)}
+              >
+                {staged.length ? "Còn đơn tạm chờ xử lý" : "Thu gọn ô dán"}
+              </Button>
+            ) : null}
           </div>
         </div>
 
@@ -1163,14 +1352,18 @@ export function QuickEntryPanel({
                         <span>Khách hàng</span>
                         <strong>{draft.customerCode ?? draft.customerRawText ?? "Chưa rõ"}</strong>
                       </div>
-                      <div>
-                        <span>BKS</span>
-                        <strong>{draft.plate || "-"}</strong>
-                      </div>
-                      <div>
-                        <span>Lái xe</span>
-                        <strong>{draft.driver || "-"}</strong>
-                      </div>
+                      {mode !== "LOT" ? (
+                        <>
+                          <div>
+                            <span>BKS</span>
+                            <strong>{draft.plate || "-"}</strong>
+                          </div>
+                          <div>
+                            <span>Lái xe</span>
+                            <strong>{draft.driver || "-"}</strong>
+                          </div>
+                        </>
+                      ) : null}
                       <div>
                         <span>Mặt hàng</span>
                         <strong>{products || "-"}</strong>
@@ -1266,13 +1459,15 @@ export function QuickEntryPanel({
         pagination={false}
         columns={columns}
         dataSource={rows}
-        scroll={{ x: 1440 }}
+        scroll={{ x: mode === "LOT" ? 890 : 1270 }}
         footer={
           orders.length
             ? () => (
-                <div style={{ textAlign: "right" }}>
-                  <Typography.Text type="secondary">Tổng tiền: </Typography.Text>
-                  <Typography.Text strong>{formatMoney(grandTotal)} đ</Typography.Text>
+                <div className="quick-entry-table-footer">
+                  <span>
+                    <Typography.Text type="secondary">Tổng tiền: </Typography.Text>
+                    <Typography.Text strong>{formatMoney(grandTotal)} đ</Typography.Text>
+                  </span>
                 </div>
               )
             : undefined
@@ -1289,7 +1484,9 @@ export function QuickEntryPanel({
               <FileTextOutlined />
               <Typography.Text strong>Chưa có đơn nào</Typography.Text>
               <Typography.Text type="secondary">
-                Bấm “Thêm nhanh” rồi dán tin nhắn khách, hoặc nhấn Enter để thêm đơn.
+                {mode === "LOT"
+                  ? "Bấm “Thêm đơn” để nhập tay, hoặc mở ô dán tin nhắn nếu khách gửi sẵn đơn."
+                  : "Bấm “Thêm nhanh” rồi dán tin nhắn khách, hoặc nhấn Enter để thêm đơn."}
               </Typography.Text>
             </div>
           ),
@@ -1298,10 +1495,12 @@ export function QuickEntryPanel({
 
       {mode === "LOT" ? (
         <div className="quick-entry-terms">
-          <Typography.Text strong>Điều khoản đơn lô</Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
-            Áp cho mọi đơn lô lưu trong lượt nhập này.
-          </Typography.Text>
+          <div className="quick-entry-terms-heading">
+            <Typography.Text strong>Điều khoản đơn lô</Typography.Text>
+            <Typography.Text type="secondary">
+              Áp dụng cho mọi đơn trong lượt nhập này
+            </Typography.Text>
+          </div>
 
           <div className="quick-entry-terms-grid">
             <div>
@@ -1338,32 +1537,42 @@ export function QuickEntryPanel({
                 onChange={(event) => {
                   const next = event.target.value;
                   setPaymentTermType(next);
-                  // Trả chậm mà chưa có mốc nào thì dựng sẵn mốc 100% cho đỡ phải gõ.
+                  setLotTermsOpen(next === "NET_DAYS");
+                  // Mặc định một đợt 100% vào ngày đặt hàng; người dùng có thể chọn nhanh 50/50.
                   if (next === "NET_DAYS" && !paymentPlans.length) {
                     setPaymentPlans([
-                      { key: `plan-${Date.now()}`, dueDays: 30, percent: 100 },
+                      { key: `plan-${Date.now()}`, dueDate: paymentBaseDate, percent: 100 },
                     ]);
                   }
                 }}
               >
                 <Radio value="SAME_DAY">Trong ngày</Radio>
-                <Radio value="NET_DAYS">Khoảng thời gian</Radio>
+                <Radio value="NET_DAYS">Theo lịch thanh toán</Radio>
               </Radio.Group>
 
               {paymentTermType === "NET_DAYS" ? (
+                <Button
+                  className="quick-entry-terms-detail-toggle"
+                  type="link"
+                  size="small"
+                  icon={lotTermsOpen ? <UpOutlined /> : <DownOutlined />}
+                  onClick={() => setLotTermsOpen((open) => !open)}
+                >
+                  {lotTermsOpen ? "Thu gọn" : paymentPlanSummary || "Thiết lập lịch thanh toán"}
+                </Button>
+              ) : null}
+
+              {paymentTermType === "NET_DAYS" && lotTermsOpen ? (
                 <div style={{ marginTop: 8 }}>
                   <Space size={6} wrap style={{ marginBottom: 8 }}>
-                    <Button size="small" onClick={() => applyPreset(50)}>
-                      50%
+                    <Button size="small" onClick={() => applyPreset("FULL")}>
+                      100% một lần
                     </Button>
-                    <Button size="small" onClick={() => applyPreset(100)}>
-                      100%
+                    <Button size="small" onClick={() => applyPreset("HALF")}>
+                      50% - 50%
                     </Button>
-                    <Button size="small" icon={<PlusOutlined />} onClick={() => addPlanRow(true)}>
-                      Số tiền tùy chỉnh
-                    </Button>
-                    <Button size="small" icon={<PlusOutlined />} onClick={() => addPlanRow(false)}>
-                      Thêm mốc %
+                    <Button size="small" icon={<PlusOutlined />} onClick={addPlanRow}>
+                      Thêm đợt
                     </Button>
                   </Space>
 
@@ -1376,18 +1585,17 @@ export function QuickEntryPanel({
                       dataSource={paymentPlans}
                       columns={[
                         {
-                          title: "Sau (ngày)",
-                          width: 110,
-                          align: "right",
+                          title: "Ngày thanh toán",
+                          width: 145,
                           render: (_, plan) => (
-                            <InputNumber
+                            <DatePicker
                               size="small"
-                              min={0}
-                              controls={false}
+                              format="DD/MM/YYYY"
                               style={{ width: "100%" }}
-                              value={plan.dueDays}
+                              value={plan.dueDate}
+                              disabledDate={(date) => date.isBefore(paymentBaseDate, "day")}
                               onChange={(value) =>
-                                patchPlan(plan.key, { dueDays: Number(value ?? 0) })
+                                value && patchPlan(plan.key, { dueDate: value })
                               }
                             />
                           ),
@@ -1407,32 +1615,20 @@ export function QuickEntryPanel({
                               value={plan.percent}
                               onChange={(value) =>
                                 patchPlan(plan.key, {
-                                  percent: value == null ? undefined : Number(value),
-                                  amount: undefined,
+                                  percent: Number(value ?? 0),
                                 })
                               }
                             />
                           ),
                         },
                         {
-                          title: "Hoặc số tiền",
+                          title: "Số tiền dự kiến",
                           width: 150,
                           align: "right",
                           render: (_, plan) => (
-                            <InputNumber
-                              size="small"
-                              min={0}
-                              controls={false}
-                              placeholder="—"
-                              style={{ width: "100%" }}
-                              value={plan.amount}
-                              onChange={(value) =>
-                                patchPlan(plan.key, {
-                                  amount: value == null ? undefined : Number(value),
-                                  percent: undefined,
-                                })
-                              }
-                            />
+                            <Typography.Text strong>
+                              {formatMoney((grandTotal * Number(plan.percent || 0)) / 100)} đ
+                            </Typography.Text>
                           ),
                         },
                         {
@@ -1453,19 +1649,40 @@ export function QuickEntryPanel({
                           ),
                         },
                       ]}
+                      summary={() => (
+                        <Table.Summary.Row>
+                          <Table.Summary.Cell index={0} align="right">
+                            <Typography.Text strong>Tổng</Typography.Text>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={1} align="right">
+                            <Typography.Text strong>{planPercentTotal}%</Typography.Text>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={2} align="right">
+                            <Typography.Text strong>{formatMoney(grandTotal)} đ</Typography.Text>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={3} />
+                        </Table.Summary.Row>
+                      )}
                     />
                   ) : (
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      Chưa có mốc nào — bấm 50% / 100% hoặc thêm mốc tùy chỉnh.
+                      Chưa có đợt nào — chọn mẫu nhanh hoặc bấm “Thêm đợt”.
                     </Typography.Text>
                   )}
 
-                  {planPercentTotal > 0 && planPercentTotal !== 100 ? (
+                  {paymentPlanError ? (
                     <Alert
                       type="warning"
                       showIcon
                       style={{ marginTop: 8 }}
-                      message={`Tổng các mốc theo tỷ lệ đang là ${planPercentTotal}%, chưa đủ 100%.`}
+                      message={paymentPlanError}
+                    />
+                  ) : paymentPlans.length ? (
+                    <Alert
+                      type="success"
+                      showIcon
+                      style={{ marginTop: 8 }}
+                      message="Lịch thanh toán đã đủ 100%."
                     />
                   ) : null}
                 </div>

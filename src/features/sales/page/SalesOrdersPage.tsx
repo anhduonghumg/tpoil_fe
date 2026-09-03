@@ -23,8 +23,6 @@ import {
   PlusOutlined,
   PrinterOutlined,
   SearchOutlined,
-  SwapOutlined,
-  ThunderboltOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -45,10 +43,8 @@ import {
   usePrintSalesOrders,
   useSalesOrderStatusCounts,
 } from "../hooks";
-import type { SalesOrder, SalesOrderKind, SalesOrderStatus } from "../types";
+import type { SalesOrder, SalesOrderKind, SalesOrderLine, SalesOrderStatus } from "../types";
 import { InternalSalesOrderModal } from "../ui/InternalSalesOrderModal";
-import { SalesOrderCreateModal } from "../ui/SalesOrderCreateModal";
-import { QuickEntryModal } from "../ui/QuickEntryModal";
 import { QuickEntryPanel } from "../ui/QuickEntryPanel";
 import {
   formatMoney,
@@ -64,6 +60,13 @@ const ALL_TAB = "ALL";
 const RETAIL_ENTRY_TAB = "QUICK_ENTRY_RETAIL";
 const LOT_ENTRY_TAB = "QUICK_ENTRY_LOT";
 const ENTRY_TABS = [RETAIL_ENTRY_TAB, LOT_ENTRY_TAB];
+
+/**
+ * Nút "Tạo đơn bán" mở form modal — trùng vai trò với "Thêm đơn" ngay trên bảng nhập,
+ * nên tạm ẩn theo yêu cầu. Modal vẫn còn nguyên (dùng cho luồng sửa đơn); bật lại chỉ
+ * cần đổi cờ này về true.
+ */
+const SHOW_CREATE_ORDER_BUTTON = false;
 
 /**
  * Mọi trạng thái sau khi đơn được duyệt. Sale chỉ cần biết "đã qua duyệt hay chưa";
@@ -114,6 +117,15 @@ const uniq = (values: Array<string | null | undefined>) =>
   [...new Set(values.filter((value): value is string => Boolean(value?.trim())))];
 
 /**
+ * Nơi lấy hàng của một dòng. Đơn lô nhiều khi mới chốt tới khu vực, kho cụ thể quyết
+ * định ở từng lượt rút — phải nói rõ đó là khu vực, không để trống như chưa có gì.
+ */
+const warehouseScopeName = (line: SalesOrderLine) =>
+  line.issueWarehouse?.name ??
+  line.receivingWarehouse?.name ??
+  (line.receivingWarehouseArea ? `Khu vực ${line.receivingWarehouseArea.name}` : null);
+
+/**
  * Đơn còn sửa được: nháp, đang chờ duyệt, hoặc bị từ chối. Sửa đơn đang chờ duyệt sẽ
  * mở lại vòng duyệt mới — backend tự gửi lại nên Sale không phải nhớ bấm gửi.
  */
@@ -150,6 +162,8 @@ function removalOf(order: SalesOrder) {
 
 /** Bề ngang ô chọn dòng của antd, phải cộng vào khi tự tính bề ngang bảng. */
 const SELECTION_COL_WIDTH = 40;
+/** Cột nút xổ chi tiết dòng hàng; tính vào bề ngang tối thiểu như cột chọn. */
+const EXPAND_COL_WIDTH = 34;
 
 /** Danh sách đơn bán nội bộ — màn hình Sale dùng hằng ngày. */
 export default function SalesOrdersPage() {
@@ -169,8 +183,6 @@ export default function SalesOrdersPage() {
   /** Đơn đang chờ xác nhận bỏ đi (xóa nháp hoặc hủy đơn đã qua duyệt). */
   const [removeTarget, setRemoveTarget] = useState<SalesOrder>();
   const [removeReason, setRemoveReason] = useState("");
-  const [dayTradeOpen, setDayTradeOpen] = useState(false);
-  const [quickOpen, setQuickOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [printPeriodOpen, setPrintPeriodOpen] = useState(false);
   const [printCustomerId, setPrintCustomerId] = useState<string>();
@@ -441,9 +453,7 @@ export default function SalesOrdersPage() {
       key: "issueWarehouse",
       width: 120,
       render: (_, order) => {
-        const names = uniq(
-          order.lines.map((line) => line.issueWarehouse?.name ?? line.receivingWarehouse?.name),
-        );
+        const names = uniq(order.lines.map(warehouseScopeName));
         if (!names.length) return <span className="sales-grid-empty">—</span>;
         return (
           <Tooltip title={names.join(", ")}>
@@ -554,7 +564,73 @@ export default function SalesOrdersPage() {
    * lệch khi thêm/bớt cột. Tab nào ít cột thì bảng hẹp lại, không cuộn ngang thừa.
    */
   const gridWidth =
-    columns.reduce((sum, column) => sum + (Number(column.width) || 0), 0) + SELECTION_COL_WIDTH;
+    columns.reduce((sum, column) => sum + (Number(column.width) || 0), 0) +
+    SELECTION_COL_WIDTH +
+    EXPAND_COL_WIDTH;
+
+  /**
+   * Một dòng bảng gộp cả đơn, nên đơn nhiều mặt hàng chỉ còn "DO05SII, E…" và một con
+   * số tổng. Xổ ra để xem từng dòng mà không phải mở trang chi tiết.
+   */
+  const lineColumns: ColumnsType<SalesOrderLine> = [
+    { title: "#", dataIndex: "lineNo", width: 44 },
+    {
+      title: "Mặt hàng",
+      key: "product",
+      width: 190,
+      render: (_, line) => (
+        <Tooltip title={line.product.name}>
+          <span className="sales-grid-clip">{line.product.code ?? line.product.name}</span>
+        </Tooltip>
+      ),
+    },
+    {
+      title: "Kho rút",
+      key: "warehouse",
+      width: 170,
+      render: (_, line) => warehouseScopeName(line) ?? <span className="sales-grid-empty">—</span>,
+    },
+    {
+      title: "Số lượng",
+      key: "qty",
+      width: 110,
+      align: "right",
+      render: (_, line) => (
+        <span className="sales-grid-num">
+          {formatQty(line.orderedActualQty)} {line.product.uom}
+        </span>
+      ),
+    },
+    {
+      title: "Đơn giá",
+      key: "unitPrice",
+      width: 100,
+      align: "right",
+      render: (_, line) => <span className="sales-grid-num">{formatMoney(line.unitPrice)}</span>,
+    },
+    {
+      title: "Chiết khấu",
+      key: "discount",
+      width: 100,
+      align: "right",
+      render: (_, line) => <span className="sales-grid-num">{formatMoney(line.discountAmount)}</span>,
+    },
+    {
+      title: "Thành tiền",
+      key: "net",
+      width: 130,
+      align: "right",
+      render: (_, line) => (
+        <span className="sales-grid-num sales-grid-strong">{formatMoney(lineNetAmount(line))}</span>
+      ),
+    },
+    {
+      title: "Nguồn",
+      dataIndex: "supplySource",
+      width: 70,
+      render: (value?: string) => value ?? "—",
+    },
+  ];
 
   return (
     <div className="sales-orders-page" style={{ padding: 10 }}>
@@ -573,29 +649,20 @@ export default function SalesOrdersPage() {
           Đơn bán <span className="sales-orders-page-separator">/</span>{" "}
           {tab === LOT_ENTRY_TAB ? "Đơn lô" : "Đơn lẻ"}
         </Typography.Title>
-        <Space wrap>
-          <PermissionGate need={PERMS.SALES_QUICKENTRY_USE}>
-            <Button size="small" icon={<ThunderboltOutlined />} onClick={() => setQuickOpen(true)}>
-              Nhập nhanh
-            </Button>
-          </PermissionGate>
-          <Button size="small" icon={<PrinterOutlined />} onClick={() => setPrintPeriodOpen(true)}>
-            In theo kỳ
-          </Button>
-          <PermissionGate need={PERMS.SALES_CREATE}>
-            {/* Đơn khách đặt mà mình chưa có hàng: lưu xong hệ thống báo mua hàng đi mua. */}
-            <Tooltip title="Đơn bán có đơn mua đối ứng — kinh doanh ghi nhận, mua hàng đi mua về giao">
-              <Button size="small" icon={<SwapOutlined />} onClick={() => setDayTradeOpen(true)}>
-                Tạo đơn bán đối ứng
+        {SHOW_CREATE_ORDER_BUTTON ? (
+          <Space wrap>
+            <PermissionGate need={PERMS.SALES_CREATE}>
+              <Button
+                size="small"
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setCreateOpen(true)}
+              >
+                Tạo đơn bán
               </Button>
-            </Tooltip>
-          </PermissionGate>
-          <PermissionGate need={PERMS.SALES_CREATE}>
-            <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
-              Tạo đơn bán
-            </Button>
-          </PermissionGate>
-        </Space>
+            </PermissionGate>
+          </Space>
+        ) : null}
       </div>
 
       <div className="sales-orders-tabs">
@@ -679,6 +746,22 @@ export default function SalesOrdersPage() {
         loading={query.isLoading}
         columns={columns}
         dataSource={items}
+        expandable={{
+          columnWidth: EXPAND_COL_WIDTH,
+          // Đơn một mặt hàng đã hiện đủ ở dòng chính, xổ ra chỉ lặp lại chính nó.
+          rowExpandable: (order) => order.lines.length > 1,
+          expandedRowRender: (order) => (
+            <Table<SalesOrderLine>
+              className="sales-grid sales-order-line-detail"
+              rowKey="id"
+              size="small"
+              bordered
+              pagination={false}
+              columns={lineColumns}
+              dataSource={order.lines}
+            />
+          ),
+        }}
         scroll={{ x: gridWidth }}
         pagination={{
           current: page,
@@ -792,19 +875,6 @@ export default function SalesOrdersPage() {
           setEditOrder(undefined);
           query.refetch();
           countsQuery.refetch();
-        }}
-      />
-      <SalesOrderCreateModal
-        open={dayTradeOpen}
-        onClose={() => setDayTradeOpen(false)}
-        onCreated={(id) => navigate(`/sales/orders/${id}`)}
-      />
-      <QuickEntryModal
-        open={quickOpen}
-        onClose={() => setQuickOpen(false)}
-        onCreated={(result) => {
-          if (result.orderNo) navigate(`/sales/orders/${result.id}`);
-          else query.refetch();
         }}
       />
     </div>

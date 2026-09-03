@@ -149,7 +149,7 @@
 
 .commercial-lot-withdrawal-form {
   display: grid;
-  grid-template-columns: minmax(170px, 1.1fr) minmax(190px, 1.2fr) minmax(210px, 1.4fr) minmax(160px, 1fr);
+  grid-template-columns: minmax(190px, 1fr) minmax(220px, 1.1fr) minmax(280px, 1.5fr);
   gap: 0 12px;
 }
 
@@ -182,10 +182,6 @@
 }
 
 .commercial-lot-field-term-days {
-  grid-column: span 2;
-}
-
-.commercial-lot-field-release-code {
   grid-column: span 2;
 }
 
@@ -357,7 +353,7 @@
 }
 
 .commercial-lot-lines .ant-table-cell {
-  padding: 6px 8px !important;
+  padding: 5px 6px !important;
 }
 
 .commercial-lot-footer {

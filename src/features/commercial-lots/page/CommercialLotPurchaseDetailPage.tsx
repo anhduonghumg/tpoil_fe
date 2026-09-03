@@ -206,7 +206,7 @@ export default function CommercialLotPurchaseDetailPage() {
 
   const renderLineDetails = (line: CommercialLotOrderLine) => (
     <div className="commercial-lot-line-details">
-      <span>Kho nhận: <strong>{line.receivingWarehouse?.name ?? "-"}</strong></span>
+      <span>Kho nhận: <strong>{line.receivingWarehouse?.name ?? line.plannedReceivingArea?.name ?? "-"}</strong></span>
       <span>Đặt mua: <strong>{formatQty(line.orderedQty)}</strong></span>
       <span>Đơn giá: <strong>{formatMoney(line.unitPrice)} đ</strong></span>
       <span>Chiết khấu/đv: <strong>{formatMoney(line.discountAmount)} đ</strong></span>
@@ -229,9 +229,18 @@ export default function CommercialLotPurchaseDetailPage() {
     },
     {
       title: "Kho nhận thực tế",
-      dataIndex: "destinationWarehouse",
-      width: 210,
-      render: (warehouse) => `${warehouse.code} - ${warehouse.name}`,
+      width: 250,
+      render: (_, withdrawal) => {
+        const warehouses = Array.from(
+          new Map(
+            withdrawal.lines.map((line) => {
+              const warehouse = line.destinationWarehouse ?? withdrawal.destinationWarehouse;
+              return [warehouse.id, warehouse];
+            }),
+          ).values(),
+        );
+        return warehouses.map((warehouse) => `${warehouse.code} - ${warehouse.name}`).join(", ");
+      },
     },
     {
       title: "Mặt hàng / số lượng",
@@ -342,7 +351,8 @@ export default function CommercialLotPurchaseDetailPage() {
       )
     : 0;
   const canCreateInvoice =
-    order.status === "APPROVED" || order.status === "IN_PROGRESS";
+    (order.status === "APPROVED" || order.status === "IN_PROGRESS") &&
+    order.quantities.invoicedQty < order.quantities.orderedQty;
   const canWithdraw =
     order.payment.isPaid && order.quantities.remainingToWithdraw > 0;
   const paymentRequestInvoiceIds = new Set(
@@ -650,7 +660,8 @@ export default function CommercialLotPurchaseDetailPage() {
             >
               Thanh toán
             </Button>
-          ) : order.supplierInvoices.length === 0 && canCreateInvoice ? (
+          ) : null}
+          {canCreateInvoice ? (
             <Button
               icon={<FileAddOutlined />}
               onClick={() =>

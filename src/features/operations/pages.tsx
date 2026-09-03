@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import {
   Button,
   Card,
+  Checkbox,
   Col,
   Descriptions,
   Divider,
@@ -19,17 +20,28 @@ import {
   Alert,
   Drawer,
 } from "antd";
-import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import { useNavigate, useParams } from "react-router-dom";
+import {
+  DownloadOutlined,
+  PlusOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { CustomerSelect } from "../../shared/ui/CustomerSelect";
 import type { CustomerSelectRole } from "../../shared/ui/CustomerSelect";
 import { notify } from "../../shared/lib/notification";
 import { http } from "../../shared/lib/http";
+import { exportExcelWorkbook } from "../../shared/utils/exportExcelExcelJS";
+import {
+  FilterButton,
+  FilterTags,
+  FilterToolbar,
+} from "../../shared/ui/TableFilter";
 import { operationsApi } from "./api";
 import { ProductsApi } from "../products/api";
 import { SupplierLocationsApi } from "../supplierLocations/api";
+import { InternalSalesApi } from "../sales/api";
 import {
   decodeWarehouseSource,
   WarehouseSourceSelect,
@@ -39,10 +51,8 @@ import {
   useOperationList,
   useOperationMutation,
 } from "./hooks";
-import {
-  FileUploadField,
-  StatusBadge,
-} from "./components";
+import { FileUploadField, StatusBadge } from "./components";
+import "./inventory-matrix.css";
 
 export {
   ShipOwnerListPage,
@@ -52,7 +62,8 @@ export {
 } from "./ship-master-pages";
 
 const n = (value: unknown) => Number(value || 0).toLocaleString("vi-VN");
-const date = (value?: string) => (value ? dayjs(value).format("DD/MM/YYYY") : "-");
+const date = (value?: string) =>
+  value ? dayjs(value).format("DD/MM/YYYY") : "-";
 
 const labelMaps: Record<string, Record<string, string>> = {
   sourceType: {
@@ -106,7 +117,9 @@ const PageTitle: React.FC<{
   title: string;
   action?: React.ReactNode;
 }> = ({ title, action }) => (
-  <Space style={{ width: "100%", justifyContent: "space-between", marginBottom: 16 }}>
+  <Space
+    style={{ width: "100%", justifyContent: "space-between", marginBottom: 16 }}
+  >
     <Typography.Title level={3} style={{ margin: 0 }}>
       {title}
     </Typography.Title>
@@ -130,17 +143,28 @@ const DynamicField: React.FC<{ field: Field }> = ({ field }) => {
     ) : field.kind === "date" ? (
       <DatePicker style={{ width: "100%" }} />
     ) : field.kind === "customer" ? (
-      <CustomerSelect customerRole={field.customerRole} style={{ width: "100%" }} />
+      <CustomerSelect
+        customerRole={field.customerRole}
+        style={{ width: "100%" }}
+      />
     ) : field.kind === "file" ? (
       <FileUploadField />
     ) : field.kind === "select" ? (
-      <Select options={(field.options || []).map((x) => (typeof x === "string" ? { value: x, label: x } : x))} />
+      <Select
+        options={(field.options || []).map((x) =>
+          typeof x === "string" ? { value: x, label: x } : x
+        )}
+      />
     ) : (
       <Input />
     );
   return (
     <Col xs={24} md={12}>
-      <Form.Item name={field.name} label={field.label} rules={[{ required: field.required }]}>
+      <Form.Item
+        name={field.name}
+        label={field.label}
+        rules={[{ required: field.required }]}
+      >
         {input}
       </Form.Item>
     </Col>
@@ -171,7 +195,9 @@ const CrudPage: React.FC<{
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
   const query = useOperationList(resource, { page: 1, pageSize: 100, keyword });
-  const mutation = useOperationMutation<{ data: any; id?: string }>(({ data, id }) => save(data, id));
+  const mutation = useOperationMutation<{ data: any; id?: string }>(
+    ({ data, id }) => save(data, id)
+  );
   const items = query.data?.items ?? query.data ?? [];
   const openForm = (row?: any) => {
     setEditing(row);
@@ -181,7 +207,9 @@ const CrudPage: React.FC<{
         ? Object.fromEntries(
             fields.map((field) => [
               field.name,
-              field.kind === "date" && row[field.name] ? dayjs(row[field.name]) : row[field.name],
+              field.kind === "date" && row[field.name]
+                ? dayjs(row[field.name])
+                : row[field.name],
             ])
           )
         : {}
@@ -190,7 +218,10 @@ const CrudPage: React.FC<{
   };
   const submit = async () => {
     const values = await form.validateFields();
-    await mutation.mutateAsync({ data: normalizeForm(values, fields), id: editing?.id });
+    await mutation.mutateAsync({
+      data: normalizeForm(values, fields),
+      id: editing?.id,
+    });
     notify.success("Đã lưu dữ liệu.");
     setOpen(false);
   };
@@ -198,7 +229,18 @@ const CrudPage: React.FC<{
     <>
       <PageTitle
         title={title}
-        action={<Space>{extraAction}<Button type="primary" icon={<PlusOutlined />} onClick={() => openForm()}>Tạo mới</Button></Space>}
+        action={
+          <Space>
+            {extraAction}
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => openForm()}
+            >
+              Tạo mới
+            </Button>
+          </Space>
+        }
       />
       <Card>
         <Input.Search
@@ -217,7 +259,13 @@ const CrudPage: React.FC<{
               title: "Thao tác",
               width: 120,
               render: (_: unknown, row: any) => (
-                <Button type="link" onClick={(event) => { event.stopPropagation(); openForm(row); }}>
+                <Button
+                  type="link"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openForm(row);
+                  }}
+                >
                   Sửa
                 </Button>
               ),
@@ -237,7 +285,11 @@ const CrudPage: React.FC<{
         destroyOnHidden
       >
         <Form form={form} layout="vertical">
-          <Row gutter={16}>{fields.map((field) => <DynamicField key={field.name} field={field} />)}</Row>
+          <Row gutter={16}>
+            {fields.map((field) => (
+              <DynamicField key={field.name} field={field} />
+            ))}
+          </Row>
         </Form>
       </Modal>
     </>
@@ -253,13 +305,27 @@ export const ShipCharterContractListPage = () => (
       { title: "Số hợp đồng", dataIndex: "contractNo" },
       { title: "Chủ tàu", render: (_: any, x: any) => x.owner?.name },
       { title: "Ngày ký", render: (_: any, x: any) => date(x.signedDate) },
-      { title: "Hiệu lực", render: (_: any, x: any) => `${date(x.effectiveFrom)} - ${date(x.effectiveTo)}` },
+      {
+        title: "Hiệu lực",
+        render: (_: any, x: any) =>
+          `${date(x.effectiveFrom)} - ${date(x.effectiveTo)}`,
+      },
     ]}
     fields={[
       { name: "contractNo", label: "Số hợp đồng", required: true },
-      { name: "ownerCustomerId", label: "Chủ tàu", kind: "customer", required: true },
+      {
+        name: "ownerCustomerId",
+        label: "Chủ tàu",
+        kind: "customer",
+        required: true,
+      },
       { name: "signedDate", label: "Ngày ký", kind: "date", required: true },
-      { name: "effectiveFrom", label: "Hiệu lực từ", kind: "date", required: true },
+      {
+        name: "effectiveFrom",
+        label: "Hiệu lực từ",
+        kind: "date",
+        required: true,
+      },
       { name: "effectiveTo", label: "Hiệu lực đến", kind: "date" },
       { name: "fileUrl", label: "File hợp đồng", kind: "file" },
       { name: "note", label: "Ghi chú" },
@@ -277,13 +343,25 @@ export const ShipCharterAppendixListPage = () => (
       { title: "Số phụ lục", dataIndex: "appendixNo" },
       { title: "Hợp đồng", render: (_: any, x: any) => x.contract?.contractNo },
       { title: "Tàu", render: (_: any, x: any) => x.vessel?.name },
-      { title: "Laycan", render: (_: any, x: any) => `${date(x.laycanFrom)} - ${date(x.laycanTo)}` },
-      { title: "Giá thuê", render: (_: any, x: any) => n(x.freightRateVndPerLiter) },
+      {
+        title: "Laycan",
+        render: (_: any, x: any) =>
+          `${date(x.laycanFrom)} - ${date(x.laycanTo)}`,
+      },
+      {
+        title: "Giá thuê",
+        render: (_: any, x: any) => n(x.freightRateVndPerLiter),
+      },
     ]}
     fields={[
       { name: "contractId", label: "ID hợp đồng", required: true },
       { name: "appendixNo", label: "Số phụ lục", required: true },
-      { name: "appendixDate", label: "Ngày phụ lục", kind: "date", required: true },
+      {
+        name: "appendixDate",
+        label: "Ngày phụ lục",
+        kind: "date",
+        required: true,
+      },
       { name: "vesselId", label: "ID tàu" },
       { name: "cargoName", label: "Hàng hóa" },
       { name: "plannedQty", label: "Số lượng dự kiến", kind: "number" },
@@ -292,7 +370,11 @@ export const ShipCharterAppendixListPage = () => (
       { name: "dischargePort", label: "Cảng dỡ" },
       { name: "laycanFrom", label: "Laycan từ", kind: "date" },
       { name: "laycanTo", label: "Laycan đến", kind: "date" },
-      { name: "freightRateVndPerLiter", label: "Giá thuê VND/lít", kind: "number" },
+      {
+        name: "freightRateVndPerLiter",
+        label: "Giá thuê VND/lít",
+        kind: "number",
+      },
       { name: "lossRatePercent", label: "Hao hụt %", kind: "number" },
       { name: "fileUrl", label: "File phụ lục", kind: "file" },
     ]}
@@ -308,8 +390,15 @@ export const ShipFreightRatePage = () => (
       { title: "Cảng xếp", dataIndex: "loadingPort" },
       { title: "Cảng dỡ", dataIndex: "dischargePort" },
       { title: "Nhóm hàng", dataIndex: "productGroup" },
-      { title: "Giá VND/lít", render: (_: any, x: any) => n(x.freightRateVndPerLiter) },
-      { title: "Hiệu lực", render: (_: any, x: any) => `${date(x.effectiveFrom)} - ${date(x.effectiveTo)}` },
+      {
+        title: "Giá VND/lít",
+        render: (_: any, x: any) => n(x.freightRateVndPerLiter),
+      },
+      {
+        title: "Hiệu lực",
+        render: (_: any, x: any) =>
+          `${date(x.effectiveFrom)} - ${date(x.effectiveTo)}`,
+      },
     ]}
     fields={[
       { name: "ownerCustomerId", label: "Chủ tàu", kind: "customer" },
@@ -317,8 +406,18 @@ export const ShipFreightRatePage = () => (
       { name: "loadingPort", label: "Cảng xếp", required: true },
       { name: "dischargePort", label: "Cảng dỡ", required: true },
       { name: "productGroup", label: "Nhóm hàng" },
-      { name: "freightRateVndPerLiter", label: "Giá VND/lít", kind: "number", required: true },
-      { name: "effectiveFrom", label: "Hiệu lực từ", kind: "date", required: true },
+      {
+        name: "freightRateVndPerLiter",
+        label: "Giá VND/lít",
+        kind: "number",
+        required: true,
+      },
+      {
+        name: "effectiveFrom",
+        label: "Hiệu lực từ",
+        kind: "date",
+        required: true,
+      },
       { name: "effectiveTo", label: "Hiệu lực đến", kind: "date" },
       { name: "note", label: "Ghi chú" },
     ]}
@@ -335,27 +434,57 @@ export const ShipCharterOrderListPage: React.FC = () => {
       onRow={(row) => navigate(`/operations/charter-orders/${row.id}`)}
       columns={[
         { title: "Mã đơn", dataIndex: "charterOrderNo" },
-        { title: "PO TERM", render: (_: any, x: any) => x.purchaseOrder?.orderNo || "-" },
+        {
+          title: "PO TERM",
+          render: (_: any, x: any) => x.purchaseOrder?.orderNo || "-",
+        },
         { title: "Tàu", render: (_: any, x: any) => x.vessel?.name || "-" },
         { title: "Hàng hóa", dataIndex: "cargoName" },
-        { title: "Laycan", render: (_: any, x: any) => `${date(x.laycanFrom)} - ${date(x.laycanTo)}` },
-        { title: "Trạng thái", render: (_: any, x: any) => <StatusBadge status={x.status} /> },
+        {
+          title: "Laycan",
+          render: (_: any, x: any) =>
+            `${date(x.laycanFrom)} - ${date(x.laycanTo)}`,
+        },
+        {
+          title: "Trạng thái",
+          render: (_: any, x: any) => <StatusBadge status={x.status} />,
+        },
       ]}
       fields={[
         { name: "charterOrderNo", label: "Mã đơn", required: true },
-        { name: "sourceType", label: "Nguồn", kind: "select", options: optionsOf("sourceType", ["DIRECT", "FROM_TERM"]), required: true },
+        {
+          name: "sourceType",
+          label: "Nguồn",
+          kind: "select",
+          options: optionsOf("sourceType", ["DIRECT", "FROM_TERM"]),
+          required: true,
+        },
         { name: "purchaseOrderId", label: "ID PO TERM" },
         { name: "termShipmentId", label: "ID chuyến tàu TERM" },
         { name: "appendixId", label: "ID phụ lục" },
-        { name: "ownerCustomerId", label: "Chủ tàu", kind: "customer", required: true },
+        {
+          name: "ownerCustomerId",
+          label: "Chủ tàu",
+          kind: "customer",
+          required: true,
+        },
         { name: "vesselId", label: "ID tàu" },
         { name: "laycanFrom", label: "Laycan từ", kind: "date" },
         { name: "laycanTo", label: "Laycan đến", kind: "date" },
         { name: "cargoName", label: "Hàng hóa", required: true },
-        { name: "plannedQty", label: "Số lượng dự kiến", kind: "number", required: true },
+        {
+          name: "plannedQty",
+          label: "Số lượng dự kiến",
+          kind: "number",
+          required: true,
+        },
         { name: "loadingPort", label: "Cảng xếp", required: true },
         { name: "dischargePort", label: "Cảng dỡ", required: true },
-        { name: "freightRateVndPerLiter", label: "Giá thuê VND/lít", kind: "number" },
+        {
+          name: "freightRateVndPerLiter",
+          label: "Giá thuê VND/lít",
+          kind: "number",
+        },
         { name: "lossRatePercent", label: "Hao hụt %", kind: "number" },
         { name: "appendixFileUrl", label: "File phụ lục", kind: "file" },
         { name: "note", label: "Ghi chú" },
@@ -378,14 +507,21 @@ const RegistrationForm: React.FC<{
       : operationsApi.saveAgent(orderId, data)
   );
   const companyField =
-    type === "insurance" ? "insuranceCompanyId" : type === "inspection" ? "inspectionCompanyId" : "agentCustomerId";
+    type === "insurance"
+      ? "insuranceCompanyId"
+      : type === "inspection"
+      ? "inspectionCompanyId"
+      : "agentCustomerId";
   return (
     <Form
       form={form}
       layout="vertical"
       onFinish={async (values) => {
         const payload = Object.fromEntries(
-          Object.entries(values).map(([k, v]: any) => [k, dayjs.isDayjs(v) ? v.format("YYYY-MM-DD") : v])
+          Object.entries(values).map(([k, v]: any) => [
+            k,
+            dayjs.isDayjs(v) ? v.format("YYYY-MM-DD") : v,
+          ])
         );
         await mutation.mutateAsync(payload);
         notify.success("Đã lưu đăng ký.");
@@ -394,30 +530,93 @@ const RegistrationForm: React.FC<{
     >
       <Row gutter={16}>
         <Col xs={24} md={12}>
-          <Form.Item name={companyField} label="Đơn vị thực hiện" rules={[{ required: true }]}>
+          <Form.Item
+            name={companyField}
+            label="Đơn vị thực hiện"
+            rules={[{ required: true }]}
+          >
             <CustomerSelect style={{ width: "100%" }} />
           </Form.Item>
         </Col>
         {type === "insurance" && (
           <>
-            <Col xs={24} md={12}><Form.Item name="policyNo" label="Số đơn bảo hiểm"><Input /></Form.Item></Col>
-            <Col xs={24} md={12}><Form.Item name="premiumAmount" label="Phí bảo hiểm" rules={[{ required: true }]}><InputNumber style={{ width: "100%" }} /></Form.Item></Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="policyNo" label="Số đơn bảo hiểm">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="premiumAmount"
+                label="Phí bảo hiểm"
+                rules={[{ required: true }]}
+              >
+                <InputNumber style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
           </>
         )}
         {type === "inspection" && (
           <>
-            <Col xs={24} md={12}><Form.Item name="inspectionType" label="Loại giám định" initialValue="BOTH"><Select options={optionsOf("inspectionType", ["QUANTITY", "QUALITY", "BOTH"])} /></Form.Item></Col>
-            <Col xs={24} md={12}><Form.Item name="feeAmount" label="Phí giám định"><InputNumber style={{ width: "100%" }} /></Form.Item></Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="inspectionType"
+                label="Loại giám định"
+                initialValue="BOTH"
+              >
+                <Select
+                  options={optionsOf("inspectionType", [
+                    "QUANTITY",
+                    "QUALITY",
+                    "BOTH",
+                  ])}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="feeAmount" label="Phí giám định">
+                <InputNumber style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
           </>
         )}
         {type === "agent" && (
-          <Col xs={24} md={12}><Form.Item name="agencyFee" label="Phí đại lý" rules={[{ required: true }]}><InputNumber style={{ width: "100%" }} /></Form.Item></Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="agencyFee"
+              label="Phí đại lý"
+              rules={[{ required: true }]}
+            >
+              <InputNumber style={{ width: "100%" }} />
+            </Form.Item>
+          </Col>
         )}
-        <Col xs={24} md={12}><Form.Item name="registeredDate" label="Ngày đăng ký"><DatePicker style={{ width: "100%" }} /></Form.Item></Col>
-        <Col xs={24} md={12}><Form.Item name="status" label="Trạng thái" initialValue="REGISTERED"><Select options={optionsOf("status", ["DRAFT", "REGISTERED", "CONFIRMED", "CANCELLED"])} /></Form.Item></Col>
-        <Col span={24}><Form.Item name="fileUrl" label="File"><FileUploadField /></Form.Item></Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="registeredDate" label="Ngày đăng ký">
+            <DatePicker style={{ width: "100%" }} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="status" label="Trạng thái" initialValue="REGISTERED">
+            <Select
+              options={optionsOf("status", [
+                "DRAFT",
+                "REGISTERED",
+                "CONFIRMED",
+                "CANCELLED",
+              ])}
+            />
+          </Form.Item>
+        </Col>
+        <Col span={24}>
+          <Form.Item name="fileUrl" label="File">
+            <FileUploadField />
+          </Form.Item>
+        </Col>
       </Row>
-      <Button type="primary" htmlType="submit" loading={mutation.isPending}>Lưu đăng ký</Button>
+      <Button type="primary" htmlType="submit" loading={mutation.isPending}>
+        Lưu đăng ký
+      </Button>
     </Form>
   );
 };
@@ -425,8 +624,12 @@ const RegistrationForm: React.FC<{
 export const ShipCharterOrderDetailPage: React.FC = () => {
   const { id } = useParams();
   const query = useOperationDetail("charterOrder", id);
-  const statusMutation = useOperationMutation<string>((status) => operationsApi.changeCharterStatus(id!, status));
-  const costMutation = useOperationMutation(() => operationsApi.postTermCosts(id!));
+  const statusMutation = useOperationMutation<string>((status) =>
+    operationsApi.changeCharterStatus(id!, status)
+  );
+  const costMutation = useOperationMutation(() =>
+    operationsApi.postTermCosts(id!)
+  );
   const row = query.data;
   if (!row) return <Card loading={query.isLoading} />;
   return (
@@ -435,33 +638,76 @@ export const ShipCharterOrderDetailPage: React.FC = () => {
         title={`Đơn thuê tàu ${row.charterOrderNo}`}
         action={
           <Space>
-            {["WAITING_CONFIRMATION", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((status) => (
-              <Button key={status} onClick={() => statusMutation.mutate(status)}>{labelOf("status", status)}</Button>
+            {[
+              "WAITING_CONFIRMATION",
+              "CONFIRMED",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "CANCELLED",
+            ].map((status) => (
+              <Button
+                key={status}
+                onClick={() => statusMutation.mutate(status)}
+              >
+                {labelOf("status", status)}
+              </Button>
             ))}
-            <Button type="primary" onClick={() => costMutation.mutate()}>Đưa chi phí vào TERM</Button>
+            <Button type="primary" onClick={() => costMutation.mutate()}>
+              Đưa chi phí vào TERM
+            </Button>
           </Space>
         }
       />
       <Card>
         <Descriptions bordered column={{ xs: 1, md: 2, xl: 3 }}>
-          <Descriptions.Item label="Trạng thái"><StatusBadge status={row.status} /></Descriptions.Item>
-          <Descriptions.Item label="PO TERM">{row.purchaseOrder?.orderNo || "-"}</Descriptions.Item>
-          <Descriptions.Item label="Tàu">{row.vessel?.name || "-"}</Descriptions.Item>
-          <Descriptions.Item label="Chủ tàu">{row.owner?.name}</Descriptions.Item>
-          <Descriptions.Item label="Laycan">{date(row.laycanFrom)} - {date(row.laycanTo)}</Descriptions.Item>
-          <Descriptions.Item label="Hàng hóa">{row.cargoName}</Descriptions.Item>
-          <Descriptions.Item label="Số lượng">{n(row.plannedQty)}</Descriptions.Item>
-          <Descriptions.Item label="Hành trình">{row.loadingPort} → {row.dischargePort}</Descriptions.Item>
-          <Descriptions.Item label="Giá thuê">{n(row.freightRateVndPerLiter)} VND/lít</Descriptions.Item>
+          <Descriptions.Item label="Trạng thái">
+            <StatusBadge status={row.status} />
+          </Descriptions.Item>
+          <Descriptions.Item label="PO TERM">
+            {row.purchaseOrder?.orderNo || "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="Tàu">
+            {row.vessel?.name || "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="Chủ tàu">
+            {row.owner?.name}
+          </Descriptions.Item>
+          <Descriptions.Item label="Laycan">
+            {date(row.laycanFrom)} - {date(row.laycanTo)}
+          </Descriptions.Item>
+          <Descriptions.Item label="Hàng hóa">
+            {row.cargoName}
+          </Descriptions.Item>
+          <Descriptions.Item label="Số lượng">
+            {n(row.plannedQty)}
+          </Descriptions.Item>
+          <Descriptions.Item label="Hành trình">
+            {row.loadingPort} → {row.dischargePort}
+          </Descriptions.Item>
+          <Descriptions.Item label="Giá thuê">
+            {n(row.freightRateVndPerLiter)} VND/lít
+          </Descriptions.Item>
         </Descriptions>
       </Card>
       <Divider />
       <Card>
         <Tabs
           items={[
-            { key: "insurance", label: `Bảo hiểm (${row.insurances?.length || 0})`, children: <RegistrationForm type="insurance" orderId={id!} /> },
-            { key: "inspection", label: `Giám định (${row.inspections?.length || 0})`, children: <RegistrationForm type="inspection" orderId={id!} /> },
-            { key: "agent", label: `Đại lý tàu (${row.agentRegistrations?.length || 0})`, children: <RegistrationForm type="agent" orderId={id!} /> },
+            {
+              key: "insurance",
+              label: `Bảo hiểm (${row.insurances?.length || 0})`,
+              children: <RegistrationForm type="insurance" orderId={id!} />,
+            },
+            {
+              key: "inspection",
+              label: `Giám định (${row.inspections?.length || 0})`,
+              children: <RegistrationForm type="inspection" orderId={id!} />,
+            },
+            {
+              key: "agent",
+              label: `Đại lý tàu (${row.agentRegistrations?.length || 0})`,
+              children: <RegistrationForm type="agent" orderId={id!} />,
+            },
           ]}
         />
       </Card>
@@ -473,29 +719,71 @@ export const StorageRentalContractPage = () => (
   <CrudPage
     title="Hợp đồng thuê kho"
     resource="storageContracts"
-    save={(data, id) => operationsApi.saveStorageContract({
-      ...data,
-      supplierLocationIds: data.supplierLocationIds ? String(data.supplierLocationIds).split(",").map((x) => x.trim()) : [],
-      lossRates: data.lossRatesJson ? JSON.parse(data.lossRatesJson) : [],
-      feeTiers: data.feeTiersJson ? JSON.parse(data.feeTiersJson) : [],
-      lossRatesJson: undefined,
-      feeTiersJson: undefined,
-    }, id)}
+    save={(data, id) =>
+      operationsApi.saveStorageContract(
+        {
+          ...data,
+          supplierLocationIds: data.supplierLocationIds
+            ? String(data.supplierLocationIds)
+                .split(",")
+                .map((x) => x.trim())
+            : [],
+          lossRates: data.lossRatesJson ? JSON.parse(data.lossRatesJson) : [],
+          feeTiers: data.feeTiersJson ? JSON.parse(data.feeTiersJson) : [],
+          lossRatesJson: undefined,
+          feeTiersJson: undefined,
+        },
+        id
+      )
+    }
     columns={[
       { title: "Số hợp đồng", dataIndex: "contractNo" },
       { title: "Bên cho thuê", render: (_: any, x: any) => x.lessor?.name },
-      { title: "Hiệu lực", render: (_: any, x: any) => `${date(x.effectiveFrom)} - ${date(x.effectiveTo)}` },
-      { title: "Trạng thái", render: (_: any, x: any) => <StatusBadge status={x.status} /> },
+      {
+        title: "Hiệu lực",
+        render: (_: any, x: any) =>
+          `${date(x.effectiveFrom)} - ${date(x.effectiveTo)}`,
+      },
+      {
+        title: "Trạng thái",
+        render: (_: any, x: any) => <StatusBadge status={x.status} />,
+      },
     ]}
     fields={[
       { name: "contractNo", label: "Số hợp đồng", required: true },
-      { name: "lessorCustomerId", label: "Bên cho thuê", kind: "customer", required: true },
+      {
+        name: "lessorCustomerId",
+        label: "Bên cho thuê",
+        kind: "customer",
+        required: true,
+      },
       { name: "effectiveFrom", label: "Hiệu lực từ", kind: "date" },
       { name: "effectiveTo", label: "Hiệu lực đến", kind: "date" },
-      { name: "status", label: "Trạng thái", kind: "select", options: optionsOf("status", ["DRAFT", "ACTIVE", "EXPIRED", "TERMINATED"]) },
-      { name: "supplierLocationIds", label: "ID kho (phân cách bằng dấu phẩy)", required: true },
-      { name: "lossRatesJson", label: "Tỷ lệ hao hụt (JSON: productGroup, storageLossRatePercent, issueLossRatePercent)" },
-      { name: "feeTiersJson", label: "Bậc giá thuê (JSON: conditionText, unitPriceVndPerLiter)" },
+      {
+        name: "status",
+        label: "Trạng thái",
+        kind: "select",
+        options: optionsOf("status", [
+          "DRAFT",
+          "ACTIVE",
+          "EXPIRED",
+          "TERMINATED",
+        ]),
+      },
+      {
+        name: "supplierLocationIds",
+        label: "ID kho (phân cách bằng dấu phẩy)",
+        required: true,
+      },
+      {
+        name: "lossRatesJson",
+        label:
+          "Tỷ lệ hao hụt (JSON: productGroup, storageLossRatePercent, issueLossRatePercent)",
+      },
+      {
+        name: "feeTiersJson",
+        label: "Bậc giá thuê (JSON: conditionText, unitPriceVndPerLiter)",
+      },
       { name: "fileUrl", label: "File hợp đồng", kind: "file" },
       { name: "note", label: "Ghi chú" },
     ]}
@@ -505,11 +793,25 @@ export const StorageRentalContractFormPage = StorageRentalContractPage;
 
 type MatrixMetric =
   | "total"
+  | "actual"
+  | "sellable"
+  | "held"
+  | "expected"
   | "exportable"
   | "temporary"
   | "nonExportable"
   | "accountingQty"
   | "accountingValue";
+
+type InventoryMatrixExportColumn = {
+  supplierId: string;
+  supplierName: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  releaseCode: string;
+  dataIndex: string;
+};
 
 function numberOf(value: unknown) {
   const result = Number(value ?? 0);
@@ -519,6 +821,7 @@ function numberOf(value: unknown) {
 function sourceLabel(source?: string) {
   if (source === "COMMERCIAL_LOT") return "Lô đã hóa đơn";
   if (source === "COMMERCIAL_LOT_ORDER") return "Đơn lô chờ hóa đơn";
+  if (source === "EXPECTED") return "Hàng dự kiến";
   return "Tồn thực tế";
 }
 
@@ -539,18 +842,35 @@ function releaseCodeLabel(row: any) {
   return code === "UNCLASSIFIED" ? "Chưa xác định" : code;
 }
 
+function inventoryAreaIdOf(row: any) {
+  return (
+    row.supplierLocationArea?.id ??
+    (row.supplierLocationType === "AREA"
+      ? row.supplierLocation?.id ?? row.supplierLocationId
+      : "UNASSIGNED")
+  );
+}
+
+function inventoryAreaNameOf(row: any) {
+  return (
+    row.supplierLocationArea?.name ??
+    row.supplierLocation?.name ??
+    "Chưa phân khu vực"
+  );
+}
+
 function releaseQtyOf(row: any, code: "TP" | "NCC" | "UNCLASSIFIED") {
   if (row.releaseTotals) return numberOf(row.releaseTotals[code]);
   return releaseCodeOf(row) === code ? metricValue(row, "total") : 0;
 }
 
 function metricValue(row: any, metric: MatrixMetric) {
+  if (metric === "actual") return numberOf(row.actualQty);
+  if (metric === "sellable") return numberOf(row.sellableQty);
+  if (metric === "held") return numberOf(row.heldQty);
+  if (metric === "expected") return numberOf(row.expectedQty);
   if (metric === "total") {
-    return (
-      numberOf(row.exportableQty) +
-      numberOf(row.temporaryExportQty) +
-      numberOf(row.nonExportableQty)
-    );
+    return numberOf(row.actualQty) + numberOf(row.expectedQty);
   }
   if (metric === "exportable") return numberOf(row.exportableQty);
   if (metric === "temporary") return numberOf(row.temporaryExportQty);
@@ -562,7 +882,14 @@ function metricValue(row: any, metric: MatrixMetric) {
 function inventoryMatrix(rows: any[], metric: MatrixMetric) {
   const suppliers = new Map<
     string,
-    { id: string; name: string; products: Map<string, { code?: string; name: string; releaseCode: string }> }
+    {
+      id: string;
+      name: string;
+      products: Map<
+        string,
+        { code?: string; name: string; releaseCodes: Set<string> }
+      >;
+    }
   >();
   const warehouses = new Map<string, any>();
 
@@ -575,98 +902,404 @@ function inventoryMatrix(rows: any[], metric: MatrixMetric) {
     const supplierName = supplierCodeOf(row);
     const productName = row.product?.name ?? "Chưa xác định";
     const releaseCode = releaseCodeOf(row);
-    const productReleaseKey = `${productId}:${releaseCode}`;
-    const cellKey = `m:${supplierId}:${productReleaseKey}`;
+    const cellKey = `m:${supplierId}:${productId}:${releaseCode}`;
     const supplier = suppliers.get(supplierId) ?? {
       id: supplierId,
       name: supplierName,
-      products: new Map<string, string>(),
+      products: new Map(),
     };
-    supplier.products.set(productReleaseKey, {
+    const product = supplier.products.get(productId) ?? {
       code: row.product?.code ?? undefined,
-      name: `${productName} - ${releaseCodeLabel(row)}`,
-      releaseCode,
-    });
+      name: productName,
+      // Ma trận tồn luôn phải cho thấy cả hai mã rút. Nhờ vậy người dùng biết
+      // rõ mã TP/NCC nào hiện chưa có tồn, thay vì nhầm ô trống là thiếu dữ liệu.
+      releaseCodes: new Set<string>(["TP", "NCC"]),
+    };
+    product.releaseCodes.add(releaseCode);
+    supplier.products.set(productId, product);
     suppliers.set(supplierId, supplier);
 
+    const isAreaOnly = row.supplierLocationType === "AREA";
+    const areaName = inventoryAreaNameOf(row);
+    const areaId = inventoryAreaIdOf(row);
+    const locationName = isAreaOnly
+      ? "Chưa xác định kho"
+      : row.supplierLocation?.name ?? "Chưa xác định kho";
     const warehouse = warehouses.get(warehouseId) ?? {
       id: warehouseId,
-      warehouseName: row.supplierLocation?.name ?? "Chưa xác định",
+      areaId,
+      areaName,
+      warehouseName: locationName,
     };
-    warehouse[cellKey] = numberOf(warehouse[cellKey]) + metricValue(row, metric);
+    warehouse.warehouseName = locationName;
+    warehouse[cellKey] =
+      numberOf(warehouse[cellKey]) + metricValue(row, metric);
     warehouses.set(warehouseId, warehouse);
   });
 
-  const supplierColumns = [...suppliers.values()]
-    .sort((a, b) => a.name.localeCompare(b.name, "vi"))
-    .map((supplier) => ({
-      title: supplier.name,
-      children: [...supplier.products.entries()]
-        .sort(([, a], [, b]) => (a.code ?? a.name).localeCompare(b.code ?? b.name, "vi"))
-        .map(([productReleaseKey, product]) => ({
-          title: <span title={product.name}>{product.code ?? product.name} ({product.releaseCode === "UNCLASSIFIED" ? "CXD" : product.releaseCode})</span>,
-          dataIndex: `m:${supplier.id}:${productReleaseKey}`,
-          width: 100,
-          align: "right" as const,
-          render: (value: unknown) => (numberOf(value) ? n(value) : ""),
-        })),
+  const releaseCodeOrder = (a: string, b: string) => {
+    const order = ["TP", "NCC", "UNCLASSIFIED"];
+    return order.indexOf(a) - order.indexOf(b);
+  };
+  const sortedSuppliers = [...suppliers.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, "vi")
+  );
+  const exportColumns: InventoryMatrixExportColumn[] = sortedSuppliers.flatMap(
+    (supplier) =>
+      [...supplier.products.entries()]
+        .sort(([, a], [, b]) =>
+          (a.code ?? a.name).localeCompare(b.code ?? b.name, "vi")
+        )
+        .flatMap(([productId, product]) =>
+          [...product.releaseCodes]
+            .sort(releaseCodeOrder)
+            .map((releaseCode) => ({
+              supplierId: supplier.id,
+              supplierName: supplier.name,
+              productId,
+              productCode: product.code ?? product.name,
+              productName: product.name,
+              releaseCode,
+              dataIndex: `m:${supplier.id}:${productId}:${releaseCode}`,
+            }))
+        )
+  );
+  const supplierColumns = sortedSuppliers.map((supplier) => ({
+    title: supplier.name,
+    children: [...supplier.products.entries()]
+      .sort(([, a], [, b]) =>
+        (a.code ?? a.name).localeCompare(b.code ?? b.name, "vi")
+      )
+      .map(([productId, product]) => ({
+        title: <span title={product.name}>{product.code ?? product.name}</span>,
+        children: [...product.releaseCodes]
+          .sort(releaseCodeOrder)
+          .map((releaseCode) => ({
+            title: releaseCode === "UNCLASSIFIED" ? "CXD" : releaseCode,
+            dataIndex: `m:${supplier.id}:${productId}:${releaseCode}`,
+            width: 88,
+            align: "right" as const,
+            onHeaderCell: () => ({ style: { textAlign: "center" } }),
+            render: (value: unknown, record: any) =>
+              record.isAreaGroup ? (
+                <strong>{n(numberOf(value))}</strong>
+              ) : (
+                n(numberOf(value))
+              ),
+          })),
+      })),
+  }));
+
+  const areas = new Map<string, any>();
+  for (const warehouse of warehouses.values()) {
+    const groupKey = `area:${warehouse.areaId}`;
+    const area = areas.get(groupKey) ?? {
+      id: groupKey,
+      warehouseName: warehouse.areaName,
+      isAreaGroup: true,
+      children: [],
+    };
+    for (const [key, value] of Object.entries(warehouse)) {
+      if (!key.startsWith("m:")) continue;
+      area[key] = numberOf(area[key]) + numberOf(value);
+    }
+    area.children.push({ ...warehouse, isAreaGroup: false });
+    areas.set(groupKey, area);
+  }
+
+  const groupedRows = [...areas.values()]
+    .sort((a, b) => a.warehouseName.localeCompare(b.warehouseName, "vi"))
+    .map((area) => ({
+      ...area,
+      children: area.children.sort((a: any, b: any) =>
+        a.warehouseName.localeCompare(b.warehouseName, "vi")
+      ),
     }));
 
   return {
     columns: [
       {
-        title: "Kho / Nhà cung cấp",
+        title: "Khu vực / Kho",
         dataIndex: "warehouseName",
         fixed: "left" as const,
         width: 210,
+        render: (value: string, record: any) =>
+          record.isAreaGroup ? <strong>{value}</strong> : value,
       },
       ...supplierColumns,
     ],
-    rows: [...warehouses.values()].sort((a, b) =>
-      a.warehouseName.localeCompare(b.warehouseName, "vi"),
-    ),
+    rows: groupedRows,
+    exportColumns,
   };
 }
 
+function businessMatrixMetric(report: string): MatrixMetric {
+  if (report === "quantity") return "accountingQty";
+  if (report === "value") return "accountingValue";
+  if (report === "sellable") return "sellable";
+  if (report === "held") return "held";
+  if (report === "expected") return "expected";
+  return "actual";
+}
+
+const inventoryReportLabels: Record<string, string> = {
+  quantity: "Ma trận tồn kế toán theo số lượng",
+  value: "Ma trận tồn kế toán theo giá trị",
+  actual: "Ma trận tồn thực tế",
+  sellable: "Ma trận tồn có thể bán",
+  held: "Ma trận tồn đang giữ/khóa",
+  expected: "Ma trận hàng dự kiến",
+  detail: "Chi tiết tồn kho",
+};
+
+async function exportInventoryToExcel(rows: any[], report: string) {
+  if (!rows.length) return false;
+
+  await exportExcelWorkbook("ton-kho-kinh-doanh", async (workbook) => {
+    workbook.creator = "TPOIL ERP";
+    const sheet = workbook.addWorksheet("Tồn kho", {
+      views: [
+        { state: "frozen", xSplit: 1, ySplit: report === "detail" ? 4 : 6 },
+      ],
+    });
+    sheet.showGridLines = false;
+
+    const title = `BÁO CÁO ${
+      inventoryReportLabels[report] ?? "TỒN KHO"
+    }`.toUpperCase();
+    const border = {
+      top: { style: "thin" as const, color: { argb: "FFB9CBE5" } },
+      left: { style: "thin" as const, color: { argb: "FFB9CBE5" } },
+      bottom: { style: "thin" as const, color: { argb: "FFB9CBE5" } },
+      right: { style: "thin" as const, color: { argb: "FFB9CBE5" } },
+    };
+    const headerStyle = {
+      fill: {
+        type: "pattern" as const,
+        pattern: "solid" as const,
+        fgColor: { argb: "FFEDF4FF" },
+      },
+      font: { bold: true, color: { argb: "FF0958D9" } },
+      alignment: {
+        vertical: "middle" as const,
+        horizontal: "center" as const,
+        wrapText: true,
+      },
+      border,
+    };
+
+    if (report === "detail") {
+      const headers = [
+        "Khu vực",
+        "Kho",
+        "Nhà cung cấp",
+        "Mặt hàng",
+        "Mã rút",
+        "Tồn thực tế",
+        "Có thể bán",
+        "Đang giữ/khóa",
+        "Hàng dự kiến",
+      ];
+      sheet.mergeCells(1, 1, 1, headers.length);
+      sheet.getCell(1, 1).value = title;
+      sheet.getCell(1, 1).font = {
+        bold: true,
+        size: 15,
+        color: { argb: "FF173A70" },
+      };
+      sheet.getCell(1, 1).alignment = {
+        horizontal: "center",
+        vertical: "middle",
+      };
+      sheet.getRow(1).height = 26;
+      sheet.mergeCells(2, 1, 2, headers.length);
+      sheet.getCell(2, 1).value = `Xuất lúc ${dayjs().format(
+        "DD/MM/YYYY HH:mm"
+      )} · Theo bộ lọc đang chọn`;
+      sheet.getCell(2, 1).font = { italic: true, color: { argb: "FF5B6B82" } };
+      sheet.getCell(2, 1).alignment = { horizontal: "center" };
+      sheet.getRow(4).values = headers;
+      sheet.getRow(4).height = 28;
+      sheet.getRow(4).eachCell((cell) => Object.assign(cell, headerStyle));
+
+      rows.forEach((item) => {
+        const row = sheet.addRow([
+          inventoryAreaNameOf(item),
+          item.supplierLocation?.name ?? "Chưa xác định kho",
+          supplierCodeOf(item),
+          item.product?.code ?? item.product?.name ?? "Chưa xác định",
+          releaseCodeLabel(item),
+          numberOf(item.actualQty),
+          numberOf(item.sellableQty),
+          numberOf(item.heldQty),
+          numberOf(item.expectedQty),
+        ]);
+        row.eachCell((cell, index) => {
+          cell.border = border;
+          cell.alignment = {
+            vertical: "middle",
+            horizontal: index >= 6 ? "right" : "left",
+          };
+        });
+        for (let column = 6; column <= 9; column += 1)
+          row.getCell(column).numFmt = "#,##0";
+      });
+      [20, 22, 20, 24, 12, 16, 16, 16, 16].forEach((width, index) => {
+        sheet.getColumn(index + 1).width = width;
+      });
+    } else {
+      const matrix = inventoryMatrix(rows, businessMatrixMetric(report));
+      const columns = matrix.exportColumns;
+      const lastColumn = columns.length + 1;
+      sheet.mergeCells(1, 1, 1, lastColumn);
+      sheet.getCell(1, 1).value = title;
+      sheet.getCell(1, 1).font = {
+        bold: true,
+        size: 15,
+        color: { argb: "FF173A70" },
+      };
+      sheet.getCell(1, 1).alignment = {
+        horizontal: "center",
+        vertical: "middle",
+      };
+      sheet.getRow(1).height = 26;
+      sheet.mergeCells(2, 1, 2, lastColumn);
+      sheet.getCell(2, 1).value = `Xuất lúc ${dayjs().format(
+        "DD/MM/YYYY HH:mm"
+      )} · Theo bộ lọc đang chọn`;
+      sheet.getCell(2, 1).font = { italic: true, color: { argb: "FF5B6B82" } };
+      sheet.getCell(2, 1).alignment = { horizontal: "center" };
+
+      sheet.mergeCells(4, 1, 6, 1);
+      sheet.getCell(4, 1).value = "Khu vực / Kho";
+      Object.assign(sheet.getCell(4, 1), headerStyle);
+      sheet.getColumn(1).width = 30;
+
+      let currentColumn = 2;
+      const suppliers = new Map<string, InventoryMatrixExportColumn[]>();
+      columns.forEach((column) => {
+        const group = suppliers.get(column.supplierId) ?? [];
+        group.push(column);
+        suppliers.set(column.supplierId, group);
+      });
+      for (const supplierColumns of suppliers.values()) {
+        const supplierStart = currentColumn;
+        const supplierEnd = currentColumn + supplierColumns.length - 1;
+        if (supplierStart !== supplierEnd)
+          sheet.mergeCells(4, supplierStart, 4, supplierEnd);
+        sheet.getCell(4, supplierStart).value = supplierColumns[0].supplierName;
+        Object.assign(sheet.getCell(4, supplierStart), headerStyle);
+
+        const products = new Map<string, InventoryMatrixExportColumn[]>();
+        supplierColumns.forEach((column) => {
+          const group = products.get(column.productId) ?? [];
+          group.push(column);
+          products.set(column.productId, group);
+        });
+        for (const productColumns of products.values()) {
+          const productStart = currentColumn;
+          const productEnd = currentColumn + productColumns.length - 1;
+          if (productStart !== productEnd)
+            sheet.mergeCells(5, productStart, 5, productEnd);
+          sheet.getCell(5, productStart).value = productColumns[0].productCode;
+          Object.assign(sheet.getCell(5, productStart), headerStyle);
+          productColumns.forEach((column, index) => {
+            const cell = sheet.getCell(6, productStart + index);
+            cell.value =
+              column.releaseCode === "UNCLASSIFIED"
+                ? "CXD"
+                : column.releaseCode;
+            Object.assign(cell, headerStyle);
+            sheet.getColumn(productStart + index).width = 14;
+          });
+          currentColumn = productEnd + 1;
+        }
+      }
+      [4, 5, 6].forEach((rowNumber) => (sheet.getRow(rowNumber).height = 22));
+
+      const addMatrixRow = (record: any, isAreaGroup: boolean) => {
+        const row = sheet.addRow([
+          record.warehouseName,
+          ...columns.map((column) => numberOf(record[column.dataIndex])),
+        ]);
+        row.eachCell((cell, index) => {
+          cell.border = border;
+          cell.alignment = {
+            vertical: "middle",
+            horizontal: index === 1 ? "left" : "right",
+          };
+          if (index > 1) cell.numFmt = "#,##0";
+        });
+        if (isAreaGroup) {
+          row.eachCell((cell) => {
+            cell.font = { bold: true, color: { argb: "FF173A70" } };
+            cell.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFF5F8FC" },
+            };
+          });
+        } else {
+          row.getCell(1).alignment = {
+            vertical: "middle",
+            horizontal: "left",
+            indent: 1,
+          };
+          row.outlineLevel = 1;
+        }
+      };
+      matrix.rows.forEach((area: any) => {
+        addMatrixRow(area, true);
+        (area.children ?? []).forEach((warehouse: any) =>
+          addMatrixRow(warehouse, false)
+        );
+      });
+    }
+  });
+  return true;
+}
+
 function useMatrixFilters(rows: any[]) {
-  const [warehouseIds, setWarehouseIds] = useState<string[]>([]);
+  const [areaIds, setAreaIds] = useState<string[]>([]);
   const [supplierIds, setSupplierIds] = useState<string[]>([]);
   const [productKeyword, setProductKeyword] = useState("");
 
   const options = useMemo(() => {
-    const warehouses = new Map<string, string>();
+    const areas = new Map<string, string>();
     const suppliers = new Map<string, string>();
     rows.forEach((row) => {
-      const warehouseId = row.supplierLocation?.id ?? row.supplierLocationId;
-      if (warehouseId) warehouses.set(warehouseId, row.supplierLocation?.name ?? "Chưa xác định kho");
+      const areaId = inventoryAreaIdOf(row);
+      if (areaId) areas.set(areaId, inventoryAreaNameOf(row));
       suppliers.set(supplierIdOf(row), supplierCodeOf(row));
     });
     const toOptions = (items: Map<string, string>) =>
       [...items.entries()]
         .sort(([, a], [, b]) => a.localeCompare(b, "vi"))
         .map(([value, label]) => ({ value, label }));
-    return { warehouses: toOptions(warehouses), suppliers: toOptions(suppliers) };
+    return { areas: toOptions(areas), suppliers: toOptions(suppliers) };
   }, [rows]);
 
   const filteredRows = useMemo(() => {
     const keyword = productKeyword.trim().toLocaleLowerCase("vi");
     return rows.filter((row) => {
-      const warehouseId = row.supplierLocation?.id ?? row.supplierLocationId;
+      const areaId = inventoryAreaIdOf(row);
       const supplierId = supplierIdOf(row);
-      const productText = `${row.product?.code ?? ""} ${row.product?.name ?? ""}`.toLocaleLowerCase("vi");
+      const productText = `${row.product?.code ?? ""} ${
+        row.product?.name ?? ""
+      }`.toLocaleLowerCase("vi");
       return (
-        (!warehouseIds.length || warehouseIds.includes(warehouseId)) &&
+        (!areaIds.length || areaIds.includes(areaId)) &&
         (!supplierIds.length || supplierIds.includes(supplierId)) &&
         (!keyword || productText.includes(keyword))
       );
     });
-  }, [rows, warehouseIds, supplierIds, productKeyword]);
+  }, [rows, areaIds, supplierIds, productKeyword]);
 
   return {
     filteredRows,
     options,
-    warehouseIds,
-    setWarehouseIds,
+    areaIds,
+    setAreaIds,
     supplierIds,
     setSupplierIds,
     productKeyword,
@@ -679,53 +1312,150 @@ const MatrixFilterBar: React.FC<{
   reportOptions: Array<{ value: string; label: string }>;
   onReportChange: (value: string) => void;
   filters: ReturnType<typeof useMatrixFilters>;
-}> = ({ report, reportOptions, onReportChange, filters }) => (
-  <Space wrap size={[8, 8]} style={{ marginBottom: 12, width: "100%" }}>
-    <Select
-      size="small"
-      value={report}
-      onChange={onReportChange}
-      style={{ width: 245 }}
-      options={reportOptions}
-    />
-    <Select
-      size="small"
-      mode="multiple"
-      allowClear
-      showSearch
-      maxTagCount="responsive"
-      value={filters.warehouseIds}
-      onChange={filters.setWarehouseIds}
-      style={{ minWidth: 210, width: 260 }}
-      placeholder="Lọc kho"
-      options={filters.options.warehouses}
-    />
-    <Select
-      size="small"
-      mode="multiple"
-      allowClear
-      showSearch
-      maxTagCount="responsive"
-      value={filters.supplierIds}
-      onChange={filters.setSupplierIds}
-      style={{ minWidth: 230, width: 300 }}
-      placeholder="Lọc nhà cung cấp"
-      options={filters.options.suppliers}
-    />
-    <Input
-      size="small"
-      allowClear
-      prefix={<SearchOutlined />}
-      value={filters.productKeyword}
-      onChange={(event) => filters.setProductKeyword(event.target.value)}
-      placeholder="Tìm mã hoặc tên mặt hàng"
-      style={{ width: 230 }}
-    />
-    <Typography.Text type="secondary">
-      {filters.filteredRows.length} dòng dữ liệu
-    </Typography.Text>
-  </Space>
-);
+  partyPlaceholder?: string;
+  onExportExcel?: () => void;
+  exporting?: boolean;
+}> = ({
+  report,
+  reportOptions,
+  onReportChange,
+  filters,
+  partyPlaceholder,
+  onExportExcel,
+  exporting,
+}) => {
+  const [filterOpen, setFilterOpen] = useState(false);
+  const areaNames = new Map(
+    filters.options.areas.map((item) => [item.value, item.label])
+  );
+  const supplierNames = new Map(
+    filters.options.suppliers.map((item) => [item.value, item.label])
+  );
+  const activeFilters = [
+    ...filters.areaIds.map((id) => ({
+      key: `area:${id}`,
+      label: `Khu vực: ${areaNames.get(id) ?? id}`,
+      onClear: () =>
+        filters.setAreaIds(filters.areaIds.filter((value) => value !== id)),
+    })),
+    ...filters.supplierIds.map((id) => ({
+      key: `supplier:${id}`,
+      label: `${partyPlaceholder ?? "Nhà cung cấp"}: ${
+        supplierNames.get(id) ?? id
+      }`,
+      onClear: () =>
+        filters.setSupplierIds(
+          filters.supplierIds.filter((value) => value !== id)
+        ),
+    })),
+  ];
+  const filterPanel = (
+    <div className="table-filter-panel inventory-matrix-filter-panel">
+      <Space direction="vertical" size={10} style={{ width: "100%" }}>
+        <div>
+          <Typography.Text type="secondary">Khu vực</Typography.Text>
+          <Select
+            size="small"
+            mode="multiple"
+            allowClear
+            showSearch
+            maxTagCount="responsive"
+            value={filters.areaIds}
+            onChange={filters.setAreaIds}
+            style={{ width: "100%", marginTop: 4 }}
+            placeholder="Chọn khu vực"
+            options={filters.options.areas}
+          />
+        </div>
+        <div>
+          <Typography.Text type="secondary">
+            {partyPlaceholder ?? "Nhà cung cấp"}
+          </Typography.Text>
+          <Select
+            size="small"
+            mode="multiple"
+            allowClear
+            showSearch
+            maxTagCount="responsive"
+            value={filters.supplierIds}
+            onChange={filters.setSupplierIds}
+            style={{ width: "100%", marginTop: 4 }}
+            placeholder={`Chọn ${
+              partyPlaceholder?.toLocaleLowerCase("vi") ?? "nhà cung cấp"
+            }`}
+            options={filters.options.suppliers}
+          />
+        </div>
+        {activeFilters.length ? (
+          <Button
+            size="small"
+            onClick={() => {
+              filters.setAreaIds([]);
+              filters.setSupplierIds([]);
+            }}
+          >
+            Xóa bộ lọc
+          </Button>
+        ) : null}
+      </Space>
+    </div>
+  );
+
+  return (
+    <>
+      <FilterToolbar
+        left={
+          <Space size={8} wrap>
+            <Select
+              size="small"
+              value={report}
+              onChange={onReportChange}
+              style={{ width: 210 }}
+              options={reportOptions}
+            />
+            <Input
+              size="small"
+              allowClear
+              prefix={<SearchOutlined />}
+              value={filters.productKeyword}
+              onChange={(event) =>
+                filters.setProductKeyword(event.target.value)
+              }
+              placeholder="Tìm mã hoặc tên mặt hàng"
+              style={{ width: 250 }}
+            />
+          </Space>
+        }
+        right={
+          <Space size={8}>
+            <Typography.Text type="secondary">
+              {filters.filteredRows.length} dòng
+            </Typography.Text>
+            {onExportExcel ? (
+              <Button
+                className="inventory-export-button"
+                size="small"
+                icon={<DownloadOutlined />}
+                loading={exporting}
+                disabled={!filters.filteredRows.length}
+                onClick={onExportExcel}
+              >
+                Xuất Excel
+              </Button>
+            ) : null}
+            <FilterButton
+              count={activeFilters.length}
+              open={filterOpen}
+              onOpenChange={setFilterOpen}
+              content={filterPanel}
+            />
+          </Space>
+        }
+      />
+      <FilterTags items={activeFilters} />
+    </>
+  );
+};
 
 type TankStatus = "exportable" | "temporary" | "nonExportable";
 
@@ -751,7 +1481,10 @@ function inventoryTanks(rows: any[]) {
     const key = `${warehouseId}:${productId}:${supplierId}`;
     const tank = tanks.get(key) ?? {
       key,
-      warehouseCode: row.supplierLocation?.code ?? row.supplierLocation?.name ?? "Chưa xác định",
+      warehouseCode:
+        row.supplierLocation?.code ??
+        row.supplierLocation?.name ??
+        "Chưa xác định",
       warehouseName: row.supplierLocation?.name ?? "Chưa xác định",
       productCode: row.product?.code ?? row.product?.name ?? "Chưa xác định",
       productName: row.product?.name ?? "Chưa xác định",
@@ -778,8 +1511,8 @@ function inventoryTanks(rows: any[]) {
   return [...tanks.values()].sort((a, b) =>
     `${a.warehouseName} ${a.productCode} ${a.supplierCode}`.localeCompare(
       `${b.warehouseName} ${b.productCode} ${b.supplierCode}`,
-      "vi",
-    ),
+      "vi"
+    )
   );
 }
 
@@ -789,9 +1522,14 @@ const TankStatusDrawer: React.FC<{
 }> = ({ active, onClose }) => {
   const status = active?.status;
   const tank = active?.tank;
-  const rows = tank && status
-    ? tank.rows.filter((row: any) => row.source !== "COMMERCIAL_LOT_ORDER" && metricValue(row, status) > 0)
-    : [];
+  const rows =
+    tank && status
+      ? tank.rows.filter(
+          (row: any) =>
+            row.source !== "COMMERCIAL_LOT_ORDER" &&
+            metricValue(row, status) > 0
+        )
+      : [];
 
   return (
     <Drawer
@@ -807,10 +1545,22 @@ const TankStatusDrawer: React.FC<{
             column={1}
             style={{ marginBottom: 16 }}
             items={[
-              { key: "warehouse", label: "Kho", children: `${tank.warehouseCode} - ${tank.warehouseName}` },
-              { key: "product", label: "Mặt hàng", children: `${tank.productCode} - ${tank.productName}` },
+              {
+                key: "warehouse",
+                label: "Kho",
+                children: `${tank.warehouseCode} - ${tank.warehouseName}`,
+              },
+              {
+                key: "product",
+                label: "Mặt hàng",
+                children: `${tank.productCode} - ${tank.productName}`,
+              },
               { key: "supplier", label: "NCC", children: tank.supplierCode },
-              { key: "quantity", label: "Số lượng", children: n(tankStatusValue(tank, status)) },
+              {
+                key: "quantity",
+                label: "Số lượng",
+                children: n(tankStatusValue(tank, status)),
+              },
             ]}
           />
           <Table
@@ -819,10 +1569,14 @@ const TankStatusDrawer: React.FC<{
             pagination={false}
             dataSource={rows}
             columns={[
-              { title: "Nguồn", render: (_: any, row: any) => sourceLabel(row.source) },
+              {
+                title: "Nguồn",
+                render: (_: any, row: any) => sourceLabel(row.source),
+              },
               {
                 title: "Chứng từ tham chiếu",
-                render: (_: any, row: any) => row.orderNo ?? row.lot?.lotNo ?? "Số dư tổng hợp kho",
+                render: (_: any, row: any) =>
+                  row.orderNo ?? row.lot?.lotNo ?? "Số dư tổng hợp kho",
               },
               {
                 title: "Số lượng",
@@ -837,8 +1591,14 @@ const TankStatusDrawer: React.FC<{
   );
 };
 
-const TankInventoryView: React.FC<{ rows: any[]; loading?: boolean }> = ({ rows, loading }) => {
-  const [active, setActive] = useState<{ tank: any; status: TankStatus } | null>(null);
+const TankInventoryView: React.FC<{ rows: any[]; loading?: boolean }> = ({
+  rows,
+  loading,
+}) => {
+  const [active, setActive] = useState<{
+    tank: any;
+    status: TankStatus;
+  } | null>(null);
   const tanks = useMemo(() => inventoryTanks(rows), [rows]);
 
   if (loading && tanks.length === 0) return <Card size="small" loading />;
@@ -848,7 +1608,8 @@ const TankInventoryView: React.FC<{ rows: any[]; loading?: boolean }> = ({ rows,
     <>
       <Row gutter={[12, 12]}>
         {tanks.map((tank) => {
-          const total = tank.exportableQty + tank.temporaryQty + tank.nonExportableQty;
+          const total =
+            tank.exportableQty + tank.temporaryQty + tank.nonExportableQty;
           const segmentHeight = (status: TankStatus) => {
             const value = tankStatusValue(tank, status);
             if (!total || !value) return 0;
@@ -857,13 +1618,28 @@ const TankInventoryView: React.FC<{ rows: any[]; loading?: boolean }> = ({ rows,
 
           return (
             <Col key={tank.key} xs={24} sm={12} lg={8} xl={6}>
-              <Card size="small" style={{ height: "100%" }} bodyStyle={{ padding: 12 }}>
-                <Space direction="vertical" size={2} style={{ width: "100%", marginBottom: 10 }}>
-                  <Typography.Text strong title={tank.productName}>{tank.productCode}</Typography.Text>
-                  <Typography.Text type="secondary" ellipsis={{ tooltip: tank.warehouseName }}>
+              <Card
+                size="small"
+                style={{ height: "100%" }}
+                bodyStyle={{ padding: 12 }}
+              >
+                <Space
+                  direction="vertical"
+                  size={2}
+                  style={{ width: "100%", marginBottom: 10 }}
+                >
+                  <Typography.Text strong title={tank.productName}>
+                    {tank.productCode}
+                  </Typography.Text>
+                  <Typography.Text
+                    type="secondary"
+                    ellipsis={{ tooltip: tank.warehouseName }}
+                  >
                     Kho: {tank.warehouseCode}
                   </Typography.Text>
-                  <Typography.Text type="secondary">NCC: {tank.supplierCode}</Typography.Text>
+                  <Typography.Text type="secondary">
+                    NCC: {tank.supplierCode}
+                  </Typography.Text>
                 </Space>
                 <div
                   aria-label={`Bồn hàng ${tank.productCode}`}
@@ -877,7 +1653,9 @@ const TankInventoryView: React.FC<{ rows: any[]; loading?: boolean }> = ({ rows,
                     background: "#f5f7fa",
                   }}
                 >
-                  {(["exportable", "temporary", "nonExportable"] as TankStatus[]).map((status) => {
+                  {(
+                    ["exportable", "temporary", "nonExportable"] as TankStatus[]
+                  ).map((status) => {
                     const quantity = tankStatusValue(tank, status);
                     const height = segmentHeight(status);
                     if (!height) return null;
@@ -889,7 +1667,8 @@ const TankInventoryView: React.FC<{ rows: any[]; loading?: boolean }> = ({ rows,
                         title={`Mở chi tiết ${tankStatusMeta[status].label}`}
                         onClick={() => setActive({ tank, status })}
                         onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") setActive({ tank, status });
+                          if (event.key === "Enter" || event.key === " ")
+                            setActive({ tank, status });
                         }}
                         style={{
                           height: `${height}%`,
@@ -910,7 +1689,10 @@ const TankInventoryView: React.FC<{ rows: any[]; loading?: boolean }> = ({ rows,
                     );
                   })}
                   {!total ? (
-                    <Typography.Text type="secondary" style={{ textAlign: "center", margin: "auto" }}>
+                    <Typography.Text
+                      type="secondary"
+                      style={{ textAlign: "center", margin: "auto" }}
+                    >
                       Chưa có tồn thực tế
                     </Typography.Text>
                   ) : null}
@@ -923,9 +1705,16 @@ const TankInventoryView: React.FC<{ rows: any[]; loading?: boolean }> = ({ rows,
                     gap: "4px 8px",
                   }}
                 >
-                  <Typography.Text type="secondary">Trong bồn: {n(total)}</Typography.Text>
-                  <Typography.Text type="secondary">Tạm xuất: {n(tank.temporaryQty)}</Typography.Text>
-                  <Typography.Text type="secondary" style={{ gridColumn: "1 / -1" }}>
+                  <Typography.Text type="secondary">
+                    Trong bồn: {n(total)}
+                  </Typography.Text>
+                  <Typography.Text type="secondary">
+                    Tạm xuất: {n(tank.temporaryQty)}
+                  </Typography.Text>
+                  <Typography.Text
+                    type="secondary"
+                    style={{ gridColumn: "1 / -1" }}
+                  >
                     Dự kiến về: {n(tank.expectedQty)}
                   </Typography.Text>
                 </div>
@@ -939,8 +1728,13 @@ const TankInventoryView: React.FC<{ rows: any[]; loading?: boolean }> = ({ rows,
   );
 };
 
-const BusinessInventoryMatrix: React.FC<{ rows: any[]; report: string; loading?: boolean }> = ({ rows, report, loading }) => {
-  if (report === "tank") return <TankInventoryView rows={rows} loading={loading} />;
+const BusinessInventoryMatrix: React.FC<{
+  rows: any[];
+  report: string;
+  loading?: boolean;
+}> = ({ rows, report, loading }) => {
+  if (report === "tank")
+    return <TankInventoryView rows={rows} loading={loading} />;
   if (report === "detail") {
     return (
       <Table
@@ -950,32 +1744,51 @@ const BusinessInventoryMatrix: React.FC<{ rows: any[]; report: string; loading?:
         scroll={{ x: 1100, y: 520 }}
         sticky
         columns={[
-          { title: "Nguồn", width: 170, render: (_: any, x: any) => sourceLabel(x.source) },
-          { title: "Kho", render: (_: any, x: any) => x.supplierLocation?.name },
+          {
+            title: "Nguồn",
+            width: 170,
+            render: (_: any, x: any) => sourceLabel(x.source),
+          },
+          {
+            title: "Kho",
+            render: (_: any, x: any) => x.supplierLocation?.name,
+          },
           { title: "Mã NCC", render: (_: any, x: any) => supplierCodeOf(x) },
-          { title: "Mã rút", width: 90, render: (_: any, x: any) => releaseCodeLabel(x) },
+          {
+            title: "Mã rút",
+            width: 90,
+            render: (_: any, x: any) => releaseCodeLabel(x),
+          },
           { title: "Sản phẩm", render: (_: any, x: any) => x.product?.name },
-          { title: "Tồn TP", align: "right", render: (_: any, x: any) => n(releaseQtyOf(x, "TP")) },
-          { title: "Tồn NCC", align: "right", render: (_: any, x: any) => n(releaseQtyOf(x, "NCC")) },
-          { title: "Được xuất", align: "right", render: (_: any, x: any) => n(x.exportableQty) },
-          { title: "Tạm xuất", align: "right", render: (_: any, x: any) => n(x.temporaryExportQty) },
-          { title: "Không được xuất", align: "right", render: (_: any, x: any) => n(x.nonExportableQty) },
+          {
+            title: "Tồn thực tế",
+            align: "right",
+            render: (_: any, x: any) => n(x.actualQty),
+          },
+          {
+            title: "Có thể bán",
+            align: "right",
+            render: (_: any, x: any) => n(x.sellableQty),
+          },
+          {
+            title: "Đang giữ/khóa",
+            align: "right",
+            render: (_: any, x: any) => n(x.heldQty),
+          },
+          {
+            title: "Hàng dự kiến",
+            align: "right",
+            render: (_: any, x: any) => n(x.expectedQty),
+          },
         ]}
       />
     );
   }
 
-  const metric: MatrixMetric =
-    report === "exportable"
-      ? "exportable"
-      : report === "temporary"
-      ? "temporary"
-      : report === "nonExportable"
-      ? "nonExportable"
-      : "total";
-  const matrix = inventoryMatrix(rows, metric);
+  const matrix = inventoryMatrix(rows, businessMatrixMetric(report));
   return (
     <Table
+      className="inventory-matrix-table"
       rowKey="id"
       loading={loading}
       size="small"
@@ -984,12 +1797,20 @@ const BusinessInventoryMatrix: React.FC<{ rows: any[]; report: string; loading?:
       dataSource={matrix.rows}
       columns={matrix.columns}
       sticky
+      defaultExpandAllRows
+      rowClassName={(record: any) =>
+        record.isAreaGroup ? "inventory-matrix-area-row" : ""
+      }
       scroll={{ x: "max-content", y: 520 }}
     />
   );
 };
 
-const AccountingInventoryMatrix: React.FC<{ rows: any[]; report: string; loading?: boolean }> = ({ rows, report, loading }) => {
+const AccountingInventoryMatrix: React.FC<{
+  rows: any[];
+  report: string;
+  loading?: boolean;
+}> = ({ rows, report, loading }) => {
   if (report === "detail") {
     return (
       <Table
@@ -999,19 +1820,41 @@ const AccountingInventoryMatrix: React.FC<{ rows: any[]; report: string; loading
         scroll={{ x: 900, y: 520 }}
         sticky
         columns={[
-          { title: "Nguồn", width: 170, render: (_: any, x: any) => sourceLabel(x.source) },
-          { title: "Kho", render: (_: any, x: any) => x.supplierLocation?.name },
+          {
+            title: "Nguồn",
+            width: 170,
+            render: (_: any, x: any) => sourceLabel(x.source),
+          },
+          {
+            title: "Kho",
+            render: (_: any, x: any) => x.supplierLocation?.name,
+          },
           { title: "Mã NCC", render: (_: any, x: any) => supplierCodeOf(x) },
-          { title: "Mã rút", width: 90, render: (_: any, x: any) => releaseCodeLabel(x) },
+          {
+            title: "Mã rút",
+            width: 90,
+            render: (_: any, x: any) => releaseCodeLabel(x),
+          },
           { title: "Sản phẩm", render: (_: any, x: any) => x.product?.name },
-          { title: "Tồn kế toán", align: "right", render: (_: any, x: any) => n(x.accountingQty) },
-          { title: "Giá trị hóa đơn", align: "right", render: (_: any, x: any) => `${n(x.accountingValue)} đ` },
+          {
+            title: "Tồn kế toán",
+            align: "right",
+            render: (_: any, x: any) => n(x.accountingQty),
+          },
+          {
+            title: "Giá trị hóa đơn",
+            align: "right",
+            render: (_: any, x: any) => `${n(x.accountingValue)} đ`,
+          },
         ]}
       />
     );
   }
 
-  const matrix = inventoryMatrix(rows, report === "value" ? "accountingValue" : "accountingQty");
+  const matrix = inventoryMatrix(
+    rows,
+    report === "value" ? "accountingValue" : "accountingQty"
+  );
   return (
     <Table
       rowKey="id"
@@ -1028,21 +1871,33 @@ const AccountingInventoryMatrix: React.FC<{ rows: any[]; report: string; loading
 };
 
 export const InventoryAvailabilityPage: React.FC = () => {
-  const [report, setReport] = useState("total");
+  const [report, setReport] = useState("actual");
+  const [exporting, setExporting] = useState(false);
   const query = useOperationList("availability", { page: 1, pageSize: 200 });
-  const commercialLots = useOperationList("commercialLotInventory", { page: 1, pageSize: 200 });
+  const commercialLots = useOperationList("commercialLotInventory", {
+    page: 1,
+    pageSize: 200,
+  });
   const rows = [
-    ...(query.data?.items || []).map((item: any) => ({
-      ...item,
-      source: "PHYSICAL",
-      exportableQty: item.sellableQty,
-      temporaryExportQty: item.pendingReleaseQty,
-      nonExportableQty: numberOf(item.blockedQty) + numberOf(item.reservedQty),
-    })),
+    ...(query.data?.matrixItems || []),
     ...(commercialLots.data?.items || []),
   ];
   const filters = useMatrixFilters(rows);
   const loading = query.isLoading || commercialLots.isLoading;
+  const handleExportExcel = async () => {
+    try {
+      setExporting(true);
+      const exported = await exportInventoryToExcel(
+        filters.filteredRows,
+        report
+      );
+      if (exported) notify.success("Đã xuất báo cáo tồn kho ra Excel");
+    } catch {
+      notify.error("Xuất Excel thất bại. Vui lòng thử lại.");
+    } finally {
+      setExporting(false);
+    }
+  };
   return (
     <>
       <PageTitle title="Tồn kho kinh doanh" />
@@ -1050,12 +1905,13 @@ export const InventoryAvailabilityPage: React.FC = () => {
         report={report}
         onReportChange={setReport}
         filters={filters}
+        onExportExcel={handleExportExcel}
+        exporting={exporting}
         reportOptions={[
-          { value: "tank", label: "Bồn hàng & khả dụng" },
-          { value: "total", label: "Ma trận tổng tồn" },
-          { value: "exportable", label: "Ma trận hàng được xuất" },
-          { value: "temporary", label: "Ma trận hàng tạm xuất" },
-          { value: "nonExportable", label: "Ma trận hàng không được xuất" },
+          { value: "actual", label: "Ma trận tồn thực tế" },
+          { value: "sellable", label: "Ma trận tồn có thể bán" },
+          { value: "held", label: "Ma trận đang giữ/khóa" },
+          { value: "expected", label: "Ma trận hàng dự kiến" },
           { value: "detail", label: "Chi tiết theo dòng" },
         ]}
       />
@@ -1063,30 +1919,82 @@ export const InventoryAvailabilityPage: React.FC = () => {
         <Alert
           type="info"
           showIcon
-          message="Chưa có tồn thực tế hoặc đơn lô được duyệt. Đơn lô chờ hóa đơn sẽ hiển thị là hàng không được xuất."
+          message="Chưa có tồn thực tế hoặc hàng dự kiến từ đơn mua."
           style={{ marginBottom: 12 }}
         />
       ) : null}
-      <BusinessInventoryMatrix rows={filters.filteredRows} report={report} loading={loading} />
+      <BusinessInventoryMatrix
+        rows={filters.filteredRows}
+        report={report}
+        loading={loading}
+      />
+    </>
+  );
+};
+
+export const CustomerHeldInventoryPage: React.FC = () => {
+  const query = useOperationList("customerHeldInventory", {
+    page: 1,
+    pageSize: 500,
+  });
+  // Dùng lại cùng cấu trúc ma trận, nhưng trục cột là khách hàng thay vì nhà cung cấp.
+  // NCC gốc vẫn còn trên từng dòng API để có thể mở rộng màn chi tiết sau này.
+  const rows = (query.data?.items || []).map((item: any) => ({
+    ...item,
+    sourceSupplier: item.supplier,
+    supplier: item.customer,
+  }));
+  const filters = useMatrixFilters(rows);
+  const matrix = inventoryMatrix(filters.filteredRows, "held");
+  if (matrix.columns[0]) matrix.columns[0].title = "Kho / Khách hàng";
+  return (
+    <>
+      <PageTitle title="Tồn đang giữ theo khách hàng" />
+      <MatrixFilterBar
+        report="held"
+        onReportChange={() => undefined}
+        filters={filters}
+        partyPlaceholder="Lọc khách hàng"
+        reportOptions={[
+          { value: "held", label: "Ma trận tồn đang giữ cho khách" },
+        ]}
+      />
+      <Table
+        rowKey="id"
+        loading={query.isLoading}
+        size="small"
+        bordered
+        pagination={false}
+        dataSource={matrix.rows}
+        columns={matrix.columns}
+        sticky
+        scroll={{ x: "max-content", y: 520 }}
+      />
     </>
   );
 };
 
 export const InventoryAccountingPage: React.FC = () => {
   const [report, setReport] = useState("quantity");
+  const [exporting, setExporting] = useState(false);
   const query = useOperationList("matrix", { page: 1, pageSize: 200 });
-  const commercialLots = useOperationList("commercialLotInventory", { page: 1, pageSize: 200 });
-  const rows = [
-    ...(query.data?.accounting || []).map((item: any) => ({
-      ...item,
-      source: "PHYSICAL",
-      accountingQty: item.postedQty,
-      accountingValue: 0,
-    })),
-    ...(commercialLots.data?.items || []).filter((item: any) => item.includeInAccounting !== false),
-  ];
+  const rows = query.data?.accounting || [];
   const filters = useMatrixFilters(rows);
-  const loading = query.isLoading || commercialLots.isLoading;
+  const loading = query.isLoading;
+  const handleExportExcel = async () => {
+    try {
+      setExporting(true);
+      const exported = await exportInventoryToExcel(
+        filters.filteredRows,
+        report
+      );
+      if (exported) notify.success("Đã xuất tồn kế toán ra Excel");
+    } catch {
+      notify.error("Xuất Excel thất bại. Vui lòng thử lại.");
+    } finally {
+      setExporting(false);
+    }
+  };
   return (
     <>
       <PageTitle title="Tồn kho kế toán" />
@@ -1094,6 +2002,8 @@ export const InventoryAccountingPage: React.FC = () => {
         report={report}
         onReportChange={setReport}
         filters={filters}
+        onExportExcel={handleExportExcel}
+        exporting={exporting}
         reportOptions={[
           { value: "quantity", label: "Ma trận số lượng" },
           { value: "value", label: "Ma trận giá trị" },
@@ -1101,9 +2011,18 @@ export const InventoryAccountingPage: React.FC = () => {
         ]}
       />
       {!loading && filters.filteredRows.length === 0 ? (
-        <Alert type="info" showIcon message="Chưa có tồn kế toán hoặc hóa đơn lô đã ghi nhận." style={{ marginBottom: 12 }} />
+        <Alert
+          type="info"
+          showIcon
+          message="Chưa có tồn kế toán hoặc hóa đơn lô đã ghi nhận."
+          style={{ marginBottom: 12 }}
+        />
       ) : null}
-      <AccountingInventoryMatrix rows={filters.filteredRows} report={report} loading={loading} />
+      <AccountingInventoryMatrix
+        rows={filters.filteredRows}
+        report={report}
+        loading={loading}
+      />
     </>
   );
 };
@@ -1113,8 +2032,21 @@ export const InventoryMatrixReportPage = () => (
     <PageTitle title="Báo cáo ma trận tồn kho" />
     <Tabs
       items={[
-        { key: "business", label: "Tồn kinh doanh", children: <InventoryAvailabilityPage /> },
-        { key: "accounting", label: "Tồn kế toán", children: <InventoryAccountingPage /> },
+        {
+          key: "business",
+          label: "Tồn kinh doanh",
+          children: <InventoryAvailabilityPage />,
+        },
+        {
+          key: "customer",
+          label: "Theo khách hàng",
+          children: <CustomerHeldInventoryPage />,
+        },
+        {
+          key: "accounting",
+          label: "Tồn kế toán",
+          children: <InventoryAccountingPage />,
+        },
       ]}
     />
   </>
@@ -1123,8 +2055,13 @@ export const InventoryMatrixReportPage = () => (
 export const ExpectedInventoryPage: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
-  const query = useOperationList("expectedInventory", { page: 1, pageSize: 100 });
-  const mutation = useOperationMutation<any>(operationsApi.saveExpectedInventory);
+  const query = useOperationList("expectedInventory", {
+    page: 1,
+    pageSize: 100,
+  });
+  const mutation = useOperationMutation<any>(
+    operationsApi.saveExpectedInventory
+  );
   const masters = useQuery({
     queryKey: ["expected-inventory", "masters"],
     queryFn: async () => {
@@ -1136,52 +2073,163 @@ export const ExpectedInventoryPage: React.FC = () => {
       return { areas, warehouses: warehouses.items, products };
     },
   });
-  const masterData = masters.data ?? { areas: [], warehouses: [], products: [] };
+  const masterData = masters.data ?? {
+    areas: [],
+    warehouses: [],
+    products: [],
+  };
   return (
     <>
-      <PageTitle title="Hàng dự kiến" action={<Button type="primary" onClick={() => setOpen(true)}>Tạo dự kiến</Button>} />
-      <Alert type="info" showIcon message="Hàng dự kiến theo khu vực chỉ phục vụ kế hoạch, chưa phải tồn có thể xuất." style={{ marginBottom: 16 }} />
+      <PageTitle
+        title="Hàng dự kiến"
+        action={
+          <Button type="primary" onClick={() => setOpen(true)}>
+            Tạo dự kiến
+          </Button>
+        }
+      />
+      <Alert
+        type="info"
+        showIcon
+        message="Hàng dự kiến theo khu vực chỉ phục vụ kế hoạch, chưa phải tồn có thể xuất."
+        style={{ marginBottom: 16 }}
+      />
       <Table
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items || []}
         columns={[
-          { title: "Khu vực", render: (_: any, x: any) => x.warehouseArea?.name ?? "-" },
-          { title: "Kho", render: (_: any, x: any) => x.supplierLocation?.name ?? <span style={{ color: "#8c8c8c" }}>Chưa xác định</span> },
+          {
+            title: "Khu vực",
+            render: (_: any, x: any) => x.warehouseArea?.name ?? "-",
+          },
+          {
+            title: "Kho",
+            render: (_: any, x: any) =>
+              x.supplierLocation?.name ?? (
+                <span style={{ color: "#8c8c8c" }}>Chưa xác định</span>
+              ),
+          },
           { title: "Sản phẩm", render: (_: any, x: any) => x.product?.name },
           { title: "Nguồn", dataIndex: "sourceType" },
           { title: "Dự kiến", render: (_: any, x: any) => n(x.expectedQty) },
           { title: "Đã nhận", render: (_: any, x: any) => n(x.receivedQty) },
-          { title: "Ngày về", render: (_: any, x: any) => date(x.expectedDate) },
-          { title: "Trạng thái", render: (_: any, x: any) => <StatusBadge status={x.status} /> },
+          {
+            title: "Ngày về",
+            render: (_: any, x: any) => date(x.expectedDate),
+          },
+          {
+            title: "Trạng thái",
+            render: (_: any, x: any) => <StatusBadge status={x.status} />,
+          },
         ]}
       />
-      <Modal open={open} title="Tạo hàng dự kiến" onCancel={() => setOpen(false)} onOk={() => form.submit()} confirmLoading={mutation.isPending}>
-        <Form form={form} layout="vertical" initialValues={{ sourceType: "MANUAL", ownerType: "INTERNAL" }} onFinish={async (values) => {
-          const location = decodeWarehouseSource(values.sourceLocation, masterData.warehouses)!;
-          const { sourceLocation, ...rest } = values;
-          await mutation.mutateAsync({
-            ...rest,
-            warehouseAreaId: location.areaId,
-            supplierLocationId: location.warehouseId,
-            expectedDate: values.expectedDate?.format("YYYY-MM-DD"),
-          });
-          notify.success("Đã tạo hàng dự kiến.");
-          setOpen(false);
-          form.resetFields();
-        }}>
-          <Form.Item name="sourceType" label="Nguồn" rules={[{ required: true }]}><Select options={["PURCHASE_ORDER", "SHIP_CHARTER_ORDER", "WAREHOUSE_TRANSFER", "MANUAL"].map((x) => ({ value: x }))} /></Form.Item>
-          <Form.Item name="sourceId" label="ID chứng từ nguồn" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="sourceLocation" label="Khu vực / kho nhận dự kiến" rules={[{ required: true, message: "Chọn khu vực hoặc kho" }]}>
-            <WarehouseSourceSelect areas={masterData.areas} warehouses={masterData.warehouses} />
+      <Modal
+        open={open}
+        title="Tạo hàng dự kiến"
+        onCancel={() => setOpen(false)}
+        onOk={() => form.submit()}
+        confirmLoading={mutation.isPending}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ sourceType: "MANUAL", ownerType: "INTERNAL" }}
+          onFinish={async (values) => {
+            const location = decodeWarehouseSource(
+              values.sourceLocation,
+              masterData.warehouses
+            )!;
+            const { sourceLocation, ...rest } = values;
+            await mutation.mutateAsync({
+              ...rest,
+              warehouseAreaId: location.areaId,
+              supplierLocationId: location.warehouseId,
+              expectedDate: values.expectedDate?.format("YYYY-MM-DD"),
+            });
+            notify.success("Đã tạo hàng dự kiến.");
+            setOpen(false);
+            form.resetFields();
+          }}
+        >
+          <Form.Item
+            name="sourceType"
+            label="Nguồn"
+            rules={[{ required: true }]}
+          >
+            <Select
+              options={[
+                "PURCHASE_ORDER",
+                "SHIP_CHARTER_ORDER",
+                "WAREHOUSE_TRANSFER",
+                "MANUAL",
+              ].map((x) => ({ value: x }))}
+            />
           </Form.Item>
-          <Form.Item name="productId" label="Sản phẩm" rules={[{ required: true, message: "Chọn sản phẩm" }]}>
-            <Select showSearch optionFilterProp="label" options={masterData.products.map((item: any) => ({ value: item.id, label: `${item.code} - ${item.name}` }))} />
+          <Form.Item
+            name="sourceId"
+            label="ID chứng từ nguồn"
+            rules={[{ required: true }]}
+          >
+            <Input />
           </Form.Item>
-          <Form.Item name="ownerType" label="Chủ hàng" rules={[{ required: true }]}><Select options={["INTERNAL", "CUSTOMER", "SUPPLIER"].map((x) => ({ value: x }))} /></Form.Item>
-          <Form.Item noStyle shouldUpdate={(a, b) => a.ownerType !== b.ownerType}>{({ getFieldValue }) => getFieldValue("ownerType") !== "INTERNAL" ? <Form.Item name="ownerCustomerId" label="Chủ hàng"><CustomerSelect style={{ width: "100%" }} /></Form.Item> : null}</Form.Item>
-          <Form.Item name="expectedQty" label="Số lượng dự kiến" rules={[{ required: true }]}><InputNumber min={0.001} style={{ width: "100%" }} /></Form.Item>
-          <Form.Item name="expectedDate" label="Ngày dự kiến"><DatePicker style={{ width: "100%" }} /></Form.Item>
+          <Form.Item
+            name="sourceLocation"
+            label="Khu vực / kho nhận dự kiến"
+            rules={[{ required: true, message: "Chọn khu vực hoặc kho" }]}
+          >
+            <WarehouseSourceSelect
+              areas={masterData.areas}
+              warehouses={masterData.warehouses}
+            />
+          </Form.Item>
+          <Form.Item
+            name="productId"
+            label="Sản phẩm"
+            rules={[{ required: true, message: "Chọn sản phẩm" }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              options={masterData.products.map((item: any) => ({
+                value: item.id,
+                label: `${item.code} - ${item.name}`,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item
+            name="ownerType"
+            label="Chủ hàng"
+            rules={[{ required: true }]}
+          >
+            <Select
+              options={["INTERNAL", "CUSTOMER", "SUPPLIER"].map((x) => ({
+                value: x,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item
+            noStyle
+            shouldUpdate={(a, b) => a.ownerType !== b.ownerType}
+          >
+            {({ getFieldValue }) =>
+              getFieldValue("ownerType") !== "INTERNAL" ? (
+                <Form.Item name="ownerCustomerId" label="Chủ hàng">
+                  <CustomerSelect style={{ width: "100%" }} />
+                </Form.Item>
+              ) : null
+            }
+          </Form.Item>
+          <Form.Item
+            name="expectedQty"
+            label="Số lượng dự kiến"
+            rules={[{ required: true }]}
+          >
+            <InputNumber min={0.001} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="expectedDate" label="Ngày dự kiến">
+            <DatePicker style={{ width: "100%" }} />
+          </Form.Item>
         </Form>
       </Modal>
     </>
@@ -1192,43 +2240,118 @@ export const WarehouseReservationPage: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
   const query = useOperationList("reservations", { page: 1, pageSize: 100 });
-  const mutation = useOperationMutation<{ id: string; status: string }>(({ id, status }) => operationsApi.changeReservation(id, status));
-  const createMutation = useOperationMutation<any>(operationsApi.saveReservation);
+  const mutation = useOperationMutation<{ id: string; status: string }>(
+    ({ id, status }) => operationsApi.changeReservation(id, status)
+  );
+  const createMutation = useOperationMutation<any>(
+    operationsApi.saveReservation
+  );
   return (
     <>
-      <PageTitle title="Giữ hàng / Đặt giữ hàng" action={<Button type="primary" onClick={() => setOpen(true)}>Tạo giữ hàng</Button>} />
+      <PageTitle
+        title="Giữ hàng / Đặt giữ hàng"
+        action={
+          <Button type="primary" onClick={() => setOpen(true)}>
+            Tạo giữ hàng
+          </Button>
+        }
+      />
       <Table
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items || []}
         columns={[
           { title: "Số giữ hàng", dataIndex: "reservationNo" },
-          { title: "Kho", render: (_: any, x: any) => x.supplierLocation?.name },
+          {
+            title: "Kho",
+            render: (_: any, x: any) => x.supplierLocation?.name,
+          },
           { title: "Sản phẩm", render: (_: any, x: any) => x.product?.name },
           { title: "Khách hàng", render: (_: any, x: any) => x.customer?.name },
           { title: "Số lượng", render: (_: any, x: any) => n(x.reservedQty) },
-          { title: "Trạng thái", render: (_: any, x: any) => <StatusBadge status={x.status} /> },
-          { title: "Thao tác", render: (_: any, x: any) => x.status === "ACTIVE" && (
-            <Space>
-              <Button onClick={() => mutation.mutate({ id: x.id, status: "RELEASED" })}>Giải phóng</Button>
-              <Button onClick={() => mutation.mutate({ id: x.id, status: "CONSUMED" })}>Đã xuất</Button>
-            </Space>
-          )},
+          {
+            title: "Trạng thái",
+            render: (_: any, x: any) => <StatusBadge status={x.status} />,
+          },
+          {
+            title: "Thao tác",
+            render: (_: any, x: any) =>
+              x.status === "ACTIVE" && (
+                <Space>
+                  <Button
+                    onClick={() =>
+                      mutation.mutate({ id: x.id, status: "RELEASED" })
+                    }
+                  >
+                    Giải phóng
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      mutation.mutate({ id: x.id, status: "CONSUMED" })
+                    }
+                  >
+                    Đã xuất
+                  </Button>
+                </Space>
+              ),
+          },
         ]}
       />
-      <Modal open={open} title="Tạo giữ hàng" onCancel={() => setOpen(false)} onOk={() => form.submit()} confirmLoading={createMutation.isPending}>
-        <Form form={form} layout="vertical" initialValues={{ sourceType: "MANUAL" }} onFinish={async (values) => {
-          await createMutation.mutateAsync({ ...values, expiredAt: values.expiredAt?.toISOString() });
-          notify.success("Đã giữ hàng.");
-          setOpen(false);
-          form.resetFields();
-        }}>
-          <Form.Item name="reservationNo" label="Số giữ hàng" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="supplierLocationId" label="ID kho" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="productId" label="ID sản phẩm" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="customerId" label="Khách hàng"><CustomerSelect style={{ width: "100%" }} /></Form.Item>
-          <Form.Item name="reservedQty" label="Số lượng" rules={[{ required: true }]}><InputNumber min={0.001} style={{ width: "100%" }} /></Form.Item>
-          <Form.Item name="expiredAt" label="Hết hạn"><DatePicker showTime style={{ width: "100%" }} /></Form.Item>
+      <Modal
+        open={open}
+        title="Tạo giữ hàng"
+        onCancel={() => setOpen(false)}
+        onOk={() => form.submit()}
+        confirmLoading={createMutation.isPending}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ sourceType: "MANUAL" }}
+          onFinish={async (values) => {
+            await createMutation.mutateAsync({
+              ...values,
+              expiredAt: values.expiredAt?.toISOString(),
+            });
+            notify.success("Đã giữ hàng.");
+            setOpen(false);
+            form.resetFields();
+          }}
+        >
+          <Form.Item
+            name="reservationNo"
+            label="Số giữ hàng"
+            rules={[{ required: true }]}
+          >
+            <Input />
+          </Form.Item>
+          <Form.Item
+            name="supplierLocationId"
+            label="ID kho"
+            rules={[{ required: true }]}
+          >
+            <Input />
+          </Form.Item>
+          <Form.Item
+            name="productId"
+            label="ID sản phẩm"
+            rules={[{ required: true }]}
+          >
+            <Input />
+          </Form.Item>
+          <Form.Item name="customerId" label="Khách hàng">
+            <CustomerSelect style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item
+            name="reservedQty"
+            label="Số lượng"
+            rules={[{ required: true }]}
+          >
+            <InputNumber min={0.001} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="expiredAt" label="Hết hạn">
+            <DatePicker showTime style={{ width: "100%" }} />
+          </Form.Item>
         </Form>
       </Modal>
     </>
@@ -1240,19 +2363,67 @@ export const WarehouseTransferListPage: React.FC = () => {
   const query = useOperationList("transfers", { page: 1, pageSize: 100 });
   return (
     <>
-      <PageTitle title="Chuyển kho" action={<Button type="primary" onClick={() => navigate("/operations/warehouse-transfers/create")}>Tạo chuyển kho</Button>} />
+      <PageTitle
+        title="Chuyển kho"
+        action={
+          <Button
+            type="primary"
+            onClick={() => navigate("/operations/warehouse-transfers/create")}
+          >
+            Tạo chuyển kho
+          </Button>
+        }
+      />
       <Table
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items || []}
-        onRow={(row: any) => ({ onClick: () => navigate(`/operations/warehouse-transfers/${row.id}`) })}
+        onRow={(row: any) => ({
+          onClick: () => navigate(`/operations/warehouse-transfers/${row.id}`),
+        })}
         columns={[
           { title: "Số phiếu", dataIndex: "transferNo" },
-          { title: "Kho xuất", render: (_: any, x: any) => x.fromSupplierLocation?.name },
-          { title: "Kho nhập", render: (_: any, x: any) => x.toSupplierLocation?.name },
-          { title: "Ngày chuyển", render: (_: any, x: any) => date(x.transferDate) },
+          {
+            title: "Kho xuất",
+            render: (_: any, x: any) => x.fromSupplierLocation?.name,
+          },
+          {
+            title: "Kho nhập",
+            render: (_: any, x: any) => x.toSupplierLocation?.name,
+          },
+          {
+            title: "Đơn bán",
+            width: 190,
+            render: (_: any, x: any) =>
+              x.salesOrder ? (
+                <Space direction="vertical" size={0}>
+                  <Typography.Text strong>{x.salesOrder.orderNo}</Typography.Text>
+                  <Typography.Text type="secondary">
+                    {x.salesOrder.customer?.code || x.salesOrder.customer?.name}
+                  </Typography.Text>
+                </Space>
+              ) : (
+                "-"
+              ),
+          },
+          {
+            title: "Ngày chuyển",
+            render: (_: any, x: any) => date(x.transferDate),
+          },
           { title: "Phương thức", dataIndex: "transportMode" },
-          { title: "Trạng thái", render: (_: any, x: any) => <StatusBadge status={x.status} /> },
+          {
+            title: "Phí",
+            align: "right" as const,
+            width: 130,
+            render: (_: any, x: any) =>
+              Number(x.transferFee || 0) > 0
+                ? `${n(x.transferFee)} đ${x.chargeCustomer ? " · thu khách" : ""}`
+                : "-",
+          },
+          {
+            title: "Trạng thái",
+            render: (_: any, x: any) => <StatusBadge status={x.status} />,
+          },
         ]}
       />
     </>
@@ -1261,46 +2432,260 @@ export const WarehouseTransferListPage: React.FC = () => {
 
 export const WarehouseTransferFormPage: React.FC = () => {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const requestedSalesOrderId = searchParams.get("salesOrderId") || undefined;
   const navigate = useNavigate();
   const detail = useOperationDetail("transfer", id);
-  const mutation = useOperationMutation<any>((data) => operationsApi.saveTransfer(data, id));
+  const mutation = useOperationMutation<any>((data) =>
+    operationsApi.saveTransfer(data, id)
+  );
   const [form] = Form.useForm();
+  const salesOrderId = Form.useWatch("salesOrderId", form);
+  const fromWarehouseId = Form.useWatch("fromSupplierLocationId", form);
+  const masters = useQuery({
+    queryKey: ["warehouse-transfer", "masters"],
+    queryFn: async () => {
+      const [warehouses, products, orders] = await Promise.all([
+        SupplierLocationsApi.list({ isActive: true, page: 1, pageSize: 200 }),
+        ProductsApi.select(""),
+        InternalSalesApi.list({ page: 1, limit: 100 }),
+      ]);
+      return {
+        warehouses: warehouses.items,
+        products,
+        orders: orders.items.filter(
+          (order: any) => order.approvedAt && order.status !== "CANCELLED"
+        ),
+      };
+    },
+  });
+  const masterData = masters.data ?? { warehouses: [], products: [], orders: [] };
+
+  const applySalesOrder = (orderId?: string) => {
+    const order: any = masterData.orders.find((item: any) => item.id === orderId);
+    if (!order) return;
+    const warehouseIds = [
+      ...new Set(
+        (order.lines || [])
+          .map((line: any) => line.issueWarehouseId)
+          .filter(Boolean)
+      ),
+    ];
+    const sourceWarehouseId = warehouseIds.length === 1 ? warehouseIds[0] : undefined;
+    const grouped = new Map<string, { productId: string; qty: number; qtyV15?: number }>();
+    for (const line of order.lines || []) {
+      if (sourceWarehouseId && line.issueWarehouseId !== sourceWarehouseId) continue;
+      const current = grouped.get(line.productId) ?? {
+        productId: line.productId,
+        qty: 0,
+        qtyV15: 0,
+      };
+      current.qty += Number(line.orderedActualQty || 0);
+      if (line.orderedV15Qty != null) current.qtyV15 = (current.qtyV15 || 0) + Number(line.orderedV15Qty);
+      grouped.set(line.productId, current);
+    }
+    form.setFieldsValue({
+      fromSupplierLocationId: sourceWarehouseId,
+      toSupplierLocationId: undefined,
+      lines: [...grouped.values()].map((line) => ({
+        ...line,
+        qtyV15: line.qtyV15 || undefined,
+      })),
+    });
+  };
   React.useEffect(() => {
-    if (detail.data) form.setFieldsValue({ ...detail.data, transferDate: dayjs(detail.data.transferDate) });
+    if (
+      id ||
+      !requestedSalesOrderId ||
+      !masterData.orders.length ||
+      form.getFieldValue("salesOrderId") === requestedSalesOrderId
+    ) {
+      return;
+    }
+    form.setFieldValue("salesOrderId", requestedSalesOrderId);
+    applySalesOrder(requestedSalesOrderId);
+  }, [id, requestedSalesOrderId, masterData.orders, form]);
+  React.useEffect(() => {
+    if (detail.data)
+      form.setFieldsValue({
+        ...detail.data,
+        transferDate: dayjs(detail.data.transferDate),
+      });
   }, [detail.data, form]);
   return (
     <>
       <PageTitle title={id ? "Cập nhật chuyển kho" : "Tạo chuyển kho"} />
       <Card>
-        <Alert message="Mỗi dòng gồm productId và qty. Khi xác nhận, hệ thống khóa cơ cấu Pending/Posted tại kho xuất." type="info" showIcon />
-        <Divider />
         <Form
           form={form}
           layout="vertical"
-          initialValues={{ ownerType: "INTERNAL", transportMode: "ROAD", lines: [{}] }}
+          initialValues={{
+            ownerType: "INTERNAL",
+            transportMode: "ROAD",
+            transferDate: dayjs(),
+            transferFee: 0,
+            chargeCustomer: false,
+            lines: [{}],
+          }}
           onFinish={async (values) => {
-            await mutation.mutateAsync({ ...values, transferDate: values.transferDate.format("YYYY-MM-DD") });
+            await mutation.mutateAsync({
+              ...values,
+              transferDate: values.transferDate.format("YYYY-MM-DD"),
+            });
             notify.success("Đã lưu phiếu chuyển kho.");
             navigate("/operations/warehouse-transfers");
           }}
         >
-          <Row gutter={16}>
-            <Col xs={24} md={8}><Form.Item name="transferNo" label="Số phiếu" rules={[{ required: true }]}><Input /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="fromSupplierLocationId" label="ID kho xuất" rules={[{ required: true }]}><Input /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="toSupplierLocationId" label="ID kho nhập" rules={[{ required: true }]}><Input /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="transferDate" label="Ngày chuyển" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="transportMode" label="Phương thức"><Select options={["ROAD", "SEA", "PIPELINE"].map((x) => ({ value: x }))} /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="ownerType" label="Chủ hàng"><Select options={["INTERNAL", "CUSTOMER", "SUPPLIER"].map((x) => ({ value: x }))} /></Form.Item></Col>
+          <Alert
+            message={
+              salesOrderId
+                ? "Phiếu gắn đơn bán sẽ chuyển đúng các lô đang giữ và mã TP/NCC sang kho mới. Kho trên đơn chỉ đổi sau khi xác nhận đã nhận hàng."
+                : "Phiếu chuyển kho thông thường sử dụng tồn có thể bán tại kho xuất."
+            }
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+          />
+          <Row gutter={[12, 0]}>
+            <Col xs={24} md={6}>
+              <Form.Item
+                name="transferNo"
+                label="Số phiếu"
+                rules={[{ required: true }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item name="salesOrderId" label="Đơn bán liên quan">
+                <Select
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Chọn khi khách đổi kho nhận"
+                  loading={masters.isLoading}
+                  options={masterData.orders.map((order: any) => ({
+                    value: order.id,
+                    label: `${order.orderNo} · ${order.customer?.code || order.customer?.name}`,
+                  }))}
+                  onChange={applySalesOrder}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item
+                name="fromSupplierLocationId"
+                label="Kho hiện tại"
+                rules={[{ required: true }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={masterData.warehouses.map((warehouse: any) => ({
+                    value: warehouse.id,
+                    label: `${warehouse.code} - ${warehouse.name}`,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item
+                name="toSupplierLocationId"
+                label="Kho nhận mới"
+                rules={[{ required: true }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={masterData.warehouses
+                    .filter((warehouse: any) => warehouse.id !== fromWarehouseId)
+                    .map((warehouse: any) => ({
+                      value: warehouse.id,
+                      label: `${warehouse.code} - ${warehouse.name}`,
+                    }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item
+                name="transferDate"
+                label="Ngày chuyển"
+                rules={[{ required: true }]}
+              >
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item name="transportMode" label="Phương thức">
+                <Select
+                  options={["ROAD", "SEA", "PIPELINE"].map((x) => ({
+                    value: x,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item name="ownerType" label="Chủ hàng">
+                <Select
+                  options={["INTERNAL", "CUSTOMER", "SUPPLIER"].map((x) => ({
+                    value: x,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="transferReason"
+                label="Lý do chuyển kho"
+                rules={salesOrderId ? [{ required: true, message: "Nhập lý do khách đổi kho" }] : []}
+              >
+                <Input placeholder="Ví dụ: kho cũ không thể cấp hàng" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item name="transferFee" label="Phí chuyển kho">
+                <InputNumber min={0} controls={false} style={{ width: "100%" }} addonAfter="đ" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item name="chargeCustomer" valuePropName="checked" label=" ">
+                <Checkbox>Thu phí khách hàng</Checkbox>
+              </Form.Item>
+            </Col>
           </Row>
+          <Typography.Title level={5}>Hàng chuyển</Typography.Title>
           <Form.List name="lines">
             {(fields, { add, remove }) => (
               <>
                 {fields.map(({ key, name }) => (
                   <Space key={key} align="baseline" style={{ display: "flex" }}>
-                    <Form.Item name={[name, "productId"]} rules={[{ required: true }]}><Input placeholder="Product ID" /></Form.Item>
-                    <Form.Item name={[name, "qty"]} rules={[{ required: true }]}><InputNumber placeholder="Số lượng" /></Form.Item>
-                    <Form.Item name={[name, "qtyV15"]}><InputNumber placeholder="V15" /></Form.Item>
-                    <Button danger onClick={() => remove(name)}>Xóa</Button>
+                    <Form.Item
+                      name={[name, "productId"]}
+                      rules={[{ required: true }]}
+                    >
+                      <Select
+                        showSearch
+                        optionFilterProp="label"
+                        placeholder="Mặt hàng"
+                        style={{ width: 320 }}
+                        options={masterData.products.map((product: any) => ({
+                          value: product.id,
+                          label: `${product.code} - ${product.name}`,
+                        }))}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name={[name, "qty"]}
+                      rules={[{ required: true }]}
+                    >
+                      <InputNumber min={0.001} placeholder="Số lượng" style={{ width: 160 }} />
+                    </Form.Item>
+                    <Form.Item name={[name, "qtyV15"]}>
+                      <InputNumber min={0.001} placeholder="V15" style={{ width: 140 }} />
+                    </Form.Item>
+                    <Button danger onClick={() => remove(name)}>
+                      Xóa
+                    </Button>
                   </Space>
                 ))}
                 <Button onClick={() => add()}>Thêm dòng</Button>
@@ -1308,7 +2693,9 @@ export const WarehouseTransferFormPage: React.FC = () => {
             )}
           </Form.List>
           <Divider />
-          <Button type="primary" htmlType="submit" loading={mutation.isPending}>Lưu phiếu</Button>
+          <Button type="primary" htmlType="submit" loading={mutation.isPending}>
+            Lưu phiếu
+          </Button>
         </Form>
       </Card>
     </>
@@ -1318,29 +2705,85 @@ export const WarehouseTransferFormPage: React.FC = () => {
 export const WarehouseTransferDetailPage: React.FC = () => {
   const { id } = useParams();
   const query = useOperationDetail("transfer", id);
-  const mutation = useOperationMutation<string>((status) => operationsApi.changeTransferStatus(id!, status));
+  const mutation = useOperationMutation<string>((status) =>
+    operationsApi.changeTransferStatus(id!, status)
+  );
   const row = query.data;
   if (!row) return <Card loading={query.isLoading} />;
+  const nextStatuses =
+    row.status === "DRAFT"
+      ? ["CONFIRMED", "CANCELLED"]
+      : row.status === "CONFIRMED"
+        ? ["IN_TRANSIT", "CANCELLED"]
+        : row.status === "IN_TRANSIT"
+          ? ["COMPLETED"]
+          : [];
   return (
     <>
-      <PageTitle title={`Chuyển kho ${row.transferNo}`} action={
-        <Space>
-          {["IN_TRANSIT", "COMPLETED", "CANCELLED"].map((status) => (
-            <Button key={status} onClick={() => mutation.mutate(status)}>{labelOf("status", status)}</Button>
-          ))}
-        </Space>
-      } />
+      <PageTitle
+        title={`Chuyển kho ${row.transferNo}`}
+        action={
+          <Space>
+            {nextStatuses.map((status) => (
+              <Button key={status} onClick={() => mutation.mutate(status)}>
+                {labelOf("status", status)}
+              </Button>
+            ))}
+          </Space>
+        }
+      />
       <Descriptions bordered>
-        <Descriptions.Item label="Kho xuất">{row.fromSupplierLocation?.name}</Descriptions.Item>
-        <Descriptions.Item label="Kho nhập">{row.toSupplierLocation?.name}</Descriptions.Item>
-        <Descriptions.Item label="Trạng thái"><StatusBadge status={row.status} /></Descriptions.Item>
+        <Descriptions.Item label="Đơn bán">
+          {row.salesOrder
+            ? `${row.salesOrder.orderNo} · ${row.salesOrder.customer?.code || row.salesOrder.customer?.name}`
+            : "-"}
+        </Descriptions.Item>
+        <Descriptions.Item label="Kho xuất">
+          {row.fromSupplierLocation?.name}
+        </Descriptions.Item>
+        <Descriptions.Item label="Kho nhập">
+          {row.toSupplierLocation?.name}
+        </Descriptions.Item>
+        <Descriptions.Item label="Trạng thái">
+          <StatusBadge status={row.status} />
+        </Descriptions.Item>
+        <Descriptions.Item label="Lý do">
+          {row.transferReason || "-"}
+        </Descriptions.Item>
+        <Descriptions.Item label="Phí chuyển">
+          {Number(row.transferFee || 0) > 0
+            ? `${n(row.transferFee)} đ${row.chargeCustomer ? " · thu khách" : ""}`
+            : "-"}
+        </Descriptions.Item>
       </Descriptions>
-      <Table rowKey="id" dataSource={row.lines || []} pagination={false} columns={[
-        { title: "Sản phẩm", render: (_: any, x: any) => x.product?.name },
-        { title: "Số lượng", render: (_: any, x: any) => n(x.qty) },
-        { title: "Pending", render: (_: any, x: any) => n(x.pendingDocQty) },
-        { title: "Posted", render: (_: any, x: any) => n(x.postedQty) },
-      ]} />
+      <Table
+        rowKey="id"
+        dataSource={row.lines || []}
+        pagination={false}
+        columns={[
+          { title: "Sản phẩm", render: (_: any, x: any) => x.product?.name },
+          {
+            title: "Mã hàng",
+            width: 220,
+            render: (_: any, x: any) => (
+              <Space direction="vertical" size={0}>
+                {(x.allocations || []).map((allocation: any, index: number) => (
+                  <Typography.Text key={`${allocation.ownerPartyId}-${index}`}>
+                    {allocation.sourceType}
+                    {allocation.sourceType === "NCC"
+                      ? ` · ${allocation.owner?.code || allocation.owner?.name}`
+                      : ""}
+                    {` · ${n(allocation.qty)}`}
+                  </Typography.Text>
+                ))}
+              </Space>
+            ),
+          },
+          { title: "Số lượng", render: (_: any, x: any) => n(x.qty) },
+          { title: "Pending", render: (_: any, x: any) => n(x.pendingDocQty) },
+          { title: "Posted", render: (_: any, x: any) => n(x.postedQty) },
+        ]}
+      />
     </>
   );
 };
@@ -1355,10 +2798,18 @@ export const VehicleListPage = () => (
       { title: "Đơn vị", render: (_: any, x: any) => x.supplier?.name },
       { title: "Loại xe", dataIndex: "type" },
       { title: "Sức chứa", render: (_: any, x: any) => n(x.capacity) },
-      { title: "Trạng thái", render: (_: any, x: any) => x.isActive ? "Hoạt động" : "Ngừng" },
+      {
+        title: "Trạng thái",
+        render: (_: any, x: any) => (x.isActive ? "Hoạt động" : "Ngừng"),
+      },
     ]}
     fields={[
-      { name: "supplierCustomerId", label: "Đơn vị vận tải", kind: "customer", required: true },
+      {
+        name: "supplierCustomerId",
+        label: "Đơn vị vận tải",
+        kind: "customer",
+        required: true,
+      },
       { name: "licensePlate", label: "Biển số", required: true },
       { name: "type", label: "Loại xe" },
       { name: "capacity", label: "Sức chứa", kind: "number" },
@@ -1366,11 +2817,19 @@ export const VehicleListPage = () => (
     ]}
   />
 );
-const DocumentManagerPage: React.FC<{ type: "vehicle" | "driver" }> = ({ type }) => {
+const DocumentManagerPage: React.FC<{ type: "vehicle" | "driver" }> = ({
+  type,
+}) => {
   const [selectedId, setSelectedId] = useState<string>();
   const [form] = Form.useForm();
-  const list = useOperationList(type === "vehicle" ? "vehicles" : "drivers", { page: 1, pageSize: 200 });
-  const detail = useOperationDetail(type === "vehicle" ? "vehicle" : "driver", selectedId);
+  const list = useOperationList(type === "vehicle" ? "vehicles" : "drivers", {
+    page: 1,
+    pageSize: 200,
+  });
+  const detail = useOperationDetail(
+    type === "vehicle" ? "vehicle" : "driver",
+    selectedId
+  );
   const mutation = useOperationMutation<any>((data) =>
     type === "vehicle"
       ? operationsApi.saveVehicleDocument(selectedId!, data)
@@ -1380,9 +2839,10 @@ const DocumentManagerPage: React.FC<{ type: "vehicle" | "driver" }> = ({ type })
     value: x.id,
     label: type === "vehicle" ? x.licensePlate : x.fullName,
   }));
-  const types = type === "vehicle"
-    ? ["REGISTRATION", "INSPECTION", "INSURANCE", "OTHER"]
-    : ["DRIVER_LICENSE", "ID_CARD", "TRAINING_CERTIFICATE", "OTHER"];
+  const types =
+    type === "vehicle"
+      ? ["REGISTRATION", "INSPECTION", "INSURANCE", "OTHER"]
+      : ["DRIVER_LICENSE", "ID_CARD", "TRAINING_CERTIFICATE", "OTHER"];
   return (
     <>
       <PageTitle title={type === "vehicle" ? "Hồ sơ xe" : "Hồ sơ lái xe"} />
@@ -1398,34 +2858,99 @@ const DocumentManagerPage: React.FC<{ type: "vehicle" | "driver" }> = ({ type })
         />
         {selectedId ? (
           <>
-            <Table rowKey="id" dataSource={detail.data?.documents || []} loading={detail.isLoading} pagination={false} columns={[
-              { title: "Loại hồ sơ", render: (_: any, x: any) => labelOf("documentType", x.documentType) },
-              { title: "Số hồ sơ", dataIndex: "documentNo" },
-              { title: "Ngày cấp", render: (_: any, x: any) => date(x.issuedDate) },
-              { title: "Hết hạn", render: (_: any, x: any) => date(x.expiredDate) },
-              { title: "File", render: (_: any, x: any) => x.fileUrl ? <a href={x.fileUrl} target="_blank">Xem file</a> : "-" },
-            ]} />
+            <Table
+              rowKey="id"
+              dataSource={detail.data?.documents || []}
+              loading={detail.isLoading}
+              pagination={false}
+              columns={[
+                {
+                  title: "Loại hồ sơ",
+                  render: (_: any, x: any) =>
+                    labelOf("documentType", x.documentType),
+                },
+                { title: "Số hồ sơ", dataIndex: "documentNo" },
+                {
+                  title: "Ngày cấp",
+                  render: (_: any, x: any) => date(x.issuedDate),
+                },
+                {
+                  title: "Hết hạn",
+                  render: (_: any, x: any) => date(x.expiredDate),
+                },
+                {
+                  title: "File",
+                  render: (_: any, x: any) =>
+                    x.fileUrl ? (
+                      <a href={x.fileUrl} target="_blank">
+                        Xem file
+                      </a>
+                    ) : (
+                      "-"
+                    ),
+                },
+              ]}
+            />
             <Divider />
-            <Form form={form} layout="vertical" onFinish={async (values) => {
-              await mutation.mutateAsync({
-                ...values,
-                issuedDate: values.issuedDate?.format("YYYY-MM-DD"),
-                expiredDate: values.expiredDate?.format("YYYY-MM-DD"),
-              });
-              notify.success("Đã lưu hồ sơ.");
-              form.resetFields();
-            }}>
+            <Form
+              form={form}
+              layout="vertical"
+              onFinish={async (values) => {
+                await mutation.mutateAsync({
+                  ...values,
+                  issuedDate: values.issuedDate?.format("YYYY-MM-DD"),
+                  expiredDate: values.expiredDate?.format("YYYY-MM-DD"),
+                });
+                notify.success("Đã lưu hồ sơ.");
+                form.resetFields();
+              }}
+            >
               <Row gutter={16}>
-                <Col xs={24} md={6}><Form.Item name="documentType" label="Loại" rules={[{ required: true }]}><Select options={optionsOf("documentType", types)} /></Form.Item></Col>
-                <Col xs={24} md={6}><Form.Item name="documentNo" label="Số hồ sơ"><Input /></Form.Item></Col>
-                <Col xs={24} md={6}><Form.Item name="issuedDate" label="Ngày cấp"><DatePicker style={{ width: "100%" }} /></Form.Item></Col>
-                <Col xs={24} md={6}><Form.Item name="expiredDate" label="Hết hạn"><DatePicker style={{ width: "100%" }} /></Form.Item></Col>
-                <Col span={24}><Form.Item name="fileUrl" label="File"><FileUploadField /></Form.Item></Col>
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    name="documentType"
+                    label="Loại"
+                    rules={[{ required: true }]}
+                  >
+                    <Select options={optionsOf("documentType", types)} />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={6}>
+                  <Form.Item name="documentNo" label="Số hồ sơ">
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={6}>
+                  <Form.Item name="issuedDate" label="Ngày cấp">
+                    <DatePicker style={{ width: "100%" }} />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={6}>
+                  <Form.Item name="expiredDate" label="Hết hạn">
+                    <DatePicker style={{ width: "100%" }} />
+                  </Form.Item>
+                </Col>
+                <Col span={24}>
+                  <Form.Item name="fileUrl" label="File">
+                    <FileUploadField />
+                  </Form.Item>
+                </Col>
               </Row>
-              <Button type="primary" htmlType="submit" loading={mutation.isPending}>Thêm hồ sơ</Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={mutation.isPending}
+              >
+                Thêm hồ sơ
+              </Button>
             </Form>
           </>
-        ) : <Alert type="info" message="Chọn đối tượng để xem và cập nhật hồ sơ." />}
+        ) : (
+          <Alert
+            type="info"
+            message="Chọn đối tượng để xem và cập nhật hồ sơ."
+          />
+        )}
       </Card>
     </>
   );
@@ -1443,10 +2968,18 @@ export const DriverListPage = () => (
       { title: "Đơn vị", render: (_: any, x: any) => x.supplier?.name },
       { title: "Điện thoại", dataIndex: "phone" },
       { title: "CCCD", dataIndex: "idCard" },
-      { title: "Trạng thái", render: (_: any, x: any) => x.isActive ? "Hoạt động" : "Ngừng" },
+      {
+        title: "Trạng thái",
+        render: (_: any, x: any) => (x.isActive ? "Hoạt động" : "Ngừng"),
+      },
     ]}
     fields={[
-      { name: "supplierCustomerId", label: "Đơn vị vận tải", kind: "customer", required: true },
+      {
+        name: "supplierCustomerId",
+        label: "Đơn vị vận tải",
+        kind: "customer",
+        required: true,
+      },
       { name: "fullName", label: "Họ tên", required: true },
       { name: "phone", label: "Điện thoại" },
       { name: "idCard", label: "CCCD" },
@@ -1461,19 +2994,42 @@ export const VehicleDispatchOrderListPage: React.FC = () => {
   const query = useOperationList("dispatches", { page: 1, pageSize: 100 });
   return (
     <>
-      <PageTitle title="Đơn điều xe / Chuyến xe" action={<Button type="primary" onClick={() => navigate("/operations/vehicle-dispatches/create")}>Tạo chuyến</Button>} />
+      <PageTitle
+        title="Đơn điều xe / Chuyến xe"
+        action={
+          <Button
+            type="primary"
+            onClick={() => navigate("/operations/vehicle-dispatches/create")}
+          >
+            Tạo chuyến
+          </Button>
+        }
+      />
       <Table
         rowKey="id"
         loading={query.isLoading}
         dataSource={query.data?.items || []}
-        onRow={(row: any) => ({ onClick: () => navigate(`/operations/vehicle-dispatches/${row.id}`) })}
+        onRow={(row: any) => ({
+          onClick: () => navigate(`/operations/vehicle-dispatches/${row.id}`),
+        })}
         columns={[
           { title: "Số điều xe", dataIndex: "dispatchNo" },
           { title: "Xe", render: (_: any, x: any) => x.vehicle?.licensePlate },
           { title: "Lái xe", render: (_: any, x: any) => x.driver?.fullName },
-          { title: "Tuyến", render: (_: any, x: any) => `${x.fromLocationText} → ${x.toLocationText}` },
-          { title: "Bắt đầu", render: (_: any, x: any) => dayjs(x.plannedStartAt).format("DD/MM/YYYY HH:mm") },
-          { title: "Trạng thái", render: (_: any, x: any) => <StatusBadge status={x.status} /> },
+          {
+            title: "Tuyến",
+            render: (_: any, x: any) =>
+              `${x.fromLocationText} → ${x.toLocationText}`,
+          },
+          {
+            title: "Bắt đầu",
+            render: (_: any, x: any) =>
+              dayjs(x.plannedStartAt).format("DD/MM/YYYY HH:mm"),
+          },
+          {
+            title: "Trạng thái",
+            render: (_: any, x: any) => <StatusBadge status={x.status} />,
+          },
         ]}
       />
     </>
@@ -1484,33 +3040,121 @@ export const VehicleDispatchOrderFormPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const detail = useOperationDetail("dispatch", id);
-  const mutation = useOperationMutation<any>((data) => operationsApi.saveDispatch(data, id));
+  const mutation = useOperationMutation<any>((data) =>
+    operationsApi.saveDispatch(data, id)
+  );
   const [form] = Form.useForm();
   React.useEffect(() => {
-    if (detail.data) form.setFieldsValue({ ...detail.data, plannedStartAt: dayjs(detail.data.plannedStartAt) });
+    if (detail.data)
+      form.setFieldsValue({
+        ...detail.data,
+        plannedStartAt: dayjs(detail.data.plannedStartAt),
+      });
   }, [detail.data, form]);
   return (
     <>
       <PageTitle title={id ? "Cập nhật chuyến xe" : "Tạo chuyến xe"} />
       <Card>
-        <Form form={form} layout="vertical" initialValues={{ sourceType: "DIRECT", status: "DRAFT" }} onFinish={async (values) => {
-          await mutation.mutateAsync({ ...values, plannedStartAt: values.plannedStartAt.toISOString() });
-          notify.success("Đã lưu chuyến xe.");
-          navigate("/operations/vehicle-dispatches");
-        }}>
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ sourceType: "DIRECT", status: "DRAFT" }}
+          onFinish={async (values) => {
+            await mutation.mutateAsync({
+              ...values,
+              plannedStartAt: values.plannedStartAt.toISOString(),
+            });
+            notify.success("Đã lưu chuyến xe.");
+            navigate("/operations/vehicle-dispatches");
+          }}
+        >
           <Row gutter={16}>
-            <Col xs={24} md={8}><Form.Item name="dispatchNo" label="Số điều xe" rules={[{ required: true }]}><Input /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="vehicleId" label="ID xe" rules={[{ required: true }]}><Input /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="driverId" label="ID lái xe" rules={[{ required: true }]}><Input /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="fromLocationText" label="Điểm đi" rules={[{ required: true }]}><Input /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="toLocationText" label="Điểm đến" rules={[{ required: true }]}><Input /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="plannedStartAt" label="Thời gian dự kiến" rules={[{ required: true }]}><DatePicker showTime style={{ width: "100%" }} /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="plannedQty" label="Số lượng dự kiến"><InputNumber style={{ width: "100%" }} /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="transportFeeVnd" label="Phí vận chuyển"><InputNumber style={{ width: "100%" }} /></Form.Item></Col>
-            <Col xs={24} md={8}><Form.Item name="sourceType" label="Nguồn"><Select options={optionsOf("sourceType", ["DIRECT", "PURCHASE_ORDER", "SALES_ORDER", "GOODS_RECEIPT", "WAREHOUSE_TRANSFER"])} /></Form.Item></Col>
-            <Col span={24}><Form.Item name="fileUrl" label="File"><FileUploadField /></Form.Item></Col>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="dispatchNo"
+                label="Số điều xe"
+                rules={[{ required: true }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="vehicleId"
+                label="ID xe"
+                rules={[{ required: true }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="driverId"
+                label="ID lái xe"
+                rules={[{ required: true }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="fromLocationText"
+                label="Điểm đi"
+                rules={[{ required: true }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="toLocationText"
+                label="Điểm đến"
+                rules={[{ required: true }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="plannedStartAt"
+                label="Thời gian dự kiến"
+                rules={[{ required: true }]}
+              >
+                <DatePicker showTime style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="plannedQty" label="Số lượng dự kiến">
+                <InputNumber style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="transportFeeVnd" label="Phí vận chuyển">
+                <InputNumber style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="sourceType" label="Nguồn">
+                <Select
+                  options={optionsOf("sourceType", [
+                    "DIRECT",
+                    "PURCHASE_ORDER",
+                    "SALES_ORDER",
+                    "GOODS_RECEIPT",
+                    "WAREHOUSE_TRANSFER",
+                  ])}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Form.Item name="fileUrl" label="File">
+                <FileUploadField />
+              </Form.Item>
+            </Col>
           </Row>
-          <Button type="primary" htmlType="submit" loading={mutation.isPending}>Lưu chuyến</Button>
+          <Button type="primary" htmlType="submit" loading={mutation.isPending}>
+            Lưu chuyến
+          </Button>
         </Form>
       </Card>
     </>
@@ -1520,23 +3164,51 @@ export const VehicleDispatchOrderFormPage: React.FC = () => {
 export const VehicleDispatchOrderDetailPage: React.FC = () => {
   const { id } = useParams();
   const query = useOperationDetail("dispatch", id);
-  const mutation = useOperationMutation<string>((status) => operationsApi.changeDispatchStatus(id!, status));
+  const mutation = useOperationMutation<string>((status) =>
+    operationsApi.changeDispatchStatus(id!, status)
+  );
   const row = query.data;
   if (!row) return <Card loading={query.isLoading} />;
   return (
     <>
-      <PageTitle title={`Chuyến xe ${row.dispatchNo}`} action={<Space>
-        {["ASSIGNED", "LOADING", "IN_TRANSIT", "DELIVERED", "CLOSED", "CANCELLED"].map((status) => (
-          <Button key={status} onClick={() => mutation.mutate(status)}>{labelOf("status", status)}</Button>
-        ))}
-      </Space>} />
+      <PageTitle
+        title={`Chuyến xe ${row.dispatchNo}`}
+        action={
+          <Space>
+            {[
+              "ASSIGNED",
+              "LOADING",
+              "IN_TRANSIT",
+              "DELIVERED",
+              "CLOSED",
+              "CANCELLED",
+            ].map((status) => (
+              <Button key={status} onClick={() => mutation.mutate(status)}>
+                {labelOf("status", status)}
+              </Button>
+            ))}
+          </Space>
+        }
+      />
       <Descriptions bordered column={2}>
-        <Descriptions.Item label="Xe">{row.vehicle?.licensePlate}</Descriptions.Item>
-        <Descriptions.Item label="Lái xe">{row.driver?.fullName}</Descriptions.Item>
-        <Descriptions.Item label="Tuyến">{row.fromLocationText} → {row.toLocationText}</Descriptions.Item>
-        <Descriptions.Item label="Trạng thái"><StatusBadge status={row.status} /></Descriptions.Item>
-        <Descriptions.Item label="Dự kiến">{dayjs(row.plannedStartAt).format("DD/MM/YYYY HH:mm")}</Descriptions.Item>
-        <Descriptions.Item label="Số lượng">{n(row.plannedQty)}</Descriptions.Item>
+        <Descriptions.Item label="Xe">
+          {row.vehicle?.licensePlate}
+        </Descriptions.Item>
+        <Descriptions.Item label="Lái xe">
+          {row.driver?.fullName}
+        </Descriptions.Item>
+        <Descriptions.Item label="Tuyến">
+          {row.fromLocationText} → {row.toLocationText}
+        </Descriptions.Item>
+        <Descriptions.Item label="Trạng thái">
+          <StatusBadge status={row.status} />
+        </Descriptions.Item>
+        <Descriptions.Item label="Dự kiến">
+          {dayjs(row.plannedStartAt).format("DD/MM/YYYY HH:mm")}
+        </Descriptions.Item>
+        <Descriptions.Item label="Số lượng">
+          {n(row.plannedQty)}
+        </Descriptions.Item>
       </Descriptions>
     </>
   );

@@ -11,6 +11,11 @@ import OverlayForm from "../../employees/ui/OverlayForm";
 
 type Mode = "create" | "edit";
 
+// Merchant classification is stored separately from operational partner roles.
+// Older API responses could still expose TNPP/TNDM/TNDL in partnerRoles, so
+// filter them before putting values back into the form or sending an update.
+const MERCHANT_ROLE_VALUES = new Set(["TNPP", "TNDM", "TNDL"]);
+
 interface CustomerUpsertOverlayProps {
   mode: Mode;
   open: boolean;
@@ -140,7 +145,11 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
       if (flagCustomer) partnerRoles.push("CUSTOMER");
       if (flagSupplier) partnerRoles.push("SUPPLIER");
       if (flagInternal) partnerRoles.push("INTERNAL");
-      partnerRoles.push(...(detail.partnerRoles ?? []));
+      partnerRoles.push(
+        ...(detail.partnerRoles ?? []).filter(
+          (role) => !MERCHANT_ROLE_VALUES.has(String(role)),
+        ),
+      );
 
       // nếu data cũ thiếu hết flags thì default theo partyTypeDefault
       if (partnerRoles.length === 0) {
@@ -191,7 +200,9 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
     const isSupplier = partnerRoles.includes("SUPPLIER");
     const isInternal = partnerRoles.includes("INTERNAL");
     const specializedRoles = partnerRoles.filter(
-      (role) => !["CUSTOMER", "SUPPLIER", "INTERNAL"].includes(role),
+      (role) =>
+        !["CUSTOMER", "SUPPLIER", "INTERNAL"].includes(role) &&
+        !MERCHANT_ROLE_VALUES.has(String(role)),
     ) as Customer["partnerRoles"];
 
     // ✅ partyType để tương thích data cũ / query cũ

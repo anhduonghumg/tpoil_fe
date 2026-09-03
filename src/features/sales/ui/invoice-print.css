@@ -1,0 +1,239 @@
+/* Bản thể hiện hóa đơn: bố cục theo tờ hóa đơn GTGT giấy, và in ra được đúng như nhìn
+   trên màn hình. Khi in thì mọi thứ khác trên trang bị ẩn, chỉ còn tờ hóa đơn. */
+
+.invoice-print-modal .ant-modal-body {
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+
+.ip-notice {
+  margin-bottom: 12px;
+  padding: 6px 10px;
+}
+
+.ip-notice .ant-alert-message {
+  font-size: 12px;
+}
+
+.ip-sheet {
+  padding: 4px 2px;
+  color: #172033;
+  font-size: 13px;
+}
+
+/* ---------- Đầu tờ ---------- */
+
+.ip-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #d9dee7;
+}
+
+.ip-head-title h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ip-head-date {
+  margin-top: 3px;
+  color: #697386;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.ip-head-meta {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.ip-head-meta > div {
+  display: grid;
+  grid-template-columns: 68px auto;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.ip-head-meta > div + div {
+  margin-top: 3px;
+}
+
+.ip-head-meta dt {
+  color: #697386;
+}
+
+.ip-head-meta dd {
+  margin: 0;
+  text-align: right;
+}
+
+/* ---------- Hai bên mua bán ---------- */
+
+.ip-party {
+  margin-top: 12px;
+}
+
+.ip-party h4 {
+  margin: 0 0 5px;
+  color: #697386;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.ip-party dl {
+  margin: 0;
+}
+
+.ip-party dl > div {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.ip-party dl > div + div {
+  margin-top: 3px;
+}
+
+.ip-party dt {
+  color: #697386;
+}
+
+.ip-party dd {
+  margin: 0;
+}
+
+.ip-strong {
+  font-weight: 650;
+}
+
+/* ---------- Bảng hàng ---------- */
+
+.ip-table {
+  width: 100%;
+  margin-top: 14px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.ip-table th,
+.ip-table td {
+  padding: 6px 8px;
+  border: 1px solid #d9dee7;
+}
+
+.ip-table thead th {
+  background: #f4f6f9;
+  font-weight: 650;
+  text-align: center;
+}
+
+.ip-center {
+  text-align: center;
+}
+
+.ip-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ip-table tfoot td {
+  background: #fbfcfe;
+}
+
+.ip-table tfoot td:first-child {
+  text-align: right;
+  color: #697386;
+}
+
+.ip-table tfoot .ip-grand td {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ip-table tfoot .ip-grand td:first-child {
+  color: #172033;
+}
+
+.ip-words {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.ip-words em {
+  font-weight: 600;
+  font-style: italic;
+}
+
+/* ---------- Chân tờ ---------- */
+
+.ip-foot {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 26px;
+  text-align: center;
+}
+
+.ip-foot strong {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+.ip-foot span {
+  display: block;
+  margin-top: 4px;
+  color: #697386;
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* ---------- Khi in ----------
+   Ẩn toàn bộ giao diện, chỉ chừa tờ hóa đơn; bỏ khung modal, bóng và nút. */
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .ip-sheet,
+  .ip-sheet * {
+    visibility: visible;
+  }
+
+  .ip-sheet {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+  }
+
+  .invoice-print-modal .ant-modal {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    top: 0;
+  }
+
+  .invoice-print-modal .ant-modal-content {
+    box-shadow: none;
+  }
+
+  .invoice-print-modal .ant-modal-body {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .ip-table thead th {
+    /* Nền xám phải in ra được, mặc định trình duyệt bỏ màu nền. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

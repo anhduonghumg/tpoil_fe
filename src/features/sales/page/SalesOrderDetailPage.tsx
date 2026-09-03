@@ -23,6 +23,7 @@ import {
   RollbackOutlined,
   SendOutlined,
   StopOutlined,
+  SwapOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate, useParams } from "react-router-dom";
@@ -45,6 +46,7 @@ import { InternalSalesOrderModal } from "../ui/InternalSalesOrderModal";
 import { InvoicePanel } from "../ui/InvoicePanel";
 import { ProfitabilityPanel } from "../ui/ProfitabilityPanel";
 import { ReconciliationPanel } from "../ui/ReconciliationPanel";
+import { SalesOrderAdjustmentsPanel } from "../ui/SalesOrderAdjustmentsPanel";
 import "../sales.css";
 import {
   ApprovalStatusTag,
@@ -135,11 +137,14 @@ export default function SalesOrderDetailPage() {
       ),
     },
     {
-      title: isInternal ? "Kho xuất" : "Kho nhận",
+      title: "Kho nhận",
       key: "warehouse",
       width: 190,
       render: (_, line) =>
-        (isInternal ? line.issueWarehouse : line.receivingWarehouse)?.name ?? "—",
+        (isInternal
+          ? line.issueWarehouse ?? line.receivingWarehouseArea
+          : line.receivingWarehouse
+        )?.name ?? "—",
     },
     {
       title: "Số lượng",
@@ -172,6 +177,7 @@ export default function SalesOrderDetailPage() {
     {
       title: "BKS / Lái xe",
       key: "vehicle",
+      hidden: order.kind === "LOT",
       width: 150,
       render: (_, line) =>
         line.vehiclePlate || line.driverName ? (
@@ -307,6 +313,16 @@ export default function SalesOrderDetailPage() {
               Hủy đơn
             </Button>
           )}
+          {order.status === "RESERVED" && can(PERMS.OPERATIONS_WAREHOUSE_MANAGE) && (
+            <Button
+              icon={<SwapOutlined />}
+              onClick={() =>
+                navigate(`/operations/warehouse-transfers/create?salesOrderId=${order.id}`)
+              }
+            >
+              Đổi kho nhận
+            </Button>
+          )}
           {isEditable && can(PERMS.SALES_DELETE) && (
             <Button danger type="text" icon={<DeleteOutlined />} onClick={doDelete}>
               Xóa
@@ -413,6 +429,44 @@ export default function SalesOrderDetailPage() {
           scroll={{ x: 1000 }}
         />
       </Card>
+
+      <SalesOrderAdjustmentsPanel order={order} />
+
+      {(order.warehouseTransfers?.length ?? 0) > 0 && (
+        <Card size="small" title="Phiếu chuyển kho" style={{ marginBottom: 12 }}>
+          <Table
+            rowKey="id"
+            size="small"
+            pagination={false}
+            dataSource={order.warehouseTransfers}
+            onRow={(transfer) => ({
+              onClick: () => navigate(`/operations/warehouse-transfers/${transfer.id}`),
+              style: { cursor: "pointer" },
+            })}
+            columns={[
+              { title: "Số phiếu", dataIndex: "movementNo", width: 170 },
+              {
+                title: "Từ kho",
+                render: (_, transfer) => transfer.fromWarehouse?.name ?? "—",
+              },
+              {
+                title: "Sang kho",
+                render: (_, transfer) => transfer.toWarehouse?.name ?? "—",
+              },
+              { title: "Trạng thái", dataIndex: "status", width: 130 },
+              {
+                title: "Phí",
+                width: 150,
+                align: "right" as const,
+                render: (_, transfer) =>
+                  Number(transfer.transferFee || 0) > 0
+                    ? `${formatMoney(transfer.transferFee)} đ${transfer.chargeCustomer ? " · thu khách" : ""}`
+                    : "—",
+              },
+            ]}
+          />
+        </Card>
+      )}
 
       <ReconciliationPanel salesOrderId={order.id} />
 

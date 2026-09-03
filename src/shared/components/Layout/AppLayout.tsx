@@ -24,7 +24,10 @@ import { clearUserCache } from "../../../features/auth/session";
 // @ts-ignore
 import logo from "../../../assets/logo_200.png";
 import { confirmDialog } from "../../lib/confirm";
+import { beginIntentionalLogout } from "../../lib/sessionExpired";
+import { clearLastRoute } from "../../lib/lastRoute";
 import NotificationsBell from "./NotificationsBell";
+import BirthdaysButton from "./BirthdaysButton";
 import { useAppSession } from "../../authz/AppSessionProvider";
 import { getAuthorizedMenu } from "./MenuUtils";
 import {
@@ -69,6 +72,7 @@ const BREADCRUMB: Record<string, string> = {
   "/settings/customer-groups": "Nhóm khách hàng",
   "/settings/products": "Sản phẩm",
   "/settings/inventory": "Kho hàng",
+  "/settings/opening-balances": "Số dư đầu kỳ",
   "/settings/price-bulletins": "Giá sản phẩm",
 };
 
@@ -173,7 +177,10 @@ const HeaderRight = React.memo(function HeaderRight({
 
   return (
     <div className="app-header-right">
-      <NotificationsBell />
+      <div className="app-header-actions">
+        <BirthdaysButton />
+        <NotificationsBell />
+      </div>
       <Dropdown menu={userMenu} trigger={["click"]} placement="bottomRight">
         <div className="app-user">
           <Avatar size={32} style={{ backgroundColor: "#10b981" }}>
@@ -248,10 +255,14 @@ export default function AppLayout() {
   }, [isMobile]);
 
   const onLogout = useCallback(async () => {
+    // Đánh dấu trước khi gọi API: các request đang bay dở sẽ nhận 401 ngay sau đó,
+    // và đó là hệ quả của việc tự đăng xuất chứ không phải phiên hết hạn.
+    beginIntentionalLogout();
     try {
       await logout.mutateAsync();
     } finally {
       clearUserCache();
+      clearLastRoute();
       await qc.cancelQueries();
       qc.clear();
       nav("/login", { replace: true });

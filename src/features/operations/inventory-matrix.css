@@ -1,0 +1,35 @@
+.inventory-matrix-table .ant-table-thead > tr > th {
+  background: #edf4ff !important;
+  color: #0958d9;
+  border-color: #b9cbe5 !important;
+  padding: 5px 6px !important;
+  line-height: 18px;
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.inventory-matrix-table .inventory-matrix-area-row > td {
+  background: #f5f8fc !important;
+}
+
+.inventory-matrix-table .ant-table-container {
+  border-color: #b9cbe5 !important;
+}
+
+.inventory-matrix-table .ant-table-tbody > tr > td {
+  border-color: #d2ddec !important;
+}
+
+.inventory-export-button {
+  border-color: #389e0d !important;
+  background: #389e0d !important;
+  color: #fff !important;
+}
+
+.inventory-export-button:hover,
+.inventory-export-button:focus {
+  border-color: #237804 !important;
+  background: #237804 !important;
+  color: #fff !important;
+}

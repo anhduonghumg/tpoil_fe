@@ -1,0 +1,32 @@
+/* Khung màn Danh mục kho. Bảng dùng quy ước chung .data-grid; ở đây chỉ còn phần
+   riêng của trang: thanh tiêu đề và dải tab trạng thái. */
+
+.warehouse-page > .warehouse-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.warehouse-status-tabs .ant-tabs-nav {
+  margin-bottom: 8px;
+}
+
+/* Ô tìm kiếm nằm trong dải tab nên phải co lại khi màn hẹp, không đẩy tab xuống dòng. */
+@media (max-width: 900px) {
+  .warehouse-status-tabs .ant-tabs-extra-content .ant-input-search {
+    width: 160px !important;
+  }
+}
+
+/* Trang hợp đồng thuê kho không có tab, ô tìm và bộ lọc nằm luôn trên thanh tiêu đề. */
+@media (max-width: 900px) {
+  .warehouse-page > .warehouse-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .warehouse-page > .warehouse-toolbar .ant-input-search {
+    width: 180px !important;
+  }
+}

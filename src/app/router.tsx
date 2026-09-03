@@ -14,6 +14,7 @@ import CronJobsPage from "../features/cron/page/CronJobsPage";
 import RolesPage from "../features/rbac/roles/page/RolesPage";
 import UsersPage from "../features/users/page/UsersPage";
 import { PrivateShell } from "./PrivateShell";
+import RequireAnonymous from "./RequireAnonymous";
 import { RouteGuard } from "../shared/authz/RouteGuard";
 import { PERMS } from "../shared/authz/perms";
 import { CustomerGroupsPage } from "../features/customer-groups/page/CustomerGroupsPage";
@@ -36,6 +37,7 @@ import SalesWithdrawalsPage from "../features/sales/page/SalesWithdrawalsPage";
 import CustomerStockPage from "../features/sales/page/CustomerStockPage";
 import SalesDeliveriesPage from "../features/sales/page/SalesDeliveriesPage";
 import SalesInvoicesPage from "../features/sales/page/SalesInvoicesPage";
+import InvoiceSettingsPage from "../features/sales/page/InvoiceSettingsPage";
 import ReceivablesPage from "../features/sales/page/ReceivablesPage";
 import PurchaseSourceProfitPage from "../features/sales/page/PurchaseSourceProfitPage";
 import SalesAliasesPage from "../features/sales/page/SalesAliasesPage";
@@ -92,9 +94,17 @@ import {
   ShipFreightRatePage,
   ShippingAgentRegistrationListPage,
 } from "../features/operations/ship-charter-master-pages";
+import OpeningBalancesPage from "../features/opening-balances/OpeningBalancesPage";
 
 export const router = createBrowserRouter([
-  { path: "/login", element: <Login /> },
+  {
+    path: "/login",
+    element: (
+      <RequireAnonymous>
+        <Login />
+      </RequireAnonymous>
+    ),
+  },
   {
     path: "/",
     element: <PrivateShell />,
@@ -162,6 +172,19 @@ export const router = createBrowserRouter([
                 }
               >
                 <SalesDeliveriesPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/invoices/settings",
+            element: (
+              <RouteGuard
+                need={(ctx) =>
+                  ctx.permissions.has(PERMS.SALES_INVOICE_VIEW) ||
+                  ctx.permissions.has(PERMS.SALES_INVOICE_ISSUE)
+                }
+              >
+                <InvoiceSettingsPage />
               </RouteGuard>
             ),
           },
@@ -421,6 +444,19 @@ export const router = createBrowserRouter([
           { path: "settings/products", element: <ProductsPage /> },
           { path: "settings/inventory", element: <SupplierLocationsPage /> },
           { path: "settings/price-bulletins", element: <PriceBulletinsPage /> },
+          {
+            path: "settings/opening-balances",
+            element: (
+              <RouteGuard
+                need={(ctx) =>
+                  ctx.permissions.has(PERMS.SYSTEM_OPENING_BALANCES_VIEW) ||
+                  ctx.permissions.has(PERMS.SYSTEM_RBAC_ADMIN)
+                }
+              >
+                <OpeningBalancesPage />
+              </RouteGuard>
+            ),
+          },
         ],
       },
     ],

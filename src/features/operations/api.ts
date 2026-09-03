@@ -20,6 +20,7 @@ const patch = async <T = any>(url: string, data?: unknown) =>
 
 export const operationsApi = {
   dashboard: () => get<any>("/operations/dashboard"),
+  warehouseDashboard: () => get<any>("/operations/warehouse-dashboard"),
   shipCharterDashboard: () => get<any>("/operations/ship-charters/dashboard"),
   shipOwners: (params?: PageParams) => get<any>("/operations/ship-owners", params),
   shipOwner: (id: string) => get<any>(`/operations/ship-owners/${id}`),
@@ -90,6 +91,8 @@ export const operationsApi = {
   matrix: (params?: PageParams) => get<any>("/operations/warehouse/matrix", params),
   commercialLotInventory: (params?: PageParams) =>
     get<any>("/operations/warehouse/commercial-lots", params),
+  customerHeldInventory: (params?: PageParams) =>
+    get<any>("/operations/warehouse/customer-holds", params),
   expectedInventory: (params?: PageParams) => get<any>("/operations/expected-inventory", params),
   saveExpectedInventory: (data: unknown) => post("/operations/expected-inventory", data),
   cancelExpectedInventory: (id: string) => patch(`/operations/expected-inventory/${id}/cancel`),

@@ -34,17 +34,24 @@ import type { UpsertPurchaseOrderPayload } from "../../purchases/types";
 import { useActivePurchaseContract, useCommercialLotDetail, useCreateCommercialLot, useUpdateCommercialLot } from "../hooks";
 import { formatMoney } from "../ui/labels";
 import { useVatRatesSelect } from "../../tax-rates/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { SupplierLocationsApi } from "../../supplierLocations/api";
+import {
+  decodeWarehouseSource,
+  WarehouseSourceSelect,
+} from "../../supplierLocations/ui/WarehouseSourceSelect";
 import "../commercial-lots.css";
 
 type LineForm = {
   key: string;
   productId?: string;
-  supplierLocationId?: string;
+  receivingScope?: string;
   orderedQty?: number;
   unitPrice?: number;
   discountAmount?: number;
   taxRate?: number;
   taxRateConfigId?: string;
+  releaseCode?: "TP" | "NCC";
   isTaxAuto?: boolean;
   isPriceAuto?: boolean;
 };
@@ -89,6 +96,13 @@ export default function CommercialLotPurchaseCreatePage() {
     (rate) => rate.isDefault,
   );
   const warehousesQuery = useSupplierLocationsSelect(supplierId, "");
+  const areasQuery = useQuery({
+    queryKey: ["supplierLocations", "areas", "active"],
+    queryFn: () => SupplierLocationsApi.areas(true),
+  });
+  const selectableAreas = (areasQuery.data ?? []).filter((area) =>
+    (warehousesQuery.data ?? []).some((warehouse) => warehouse.areaId === area.id),
+  );
   const contractQuery = useActivePurchaseContract(
     supplierId,
     orderDate?.format("YYYY-MM-DD"),
@@ -108,11 +122,16 @@ export default function CommercialLotPurchaseCreatePage() {
     const loadedLines = order.lines.map((line) => ({
       key: line.id,
       productId: line.productId,
-      supplierLocationId: line.receivingWarehouse?.id,
+      receivingScope: line.receivingWarehouse?.id
+        ? `warehouse:${line.receivingWarehouse.id}`
+        : line.plannedReceivingArea?.id
+          ? `area:${line.plannedReceivingArea.id}`
+          : undefined,
       orderedQty: Number(line.orderedQty),
       unitPrice: line.unitPrice == null ? undefined : Number(line.unitPrice),
       discountAmount: Number(line.discountAmount ?? 0),
       taxRate: Number(line.taxRate ?? 0),
+      releaseCode: order.releaseCode ?? undefined,
     }));
     setLineRows(loadedLines);
     form.setFieldsValue({
@@ -206,6 +225,14 @@ export default function CommercialLotPurchaseCreatePage() {
     });
   };
 
+  const syncReleaseCode = (releaseCode: "TP" | "NCC") => {
+    const currentLines = form.getFieldValue("lines") ?? [];
+    form.setFieldsValue({
+      releaseCode,
+      lines: currentLines.map((line: LineForm) => ({ ...line, releaseCode })),
+    });
+  };
+
   useEffect(() => {
     const vatRates = vatRatesQuery.data ?? [];
     if (!vatRates.length) return;
@@ -245,7 +272,7 @@ export default function CommercialLotPurchaseCreatePage() {
   }, [currentVatRate, form, lines, vatRatesQuery.data]);
 
   const addLine = () => {
-    const nextLine = emptyLine();
+    const nextLine = { ...emptyLine(), releaseCode: form.getFieldValue("releaseCode") };
     const currentLines = form.getFieldValue("lines") ?? [];
     form.setFieldsValue({ lines: [...currentLines, nextLine] });
     setLineRows((current) => [...current, nextLine]);
@@ -268,7 +295,7 @@ export default function CommercialLotPurchaseCreatePage() {
     {
       title: "Mặt hàng",
       dataIndex: "productId",
-      width: 330,
+      width: 250,
       render: (_, __, index) => (
         <Form.Item
           name={["lines", index, "productId"]}
@@ -299,24 +326,21 @@ export default function CommercialLotPurchaseCreatePage() {
     },
     {
       title: "Kho nhận",
-      dataIndex: "supplierLocationId",
-      width: 220,
+      dataIndex: "receivingScope",
+      width: 185,
       render: (_, __, index) => (
         <Form.Item
-          name={["lines", index, "supplierLocationId"]}
+          name={["lines", index, "receivingScope"]}
           rules={[{ required: true, message: "Chọn kho nhận" }]}
           noStyle
         >
-          <Select
+          <WarehouseSourceSelect
             size="small"
-            showSearch
             disabled={!supplierId}
             loading={warehousesQuery.isFetching}
             placeholder="Chọn kho nhận"
-            options={(warehousesQuery.data ?? []).map((warehouse) => ({
-              value: warehouse.id,
-              label: warehouse.label,
-            }))}
+            areas={selectableAreas}
+            warehouses={warehousesQuery.data ?? []}
           />
         </Form.Item>
       ),
@@ -324,7 +348,7 @@ export default function CommercialLotPurchaseCreatePage() {
     {
       title: "Số lượng",
       dataIndex: "orderedQty",
-      width: 160,
+      width: 115,
       render: (_, __, index) => (
         <Form.Item
           name={["lines", index, "orderedQty"]}
@@ -344,7 +368,7 @@ export default function CommercialLotPurchaseCreatePage() {
     {
       title: "Đơn giá",
       dataIndex: "unitPrice",
-      width: 180,
+      width: 135,
       render: (_, __, index) => (
         <Form.Item name={["lines", index, "unitPrice"]} noStyle>
           <InputNumber
@@ -363,9 +387,9 @@ export default function CommercialLotPurchaseCreatePage() {
       ),
     },
     {
-      title: "Chiết khấu/đv",
+      title: "CK/đv",
       dataIndex: "discountAmount",
-      width: 160,
+      width: 125,
       render: (_, __, index) => (
         <Form.Item name={["lines", index, "discountAmount"]} noStyle>
           <InputNumber size="small" min={0} controls={false} placeholder="0" />
@@ -375,7 +399,7 @@ export default function CommercialLotPurchaseCreatePage() {
     {
       title: "Thuế",
       dataIndex: "taxRateConfigId",
-      width: 110,
+      width: 85,
       render: (_, __, index) => (
         <Form.Item name={["lines", index, "taxRateConfigId"]} noStyle>
           <Select
@@ -401,9 +425,31 @@ export default function CommercialLotPurchaseCreatePage() {
       ),
     },
     {
+      title: "Mã rút",
+      key: "releaseCode",
+      width: 85,
+      render: (_, __, index) => (
+        <Form.Item
+          name={["lines", index, "releaseCode"]}
+          rules={[{ required: true, message: "Chọn TP hoặc NCC" }]}
+          noStyle
+        >
+          <Select
+            size="small"
+            placeholder="TP/NCC"
+            onChange={(value) => syncReleaseCode(value as "TP" | "NCC")}
+            options={[
+              { value: "TP", label: "TP" },
+              { value: "NCC", label: "NCC" },
+            ]}
+          />
+        </Form.Item>
+      ),
+    },
+    {
       title: "",
       key: "action",
-      width: 54,
+      width: 44,
       render: (_, __, index) => (
         <Button
           danger
@@ -433,7 +479,7 @@ export default function CommercialLotPurchaseCreatePage() {
         supplierCustomerId: values.supplierCustomerId,
         orderType: "LOT",
         paymentMode: values.paymentMode,
-        releaseCode: values.releaseCode,
+        releaseCode: values.lines[0]?.releaseCode ?? values.releaseCode,
         priceRegionCode,
         orderDate: values.orderDate.format("YYYY-MM-DD"),
         expectedDate: values.expectedDate?.format("YYYY-MM-DD") ?? null,
@@ -453,14 +499,21 @@ export default function CommercialLotPurchaseCreatePage() {
                 },
               ]
             : [],
-        lines: values.lines.map((line) => ({
-          productId: line.productId!,
-          supplierLocationId: line.supplierLocationId,
-          orderedQty: Number(line.orderedQty),
-          unitPrice: line.unitPrice == null ? null : Number(line.unitPrice),
-          discountAmount: Number(line.discountAmount ?? 0),
-          taxRate: line.taxRate == null ? null : Number(line.taxRate),
-        })),
+        lines: values.lines.map((line) => {
+          const receiving = decodeWarehouseSource(
+            line.receivingScope!,
+            (warehousesQuery.data ?? []) as any,
+          );
+          return {
+            productId: line.productId!,
+            supplierLocationId: receiving?.warehouseId,
+            plannedReceivingAreaId: receiving?.warehouseId ? undefined : receiving?.areaId,
+            orderedQty: Number(line.orderedQty),
+            unitPrice: line.unitPrice == null ? null : Number(line.unitPrice),
+            discountAmount: Number(line.discountAmount ?? 0),
+            taxRate: line.taxRate == null ? null : Number(line.taxRate),
+          };
+        }),
       };
       const result = id
         ? await updateMutation.mutateAsync(payload)
@@ -566,25 +619,10 @@ export default function CommercialLotPurchaseCreatePage() {
                   form.setFieldsValue({
                     lines: currentLines.map((line: LineForm) => ({
                       ...line,
-                      supplierLocationId: undefined,
+                      receivingScope: undefined,
                     })),
                   });
                 }}
-              />
-            </Form.Item>
-            <Form.Item
-              className="commercial-lot-field-release-code"
-              name="releaseCode"
-              label="Mã rút"
-              rules={[{ required: true, message: "Chọn mã rút TP hoặc NCC" }]}
-            >
-              <Select
-                size="small"
-                placeholder="Chọn TP/NCC"
-                options={[
-                  { value: "TP", label: "TP" },
-                  { value: "NCC", label: "NCC" },
-                ]}
               />
             </Form.Item>
             <Form.Item
@@ -719,7 +757,6 @@ export default function CommercialLotPurchaseCreatePage() {
             )}
           />
         </div>
-
         <div className="commercial-lot-footer">
           <Button
             size="small"

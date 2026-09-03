@@ -13,7 +13,9 @@ import {
   SalesDiscountApi,
   SalesInvoicesApi,
   SalesOrderPrintApi,
+  SalesOrderAdjustmentsApi,
   SalesOrdersApi,
+  SalesDashboardApi,
   SalesProfitabilityApi,
   SalesReconciliationApi,
   SalesWithdrawalsApi,
@@ -26,6 +28,7 @@ import type {
   CreateInternalSalesOrderPayload,
   CreateSalesOrderFromPurchasePayload,
   CreateSalesOrderPayload,
+  CreateSalesOrderAdjustmentPayload,
   CreateWithdrawalPayload,
   DiscountBoardStatus,
   InvoiceSource,
@@ -41,9 +44,21 @@ import type {
   SalesOrderStatus,
   SalesWithdrawalStatus,
   UpdateCustomerCreditPayload,
+  InvoiceEnvironment,
+  UpdateMisaSettingsPayload,
   UpdateSalesOrderPayload,
   UpsertDiscountBoardPayload,
 } from "./types";
+
+export function useSalesDashboard() {
+  return useQuery({
+    queryKey: ["sales", "dashboard"],
+    queryFn: SalesDashboardApi.get,
+    // Quản lý thường để màn này mở cả buổi; tự làm mới để số không đứng yên.
+    refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+}
 
 export function useSalesOrders(query: { keyword?: string; page?: number; limit?: number } = {}) {
   return useQuery({
@@ -57,6 +72,45 @@ export function useSalesOrderDetail(id?: string) {
     queryKey: ["salesOrders", "detail", id],
     queryFn: () => SalesOrdersApi.detail(id!),
     enabled: Boolean(id),
+  });
+}
+
+export function useSalesOrderAdjustments(salesOrderId?: string) {
+  return useQuery({
+    queryKey: ["salesOrderAdjustments", salesOrderId],
+    queryFn: () => SalesOrderAdjustmentsApi.list(salesOrderId!),
+    enabled: Boolean(salesOrderId),
+  });
+}
+
+export function useCreateSalesOrderAdjustment(salesOrderId?: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateSalesOrderAdjustmentPayload) =>
+      SalesOrderAdjustmentsApi.create(payload),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["salesOrderAdjustments", salesOrderId] });
+      notify.success("Đã tạo đơn điều chỉnh và gửi quản lý duyệt");
+    },
+    onError: (error) =>
+      notify.error(extractApiError(error).message || "Không tạo được đơn điều chỉnh"),
+  });
+}
+
+export function useDecideSalesOrderAdjustment(salesOrderId?: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; decision: "approve" | "reject"; note?: string }) =>
+      input.decision === "approve"
+        ? SalesOrderAdjustmentsApi.approve(input.id, input.note)
+        : SalesOrderAdjustmentsApi.reject(input.id, input.note || ""),
+    onSuccess: (_, input) => {
+      client.invalidateQueries({ queryKey: ["salesOrderAdjustments", salesOrderId] });
+      client.invalidateQueries({ queryKey: ["salesOrders", "detail", salesOrderId] });
+      notify.success(input.decision === "approve" ? "Đã duyệt đơn điều chỉnh" : "Đã từ chối đơn điều chỉnh");
+    },
+    onError: (error) =>
+      notify.error(extractApiError(error).message || "Không xử lý được đơn điều chỉnh"),
   });
 }
 
@@ -407,11 +461,15 @@ export function useCreateWithdrawal() {
     mutationFn: (payload: CreateWithdrawalPayload) => SalesWithdrawalsApi.create(payload),
     onSuccess: (request) => {
       refresh();
-      notify.success(
-        request.status === "NEED_SOURCE"
-          ? `Đã tạo phiếu rút ${request.requestNo} — cần chọn lô nguồn`
-          : `Đã tạo phiếu rút ${request.requestNo}`,
-      );
+      // Lưu xong là backend tự gửi duyệt. Phiếu nào chưa gửi đi được thì nói rõ lý do
+      // thay vì báo thành công rồi để phiếu nằm im.
+      if (request.status === "NEED_SOURCE") {
+        notify.warning(`Đã tạo phiếu rút ${request.requestNo} — cần chọn lô nguồn rồi gửi duyệt`);
+      } else if (request.submitBlockedReason) {
+        notify.warning(`Đã tạo phiếu rút ${request.requestNo} nhưng chưa gửi duyệt được: ${request.submitBlockedReason}`);
+      } else {
+        notify.success(`Đã tạo phiếu rút ${request.requestNo} — đã chuyển sang chờ duyệt`);
+      }
     },
     onError: (error) => notify.error(extractApiError(error).message || "Không tạo được phiếu rút"),
   });
@@ -525,6 +583,34 @@ export function useConfirmDelivery(id?: string) {
     },
     onError: (error) =>
       notify.error(extractApiError(error).message || "Không ghi nhận được xuất hàng"),
+  });
+}
+
+/**
+ * Xác nhận nhanh một hoặc nhiều lệnh xuất. Backend chạy từng lệnh và báo riêng, nên ở
+ * đây phải đọc kết quả từng dòng thay vì coi cả lượt là thành công.
+ */
+export function useQuickConfirmDeliveries() {
+  const refresh = useRefreshDeliveries();
+  return useMutation({
+    mutationFn: (ids: string[]) => SalesDeliveriesApi.quickConfirm(ids),
+    onSuccess: (result) => {
+      refresh();
+      if (result.confirmed) {
+        notify.success(
+          result.confirmed === 1
+            ? "Đã ghi nhận xuất hàng"
+            : `Đã ghi nhận xuất hàng cho ${result.confirmed} lệnh`,
+        );
+      }
+      for (const row of result.results.filter((item) => !item.ok)) {
+        notify.error(
+          `${row.deliveryNo ?? "Lệnh xuất"}: ${row.message ?? "Không xác nhận được"}`,
+        );
+      }
+    },
+    onError: (error) =>
+      notify.error(extractApiError(error).message || "Không xác nhận nhanh được"),
   });
 }
 
@@ -709,13 +795,18 @@ export function useInvoicePreview(source: InvoiceSource, enabled = true) {
   });
 }
 
-export function useCreateInvoiceDraft() {
+/**
+ * `silent` dành cho đường dựng nháp rồi phát hành liền: ở đó "kiểm tra rồi bấm Phát
+ * hành" là lời nhắc sai, và người dùng nhận thông báo phát hành ngay sau đó.
+ */
+export function useCreateInvoiceDraft({ silent = false }: { silent?: boolean } = {}) {
   const refresh = useRefreshInvoices();
   return useMutation({
     mutationFn: (source: InvoiceSource) => SalesInvoicesApi.createDraft(source),
     onSuccess: (invoice) => {
       refresh();
-      notify.success(`Đã tạo hóa đơn nháp ${invoice.invoiceNoInternal}`);
+      if (silent) return;
+      notify.success(`Đã dựng hóa đơn nháp ${invoice.invoiceNoInternal} — kiểm tra rồi bấm Phát hành`);
     },
     onError: (error) => notify.error(extractApiError(error).message || "Không tạo được hóa đơn"),
   });
@@ -725,11 +816,107 @@ export function useCreateInvoiceDraft() {
  * Phát hành và thử lại là cùng một lệnh. Thất bại có thể chỉ là mất kết nối sau khi
  * MISA đã nhận, nên thông báo phải nói rõ là "thử lại", không phải "phát hành mới".
  */
+export function useMisaSettings() {
+  return useQuery({
+    queryKey: ["salesInvoices", "settings"],
+    queryFn: SalesInvoicesApi.settings,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useUpdateMisaSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: UpdateMisaSettingsPayload) => SalesInvoicesApi.updateSettings(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["salesInvoices", "settings"] });
+      notify.success("Đã lưu cấu hình hóa đơn");
+    },
+    onError: (error) =>
+      notify.error(extractApiError(error).message || "Không lưu được cấu hình"),
+  });
+}
+
+/** Chuyển môi trường đang dùng — tách khỏi lưu vì đây mới là hành động rủi ro. */
+export function useActivateMisaEnvironment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (environment: InvoiceEnvironment) =>
+      SalesInvoicesApi.activateSettings(environment),
+    onSuccess: (settings) => {
+      qc.invalidateQueries({ queryKey: ["salesInvoices", "settings"] });
+      notify.success(
+        settings.running.mock
+          ? "Đã chuyển môi trường — đang ở chế độ giả lập"
+          : settings.activeEnvironment === "PRODUCTION"
+            ? "Đã chuyển sang MISA THẬT — hóa đơn phát hành ra có giá trị pháp lý"
+            : "Đã chuyển sang MISA thử nghiệm",
+      );
+    },
+    onError: (error) =>
+      notify.error(extractApiError(error).message || "Không chuyển được môi trường"),
+  });
+}
+
+/**
+ * Mở bản PDF hóa đơn trên meInvoice.
+ *
+ * Mở tab TRƯỚC rồi mới gọi API: trình duyệt chỉ cho window.open trong cùng nhịp với cú
+ * bấm, gọi xong mới mở thì bị chặn pop-up.
+ */
+/**
+ * Mở một tab trắng NGAY trong tay trình xử lý cú bấm. Phải gọi đồng bộ từ onClick —
+ * gọi sau await thì trình duyệt không còn coi là do người dùng bấm và sẽ chặn pop-up.
+ *
+ * Cố tình KHÔNG dùng "noopener": với cờ đó window.open trả về null theo đúng chuẩn,
+ * nên không còn tay cầm nào để trỏ tab sang PDF. Bù lại bằng cách xóa opener ngay
+ * trước khi điều hướng, an toàn tương đương.
+ */
+export function openBlankTab() {
+  return window.open("about:blank", "_blank");
+}
+
+/** Lấy link PDF rồi trỏ tab đã mở sẵn sang đó. */
+export function useViewInvoiceDocument() {
+  return useMutation({
+    mutationFn: async ({ invoiceId, tab }: { invoiceId: string; tab: Window | null }) => {
+      try {
+        const result = await SalesInvoicesApi.document(invoiceId);
+        if (tab && !tab.closed) {
+          tab.opener = null;
+          tab.location.replace(result.url);
+        } else {
+          window.open(result.url, "_blank", "noopener,noreferrer");
+        }
+        return result;
+      } catch (error) {
+        // Đóng lại tab trắng, không để người dùng nhìn một trang rỗng không hiểu vì sao.
+        if (tab && !tab.closed) tab.close();
+        throw error;
+      }
+    },
+    onError: (error) =>
+      notify.error(extractApiError(error).message || "Không mở được bản hóa đơn"),
+  });
+}
+
 export function useIssueInvoice(id?: string) {
   const refresh = useRefreshInvoices(id);
   return useMutation({
-    mutationFn: ({ invoiceId, isRetry }: { invoiceId: string; isRetry?: boolean }) =>
-      isRetry ? SalesInvoicesApi.retry(invoiceId) : SalesInvoicesApi.issue(invoiceId),
+    mutationFn: ({
+      invoiceId,
+      isRetry,
+      overrideCredit,
+      creditSnapshotHash,
+    }: {
+      invoiceId: string;
+      isRetry?: boolean;
+      overrideCredit?: boolean;
+      creditSnapshotHash?: string;
+    }) =>
+      isRetry
+        ? SalesInvoicesApi.retry(invoiceId, { overrideCredit, creditSnapshotHash })
+        : SalesInvoicesApi.issue(invoiceId, { overrideCredit, creditSnapshotHash }),
     onSuccess: (invoice) => {
       refresh();
       if (invoice.status === "ISSUED") {
@@ -738,19 +925,32 @@ export function useIssueInvoice(id?: string) {
         notify.warning(`Hóa đơn đang ở trạng thái ${invoice.status} — kiểm tra nhật ký gọi MISA`);
       }
     },
-    onError: (error) =>
-      notify.error(extractApiError(error).message || "Không phát hành được hóa đơn"),
+    onError: (error: any) => {
+      const body = error?.response?.data;
+      const payload =
+        body?.error && typeof body.error === "object"
+          ? body.error
+          : body?.message && typeof body.message === "object"
+            ? body.message
+            : body;
+      if (["CREDIT_CONFIRMATION_REQUIRED", "CREDIT_CONFIRMATION_STALE"].includes(payload?.code)) return;
+      // Phát hành lỗi vẫn đổi trạng thái hóa đơn sang ISSUE_FAILED và ghi thêm một dòng
+      // nhật ký. Không nạp lại thì bảng, số đếm trên tab và cả hộp chi tiết đều đứng ở
+      // trạng thái cũ — người dùng tưởng hóa đơn còn là nháp.
+      refresh();
+      notify.error(extractApiError(error).message || "Không phát hành được hóa đơn");
+    },
   });
 }
 
-export function useCancelInvoice(id?: string) {
+export function useCancelInvoice(id?: string, { silent = false }: { silent?: boolean } = {}) {
   const refresh = useRefreshInvoices(id);
   return useMutation({
     mutationFn: ({ invoiceId, reason }: { invoiceId: string; reason: string }) =>
       SalesInvoicesApi.cancel(invoiceId, reason),
     onSuccess: () => {
       refresh();
-      notify.success("Đã hủy hóa đơn");
+      if (!silent) notify.success("Đã hủy hóa đơn");
     },
     onError: (error) => notify.error(extractApiError(error).message || "Không hủy được hóa đơn"),
   });
@@ -1259,8 +1459,15 @@ export function useAdjustLineDiscount() {
 export function useAdjustLineSupplier() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ lineId, supplierPartyId }: { lineId: string; supplierPartyId: string | null }) =>
-      SalesApprovalsApi.adjustLineSupplier(lineId, supplierPartyId),
+    mutationFn: ({
+      lineId,
+      supplierPartyId,
+      supplySource,
+    }: {
+      lineId: string;
+      supplierPartyId: string | null;
+      supplySource?: "TP" | "NCC";
+    }) => SalesApprovalsApi.adjustLineSupplier(lineId, supplierPartyId, supplySource),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["salesApprovals"] });
       notify.success("Đã cập nhật Mã NCC");

@@ -75,7 +75,8 @@ export function WithdrawalCreateModal({
     qty: firstLine?.requestedQty,
   });
   const candidates = candidatesQuery.data?.candidates ?? [];
-  const mustChoose = candidatesQuery.data?.mustChoose ?? false;
+  const hasMultiple = candidatesQuery.data?.hasMultiple ?? false;
+  const suggestedSalesOrderId = candidatesQuery.data?.suggestedSalesOrderId ?? null;
 
   useEffect(() => {
     if (!open) return;
@@ -268,7 +269,8 @@ export function WithdrawalCreateModal({
     },
   ];
 
-  const canSubmit = !mustChoose || Boolean(sourceOrderId);
+  // Không chọn gì thì backend tự lấy lô cũ nhất (FIFO), nên luôn gửi được.
+  const canSubmit = true;
 
   return (
     <Modal
@@ -357,7 +359,11 @@ export function WithdrawalCreateModal({
         <div style={{ marginTop: 16 }}>
           <Space style={{ marginBottom: 8 }}>
             <Typography.Text strong>Lô nguồn</Typography.Text>
-            {mustChoose && <Typography.Text type="danger">(bắt buộc chọn)</Typography.Text>}
+            <Typography.Text type="secondary">
+              {hasMultiple
+                ? "Để trống thì hệ thống lấy lô cũ nhất (FIFO); chọn dòng bên dưới nếu muốn khác"
+                : "Hệ thống tự gắn lô phù hợp; chọn dòng bên dưới nếu muốn khác"}
+            </Typography.Text>
           </Space>
 
           {candidatesQuery.isFetching ? (

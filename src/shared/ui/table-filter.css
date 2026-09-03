@@ -36,3 +36,10 @@
 .table-filter-tags:empty {
   display: none;
 }
+
+/* Nhãn nhóm điều kiện trong panel. */
+.table-filter-label {
+  margin-bottom: 6px;
+  color: #596579;
+  font-size: 12px;
+}

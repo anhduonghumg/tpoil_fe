@@ -135,6 +135,14 @@
   align-items: center;
   gap: 12px;
 }
+
+/* Quà và chuông là một cụm nút: sát nhau, chỉ tách 12px với avatar. */
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
 .app-search {
   width: 260px;
 }

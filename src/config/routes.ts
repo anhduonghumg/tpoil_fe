@@ -330,6 +330,10 @@ export const ROUTES = {
     ] as RouteTuple,
   },
 
+  salesDashboard: {
+    get: ["GET", "/sales-dashboard"] as RouteTuple,
+  },
+
   salesOrders: {
     list: ["GET", "/sales-orders"] as RouteTuple,
     statusCounts: ["GET", "/sales-orders/status-counts"] as RouteTuple,
@@ -357,6 +361,14 @@ export const ROUTES = {
     cancel: ["POST", "/sales-orders/:id/cancel"] as RouteTuple,
   },
 
+  salesOrderAdjustments: {
+    list: ["GET", "/sales-order-adjustments"] as RouteTuple,
+    detail: ["GET", "/sales-order-adjustments/:id"] as RouteTuple,
+    create: ["POST", "/sales-order-adjustments"] as RouteTuple,
+    approve: ["POST", "/sales-order-adjustments/:id/approve"] as RouteTuple,
+    reject: ["POST", "/sales-order-adjustments/:id/reject"] as RouteTuple,
+  },
+
   salesApprovals: {
     list: ["GET", "/sales-approvals"] as RouteTuple,
     approve: ["POST", "/sales-approvals/:id/approve"] as RouteTuple,
@@ -373,6 +385,7 @@ export const ROUTES = {
     detail: ["GET", "/sales-deliveries/:id"] as RouteTuple,
     fifoSuggestion: ["GET", "/sales-deliveries/:id/fifo-suggestion"] as RouteTuple,
     confirm: ["POST", "/sales-deliveries/:id/confirm"] as RouteTuple,
+    quickConfirm: ["POST", "/sales-deliveries/quick-confirm"] as RouteTuple,
     returnToSales: ["POST", "/sales-deliveries/:id/return"] as RouteTuple,
     resend: ["POST", "/sales-deliveries/:id/resend"] as RouteTuple,
     voidPosted: ["POST", "/sales-deliveries/:id/void"] as RouteTuple,
@@ -415,9 +428,13 @@ export const ROUTES = {
     preview: ["POST", "/sales-invoices/preview"] as RouteTuple,
     createDraft: ["POST", "/sales-invoices/drafts"] as RouteTuple,
     detail: ["GET", "/sales-invoices/:id"] as RouteTuple,
+    document: ["GET", "/sales-invoices/:id/document"] as RouteTuple,
     issue: ["POST", "/sales-invoices/:id/issue"] as RouteTuple,
     retry: ["POST", "/sales-invoices/:id/retry"] as RouteTuple,
     cancel: ["POST", "/sales-invoices/:id/cancel"] as RouteTuple,
+    settings: ["GET", "/sales-invoices/settings"] as RouteTuple,
+    updateSettings: ["PUT", "/sales-invoices/settings"] as RouteTuple,
+    activateSettings: ["PUT", "/sales-invoices/settings/active"] as RouteTuple,
   },
 
   receivables: {

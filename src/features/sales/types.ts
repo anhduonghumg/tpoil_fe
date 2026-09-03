@@ -47,6 +47,8 @@ export type SalesOrderLine = {
   /** Kho xuất của luồng nội bộ; DAY_TRADE vẫn dùng receivingWarehouse. */
   issueWarehouseId?: string | null;
   issueWarehouse?: { id: string; code: string; name: string } | null;
+  receivingWarehouseAreaId?: string | null;
+  receivingWarehouseArea?: { id: string; code: string; name: string } | null;
 };
 
 export type SalesOrderComparisonRow = {
@@ -69,6 +71,7 @@ export type SalesOrder = {
   lotInvoiceMode?: SalesLotInvoiceMode | null;
   paymentTermType?: "SAME_DAY" | "NET_DAYS";
   paymentTermDays?: number | null;
+  paymentPlans?: SalesOrderPaymentPlan[];
   approvalCycle?: number;
   rejectedReason?: string | null;
   submittedAt?: string | null;
@@ -82,7 +85,100 @@ export type SalesOrder = {
     status: string;
     supplier: { id: string; code?: string | null; name: string };
   }>;
+  warehouseTransfers?: Array<{
+    id: string;
+    movementNo: string;
+    status: string;
+    transferReason?: string | null;
+    transferFee: string;
+    chargeCustomer: boolean;
+    plannedAt: string;
+    actualArrivalAt?: string | null;
+    fromWarehouse?: { id: string; code: string; name: string } | null;
+    toWarehouse?: { id: string; code: string; name: string } | null;
+  }>;
   comparison: SalesOrderComparisonRow[];
+  workflow?: {
+    approval: "DRAFT" | "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+    warehouse:
+      | "NOT_STARTED"
+      | "READY"
+      | "PROCESSING"
+      | "PARTIALLY_ISSUED"
+      | "ISSUED"
+      | "CANCELLED";
+    invoicing:
+      | "NOT_INVOICED"
+      | "DRAFT"
+      | "ISSUE_FAILED"
+      | "PARTIALLY_INVOICED"
+      | "INVOICED"
+      | "CANCELLED";
+    receivable: "NOT_OPEN" | "OPEN" | "PARTIALLY_SETTLED" | "SETTLED";
+    totalQty: string;
+    issuedQty: string;
+    invoicedQty: string;
+    receivableAmount: string;
+    outstandingAmount: string;
+    canCancelOrder: boolean;
+  };
+};
+
+export type SalesOrderPaymentPlan = {
+  id?: string;
+  dueDate: string;
+  percent?: number | string | null;
+  amount?: number | string | null;
+  note?: string | null;
+  sortOrder?: number;
+};
+
+export type SalesOrderAdjustment = {
+  id: string;
+  adjustmentNo: string;
+  salesOrderId: string;
+  status: SalesApprovalStatus;
+  reason: string;
+  requiresWarehouseCorrection: boolean;
+  requiresInvoiceCorrection: boolean;
+  requestedById?: string | null;
+  decidedById?: string | null;
+  decidedAt?: string | null;
+  decisionNote?: string | null;
+  appliedAt?: string | null;
+  createdAt: string;
+  salesOrder: {
+    id: string;
+    orderNo: string;
+    kind: SalesOrderKind;
+    status: SalesOrderStatus;
+    customer: { id: string; code?: string | null; name: string };
+  };
+  lines: Array<{
+    id: string;
+    salesOrderLineId: string;
+    previousQty: string;
+    adjustedQty: string;
+    previousUnitPrice: string;
+    adjustedUnitPrice: string;
+    quantityChanged: boolean;
+    unitPriceChanged: boolean;
+    orderLine: {
+      id: string;
+      lineNo: number;
+      product: { id: string; code?: string | null; name: string; uom: string };
+    };
+  }>;
+};
+
+export type CreateSalesOrderAdjustmentPayload = {
+  salesOrderId: string;
+  reason: string;
+  lines: Array<{
+    salesOrderLineId: string;
+    adjustedQty?: number;
+    adjustedUnitPrice?: number;
+  }>;
 };
 
 export type CreateSalesOrderPayload = {
@@ -148,6 +244,7 @@ export type ApprovalOrderLine = {
   lineNo: number;
   productId: string;
   issueWarehouseId: string | null;
+  receivingWarehouseAreaId?: string | null;
   supplySource: "TP" | "NCC";
   preferredSupplierPartyId?: string | null;
   orderedActualQty: string;
@@ -162,6 +259,7 @@ export type ApprovalOrderLine = {
   lineNetAmount: string;
   product: { code?: string | null; name: string; uom: string };
   issueWarehouse?: { name: string } | null;
+  receivingWarehouseArea?: { id: string; name: string } | null;
   preferredSupplier?: { id: string; code: string; name: string } | null;
   supplierAllocations?: Array<{
     inventoryLotId: string | null;
@@ -184,6 +282,7 @@ export type ApprovalOrderLine = {
       supplierPartyId: string;
       supplierCode: string;
       supplierName: string;
+      supplySource: "TP" | "NCC";
       availableQty: string;
     }>;
     availableQty: string;
@@ -240,9 +339,11 @@ export type CreateInternalSalesOrderPayload = {
   lotInvoiceMode?: SalesLotInvoiceMode;
   paymentTermType?: "SAME_DAY" | "NET_DAYS";
   paymentTermDays?: number;
+  paymentPlans?: SalesOrderPaymentPlan[];
   lines: Array<{
     productId: string;
-    issueWarehouseId: string;
+    issueWarehouseId?: string;
+    receivingWarehouseAreaId?: string;
     orderedActualQty: number;
     unitPrice: number;
     /** CK công bố theo bảng thông báo giá, tính trên mỗi đơn vị. */
@@ -268,6 +369,7 @@ export type UpdateSalesOrderPayload = Partial<
     | "lotInvoiceMode"
     | "paymentTermType"
     | "paymentTermDays"
+    | "paymentPlans"
     | "lines"
   >
 >;
@@ -336,9 +438,11 @@ export type SalesWithdrawalRequest = {
   lines: SalesWithdrawalLine[];
   deliveries: Array<{ id: string; deliveryNo: string; status: string; warehouseId: string }>;
   sourceBalances?: SalesLotBalance[];
+  /** Chỉ có khi vừa tạo mà chưa tự gửi duyệt được — lý do để màn hình nói lại cho Sale. */
+  submitBlockedReason?: string;
 };
 
-/** Một đơn lô có thể phục vụ lần rút này — Sale chọn, hệ thống không tự trừ. */
+/** Một đơn lô có thể phục vụ lần rút này; mặc định hệ thống lấy lô cũ nhất, Sale đè được. */
 export type WithdrawalSourceCandidate = {
   salesOrderId: string;
   orderNo: string;
@@ -355,7 +459,10 @@ export type WithdrawalSourceCandidate = {
 export type WithdrawalSourceResult = {
   candidates: WithdrawalSourceCandidate[];
   /** Nhiều lô cùng phù hợp: màn hình bắt buộc Sale chọn. */
+  /** Giữ lại cho tương thích; hệ thống tự lấy lô cũ nhất nên luôn false. */
   mustChoose: boolean;
+  /** Có nhiều lô cùng phục vụ được — màn hình nói rõ mặc định đang lấy lô nào. */
+  hasMultiple?: boolean;
   suggestedSalesOrderId: string | null;
 };
 
@@ -486,6 +593,19 @@ export type ConfirmDeliveryPayload = {
   }>;
 };
 
+/** Kết quả xác nhận nhanh: từng lệnh báo riêng vì một lệnh hỏng không chặn các lệnh khác. */
+export type QuickConfirmDeliveriesResult = {
+  confirmed: number;
+  failed: number;
+  results: Array<{
+    id: string;
+    deliveryNo: string | null;
+    ok: boolean;
+    code?: string;
+    message?: string;
+  }>;
+};
+
 // ===== Đối soát =====
 
 export type SalesReconciliationStatus = "OPEN" | "MATCHED" | "VARIANCE" | "RESOLVED";
@@ -546,6 +666,25 @@ export type SalesInvoiceStatus =
 
 export type SalesInvoiceDocumentType = "ORIGINAL" | "ADJUSTMENT" | "REPLACEMENT";
 
+export type InvoiceCreditAssessment = {
+  invoiceId: string;
+  customerPartyId: string;
+  actualDebtBefore: string;
+  overdueAmount: string;
+  committedUninvoicedAmount: string;
+  invoiceAmount: string;
+  actualDebtAfter: string;
+  creditLimit: string | null;
+  exceededBy: string;
+  riskCodes: string[];
+  snapshotHash: string;
+};
+
+export type IssueSalesInvoicePayload = {
+  overrideCredit?: boolean;
+  creditSnapshotHash?: string;
+};
+
 export type SalesInvoiceLine = {
   id: string;
   lineNo: number;
@@ -558,6 +697,7 @@ export type SalesInvoiceLine = {
   unitPrice: string;
   discountAmount: string;
   taxRate?: string | null;
+  taxRateName?: string | null;
   netAmount: string;
   taxAmount: string;
   lineTotal: string;
@@ -606,6 +746,17 @@ export type SalesInvoice = {
   accountantEmployeeId?: string | null;
   accountantEmployee?: { id: string; code: string; fullName?: string | null } | null;
   customer: EntityRef & { taxCode?: string | null };
+  /** Người bán, dùng cho bản in hóa đơn trong hệ thống. */
+  legalEntity?: {
+    id: string;
+    code: string;
+    party: {
+      name: string;
+      taxCode?: string | null;
+      billingAddress?: string | null;
+      bankAccountNo?: string | null;
+    };
+  } | null;
   salesOrder?: { id: string; orderNo: string; orderDate?: string; kind?: SalesOrderKind } | null;
   withdrawalRequest?: {
     id: string;
@@ -613,16 +764,16 @@ export type SalesInvoice = {
     requestDate?: string;
     salesOrder?: { id: string; orderNo: string; orderDate?: string } | null;
   } | null;
-  lines?: Array<Pick<SalesInvoiceLine, "description"> & {
-    product?: { code?: string | null; name: string } | null;
-  }>;
+  lines?: SalesInvoiceLine[];
   issuances?: SalesInvoiceIssuance[];
-  receivableItem?: {
+  receivableItems?: Array<{
     id: string;
+    installmentNo: number;
+    originalAmount: string;
     outstandingAmount: string;
     status: string;
     dueDate?: string | null;
-  } | null;
+  }>;
   corrections?: Array<{
     id: string;
     invoiceNoInternal: string;
@@ -640,7 +791,24 @@ export type UnissuedInvoiceSource = {
   customer: EntityRef;
   accountantEmployee?: { id: string; code: string; fullName?: string | null } | null;
   itemCodes: string[];
+  estimatedQty: string;
+  /** Mỗi mức giá xuất hiện trên chứng từ; nhiều phần tử nghĩa là đơn có nhiều mức giá. */
+  estimatedUnitPrices: string[];
+  /** Giá hóa đơn sau chiết khấu, chưa cộng VAT; dùng để hiển thị cột Đơn giá HĐ. */
+  estimatedNetUnitPrices?: string[];
+  /** Giá thanh toán trên mỗi đơn vị, đã bao gồm VAT; dùng trong chú giải. */
+  estimatedPaymentUnitPrices?: string[];
+  /** Các mức thuế áp dụng từ dòng đơn hoặc cấu hình hóa đơn đang active. */
+  estimatedTaxRateNames?: string[];
   estimatedGrandTotal: string;
+  /** Cảnh báo công nợ tính tại thời điểm tải danh sách; phát hành vẫn kiểm tra lại. */
+  creditWarning?: {
+    riskCodes: string[];
+    overdueAmount: string;
+    exceededBy: string;
+    actualDebtAfter: string;
+    creditLimit: string | null;
+  };
 };
 
 /** Xem trước nội dung hóa đơn — đọc từ những gì đã thực xuất, không ghi gì. */
@@ -1176,7 +1344,7 @@ export type QuickEntryConfirmResult = {
 
 /** Một mốc phải trả của đơn trả chậm. */
 export type QuickEntryPaymentPlan = {
-  dueDays: number;
+  dueDate: string;
   percent?: number;
   amount?: number;
   note?: string;
@@ -1198,7 +1366,9 @@ export type ConfirmQuickEntryPayload = {
   learnAliases?: boolean;
   lines: Array<{
     productId: string;
-    warehouseId: string;
+    /** Đúng một trong hai: kho cụ thể, hoặc khu vực khi đơn lô chưa chốt kho. */
+    warehouseId?: string;
+    warehouseAreaId?: string;
     quantity: number;
     unitPrice?: number;
     discountAmount?: number;
@@ -1224,4 +1394,141 @@ export type AdjustDiscountResult = {
   discountAmount: string;
   /** Thành tiền cả đơn sau khi tính lại. */
   orderNetAmount: string;
+};
+
+/** Số liệu màn tổng quan bán hàng — một lượt gọi cho cả trang. */
+export type SalesDashboard = {
+  period: { today: string; monthStart: string; month: number; year: number };
+  revenue: {
+    month: number;
+    monthInvoices: number;
+    prevMonth: number;
+    prevMonthInvoices: number;
+    today: number;
+    todayInvoices: number;
+    bookedMonth: number;
+    qtyMonth: number;
+    qtyPrevMonth: number;
+    trend: Array<{ date: string; revenue: number }>;
+  };
+  pipeline: {
+    byStatus: Partial<Record<SalesOrderStatus, number>>;
+    openOrders: number;
+    ordersCreatedMonth: number;
+  };
+  actions: {
+    approvalsPending: number;
+    ordersPendingReview: number;
+    withdrawalsNeedSource: number;
+    withdrawalsPendingReview: number;
+    deliveriesReady: number;
+    deliveriesReturned: number;
+    invoicesDraft: number;
+    invoicesPendingIssue: number;
+    invoicesFailed: number;
+    reconciliationOpen: number;
+  };
+  receivables: {
+    outstanding: number;
+    outstandingCount: number;
+    overdue: number;
+    overdueCount: number;
+    dueSoon: number;
+    dueSoonCount: number;
+    topDebtors: Array<{
+      customerPartyId: string;
+      name: string;
+      code: string | null;
+      outstanding: number;
+    }>;
+  };
+  topCustomers: Array<{
+    customerPartyId: string;
+    name: string;
+    code: string | null;
+    revenue: number;
+    invoices: number;
+  }>;
+  topProducts: Array<{
+    productId: string;
+    name: string;
+    code: string | null;
+    uom: string | null;
+    qty: number;
+    revenue: number;
+  }>;
+  inventory: {
+    sellable: number;
+    reserved: number;
+    onHand: number;
+    items: Array<{
+      productId: string;
+      name: string;
+      code: string | null;
+      uom: string | null;
+      sellable: number;
+      reserved: number;
+      blocked: number;
+      onHand: number;
+    }>;
+  };
+};
+
+export type InvoiceEnvironment = "TEST" | "PRODUCTION";
+
+/** Một môi trường trên màn cấu hình. Bí mật chỉ báo có/không. */
+export type MisaEnvironmentConfig =
+  | { environment: InvoiceEnvironment; configured: false }
+  | {
+      environment: InvoiceEnvironment;
+      configured: true;
+      active: boolean;
+      baseUrl: string;
+      taxCode: string | null;
+      username: string | null;
+      hasPassword: boolean;
+      hasAppId: boolean;
+      templateNo: string | null;
+      serial: string | null;
+      signType: number;
+      paymentMethod: string;
+      publishMinGapMs: number;
+      /** Thuế suất áp cho dòng đơn chưa tự chọn dòng thuế. */
+      defaultVatRateId: string | null;
+      defaultVatRateName: string | null;
+      mock: boolean;
+    };
+
+export type MisaSettings = {
+  provider: string;
+  /** ENV = chưa lưu môi trường nào, đang chạy theo biến môi trường máy chủ. */
+  source: "DATABASE" | "ENV";
+  activeEnvironment: InvoiceEnvironment | null;
+  /** Cấu hình thực tế đang dùng để phát hành. */
+  running: {
+    environment: InvoiceEnvironment;
+    baseUrl: string;
+    serial: string;
+    templateNo: string;
+    mock: boolean;
+  };
+  environments: MisaEnvironmentConfig[];
+};
+
+/** Mật khẩu và appId để trống = giữ nguyên giá trị đang lưu. */
+export type UpdateMisaSettingsPayload = {
+  environment: InvoiceEnvironment;
+  baseUrl: string;
+  taxCode: string;
+  username: string;
+  password?: string;
+  appId?: string;
+  templateNo: string;
+  serial: string;
+  signType?: number;
+  paymentMethod?: string;
+  publishMinGapMs?: number;
+  /** Null = bỏ mặc định, dòng nào không chọn thuế sẽ thành "không chịu thuế". */
+  defaultVatRateId?: string | null;
+  mock?: boolean;
 };

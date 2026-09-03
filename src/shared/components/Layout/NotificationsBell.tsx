@@ -1,15 +1,13 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Badge,
   Button,
   Drawer,
   Empty,
   List,
-  Modal,
   Segmented,
   Space,
   Spin,
-  Table,
   Tag,
   Typography,
 } from "antd";
@@ -17,7 +15,6 @@ import {
   BellOutlined,
   CheckOutlined,
   FileTextOutlined,
-  GiftOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
@@ -84,7 +81,6 @@ export default function NotificationsBell({
   const navigate = useNavigate();
   const { ready, bootstrap } = useAppSession();
   const [open, setOpen] = useState(false);
-  const [birthdayOpen, setBirthdayOpen] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
 
   useNotificationRealtime(ready);
@@ -93,33 +89,12 @@ export default function NotificationsBell({
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
 
-  const birthdays = bootstrap?.data?.notifications?.birthdays;
   const contracts = bootstrap?.data?.notifications?.contracts;
-  const birthdayCount = birthdays?.count ?? 0;
   const expiringCount = contracts?.expiringCount ?? 0;
   const expiredCount = contracts?.expiredCount ?? 0;
-  const hasBirthday = birthdayCount > 0;
   const hasContracts = expiringCount + expiredCount > 0;
   const unreadCount = countQuery.data?.count ?? 0;
-  const badgeCount =
-    extraCount +
-    unreadCount +
-    (hasBirthday ? 1 : 0) +
-    (hasContracts ? 1 : 0);
-
-  const rows = useMemo(() => {
-    const today = dayjs().date();
-    return (
-      birthdays?.items?.map((employee: any) => {
-        const dob = dayjs(employee.dob);
-        return {
-          ...employee,
-          dobFmt: dob.format("DD/MM/YYYY"),
-          isToday: dob.date() === today,
-        };
-      }) ?? []
-    );
-  }, [birthdays?.items]);
+  const badgeCount = extraCount + unreadCount + (hasContracts ? 1 : 0);
 
   const openNotification = (item: CommonNotification) => {
     if (item.status === "UNREAD") markRead.mutate(item.id);
@@ -131,7 +106,7 @@ export default function NotificationsBell({
   };
 
   const items = listQuery.data?.items ?? [];
-  const hasAny = items.length || hasBirthday || hasContracts;
+  const hasAny = items.length || hasContracts;
 
   return (
     <>
@@ -253,26 +228,6 @@ export default function NotificationsBell({
                   </Space>
                 </div>
               )}
-
-              {!unreadOnly && hasBirthday && (
-                <div
-                  className="notification-legacy-card"
-                  onClick={() => setBirthdayOpen(true)}
-                >
-                  <Space align="start">
-                    <GiftOutlined style={{ color: "#faad14", marginTop: 4 }} />
-                    <div>
-                      <Typography.Text strong>
-                        Sinh nhật trong tháng
-                      </Typography.Text>
-                      <br />
-                      <Typography.Text type="secondary">
-                        Có {birthdayCount} nhân viên
-                      </Typography.Text>
-                    </div>
-                  </Space>
-                </div>
-              )}
             </>
           ) : (
             <Empty
@@ -283,35 +238,6 @@ export default function NotificationsBell({
           )}
         </Spin>
       </Drawer>
-
-      <Modal
-        title={
-          <Space>
-            <GiftOutlined style={{ color: "#faad14" }} />
-            <span>Sinh nhật tháng {birthdays?.month ?? dayjs().month() + 1}</span>
-          </Space>
-        }
-        open={birthdayOpen}
-        onCancel={() => setBirthdayOpen(false)}
-        footer={null}
-        width={560}
-      >
-        <Table
-          rowKey="id"
-          size="small"
-          columns={[
-            { title: "Nhân viên", dataIndex: "fullName", key: "fullName" },
-            {
-              title: "Ngày sinh",
-              dataIndex: "dobFmt",
-              key: "dobFmt",
-              align: "center",
-            },
-          ]}
-          dataSource={rows}
-          pagination={{ pageSize: 8, hideOnSinglePage: true }}
-        />
-      </Modal>
     </>
   );
 }

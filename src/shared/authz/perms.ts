@@ -17,6 +17,9 @@ export const PERMS = {
 
   // System
   SYSTEM_RBAC_ADMIN: "system.rbac.admin",
+  SYSTEM_OPENING_BALANCES_VIEW: "system.opening_balances.view",
+  SYSTEM_OPENING_BALANCES_MANAGE: "system.opening_balances.manage",
+  SYSTEM_OPENING_BALANCES_POST: "system.opening_balances.post",
   OPERATIONS_VIEW: "operations.view",
   OPERATIONS_CHARTER_MANAGE: "operations.charter.manage",
   OPERATIONS_WAREHOUSE_MANAGE: "operations.warehouse.manage",
@@ -43,6 +46,7 @@ export const PERMS = {
   SALES_RECONCILE: "sales.reconcile",
   SALES_INVOICE_VIEW: "sales.invoice.view",
   SALES_INVOICE_ISSUE: "sales.invoice.issue",
+  SALES_INVOICE_CREDIT_OVERRIDE: "sales.invoice.credit_override",
   SALES_WITHDRAW_CREATE: "sales.withdraw.create",
   SALES_RECEIVABLE_VIEW: "sales.receivable.view",
   SALES_RECEIVABLE_ALLOCATE: "sales.receivable.allocate",

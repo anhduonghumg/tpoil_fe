@@ -15,6 +15,7 @@ import type {
   UpdateCustomerPurchaseDefaultsPayload,
 } from "./types";
 import { notify } from "../../shared/lib/notification";
+import { extractApiError } from "../../shared/lib/httpError";
 
 export const useCustomerList = (params: CustomerListQuery) =>
   useQuery({
@@ -48,6 +49,9 @@ export const useCreateCustomer = () => {
       qc.invalidateQueries({ queryKey: ["customer", "select"] });
       qc.invalidateQueries({ queryKey: ["party", "select"] });
     },
+    onError: (error) => {
+      notify.error(extractApiError(error).message || "Không lưu được nhà cung cấp");
+    },
   });
 };
 
@@ -62,6 +66,9 @@ export const useUpdateCustomer = () => {
       qc.invalidateQueries({ queryKey: ["customers", "overview", vars.id] });
       qc.invalidateQueries({ queryKey: ["customer", "select"] });
       qc.invalidateQueries({ queryKey: ["party", "select"] });
+    },
+    onError: (error) => {
+      notify.error(extractApiError(error).message || "Không cập nhật được nhà cung cấp");
     },
   });
 };

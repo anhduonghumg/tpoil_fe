@@ -296,6 +296,7 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
     { key: "/department", label: "Phòng ban", icon: <ApartmentOutlined /> },
     { key: "/settings/roles", label: "Vai trò & quyền", icon: <SafetyCertificateOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
     { key: "/settings/roles", label: "Menu theo phòng ban", icon: <SettingOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
+    { key: "/settings/opening-balances", label: "Số dư đầu kỳ", icon: <DatabaseOutlined />, need: PERMS.SYSTEM_OPENING_BALANCES_VIEW },
     { key: "/settings/products", label: "Sản phẩm", icon: <GoldOutlined /> },
     { key: "/settings/price-bulletins", label: "Bảng giá bán", icon: <BarChartOutlined /> },
     { key: "/purchase/platts-prices", label: "Platts/MOPS", icon: <BarChartOutlined /> },

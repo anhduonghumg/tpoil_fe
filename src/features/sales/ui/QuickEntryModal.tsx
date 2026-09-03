@@ -382,6 +382,8 @@ export function QuickEntryModal({
     {
       title: "CK / đơn vị",
       dataIndex: "discountAmount",
+      // Modal nhập nhanh cũ vẫn giữ giá trị trong payload, chỉ không cho hiển thị cột.
+      hidden: true,
       width: 130,
       align: "right",
       render: (_, line) => (
@@ -566,7 +568,7 @@ export function QuickEntryModal({
             pagination={false}
             columns={columns}
             dataSource={lines}
-            scroll={{ x: 950 }}
+            scroll={{ x: 820 }}
           />
 
           {newAliasCandidates.length > 0 && (

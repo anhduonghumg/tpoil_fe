@@ -1,0 +1,172 @@
+/* Màn cấu hình xuất hóa đơn.
+   Đây là form khai báo một lần, chỉ 11 ô — phải gọn trong một màn, không để người dùng
+   phải cuộn tìm nút Lưu. Nên: hai cột đặt cạnh nhau, gợi ý dài đẩy vào tooltip thay vì
+   chiếm một dòng dưới mỗi ô, và cảnh báo gom về đúng một dòng. */
+
+.cfg-page {
+  max-width: 1080px;
+}
+
+.cfg-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.cfg-toolbar h5 {
+  font-size: 17px !important;
+}
+
+/* ---------- Dòng "hóa đơn sẽ bay đi đâu" ---------- */
+
+.cfg-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cfg-target.tone-info {
+  border: 1px solid #91caff;
+  background: #e6f4ff;
+  color: #0958d9;
+}
+
+.cfg-target.tone-warn {
+  border: 1px solid #ffe58f;
+  background: #fffbe6;
+  color: #ad6800;
+}
+
+.cfg-target.tone-danger {
+  border: 1px solid #ffa39e;
+  background: #fff2f0;
+  color: #cf1322;
+}
+
+/* ---------- Hai thẻ cạnh nhau ---------- */
+
+.cfg-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.cfg-card {
+  padding: 12px 14px 2px;
+  border: 1px solid #e6edf8;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.cfg-card h4 {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #edf0f5;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+/* Hai ô một hàng; ô nào đứng riêng thì tự chiếm trọn bề ngang. */
+.cfg-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.cfg-card .ant-form-item {
+  margin-bottom: 12px;
+}
+
+.cfg-card .ant-form-item-label {
+  padding-bottom: 2px;
+}
+
+.cfg-card .ant-form-item-label > label {
+  height: 20px;
+  color: #697386;
+  font-size: 12px;
+}
+
+.cfg-hint {
+  margin-left: 5px;
+  color: #a1a8b5;
+  font-size: 12px;
+  cursor: help;
+}
+
+/* ---------- Thanh hành động ---------- */
+
+.cfg-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.cfg-actions .ant-typography {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .cfg-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .cfg-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cfg-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* ---------- Chọn môi trường để sửa + nút chuyển ---------- */
+
+.cfg-target-meta {
+  margin-left: auto;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.cfg-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.cfg-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cfg-seg-active {
+  color: #52c41a;
+  font-size: 12px;
+}
+
+.cfg-seg-empty {
+  color: #a1a8b5;
+  font-size: 11px;
+}
+
+.cfg-using {
+  margin: 0;
+}

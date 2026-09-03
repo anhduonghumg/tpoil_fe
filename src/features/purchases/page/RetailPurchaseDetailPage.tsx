@@ -145,7 +145,7 @@ export default function RetailPurchaseDetailPage() {
       title: "Kho nhận",
       key: "warehouse",
       width: 180,
-      render: (_, row) => row.receivingWarehouse?.name ?? "-",
+      render: (_, row) => row.receivingWarehouse?.name ?? row.plannedReceivingArea?.name ?? "-",
     },
     {
       title: "Số lượng",

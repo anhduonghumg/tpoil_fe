@@ -41,8 +41,11 @@ import { InvoicePanel } from "./InvoicePanel";
 import { ReconciliationPanel } from "./ReconciliationPanel";
 import "../sales.css";
 
-/** Backend chỉ cho gửi từ nháp và đã có lô nguồn; hủy được tới trước khi xuất. */
-const SUBMITTABLE = new Set(["DRAFT"]);
+/**
+ * Lưu xong là backend tự gửi duyệt, nên nút gửi chỉ còn dùng cho hai đường vòng: phiếu
+ * phải chọn lô nguồn thủ công, và phiếu bị từ chối gửi lại sau khi sửa.
+ */
+const SUBMITTABLE = new Set(["DRAFT", "REJECTED"]);
 const CANCELLABLE = new Set([
   "DRAFT",
   "NEED_SOURCE",
@@ -243,13 +246,17 @@ export function WithdrawalDetailDrawer({
             </>
           )}
 
-          {request.status === "NEED_SOURCE" && (
+          {(request.status === "NEED_SOURCE" || request.status === "REJECTED") && (
             <>
               <Alert
                 type="warning"
                 showIcon
                 style={{ marginBottom: 12 }}
-                message="Phiếu chưa có lô nguồn. Chọn đơn lô của khách để trừ vào, hệ thống không tự chọn thay bạn."
+                message={
+                  request.status === "REJECTED"
+                    ? "Phiếu bị từ chối. Đổi sang đơn lô khác rồi gửi duyệt lại."
+                    : "Phiếu chưa tìm được lô nguồn nào phù hợp. Chọn đơn lô của khách để trừ vào."
+                }
               />
               {candidatesQuery.isFetching ? (
                 <Skeleton active paragraph={{ rows: 2 }} />

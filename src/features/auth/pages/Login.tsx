@@ -13,6 +13,7 @@ import SplashScreen from "../../../app/SplashScreen";
 import { useQueryClient } from "@tanstack/react-query";
 import { APP_BOOTSTRAP_QUERY_KEY } from "../../app/hooks";
 import { getAppBootstrap } from "../../app/api";
+import { endIntentionalLogout } from "../../../shared/lib/sessionExpired";
 
 export default function Login() {
   const [form] = Form.useForm();
@@ -35,6 +36,8 @@ export default function Login() {
     try {
       const login = (await mLogin.mutateAsync(vals)) as LoginResponse;
       if (login?.statusCode === 200) {
+        // Có phiên mới: mở lại cảnh báo hết phiên cho lần sau.
+        endIntentionalLogout();
         const user = login.data?.user;
         saveUserToCache(user || null);
         qc.setQueryData(["auth", "me"], user);

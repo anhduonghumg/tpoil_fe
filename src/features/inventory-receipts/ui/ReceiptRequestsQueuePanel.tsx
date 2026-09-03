@@ -1,7 +1,11 @@
-import { useMemo } from "react";
-import { Button, Empty, Popconfirm, Space, Table, Typography } from "antd";
-import type { ColumnsType } from "antd/es/table";
-import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
+import { Button, Popconfirm, Tooltip, Typography } from "antd";
+import {
+  CheckCircleOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  HomeOutlined,
+  ShopOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import {
@@ -9,12 +13,12 @@ import {
   useInventoryReceipts,
   useVoidInventoryReceipt,
 } from "../hooks";
-import type { InventoryReceipt } from "../types";
+import "../../../shared/components/queue-card.css";
 
 export const RECEIPT_REQUESTS_QUERY = { page: 1, limit: 50, status: "DRAFT" };
 
 const formatQty = (value?: string | number | null) =>
-  new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 }).format(Number(value ?? 0));
+  new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Number(value ?? 0));
 
 export function ReceiptRequestsQueuePanel() {
   const navigate = useNavigate();
@@ -24,99 +28,96 @@ export function ReceiptRequestsQueuePanel() {
 
   const items = queueQuery.data?.items ?? [];
 
-  const columns: ColumnsType<InventoryReceipt> = useMemo(
-    () => [
-      {
-        title: "Phiếu nhập",
-        dataIndex: "receiptNo",
-      },
-      {
-        title: "Đơn mua",
-        key: "orderNo",
-        render: (_, item) =>
-          item.purchaseOrder ? (
-            <Typography.Link
-              onClick={() => navigate(`/purchase-orders/${item.purchaseOrder!.id}`)}
-            >
-              {item.purchaseOrder.orderNo}
-            </Typography.Link>
-          ) : (
-            "-"
-          ),
-      },
-      {
-        title: "Nhà cung cấp",
-        key: "supplier",
-        render: (_, item) => item.supplier?.name ?? "-",
-      },
-      {
-        title: "Kho nhận",
-        key: "warehouse",
-        render: (_, item) => item.warehouse?.name ?? "-",
-      },
-      {
-        title: "Ngày nhập",
-        dataIndex: "receiptDate",
-        render: (value) => dayjs(value).format("DD/MM/YYYY"),
-      },
-      {
-        title: "Số lượng",
-        key: "qty",
-        align: "right",
-        render: (_, item) => formatQty(item.totalActualQty),
-      },
-      {
-        title: "",
-        key: "actions",
-        width: 200,
-        render: (_, item) => (
-          <Space size={4}>
-            <Popconfirm
-              title="Xác nhận nhập kho"
-              description="Xác nhận đã nhận hàng thực tế? Tồn kho sẽ được cộng ngay."
-              onConfirm={() => confirmMutation.mutate(item.id)}
-            >
-              <Button
-                size="small"
-                type="primary"
-                icon={<CheckOutlined />}
-                loading={confirmMutation.isPending}
-              >
-                Xác nhận
-              </Button>
-            </Popconfirm>
-            <Popconfirm
-              title="Hủy đề nghị"
-              description="Hủy đề nghị nhập hàng này?"
-              onConfirm={() => voidMutation.mutate(item.id)}
-            >
-              <Button size="small" danger icon={<CloseOutlined />} loading={voidMutation.isPending}>
-                Hủy
-              </Button>
-            </Popconfirm>
-          </Space>
-        ),
-      },
-    ],
-    [confirmMutation, voidMutation, navigate],
-  );
+  if (!items.length) {
+    return queueQuery.isFetching ? (
+      <div className="queue-card-loading">Đang tải…</div>
+    ) : (
+      <div className="queue-card-empty">
+        <CheckCircleOutlined />
+        Không có đề nghị nhập hàng nào đang chờ.
+      </div>
+    );
+  }
 
   return (
-    <Table<InventoryReceipt>
-      rowKey="id"
-      size="small"
-      loading={queueQuery.isFetching}
-      columns={columns}
-      dataSource={items}
-      pagination={false}
-      locale={{
-        emptyText: (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="Không có đề nghị nhập hàng nào đang chờ"
-          />
-        ),
-      }}
-    />
+    <div className="queue-card-grid">
+      {items.map((item) => (
+        <article className="queue-card" key={item.id}>
+          <div className="queue-card-top">
+            <span className="queue-card-no">{item.receiptNo}</span>
+            <span className="queue-card-qty">
+              {formatQty(item.totalActualQty)}
+              <small>lít</small>
+            </span>
+          </div>
+
+          <div className="queue-card-meta">
+            <span>
+              <ShopOutlined />
+              {item.supplier?.name ?? "Không rõ nhà cung cấp"}
+            </span>
+            <span>
+              <HomeOutlined />
+              {item.warehouse?.name ?? "Chưa có kho nhận"}
+            </span>
+          </div>
+
+          <div className="queue-card-foot">
+            <span className="queue-card-date">
+              {dayjs(item.receiptDate).format("DD/MM/YYYY")}
+              {item.purchaseOrder ? (
+                <>
+                  {" · "}
+                  <Typography.Link
+                    className="queue-card-link"
+                    onClick={() => navigate(`/purchase-orders/${item.purchaseOrder!.id}`)}
+                  >
+                    {item.purchaseOrder.orderNo}
+                  </Typography.Link>
+                </>
+              ) : null}
+            </span>
+
+            <span className="queue-card-actions">
+              <Popconfirm
+                title="Xác nhận nhập kho"
+                description="Xác nhận đã nhận hàng thực tế? Tồn kho sẽ được cộng ngay."
+                okText="Xác nhận"
+                cancelText="Đóng"
+                onConfirm={() => confirmMutation.mutate(item.id)}
+              >
+                <Tooltip title="Xác nhận nhập kho">
+                  <Button
+                    size="small"
+                    type="primary"
+                    aria-label={`Xác nhận nhập kho phiếu ${item.receiptNo}`}
+                    icon={<CheckOutlined />}
+                    loading={confirmMutation.isPending}
+                  />
+                </Tooltip>
+              </Popconfirm>
+              <Popconfirm
+                title="Hủy đề nghị"
+                description="Hủy đề nghị nhập hàng này?"
+                okText="Hủy phiếu"
+                okButtonProps={{ danger: true }}
+                cancelText="Đóng"
+                onConfirm={() => voidMutation.mutate(item.id)}
+              >
+                <Tooltip title="Hủy đề nghị">
+                  <Button
+                    size="small"
+                    danger
+                    aria-label={`Hủy đề nghị nhập ${item.receiptNo}`}
+                    icon={<CloseOutlined />}
+                    loading={voidMutation.isPending}
+                  />
+                </Tooltip>
+              </Popconfirm>
+            </span>
+          </div>
+        </article>
+      ))}
+    </div>
   );
 }

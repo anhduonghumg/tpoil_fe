@@ -104,13 +104,24 @@
   text-decoration: line-through;
 }
 
-/* Điều khoản đơn lô đặt dưới bảng nhập nhanh. */
+/* Điều khoản đơn lô hiển thị ngay trước bảng để người nhập không phải kéo xuống cuối. */
 .quick-entry-terms {
-  margin-top: 12px;
-  padding: 12px 14px;
-  border: 1px solid #e8ebef;
+  margin: 0 0 4px;
+  padding: 7px 10px;
+  border: 1px solid #dbe8ff;
   border-radius: 8px;
-  background: #fafafa;
+  background: #f8fbff;
+}
+
+.quick-entry-terms-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.quick-entry-terms-heading > .ant-typography:last-child {
+  font-size: 11px;
 }
 
 .sales-orders-page {
@@ -157,8 +168,39 @@
 .quick-entry-terms-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 20px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 0;
+}
+
+.quick-entry-terms-grid > div {
+  min-width: 0;
+}
+
+.quick-entry-terms-grid > div > .ant-typography:first-child {
+  display: block;
+  margin-bottom: 2px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.quick-entry-terms-grid .ant-radio-group {
+  display: flex !important;
+  flex-wrap: wrap;
+  column-gap: 14px;
+  row-gap: 2px;
+  margin-top: 0 !important;
+}
+
+.quick-entry-terms-grid .ant-radio-wrapper {
+  display: inline-flex !important;
+  margin-inline-end: 0;
+  line-height: 22px;
+}
+
+.quick-entry-terms-detail-toggle {
+  height: 22px;
+  margin-top: 1px;
+  padding: 0;
 }
 
 /* Màn nhập nhanh đơn lẻ: bố cục đọc tin nhắn → xem đơn tạm → kiểm tra bảng. */
@@ -200,6 +242,30 @@
 
 .quick-entry-composer.is-hidden {
   display: none !important;
+}
+
+/* Thanh gọn của màn đơn lô khi ô dán đang thu lại: một dòng, cao bằng nút. */
+.quick-entry-compact-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  border: 1px solid #e6edf8;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.quick-entry-compact-bar .quick-entry-control-label {
+  grid-column: auto;
+}
+
+.quick-entry-compact-bar .quick-entry-region-select {
+  width: 200px;
+}
+
+.quick-entry-compact-spacer {
+  flex: 1;
 }
 
 .quick-entry-message {
@@ -326,6 +392,21 @@
 .quick-entry-empty > .anticon {
   color: #8db5ff;
   font-size: 48px;
+}
+
+.quick-entry-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Nút thêm đơn nằm ngay ô tiêu đề cột thao tác, thẳng hàng với các nút của từng dòng. */
+.quick-entry-action-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -4px 0;
 }
 
 @media (max-width: 1100px) {
@@ -584,6 +665,22 @@
   gap: 4px;
 }
 
+.quick-entry > .quick-entry-composer {
+  order: 1;
+}
+
+.quick-entry > .quick-entry-terms {
+  order: 2;
+}
+
+.quick-entry > .quick-entry-table-toolbar {
+  order: 3;
+}
+
+.quick-entry > .sales-order-lines {
+  order: 4;
+}
+
 .quick-entry-composer {
   gap: 12px !important;
   margin-bottom: 4px !important;
@@ -627,17 +724,50 @@
   display: none !important;
 }
 
-/* ===== Hàng đợi duyệt: nén tối đa để một màn hình chứa được nhiều đơn nhất ===== */
-.approval-queue .ant-table-tbody > tr > td,
-.approval-queue .ant-table-thead > tr > th {
-  padding: 2px 6px !important;
+/* ===== Hàng đợi duyệt: nén tối đa để một màn hình chứa được nhiều đơn nhất =====
+   Phải viết .sales-grid.approval-queue vì .sales-grid nằm sau trong file, cùng độ đặc
+   thù thì luật sau thắng — để .approval-queue trơn thì phần đệm rộng của .sales-grid đè lên. */
+.sales-grid.approval-queue .ant-table-tbody > tr > td {
+  padding: 2px 5px !important;
   font-size: 12px;
   line-height: 1.35;
 }
 
-.approval-queue .ant-table-thead > tr > th {
+.sales-grid.approval-queue .ant-table-thead > tr > th {
+  padding: 4px 5px !important;
+  font-size: 11px;
+  letter-spacing: 0;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* Ô chỉ chứa một thẻ (loại đơn) hay một nút: bỏ khoảng thừa hai bên. */
+.sales-grid.approval-queue .ant-tag {
+  margin-inline-end: 0;
+  padding-inline: 5px;
+  font-size: 11px;
+  line-height: 17px;
+}
+
+/* Hai dòng trong ô số đơn / thành tiền: vừa đủ cao cho hai dòng, không hơn. */
+.sales-grid.approval-queue .sales-grid-stack {
+  height: 28px;
+  line-height: 14px;
+}
+
+.sales-grid.approval-queue .sales-grid-stack .sales-grid-sub {
+  line-height: 14px;
+}
+
+/* Ô chọn NCC và nút tác vụ nằm sát mép ô cho khỏi ăn bề ngang cột. */
+.sales-grid.approval-queue .ant-select-sm .ant-select-selector {
+  padding-inline: 5px;
+}
+
+.sales-grid.approval-queue .ant-btn-sm {
+  min-width: 22px;
+  height: 22px;
+  padding-inline: 0;
 }
 
 /* Ô nằm trong nhóm dòng của cùng một đơn: bỏ viền dưới để nhóm nhìn liền mạch. */
@@ -669,7 +799,8 @@
 /* Ô sửa CK điều chỉnh: trông như chữ cho tới khi bấm vào. */
 .approval-queue .approval-discount-input .ant-input-number-input {
   height: 20px;
-  padding: 0 4px;
+  /* Cột hẹp: bỏ bớt đệm trong để số vẫn đủ chỗ, kể cả CK điều chỉnh âm bốn chữ số. */
+  padding: 0 3px;
   font-size: 12px;
   text-align: right;
 }
@@ -700,6 +831,12 @@
 .approval-queue .approval-discount-input.ant-input-number-disabled {
   background: #f5f5f5;
   border-color: #d9d9d9;
+}
+
+/* Màn phê duyệt đứng riêng: bảng 14 cột nên lấn ra sát mép thẻ. Trừ đúng phần đệm
+   ngang 10px của .app-card — thẻ vẫn còn lề 16px với khung cửa sổ nên không bị dính mép. */
+.approval-queue-page {
+  margin-inline: -10px;
 }
 
 .approval-queue-bulkbar {
@@ -766,8 +903,10 @@
 }
 
 /* Ô chỉ chứa link (số đơn, mã rút): bỏ chiều cao mặc định của Button. */
-.sales-grid .sales-grid-link.ant-btn {
+.sales-grid .sales-grid-link.ant-btn,
+.sales-grid.approval-queue .sales-grid-link.ant-btn {
   padding: 0;
+  min-width: 0;
   height: auto;
   font-size: 12px;
   font-weight: 600;
@@ -891,4 +1030,16 @@
    duyệt. Chốt lại ở cuối file để dòng đã chọn luôn nổi hơn sọc. */
 .sales-grid.approval-queue .ant-table-tbody > tr.approval-row-selected > td {
   background: #e6f4ff !important;
+}
+
+/* Bảng dòng hàng xổ ra dưới một đơn: thụt vào và tiêu đề nhạt hơn bảng cha, để nhìn
+   ra ngay đây là chi tiết của dòng phía trên chứ không phải một danh sách khác. */
+.sales-order-line-detail {
+  margin: 4px 0 4px 8px;
+}
+
+.sales-order-line-detail .ant-table-thead > tr > th {
+  background: #f5f8ff !important;
+  text-transform: none;
+  letter-spacing: 0;
 }

@@ -23,6 +23,7 @@ import { hasPerm } from "../../../shared/authz/authz";
 import { PERMS, type PermCode } from "../../../shared/authz/perms";
 import { useAppSession } from "../../../shared/authz/AppSessionProvider";
 import OperationsDashboardPage from "../../operations/OperationsDashboardPage";
+import SalesDashboardPage from "../../sales/page/SalesDashboardPage";
 import { CommercialLotsApi } from "../../commercial-lots/api";
 import type { CommercialLotLifecycle } from "../../commercial-lots/types";
 import { PurchasesApi } from "../../purchases/api";
@@ -577,6 +578,8 @@ export default function ProfessionalDashboard() {
   );
 
   if (workspace?.currentWorkspace.key === "operations") return <OperationsDashboardPage />;
+
+  if (workspace?.currentWorkspace.key === "sales") return <SalesDashboardPage />;
 
   if (workspace?.currentWorkspace.key === "purchase") {
     return (

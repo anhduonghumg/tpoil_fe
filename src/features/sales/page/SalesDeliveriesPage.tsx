@@ -16,7 +16,14 @@ import {
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { CheckOutlined, RedoOutlined, RollbackOutlined, StopOutlined } from "@ant-design/icons";
+import {
+  CheckOutlined,
+  EditOutlined,
+  RedoOutlined,
+  RollbackOutlined,
+  StopOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import {
@@ -29,6 +36,7 @@ import { useCan } from "../../../shared/authz/useCan";
 import { PERMS } from "../../../shared/authz/perms";
 import { useWarehouseSelect } from "../../purchases/hooks";
 import {
+  useQuickConfirmDeliveries,
   useResendDelivery,
   useReturnDeliveryToSales,
   useSalesDeliveries,
@@ -63,6 +71,7 @@ export default function SalesDeliveriesPage() {
   const [returnTarget, setReturnTarget] = useState<SalesDelivery>();
   const [returnReason, setReturnReason] = useState("");
   const [voidTarget, setVoidTarget] = useState<SalesDelivery>();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [voidReason, setVoidReason] = useState("");
   const [createRevision, setCreateRevision] = useState(true);
 
@@ -84,6 +93,15 @@ export default function SalesDeliveriesPage() {
   const returnMutation = useReturnDeliveryToSales(returnTarget?.id);
   const resendMutation = useResendDelivery();
   const voidMutation = useVoidDelivery(voidTarget?.id);
+  const quickConfirmMutation = useQuickConfirmDeliveries();
+
+  /** Chỉ lệnh đang chờ kho xuất mới tích chọn được — các trạng thái khác không còn gì để xác nhận. */
+  const rows = query.data?.items ?? [];
+  const readyIds = rows.filter((row) => row.status === "READY").map((row) => row.id);
+  const canConfirm = can(PERMS.SALES_DELIVERY_CONFIRM);
+  // Dòng đã chọn có thể vừa bị lọc khỏi trang (đổi tab, sang trang khác), nên luôn
+  // rọi lại theo danh sách đang hiển thị trước khi gửi đi.
+  const selectedReadyIds = selectedIds.filter((id) => readyIds.includes(id));
 
   const warehouseName = (warehousesQuery.data ?? []).find((row) => row.id === warehouseId)?.label;
 
@@ -169,7 +187,7 @@ export default function SalesDeliveriesPage() {
     {
       title: "Số lệnh",
       dataIndex: "deliveryNo",
-      width: 130,
+      width: 108,
       render: (value: string, delivery) => (
         <Button type="link" style={{ padding: 0 }} onClick={() => setDetailId(delivery.id)}>
           {value}
@@ -179,25 +197,25 @@ export default function SalesDeliveriesPage() {
     {
       title: "Ngày xuất",
       dataIndex: "plannedAt",
-      width: 105,
+      width: 88,
       render: (value) => (value ? dayjs(value).format("DD/MM/YYYY") : "—"),
     },
     {
       title: "Số đơn hàng",
       key: "order",
-      width: 145,
+      width: 138,
       render: (_, delivery) => (
         <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/sales/orders/${delivery.salesOrder.id}`)}>
           {delivery.salesOrder.orderNo}
         </Button>
       ),
     },
-    { title: "Khách hàng", key: "customer", width: 130, ellipsis: true, render: (_, d) => d.salesOrder.customer.code ?? "—" },
-    { title: "Kho xuất", key: "warehouse", width: 120, ellipsis: true, render: (_, d) => d.warehouse.name },
+    { title: "Khách hàng", key: "customer", width: 96, ellipsis: true, render: (_, d) => d.salesOrder.customer.code ?? "—" },
+    { title: "Kho xuất", key: "warehouse", width: 104, ellipsis: true, render: (_, d) => d.warehouse.name },
     {
       title: "Hàng",
       key: "lines",
-      width: 100,
+      width: 78,
       render: (_, delivery) => (
         <div>
           {delivery.lines.map((line) => (
@@ -211,7 +229,7 @@ export default function SalesDeliveriesPage() {
     {
       title: "Số lượng",
       key: "quantity",
-      width: 110,
+      width: 88,
       align: "right",
       render: (_, delivery) => (
         <div>
@@ -226,7 +244,7 @@ export default function SalesDeliveriesPage() {
     {
       title: "Xe / lái xe",
       key: "vehicleDriver",
-      width: 190,
+      width: 140,
       render: (_, delivery) => (
         <div className="sales-grid-stack">
           <div className="sales-grid-clip">{delivery.vehiclePlate ?? "—"}</div>
@@ -239,17 +257,45 @@ export default function SalesDeliveriesPage() {
     {
       title: "Trạng thái",
       dataIndex: "status",
-      width: 130,
+      width: 108,
       render: (value: SalesDeliveryStatus) => <DeliveryStatusTag status={value} />,
     },
     {
       title: "Thao tác",
       key: "actions",
-      width: 96,
+      // Dòng chờ xuất có tới ba nút: xác nhận nhanh, nhập chi tiết, trả lại kinh doanh.
+      width: 100,
       render: (_, delivery) => (
         <Space size={4}>
           {delivery.status === "READY" && can(PERMS.SALES_DELIVERY_CONFIRM) && (
-            <Tooltip title="Xác nhận xuất"><Button type="primary" size="small" shape="circle" icon={<CheckOutlined />} onClick={() => setConfirmTarget(delivery)} /></Tooltip>
+            <>
+              {/* Đơn đã duyệt và giữ lô từ trước, thực xuất thường đúng bằng kế hoạch —
+                  nên nút chính ghi sổ luôn, không mở form. */}
+              <Tooltip title="Xác nhận xuất theo kế hoạch">
+                <Button
+                  type="primary"
+                  size="small"
+                  shape="circle"
+                  icon={<CheckOutlined />}
+                  loading={
+                    quickConfirmMutation.isPending &&
+                    quickConfirmMutation.variables?.length === 1 &&
+                    quickConfirmMutation.variables[0] === delivery.id
+                  }
+                  onClick={() => quickConfirmMutation.mutate([delivery.id])}
+                />
+              </Tooltip>
+              {/* Còn form vẫn phải với tới được: hao hụt, xuất thêm, hoặc kho cần khai
+                  V15 / nhiệt độ / số chứng từ kho thì vào đây. */}
+              <Tooltip title="Nhập chi tiết xuất (thực xuất, V15, lô)">
+                <Button
+                  size="small"
+                  shape="circle"
+                  icon={<EditOutlined />}
+                  onClick={() => setConfirmTarget(delivery)}
+                />
+              </Tooltip>
+            </>
           )}
           {delivery.status === "READY" && can(PERMS.SALES_DELIVERY_RETURN) && (
             <Tooltip title="Trả lại kinh doanh"><Button size="small" shape="circle" icon={<RollbackOutlined />} onClick={() => setReturnTarget(delivery)} /></Tooltip>
@@ -312,23 +358,51 @@ export default function SalesDeliveriesPage() {
         <Typography.Title level={4} style={{ margin: 0 }}>
           Lệnh xuất kho
         </Typography.Title>
-        <Space>
-          <FilterButton
-            count={Number(status !== "ALL") + Number(Boolean(warehouseId)) + Number(Boolean(dateFrom || dateTo))}
-            open={filterOpen}
-            onOpenChange={setFilterOpen}
-            content={filterPanel}
-          />
-          <RefreshButton loading={query.isFetching} onClick={() => query.refetch()} />
-        </Space>
       </div>
 
+      {/* Nút tác vụ nằm cùng hàng với tab, dồn phải — đỡ một dòng chiều cao và mắt
+          không phải nhảy lên xuống giữa tab và nút. */}
       <Tabs
         className="sales-status-tabs"
         activeKey={status}
         onChange={(value) => {
           setStatus(value);
           setPage(1);
+          setSelectedIds([]);
+        }}
+        tabBarExtraContent={{
+          right: (
+            <Space>
+              {/* Luôn hiện khi tab còn lệnh chờ xuất, chỉ mờ đi lúc chưa tích dòng nào —
+                  để người dùng biết có thể tích chọn hàng loạt, và nút không nhảy chỗ. */}
+              {canConfirm && readyIds.length > 0 && (
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<ThunderboltOutlined />}
+                  disabled={selectedReadyIds.length === 0}
+                  loading={quickConfirmMutation.isPending}
+                  onClick={() =>
+                    void quickConfirmMutation
+                      .mutateAsync(selectedReadyIds)
+                      .then(() => setSelectedIds([]))
+                      .catch(() => undefined)
+                  }
+                >
+                  {selectedReadyIds.length
+                    ? `Xác nhận nhanh (${selectedReadyIds.length})`
+                    : "Xác nhận nhanh"}
+                </Button>
+              )}
+              <FilterButton
+                count={Number(status !== "ALL") + Number(Boolean(warehouseId)) + Number(Boolean(dateFrom || dateTo))}
+                open={filterOpen}
+                onOpenChange={setFilterOpen}
+                content={filterPanel}
+              />
+              <RefreshButton loading={query.isFetching} onClick={() => query.refetch()} />
+            </Space>
+          ),
         }}
         items={STATUS_FILTERS.map((item) => {
           const total =
@@ -347,17 +421,33 @@ export default function SalesDeliveriesPage() {
         className="sales-grid sales-deliveries-grid"
         rowKey="id"
         size="small"
+        bordered
         tableLayout="fixed"
         loading={query.isLoading}
         columns={columns}
-        dataSource={query.data?.items ?? []}
-        scroll={{ x: 1260 }}
+        dataSource={rows}
+        rowSelection={
+          canConfirm
+            ? {
+                columnWidth: 36,
+                selectedRowKeys: selectedReadyIds,
+                onChange: (keys) => setSelectedIds(keys as string[]),
+                // Chỉ dòng chờ kho xuất mới xác nhận được; khóa các dòng còn lại để
+                // ô "chọn tất cả" không quét nhầm sang lệnh đã xuất/đã hủy.
+                getCheckboxProps: (record) => ({ disabled: record.status !== "READY" }),
+              }
+            : undefined
+        }
+        scroll={{ x: 1084 }}
         pagination={{
           current: page,
           pageSize: 20,
           total: query.data?.total ?? 0,
           showSizeChanger: false,
-          onChange: setPage,
+          onChange: (next) => {
+            setPage(next);
+            setSelectedIds([]);
+          },
         }}
       />
 

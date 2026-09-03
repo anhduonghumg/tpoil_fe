@@ -1,6 +1,24 @@
 import React, { useMemo, useState } from "react";
-import { Badge, Button, Input, Modal, Popover, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
-import { DeleteOutlined, EditOutlined, FilePdfOutlined, FilterOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import {
+  Button,
+  Divider,
+  Dropdown,
+  Input,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
+import {
+  DeleteOutlined,
+  EditOutlined,
+  FilePdfOutlined,
+  MoreOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { ColumnsType } from "antd/es/table";
 import { useContractList, useDeleteContract } from "../../contracts/hooks";
@@ -9,8 +27,12 @@ import type { ContractListItem, ContractStatus } from "../../contracts/types";
 import { useContractTypeOptions } from "../../../shared/hook/seContractTypeOptions";
 import { useSupplierLocationList } from "../hooks";
 import { WarehouseRentalContractModal } from "../ui/WarehouseRentalContractModal";
+import { FilterButton, FilterTags, RefreshButton } from "../../../shared/ui/TableFilter";
+import type { ActiveFilterTag } from "../../../shared/ui/TableFilter";
 import { toAbsUrl } from "../../../shared/lib/url";
 import type { WarehouseRentalContract } from "../types";
+import "../../../shared/ui/data-grid.css";
+import "../warehouse-catalog.css";
 
 const STATUS_OPTIONS: { value: ContractStatus; label: string }[] = [
   { value: "Draft", label: "Nháp" },
@@ -20,13 +42,20 @@ const STATUS_OPTIONS: { value: ContractStatus; label: string }[] = [
   { value: "Cancelled", label: "Hủy" },
 ];
 
+const EMPTY = <span className="data-grid-empty">—</span>;
+
+/** Số kho hiện thẳng trong ô; phần dư gói vào "+N" có tooltip liệt kê đủ. */
+const VISIBLE_WAREHOUSE_TAGS = 2;
+
 function displayState(contract: ContractListItem) {
   const today = dayjs().startOf("day");
   const start = dayjs(contract.startDate).startOf("day");
   const end = dayjs(contract.endDate).startOf("day");
   if (contract.status === "Active" && !today.isBefore(start) && !today.isAfter(end)) {
     const remaining = end.diff(today, "day");
-    return remaining <= 30 ? { label: `Sắp hết hạn (${remaining} ngày)`, color: "gold" } : { label: "Đang hiệu lực", color: "green" };
+    return remaining <= 30
+      ? { label: `Sắp hết hạn (${remaining} ngày)`, color: "gold" }
+      : { label: "Đang hiệu lực", color: "green" };
   }
   if (today.isAfter(end)) return { label: "Đã hết hạn", color: "volcano" };
   if (today.isBefore(start)) return { label: "Chưa hiệu lực", color: "blue" };
@@ -35,7 +64,10 @@ function displayState(contract: ContractListItem) {
 
 export const WarehouseRentalContractsPage: React.FC = () => {
   const { data: contractTypes } = useContractTypeOptions(true);
-  const warehouseRentalType = (contractTypes as any)?.data?.find((item: any) => item.code === "WAREHOUSE_RENTAL");
+  const warehouseRentalType = (contractTypes as any)?.data?.find(
+    (item: any) => item.code === "WAREHOUSE_RENTAL",
+  );
+
   const [keywordDraft, setKeywordDraft] = useState("");
   const [keyword, setKeyword] = useState<string | undefined>();
   const [statusDraft, setStatusDraft] = useState<ContractStatus | undefined>();
@@ -43,128 +75,308 @@ export const WarehouseRentalContractsPage: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<ContractListItem | null>(null);
+
   const deleteMutation = useDeleteContract();
-  const contractsQuery = useContractList({ contractTypeId: warehouseRentalType?.id, keyword, status, page: 1, pageSize: 100 }, !!warehouseRentalType?.id);
+  const contractsQuery = useContractList(
+    { contractTypeId: warehouseRentalType?.id, keyword, status, page: 1, pageSize: 100 },
+    !!warehouseRentalType?.id,
+  );
   const warehousesQuery = useSupplierLocationList({ page: 1, pageSize: 100 });
-  const warehouses = useMemo(() => (warehousesQuery.data?.items ?? []).filter((warehouse) => warehouse.warehouseType === "THIRD_PARTY"), [warehousesQuery.data?.items]);
-  const activeWarehouses = useMemo(() => warehouses.filter((warehouse) => warehouse.isActive), [warehouses]);
+  const warehouses = useMemo(
+    () =>
+      (warehousesQuery.data?.items ?? []).filter(
+        (warehouse) => warehouse.warehouseType === "THIRD_PARTY",
+      ),
+    [warehousesQuery.data?.items],
+  );
+  const activeWarehouses = useMemo(
+    () => warehouses.filter((warehouse) => warehouse.isActive),
+    [warehouses],
+  );
   const editingWarehouse = useMemo(
-    () => warehouses.find((warehouse) => warehouse.id === editingContract?.warehouses?.[0]?.id) ?? null,
-    [editingContract?.warehouses, warehouses]
+    () =>
+      warehouses.find((warehouse) => warehouse.id === editingContract?.warehouses?.[0]?.id) ??
+      null,
+    [editingContract?.warehouses, warehouses],
   );
 
+  const confirmDelete = (row: ContractListItem) => {
+    Modal.confirm({
+      title: "Xóa hợp đồng thuê kho?",
+      content: `Hợp đồng ${row.code} và các file đã tải lên sẽ bị xóa.`,
+      okText: "Xóa",
+      cancelText: "Hủy",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        await deleteMutation.mutateAsync(row.id);
+        notify.success("Đã xóa hợp đồng thuê kho.");
+        await contractsQuery.refetch();
+      },
+    });
+  };
+
   const columns: ColumnsType<ContractListItem> = [
-    { title: "Mã HĐ", dataIndex: "code", width: 150 },
+    {
+      // Tên hợp đồng trước đây tìm được nhưng không hiện ra; đưa xuống dòng phụ của mã
+      // để nhận ra hợp đồng mà không tốn thêm một cột.
+      title: "Mã HĐ",
+      dataIndex: "code",
+      width: 172,
+      fixed: "left",
+      render: (_, row) => (
+        <div className="data-grid-stack">
+          <Tooltip title={row.code}>
+            <span className="data-grid-clip data-grid-strong">{row.code}</span>
+          </Tooltip>
+          <Tooltip title={row.name}>
+            <span className="data-grid-clip data-grid-sub">{row.name || "Chưa đặt tên"}</span>
+          </Tooltip>
+        </div>
+      ),
+    },
     {
       title: "Kho thuê",
       key: "warehouses",
-      width: 260,
-      render: (_, row) => row.warehouses?.length ? row.warehouses.map((warehouse) => warehouse.code || warehouse.name).join(", ") : "-",
+      width: 196,
+      render: (_, row) => {
+        const list = row.warehouses ?? [];
+        if (!list.length) return EMPTY;
+        const shown = list.slice(0, VISIBLE_WAREHOUSE_TAGS);
+        const hidden = list.slice(VISIBLE_WAREHOUSE_TAGS);
+        return (
+          <span className="data-grid-tags">
+            {shown.map((warehouse) => (
+              <Tooltip key={warehouse.id} title={warehouse.name}>
+                <Tag>{warehouse.code || warehouse.name}</Tag>
+              </Tooltip>
+            ))}
+            {hidden.length ? (
+              <Tooltip title={hidden.map((warehouse) => warehouse.name).join(", ")}>
+                <Tag className="data-grid-tag-more">+{hidden.length}</Tag>
+              </Tooltip>
+            ) : null}
+          </span>
+        );
+      },
     },
-    { title: "Bên cho thuê", dataIndex: "customerName", width: 220, render: (value) => value || "-" },
-    { title: "Hiệu lực", width: 210, render: (_, row) => `${dayjs(row.startDate).format("DD/MM/YYYY")} - ${dayjs(row.endDate).format("DD/MM/YYYY")}` },
-    { title: "Tình trạng", width: 170, render: (_, row) => { const item = displayState(row); return <Tag color={item.color}>{item.label}</Tag>; } },
+    {
+      title: "Bên cho thuê",
+      dataIndex: "customerName",
+      width: 186,
+      render: (value: string | null, row) =>
+        value ? (
+          <Tooltip title={row.customerCode ? `${value} (${row.customerCode})` : value}>
+            <span className="data-grid-clip">{value}</span>
+          </Tooltip>
+        ) : (
+          EMPTY
+        ),
+    },
+    {
+      title: "Hiệu lực",
+      key: "period",
+      width: 172,
+      align: "center",
+      render: (_, row) => (
+        <span className="data-grid-num">
+          {dayjs(row.startDate).format("DD/MM/YYYY")} → {dayjs(row.endDate).format("DD/MM/YYYY")}
+        </span>
+      ),
+    },
+    {
+      title: "Tình trạng",
+      key: "state",
+      width: 154,
+      render: (_, row) => {
+        const item = displayState(row);
+        return <Tag color={item.color}>{item.label}</Tag>;
+      },
+    },
     {
       title: "PDF",
-      width: 72,
+      key: "pdf",
+      width: 58,
       align: "center",
       render: (_, row) => {
         const file = row.attachments?.find((item) => item.fileUrl || item.externalUrl);
         const url = toAbsUrl(file?.fileUrl || file?.externalUrl);
-        return url ? <Tooltip title="Xem PDF"><Button size="small" type="text" icon={<FilePdfOutlined />} aria-label="Xem PDF hợp đồng" onClick={() => window.open(url, "_blank", "noopener,noreferrer")} /></Tooltip> : "-";
+        return url ? (
+          <Tooltip title="Xem PDF">
+            <Button
+              size="small"
+              type="text"
+              icon={<FilePdfOutlined />}
+              aria-label={`Xem PDF hợp đồng ${row.code}`}
+              onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+            />
+          </Tooltip>
+        ) : (
+          EMPTY
+        );
       },
     },
     {
       title: "",
-      width: 80,
+      key: "actions",
+      width: 46,
       align: "center",
+      fixed: "right",
       render: (_, row) => (
-        <Space size={2}>
-          <Tooltip title="Sửa hợp đồng / thay PDF">
-            <Button
-              size="small"
-              type="text"
-              icon={<EditOutlined />}
-              aria-label="Sửa hợp đồng"
-              disabled={!row.warehouses?.[0]}
-              onClick={() => setEditingContract(row)}
-            />
-          </Tooltip>
-          <Tooltip title="Xóa hợp đồng">
-            <Button
-              size="small"
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              aria-label="Xóa hợp đồng"
-              onClick={() => {
-                Modal.confirm({
-                  title: "Xóa hợp đồng thuê kho?",
-                  content: `Hợp đồng ${row.code} và các file đã tải lên sẽ bị xóa.`,
-                  okText: "Xóa",
-                  cancelText: "Hủy",
-                  okButtonProps: { danger: true },
-                  onOk: async () => {
-                    await deleteMutation.mutateAsync(row.id);
-                    notify.success("Đã xóa hợp đồng thuê kho.");
-                    await contractsQuery.refetch();
-                  },
-                });
-              }}
-            />
-          </Tooltip>
-        </Space>
+        <Dropdown
+          menu={{
+            items: [
+              {
+                key: "edit",
+                icon: <EditOutlined />,
+                label: "Sửa / thay PDF",
+                disabled: !row.warehouses?.[0],
+                onClick: () => setEditingContract(row),
+              },
+              {
+                key: "delete",
+                icon: <DeleteOutlined />,
+                label: "Xóa hợp đồng",
+                danger: true,
+                onClick: () => confirmDelete(row),
+              },
+            ],
+          }}
+          trigger={["click"]}
+          placement="bottomRight"
+        >
+          <Button
+            size="small"
+            type="text"
+            icon={<MoreOutlined />}
+            aria-label={`Thao tác hợp đồng ${row.code}`}
+          />
+        </Dropdown>
       ),
     },
   ];
 
-  const applyFilters = () => {
-    setKeyword(keywordDraft.trim() || undefined);
-    setStatus(statusDraft);
-    setFilterOpen(false);
-  };
-  const clearFilters = () => {
-    setKeywordDraft("");
-    setKeyword(undefined);
-    setStatusDraft(undefined);
-    setStatus(undefined);
-    setFilterOpen(false);
-  };
-  const filterContent = (
-    <div style={{ width: 260 }}>
-      <div style={{ color: "#596579", fontSize: 12, marginBottom: 6 }}>Trạng thái hợp đồng</div>
-      <Select allowClear size="small" style={{ width: "100%" }} value={statusDraft} options={STATUS_OPTIONS} placeholder="Tất cả trạng thái" onChange={setStatusDraft} />
-      <Space style={{ width: "100%", justifyContent: "flex-end", marginTop: 14 }}>
-        <Button size="small" type="text" onClick={clearFilters}>Xóa lọc</Button>
-        <Button size="small" type="primary" onClick={applyFilters}>Áp dụng</Button>
+  const filterTags: ActiveFilterTag[] = [
+    ...(status
+      ? [
+          {
+            key: "status",
+            label: `Trạng thái: ${STATUS_OPTIONS.find((item) => item.value === status)?.label ?? status}`,
+            onClear: () => {
+              setStatus(undefined);
+              setStatusDraft(undefined);
+            },
+          },
+        ]
+      : []),
+    ...(keyword
+      ? [
+          {
+            key: "keyword",
+            label: `Từ khóa: ${keyword}`,
+            onClear: () => {
+              setKeyword(undefined);
+              setKeywordDraft("");
+            },
+          },
+        ]
+      : []),
+  ];
+
+  const filterPanel = (
+    <div className="table-filter-panel" style={{ width: 260 }}>
+      <div className="table-filter-label">Trạng thái hợp đồng</div>
+      <Select
+        allowClear
+        size="small"
+        style={{ width: "100%" }}
+        value={statusDraft}
+        options={STATUS_OPTIONS}
+        placeholder="Tất cả trạng thái"
+        onChange={setStatusDraft}
+      />
+      <Divider style={{ margin: "12px 0" }} />
+      <Space style={{ width: "100%", justifyContent: "flex-end" }}>
+        <Button
+          size="small"
+          type="text"
+          onClick={() => {
+            setStatusDraft(undefined);
+            setStatus(undefined);
+            setFilterOpen(false);
+          }}
+        >
+          Xóa lọc
+        </Button>
+        <Button
+          size="small"
+          type="primary"
+          onClick={() => {
+            setStatus(statusDraft);
+            setFilterOpen(false);
+          }}
+        >
+          Áp dụng
+        </Button>
       </Space>
     </div>
   );
 
   return (
-    <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <Typography.Title level={4} style={{ marginTop: 0 }}>Hợp đồng thuê kho</Typography.Title>
-        <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>Thêm hợp đồng</Button>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-        <Input.Search size="small" allowClear value={keywordDraft} onChange={(event) => setKeywordDraft(event.target.value)} onSearch={applyFilters} placeholder="Tìm mã hợp đồng hoặc tên hợp đồng" style={{ width: 425, maxWidth: "100%" }} />
+    <div className="warehouse-page">
+      <div className="warehouse-toolbar">
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          Hợp đồng thuê kho
+        </Typography.Title>
+
         <Space size={6}>
-          <Popover open={filterOpen} onOpenChange={setFilterOpen} content={filterContent} trigger="click" placement="bottomRight">
-            <Badge count={Number(Boolean(status))} size="small" offset={[-3, 3]}><Button size="small" icon={<FilterOutlined />}>Bộ lọc</Button></Badge>
-          </Popover>
-          <Button size="small" icon={<ReloadOutlined spin={contractsQuery.isFetching} />} aria-label="Làm mới" onClick={() => contractsQuery.refetch()} />
+          <Input.Search
+            size="small"
+            allowClear
+            value={keywordDraft}
+            placeholder="Tìm mã hoặc tên hợp đồng"
+            onChange={(event) => setKeywordDraft(event.target.value)}
+            onSearch={(value) => setKeyword(value.trim() || undefined)}
+            loading={contractsQuery.isFetching}
+            style={{ width: 280 }}
+          />
+          <FilterButton
+            count={Number(Boolean(status))}
+            open={filterOpen}
+            onOpenChange={setFilterOpen}
+            content={filterPanel}
+          />
+          <RefreshButton
+            loading={contractsQuery.isFetching}
+            onClick={() => contractsQuery.refetch()}
+          />
+          <Button
+            size="small"
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setCreateOpen(true)}
+          >
+            Thêm hợp đồng
+          </Button>
         </Space>
       </div>
-      <Table
+
+      <FilterTags items={filterTags} />
+
+      <Table<ContractListItem>
+        className="data-grid"
         size="small"
+        bordered
+        tableLayout="fixed"
+        scroll={{ x: 984 }}
         rowKey="id"
-        scroll={{ x: 980 }}
-        loading={contractsQuery.isFetching || deleteMutation.isPending || !warehouseRentalType}
+        loading={
+          contractsQuery.isFetching || deleteMutation.isPending || !warehouseRentalType
+        }
         columns={columns}
         dataSource={(contractsQuery.data?.items ?? []) as ContractListItem[]}
         pagination={false}
       />
+
       <WarehouseRentalContractModal
         open={createOpen}
         availableWarehouses={activeWarehouses}
@@ -179,6 +391,6 @@ export const WarehouseRentalContractsPage: React.FC = () => {
         onClose={() => setEditingContract(null)}
         onSaved={() => contractsQuery.refetch()}
       />
-    </>
+    </div>
   );
 };

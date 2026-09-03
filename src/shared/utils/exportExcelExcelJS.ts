@@ -13,6 +13,24 @@ export type StyledExportOptions<T = any> = {
   border?: boolean;
 };
 
+/**
+ * Lõi xuất Excel dùng chung cho các báo cáo cần bố cục đặc thù (header nhiều tầng,
+ * dòng nhóm, công thức...). Mỗi màn chỉ khai báo nội dung workbook, còn việc tạo và
+ * tải file luôn dùng một chuẩn chung.
+ */
+export async function exportExcelWorkbook(
+  filename: string,
+  build: (workbook: ExcelJS.Workbook) => void | Promise<void>
+) {
+  const workbook = new ExcelJS.Workbook();
+  await build(workbook);
+  const buffer = await workbook.xlsx.writeBuffer();
+  saveAs(
+    new Blob([buffer]),
+    `${filename}_${dayjs().format("YYYYMMDD_HHmm")}.xlsx`
+  );
+}
+
 export async function exportExcelStyled<T = any>(
   rows: T[],
   columns: ExportColumn<T>[],

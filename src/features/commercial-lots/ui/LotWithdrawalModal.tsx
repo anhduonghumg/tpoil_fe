@@ -29,7 +29,6 @@ type Props = {
 
 type FormValues = {
   withdrawalNo: string;
-  destinationWarehouseId: string;
   withdrawalDate: dayjs.Dayjs;
   note?: string;
 };
@@ -41,6 +40,7 @@ export default function LotWithdrawalModal({
 }: Props) {
   const [form] = Form.useForm<FormValues>();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [destinations, setDestinations] = useState<Record<string, string>>({});
   const createMutation = useCreateLotWithdrawal(order.id);
   const warehousesQuery = useQuery({
     queryKey: ["supplier-locations", "active", "lot-withdrawal"],
@@ -68,14 +68,35 @@ export default function LotWithdrawalModal({
   useEffect(() => {
     if (!open) return;
     setQuantities({});
+    setDestinations(
+      Object.fromEntries(
+        withdrawableLines.flatMap((line) => {
+          const positionId = line.commercialLotPosition?.id;
+          const warehouseId = line.receivingWarehouse?.id;
+          return positionId && warehouseId ? [[positionId, warehouseId]] : [];
+        }),
+      ),
+    );
     form.setFieldsValue({
       withdrawalNo: `RUT-${dayjs().format("YYYYMMDD-HHmm")}`,
-      destinationWarehouseId:
-        withdrawableLines[0]?.receivingWarehouse?.id ?? undefined,
       withdrawalDate: dayjs(),
       note: "",
     });
   }, [form, open, withdrawableLines]);
+
+  const warehouseOptionsFor = (line: CommercialLotOrderLine) => {
+    const plannedWarehouseId = line.receivingWarehouse?.id;
+    const plannedAreaId = line.plannedReceivingArea?.id;
+    return (warehousesQuery.data?.items ?? [])
+      .filter((warehouse) => {
+        if (plannedWarehouseId) return warehouse.id === plannedWarehouseId;
+        return !plannedAreaId || warehouse.areaId === plannedAreaId;
+      })
+      .map((warehouse) => ({
+        value: warehouse.id,
+        label: `${warehouse.code} - ${warehouse.name}`,
+      }));
+  };
 
   const columns: ColumnsType<CommercialLotOrderLine> = [
     {
@@ -89,6 +110,26 @@ export default function LotWithdrawalModal({
       dataIndex: "receivingWarehouse",
       width: 155,
       render: (warehouse) => warehouse?.name ?? "-",
+    },
+    {
+      title: "Kho nhận thực tế",
+      width: 200,
+      render: (_, line) => {
+        const positionId = line.commercialLotPosition!.id;
+        return (
+          <Select
+            showSearch
+            optionFilterProp="label"
+            loading={warehousesQuery.isFetching}
+            value={destinations[positionId]}
+            placeholder="Chọn kho nhận"
+            options={warehouseOptionsFor(line)}
+            onChange={(value) =>
+              setDestinations((current) => ({ ...current, [positionId]: value }))
+            }
+          />
+        );
+      },
     },
     {
       title: "Đã hóa đơn",
@@ -146,18 +187,25 @@ export default function LotWithdrawalModal({
   const submit = async () => {
     const values = await form.validateFields();
     const lines = withdrawableLines
-      .map((line) => ({
-        commercialLotPositionId: line.commercialLotPosition!.id,
-        actualQty: Number(quantities[line.commercialLotPosition!.id] ?? 0),
-      }))
+      .map((line) => {
+        const positionId = line.commercialLotPosition!.id;
+        return {
+          commercialLotPositionId: positionId,
+          destinationWarehouseId: destinations[positionId],
+          actualQty: Number(quantities[positionId] ?? 0),
+        };
+      })
       .filter((line) => line.actualQty > 0);
     if (!lines.length) {
       notify.error("Nhập số lượng cần rút cho ít nhất một mặt hàng");
       return;
     }
+    if (lines.some((line) => !line.destinationWarehouseId)) {
+      notify.error("Chọn kho nhận thực tế cho từng mặt hàng cần rút");
+      return;
+    }
     await createMutation.mutateAsync({
       withdrawalNo: values.withdrawalNo.trim(),
-      destinationWarehouseId: values.destinationWarehouseId,
       withdrawalDate: values.withdrawalDate.toISOString(),
       note: values.note?.trim(),
       lines,
@@ -169,7 +217,7 @@ export default function LotWithdrawalModal({
     <Modal
       open={open}
       title="Tạo phiếu rút lô"
-      width={980}
+      width={1120}
       okText="Lưu phiếu nháp"
       cancelText="Đóng"
       confirmLoading={createMutation.isPending}
@@ -193,21 +241,6 @@ export default function LotWithdrawalModal({
           >
             <DatePicker showTime format="DD/MM/YYYY HH:mm" />
           </Form.Item>
-          <Form.Item
-            name="destinationWarehouseId"
-            label="Kho nhận thực tế"
-            rules={[{ required: true, message: "Chọn kho nhận thực tế" }]}
-          >
-            <Select
-              showSearch
-              optionFilterProp="label"
-              loading={warehousesQuery.isFetching}
-              options={(warehousesQuery.data?.items ?? []).map((warehouse) => ({
-                value: warehouse.id,
-                label: `${warehouse.code} - ${warehouse.name}`,
-              }))}
-            />
-          </Form.Item>
           <Form.Item name="note" label="Ghi chú">
             <Input />
           </Form.Item>
@@ -221,7 +254,7 @@ export default function LotWithdrawalModal({
         columns={columns}
         dataSource={withdrawableLines}
         className="commercial-lot-table commercial-lot-withdrawal-table"
-        scroll={{ y: 300 }}
+        scroll={{ x: 1080, y: 300 }}
       />
     </Modal>
   );

@@ -4,6 +4,7 @@ import { operationsApi, type PageParams } from "./api";
 export const operationKeys = {
   all: ["operations"] as const,
   dashboard: ["operations", "dashboard"] as const,
+  warehouseDashboard: ["operations", "warehouse-dashboard"] as const,
   list: (resource: string, params?: PageParams) =>
     ["operations", resource, params] as const,
   detail: (resource: string, id?: string) =>
@@ -14,6 +15,16 @@ export function useOperationsDashboard() {
   return useQuery({
     queryKey: operationKeys.dashboard,
     queryFn: operationsApi.dashboard,
+  });
+}
+
+export function useWarehouseDashboard() {
+  return useQuery({
+    queryKey: operationKeys.warehouseDashboard,
+    queryFn: operationsApi.warehouseDashboard,
+    // Kho là màn treo cả ca; tự làm mới để tồn không đứng yên sau mỗi phiếu.
+    refetchInterval: 3 * 60 * 1000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -28,6 +39,7 @@ export function useOperationList(
     | "availability"
     | "matrix"
     | "commercialLotInventory"
+    | "customerHeldInventory"
     | "expectedInventory"
     | "reservations"
     | "transfers"
