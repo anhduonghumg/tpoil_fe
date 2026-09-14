@@ -1,43 +1,44 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
-  Alert,
-  Badge,
   Button,
   DatePicker,
-  Empty,
+  Dropdown,
   Form,
   Input,
   Modal,
-  Popconfirm,
-  Popover,
   Select,
   Space,
   Table,
   Tabs,
   Tag,
-  Tooltip,
   Typography,
 } from "antd";
+import type { MenuProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { EyeOutlined, FilterOutlined, ReloadOutlined } from "@ant-design/icons";
+import {
+  CheckOutlined,
+  EyeOutlined,
+  MoreOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import dayjs, { type Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
+import {
+  FilterButton,
+  FilterTags,
+  RefreshButton,
+} from "../../../shared/ui/TableFilter";
+import type { ActiveFilterTag } from "../../../shared/ui/TableFilter";
+import "../../../shared/ui/data-grid.css";
 import { ProductsApi } from "../../products/api";
 import { SupplierLocationsApi } from "../../supplierLocations/api";
 import {
   useConfirmInventoryReceipt,
-  useInventoryReceiptDetail,
   useInventoryReceipts,
-  useStockCard,
   useVoidInventoryReceipt,
 } from "../hooks";
-import type {
-  InventoryReceipt,
-  InventoryReceiptListQuery,
-  StockCardEntry,
-  StockCardQuery,
-} from "../types";
+import type { InventoryReceipt, InventoryReceiptListQuery } from "../types";
+import { ReceiptDetailModal } from "../ui/ReceiptDetailModal";
 import "../inventory-receipts.css";
 
 const { RangePicker } = DatePicker;
@@ -50,6 +51,20 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
   CONFIRMED: { label: "Đã nhập kho", color: "green" },
   VOID: { label: "Đã đảo", color: "default" },
 };
+
+
+/*
+ * Thanh trạng thái cùng kiểu màn Lệnh xuất kho: việc cần làm đứng trước, "Tất cả"
+ * chốt hàng. Khác một điểm — bên xuất kho mặc định mở tab "Chờ kho xuất" vì đó là
+ * hàng đợi việc, còn màn này là màn tra cứu phiếu nhập nên mặc định vẫn là "Tất cả",
+ * đổi mặc định sẽ làm mất phiếu trước mắt người đang quen tra ở đây.
+ */
+const RECEIPT_STATUS_FILTERS = [
+  { value: "DRAFT", label: "Chờ xác nhận" },
+  { value: "CONFIRMED", label: "Đã nhập kho" },
+  { value: "VOID", label: "Đã đảo" },
+  { value: "ALL", label: "Tất cả" },
+];
 
 const SOURCE_META: Record<string, string> = {
   COMMERCIAL_LOT_WITHDRAWAL: "Rút lô mua hàng",
@@ -64,32 +79,19 @@ function formatDateRange(range: [Dayjs, Dayjs] | null) {
 }
 
 export default function InventoryReceiptsPage() {
-  const navigate = useNavigate();
   const [selectedReceiptId, setSelectedReceiptId] = useState<string>();
+  const [receiptStatus, setReceiptStatus] = useState("ALL");
   const [receiptFilterOpen, setReceiptFilterOpen] = useState(false);
-  const [stockFilterOpen, setStockFilterOpen] = useState(false);
   const [receiptFilterForm] = Form.useForm<{
     warehouseId?: string;
     productId?: string;
     receiptDates?: [Dayjs, Dayjs] | null;
-  }>();
-  const [stockFilterForm] = Form.useForm<{
-    warehouseId?: string;
-    productId?: string;
-    stockDates?: [Dayjs, Dayjs] | null;
   }>();
   const [receiptDates, setReceiptDates] = useState<[Dayjs, Dayjs] | null>(null);
   const [receiptQuery, setReceiptQuery] = useState<InventoryReceiptListQuery>({
     page: 1,
     limit: 20,
   });
-  const [stockDates, setStockDates] = useState<[Dayjs, Dayjs] | null>([
-    dayjs().startOf("month"),
-    dayjs().endOf("month"),
-  ]);
-  const [stockQuery, setStockQuery] = useState<StockCardQuery>(() => ({
-    ...formatDateRange([dayjs().startOf("month"), dayjs().endOf("month")]),
-  }));
 
   const warehousesQuery = useQuery({
     queryKey: ["inventory-receipts", "warehouses"],
@@ -102,8 +104,21 @@ export default function InventoryReceiptsPage() {
     staleTime: 5 * 60_000,
   });
   const receipts = useInventoryReceipts(receiptQuery);
-  const detail = useInventoryReceiptDetail(selectedReceiptId);
-  const stockCard = useStockCard(stockQuery);
+  // Đếm cho từng tab, và đếm theo đúng bộ lọc đang bật — nếu không, con số trên tab
+  // sẽ không khớp với số dòng thấy trong bảng.
+  const countScope = {
+    page: 1,
+    limit: 1,
+    keyword: receiptQuery.keyword,
+    warehouseId: receiptQuery.warehouseId,
+    productId: receiptQuery.productId,
+    dateFrom: receiptQuery.dateFrom,
+    dateTo: receiptQuery.dateTo,
+  };
+  const draftCount = useInventoryReceipts({ ...countScope, status: "DRAFT" });
+  const confirmedCount = useInventoryReceipts({ ...countScope, status: "CONFIRMED" });
+  const voidCount = useInventoryReceipts({ ...countScope, status: "VOID" });
+  const allCount = useInventoryReceipts(countScope);
   const confirmReceipt = useConfirmInventoryReceipt();
   const voidReceipt = useVoidInventoryReceipt();
 
@@ -120,9 +135,11 @@ export default function InventoryReceiptsPage() {
     {
       title: "Số phiếu",
       dataIndex: "receiptNo",
+      // Số phiếu rút lô dài gần 40 ký tự nên cột này phải rộng nhất bảng.
+      width: 300,
       render: (value, row) => (
         <Button type="link" className="inventory-receipt-link" onClick={() => setSelectedReceiptId(row.id)}>
-          {value}
+          <span className="data-grid-clip">{value}</span>
         </Button>
       ),
     },
@@ -136,19 +153,25 @@ export default function InventoryReceiptsPage() {
       title: "Nguồn nhập",
       width: 180,
       render: (_, row) => (
-        <Space direction="vertical" size={0}>
-          <span>{SOURCE_META[row.sourceType] ?? row.sourceType}</span>
-          <Typography.Text type="secondary">{row.sourceNo ?? "-"}</Typography.Text>
-        </Space>
+        <div className="data-grid-stack">
+          <span className="data-grid-clip">{SOURCE_META[row.sourceType] ?? row.sourceType}</span>
+          <span className="data-grid-clip data-grid-sub">{row.sourceNo ?? "—"}</span>
+        </div>
       ),
     },
     {
       title: "Nhà cung cấp",
-      render: (_, row) => `${row.supplier.code ?? ""} - ${row.supplier.name}`,
+      width: 210,
+      render: (_, row) => (
+        <span className="data-grid-clip">{`${row.supplier.code ?? ""} - ${row.supplier.name}`}</span>
+      ),
     },
     {
       title: "Kho nhận",
-      render: (_, row) => `${row.warehouse.code} - ${row.warehouse.name}`,
+      width: 160,
+      render: (_, row) => (
+        <span className="data-grid-clip">{`${row.warehouse.code} - ${row.warehouse.name}`}</span>
+      ),
     },
     {
       title: "Số lượng",
@@ -167,95 +190,76 @@ export default function InventoryReceiptsPage() {
       },
     },
     {
+      /*
+       * Gộp vào một nút "..." rộng 46px, đúng chuẩn cột tác vụ của .data-grid. Ba nút
+       * bày sẵn ngốn 190px trong khi hầu hết phiếu đã ở trạng thái "Đã nhập kho" nên
+       * chỉ còn mỗi cái mắt — 150px bỏ không trên mọi dòng.
+       *
+       * Popconfirm không lồng được vào menu nên bước xác nhận chuyển sang Modal.confirm;
+       * xác nhận nhập kho là cộng thẳng vào tồn nên không được để bấm nhầm một phát ăn ngay.
+       */
       title: "",
-      width: 190,
+      key: "actions",
+      width: 46,
       align: "center",
-      render: (_, row) => (
-        <Space size={4}>
-          {row.status === "DRAFT" ? (
-            <>
-              <Popconfirm
-                title="Xác nhận nhập kho"
-                description="Xác nhận đã nhận hàng thực tế? Tồn kho sẽ được cộng ngay."
-                onConfirm={() => confirmReceipt.mutate(row.id)}
-              >
-                <Button size="small" type="primary" loading={confirmReceipt.isPending}>
-                  Xác nhận
-                </Button>
-              </Popconfirm>
-              <Popconfirm
-                title="Hủy đề nghị"
-                description="Hủy đề nghị nhập hàng này?"
-                onConfirm={() => voidReceipt.mutate(row.id)}
-              >
-                <Button size="small" danger loading={voidReceipt.isPending}>
-                  Hủy
-                </Button>
-              </Popconfirm>
-            </>
-          ) : null}
-          <Button type="text" icon={<EyeOutlined />} title="Xem chi tiết" onClick={() => setSelectedReceiptId(row.id)} />
-        </Space>
-      ),
+      fixed: "right",
+      render: (_, row) => {
+        const items: MenuProps["items"] = [
+          {
+            key: "view",
+            icon: <EyeOutlined />,
+            label: "Xem chi tiết",
+            onClick: () => setSelectedReceiptId(row.id),
+          },
+        ];
+
+        if (row.status === "DRAFT") {
+          items.push(
+            {
+              key: "confirm",
+              icon: <CheckOutlined />,
+              label: "Xác nhận nhập kho",
+              onClick: () =>
+                Modal.confirm({
+                  title: "Xác nhận nhập kho",
+                  content: "Xác nhận đã nhận hàng thực tế? Tồn kho sẽ được cộng ngay.",
+                  okText: "Xác nhận",
+                  cancelText: "Đóng",
+                  onOk: () => confirmReceipt.mutateAsync(row.id),
+                }),
+            },
+            {
+              key: "void",
+              icon: <StopOutlined />,
+              label: "Hủy đề nghị",
+              danger: true,
+              onClick: () =>
+                Modal.confirm({
+                  title: "Hủy đề nghị",
+                  content: "Hủy đề nghị nhập hàng này?",
+                  okText: "Hủy đề nghị",
+                  cancelText: "Đóng",
+                  okButtonProps: { danger: true },
+                  onOk: () => voidReceipt.mutateAsync(row.id),
+                }),
+            },
+          );
+        }
+
+        return (
+          <Dropdown menu={{ items }} trigger={["click"]} placement="bottomRight">
+            <Button
+              size="small"
+              type="text"
+              icon={<MoreOutlined />}
+              aria-label={`Thao tác phiếu nhập ${row.receiptNo}`}
+            />
+          </Dropdown>
+        );
+      },
     },
   ];
 
-  const stockColumns: ColumnsType<StockCardEntry> = [
-    {
-      title: "Ngày",
-      dataIndex: "effectiveAt",
-      width: 130,
-      render: (value) => dayjs(value).format("DD/MM/YYYY HH:mm"),
-    },
-    {
-      title: "Chứng từ",
-      dataIndex: "documentNo",
-      render: (value, row) => row.goodsReceiptId ? (
-        <Button type="link" className="inventory-receipt-link" onClick={() => setSelectedReceiptId(row.goodsReceiptId!)}>
-          {value}
-        </Button>
-      ) : value,
-    },
-    {
-      title: "Nghiệp vụ",
-      width: 115,
-      render: (_, row) => Number(row.actualQtyDelta) >= 0
-        ? <Tag color="green">Nhập kho</Tag>
-        : <Tag color="orange">Đảo nhập</Tag>,
-    },
-    { title: "Lô", dataIndex: ["lot", "lotNo"] },
-    {
-      title: "Chủ hàng",
-      render: (_, row) => `${row.owner.code ?? ""} - ${row.owner.name}`,
-    },
-    {
-      title: "Nhập",
-      align: "right",
-      width: 110,
-      render: (_, row) => Number(row.actualQtyDelta) > 0 ? formatQty(row.actualQtyDelta) : "-",
-    },
-    {
-      title: "Giảm/đảo",
-      align: "right",
-      width: 110,
-      render: (_, row) => Number(row.actualQtyDelta) < 0 ? formatQty(Math.abs(Number(row.actualQtyDelta))) : "-",
-    },
-    {
-      title: "Tồn cuối",
-      dataIndex: "runningActualQty",
-      align: "right",
-      width: 120,
-      render: (value) => <Typography.Text strong>{formatQty(value)}</Typography.Text>,
-    },
-  ];
-
-  const stockTotals = useMemo(() => {
-    const items = stockCard.data?.items ?? [];
-    return {
-      receiptQty: items.reduce((sum, item) => sum + Math.max(Number(item.actualQtyDelta), 0), 0),
-      reversalQty: items.reduce((sum, item) => sum + Math.max(-Number(item.actualQtyDelta), 0), 0),
-    };
-  }, [stockCard.data?.items]);
 
   const activeReceiptFilterCount = Number(Boolean(receiptQuery.warehouseId))
     + Number(Boolean(receiptQuery.productId))
@@ -292,106 +296,169 @@ export default function InventoryReceiptsPage() {
     setReceiptFilterOpen(false);
   };
 
-  const applyStockFilters = (values: {
-    warehouseId?: string;
-    productId?: string;
-    stockDates?: [Dayjs, Dayjs] | null;
-  }) => {
-    const range = values.stockDates ?? null;
-    setStockDates(range);
-    setStockQuery({
-      warehouseId: values.warehouseId,
-      productId: values.productId,
-      ...formatDateRange(range),
-    });
-    setStockFilterOpen(false);
-  };
 
-  const clearStockFilters = () => {
-    const defaultRange: [Dayjs, Dayjs] = [dayjs().startOf("month"), dayjs().endOf("month")];
-    stockFilterForm.resetFields();
-    setStockDates(defaultRange);
-    setStockQuery(formatDateRange(defaultRange));
-    setStockFilterOpen(false);
-  };
+  const labelOf = (options: { value: string; label: string }[], id?: string) =>
+    options.find((item) => item.value === id)?.label ?? id ?? "";
 
-  const receiptsTab = (
-    <Space direction="vertical" size={12} style={{ width: "100%" }}>
-      <div className="inventory-receipts-toolbar">
-        <Input.Search
-          size="small"
+  const receiptFilterPanel = (
+    <Form
+      className="inventory-receipts-filter-panel"
+      form={receiptFilterForm}
+      layout="vertical"
+      size="small"
+      onFinish={applyReceiptFilters}
+    >
+      <Form.Item name="warehouseId" label="Kho nhận">
+        <Select
           allowClear
-          placeholder="Số phiếu, đơn mua, nhà cung cấp"
-          onSearch={(keyword) => setReceiptQuery((current) => ({ ...current, keyword: keyword || undefined, page: 1 }))}
+          showSearch
+          optionFilterProp="label"
+          placeholder="Chọn kho nhận"
+          options={warehouseOptions}
         />
-        <Space size={6}>
-          <Popover
-            trigger="click"
-            placement="bottomRight"
-            open={receiptFilterOpen}
-            onOpenChange={(open) => {
-              setReceiptFilterOpen(open);
-              if (open) {
-                receiptFilterForm.setFieldsValue({
-                  warehouseId: receiptQuery.warehouseId,
-                  productId: receiptQuery.productId,
-                  receiptDates,
-                });
-              }
-            }}
-            content={(
-              <Form
-                className="inventory-receipts-filter-panel"
-                form={receiptFilterForm}
-                layout="vertical"
-                size="small"
-                onFinish={applyReceiptFilters}
-              >
-                <Form.Item name="warehouseId" label="Kho nhận">
-                  <Select
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Chọn kho nhận"
-                    options={warehouseOptions}
-                  />
-                </Form.Item>
-                <Form.Item name="productId" label="Mặt hàng">
-                  <Select
-                    allowClear
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Chọn mặt hàng"
-                    options={productOptions}
-                  />
-                </Form.Item>
-                <Form.Item name="receiptDates" label="Ngày nhập">
-                  <RangePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
-                </Form.Item>
-                <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-                  <Button size="small" onClick={clearReceiptFilters}>Đặt lại</Button>
-                  <Button size="small" type="primary" htmlType="submit">Áp dụng</Button>
-                </Space>
-              </Form>
-            )}
-          >
-            <Badge count={activeReceiptFilterCount} size="small" offset={[-3, 3]}>
-              <Button size="small" icon={<FilterOutlined />}>Bộ lọc</Button>
-            </Badge>
-          </Popover>
-          <Tooltip title="Làm mới">
-            <Button
-              size="small"
-              aria-label="Làm mới"
-              icon={<ReloadOutlined spin={receipts.isFetching} />}
-              onClick={() => receipts.refetch()}
-            />
-          </Tooltip>
-        </Space>
+      </Form.Item>
+      <Form.Item name="productId" label="Mặt hàng">
+        <Select
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder="Chọn mặt hàng"
+          options={productOptions}
+        />
+      </Form.Item>
+      <Form.Item name="receiptDates" label="Ngày nhập">
+        <RangePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+      </Form.Item>
+      <Space style={{ width: "100%", justifyContent: "flex-end" }}>
+        <Button size="small" onClick={clearReceiptFilters}>Đặt lại</Button>
+        <Button size="small" type="primary" htmlType="submit">Áp dụng</Button>
+      </Space>
+    </Form>
+  );
+
+  /** Điều kiện đang bật hiện thành thẻ gỡ được, cùng kiểu màn Lệnh xuất kho. */
+  const receiptFilterTags: ActiveFilterTag[] = [
+    receiptQuery.warehouseId
+      ? {
+          key: "warehouse",
+          label: `Kho nhận: ${labelOf(warehouseOptions, receiptQuery.warehouseId)}`,
+          onClear: () => {
+            receiptFilterForm.setFieldValue("warehouseId", undefined);
+            setReceiptQuery((current) => ({ ...current, warehouseId: undefined, page: 1 }));
+          },
+        }
+      : null,
+    receiptQuery.productId
+      ? {
+          key: "product",
+          label: `Mặt hàng: ${labelOf(productOptions, receiptQuery.productId)}`,
+          onClear: () => {
+            receiptFilterForm.setFieldValue("productId", undefined);
+            setReceiptQuery((current) => ({ ...current, productId: undefined, page: 1 }));
+          },
+        }
+      : null,
+    receiptDates
+      ? {
+          key: "dates",
+          label: `Ngày nhập: ${receiptDates[0].format("DD/MM/YYYY")} – ${receiptDates[1].format("DD/MM/YYYY")}`,
+          onClear: () => {
+            receiptFilterForm.setFieldValue("receiptDates", null);
+            setReceiptDates(null);
+            setReceiptQuery((current) => ({
+              ...current,
+              dateFrom: undefined,
+              dateTo: undefined,
+              page: 1,
+            }));
+          },
+        }
+      : null,
+  ].filter(Boolean) as ActiveFilterTag[];
+
+  return (
+    <div className="inventory-receipts-page">
+      <div className="inventory-receipts-heading">
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          Nhập kho mua hàng
+        </Typography.Title>
+        <Typography.Text type="secondary">
+          Theo dõi phiếu nhập từ đơn mua và các lần rút hàng lô.
+        </Typography.Text>
       </div>
+
+      {/* Thẻ kho đã tách thành màn riêng bên Báo cáo kho, nên tab nội dung không còn
+          lý do tồn tại: thanh trạng thái lên thẳng cấp một, ô tìm và hai nút dồn phải
+          trên cùng hàng — đúng bố cục màn Lệnh xuất kho. */}
+      <Tabs
+        className="inventory-status-tabs"
+        activeKey={receiptStatus}
+        onChange={(value) => {
+          setReceiptStatus(value);
+          setReceiptQuery((current) => ({
+            ...current,
+            status: value === "ALL" ? undefined : value,
+            page: 1,
+          }));
+        }}
+        tabBarExtraContent={{
+          right: (
+            <Space size={6}>
+              <Input.Search
+                size="small"
+                allowClear
+                className="inventory-receipts-search"
+                placeholder="Số phiếu, đơn mua, nhà cung cấp"
+                onSearch={(keyword) =>
+                  setReceiptQuery((current) => ({
+                    ...current,
+                    keyword: keyword || undefined,
+                    page: 1,
+                  }))
+                }
+              />
+              <FilterButton
+                count={activeReceiptFilterCount}
+                open={receiptFilterOpen}
+                onOpenChange={(open) => {
+                  setReceiptFilterOpen(open);
+                  if (open) {
+                    receiptFilterForm.setFieldsValue({
+                      warehouseId: receiptQuery.warehouseId,
+                      productId: receiptQuery.productId,
+                      receiptDates,
+                    });
+                  }
+                }}
+                content={receiptFilterPanel}
+              />
+              <RefreshButton
+                loading={receipts.isFetching}
+                onClick={() => receipts.refetch()}
+              />
+            </Space>
+          ),
+        }}
+        items={RECEIPT_STATUS_FILTERS.map((item) => {
+          const total =
+            item.value === "DRAFT" ? draftCount.data?.total :
+            item.value === "CONFIRMED" ? confirmedCount.data?.total :
+            item.value === "VOID" ? voidCount.data?.total :
+            allCount.data?.total;
+          return { key: item.value, label: `${item.label} (${total ?? 0})` };
+        })}
+      />
+
+      <FilterTags items={receiptFilterTags} />
+
       <Table<InventoryReceipt>
+        className="data-grid"
         rowKey="id"
         size="small"
+        bordered
+        tableLayout="fixed"
+        // Cột tác vụ ghim phải cần bề ngang tối thiểu, nếu không AntD không ghim được.
+        scroll={{ x: 1150 }}
         loading={receipts.isLoading || receipts.isFetching}
         columns={receiptColumns}
         dataSource={receipts.data?.items ?? []}
@@ -404,152 +471,11 @@ export default function InventoryReceiptsPage() {
           onChange: (page, limit) => setReceiptQuery((current) => ({ ...current, page, limit })),
         }}
       />
-    </Space>
-  );
 
-  const stockCardTab = (
-    <Space direction="vertical" size={12} style={{ width: "100%" }}>
-      <div className="inventory-stock-card-toolbar">
-        <Space size={6}>
-          <Popover
-            trigger="click"
-            placement="bottomRight"
-            open={stockFilterOpen}
-            onOpenChange={(open) => {
-              setStockFilterOpen(open);
-              if (open) {
-                stockFilterForm.setFieldsValue({
-                  warehouseId: stockQuery.warehouseId,
-                  productId: stockQuery.productId,
-                  stockDates,
-                });
-              }
-            }}
-            content={(
-              <Form
-                className="inventory-receipts-filter-panel"
-                form={stockFilterForm}
-                layout="vertical"
-                size="small"
-                onFinish={applyStockFilters}
-              >
-                <Form.Item name="warehouseId" label="Kho" rules={[{ required: true, message: "Chọn kho" }]}>
-                  <Select
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Chọn kho"
-                    options={warehouseOptions}
-                  />
-                </Form.Item>
-                <Form.Item name="productId" label="Mặt hàng" rules={[{ required: true, message: "Chọn mặt hàng" }]}>
-                  <Select
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Chọn mặt hàng"
-                    options={productOptions}
-                  />
-                </Form.Item>
-                <Form.Item name="stockDates" label="Khoảng thời gian">
-                  <RangePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
-                </Form.Item>
-                <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-                  <Button size="small" onClick={clearStockFilters}>Đặt lại</Button>
-                  <Button size="small" type="primary" htmlType="submit">Áp dụng</Button>
-                </Space>
-              </Form>
-            )}
-          >
-            <Badge count={Number(Boolean(stockQuery.warehouseId)) + Number(Boolean(stockQuery.productId))} size="small" offset={[-3, 3]}>
-              <Button size="small" icon={<FilterOutlined />}>Bộ lọc</Button>
-            </Badge>
-          </Popover>
-          <Tooltip title="Làm mới">
-            <Button
-              size="small"
-              aria-label="Làm mới"
-              icon={<ReloadOutlined spin={stockCard.isFetching} />}
-              disabled={!stockQuery.warehouseId || !stockQuery.productId}
-              onClick={() => stockCard.refetch()}
-            />
-          </Tooltip>
-        </Space>
-      </div>
-      {!stockQuery.warehouseId || !stockQuery.productId ? (
-        <Empty description="Chọn kho và mặt hàng để xem thẻ kho" />
-      ) : (
-        <>
-          <div className="inventory-stock-card-summary">
-            <div><span>Tồn đầu</span><strong>{formatQty(stockCard.data?.openingActualQty)}</strong></div>
-            <div><span>Nhập trong kỳ</span><strong className="is-positive">{formatQty(stockTotals.receiptQty)}</strong></div>
-            <div><span>Giảm/đảo trong kỳ</span><strong className="is-negative">{formatQty(stockTotals.reversalQty)}</strong></div>
-            <div><span>Tồn cuối</span><strong>{formatQty(stockCard.data?.endingActualQty)}</strong></div>
-          </div>
-          {stockCard.data?.truncated ? <Alert type="warning" showIcon message="Thẻ kho có trên 1.000 dòng; vui lòng thu hẹp khoảng ngày." /> : null}
-          <Table<StockCardEntry>
-            rowKey="id"
-            size="small"
-            loading={stockCard.isLoading || stockCard.isFetching}
-            columns={stockColumns}
-            dataSource={stockCard.data?.items ?? []}
-            pagination={{ pageSize: 30, hideOnSinglePage: true }}
-          />
-        </>
-      )}
-    </Space>
-  );
-
-  const receiptDetail = detail.data;
-  return (
-    <div className="inventory-receipts-page">
-      <div>
-        <Typography.Title level={3}>Nhập kho mua hàng</Typography.Title>
-        <Typography.Text type="secondary">Theo dõi phiếu nhập từ đơn mua và các lần rút hàng lô.</Typography.Text>
-      </div>
-      <Tabs items={[
-        { key: "receipts", label: "Phiếu nhập kho", children: receiptsTab },
-        { key: "stock-card", label: "Thẻ kho", children: stockCardTab },
-      ]} />
-
-      <Modal
-        open={Boolean(selectedReceiptId)}
-        title={receiptDetail ? `Phiếu nhập ${receiptDetail.receiptNo}` : "Chi tiết phiếu nhập"}
-        footer={receiptDetail?.purchaseOrder ? (
-          <Button type="primary" onClick={() => navigate(
-            receiptDetail.purchaseOrder?.orderType === "LOT"
-              ? `/commercial-purchases/lots/${receiptDetail.purchaseOrder.id}`
-              : `/purchase-orders/${receiptDetail.purchaseOrder?.id}`,
-          )}>Mở đơn mua</Button>
-        ) : null}
-        onCancel={() => setSelectedReceiptId(undefined)}
-        width={820}
-        destroyOnHidden
-        loading={detail.isLoading}
-      >
-        {receiptDetail ? (
-          <Space direction="vertical" size={14} style={{ width: "100%" }}>
-            <div className="inventory-receipt-detail-meta">
-              <div><span>Ngày nhập</span><strong>{dayjs(receiptDetail.receiptDate).format("DD/MM/YYYY HH:mm")}</strong></div>
-              <div><span>Nguồn</span><strong>{SOURCE_META[receiptDetail.sourceType]}</strong></div>
-              <div><span>Chứng từ nguồn</span><strong>{receiptDetail.sourceNo ?? "-"}</strong></div>
-              <div><span>Kho nhận</span><strong>{receiptDetail.warehouse.code} - {receiptDetail.warehouse.name}</strong></div>
-              <div><span>Nhà cung cấp</span><strong>{receiptDetail.supplier.code ?? ""} - {receiptDetail.supplier.name}</strong></div>
-              <div><span>Bút toán kho</span><strong>{receiptDetail.posting?.postingNo ?? "-"}</strong></div>
-            </div>
-            <Table
-              rowKey="id"
-              size="small"
-              pagination={false}
-              dataSource={receiptDetail.lines}
-              columns={[
-                { title: "Mặt hàng", render: (_, row: any) => `${row.product.code ?? ""} - ${row.product.name}` },
-                { title: "Lô", render: (_, row: any) => row.lot?.lotNo ?? "-" },
-                { title: "Số lượng", dataIndex: "actualQty", align: "right", render: formatQty },
-                { title: "V15", dataIndex: "v15Qty", align: "right", render: (value) => value == null ? "-" : formatQty(value) },
-              ]}
-            />
-          </Space>
-        ) : null}
-      </Modal>
+      <ReceiptDetailModal
+        receiptId={selectedReceiptId}
+        onClose={() => setSelectedReceiptId(undefined)}
+      />
     </div>
   );
 }

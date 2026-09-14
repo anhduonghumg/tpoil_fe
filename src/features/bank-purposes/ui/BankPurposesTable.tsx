@@ -147,11 +147,14 @@ export function BankPurposesTable({
 
   return (
     <Table
+      className="data-grid"
+      size="small"
+      bordered
       rowKey="id"
       loading={loading}
       columns={columns}
       dataSource={data}
-      //   scroll={{ y: 1400 }}
+      scroll={{ x: 810 }}
       pagination={{
         current: page,
         pageSize,

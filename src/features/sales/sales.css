@@ -165,6 +165,24 @@
   font-size: 13px;
 }
 
+/* Ô tìm kiếm + bộ lọc nằm cùng hàng với tab, dồn về mép phải. */
+.sales-orders-tabs .ant-tabs-nav-wrap {
+  flex: 1 1 auto;
+}
+
+.sales-orders-tabs-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-inline-start: 12px;
+}
+
+/* Thanh tab cao hơn ô nhập nên phải canh giữa theo chiều dọc, không dính đáy. */
+.sales-orders-tabs .ant-tabs-extra-content {
+  display: flex;
+  align-items: center;
+}
+
 .quick-entry-terms-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
@@ -661,6 +679,24 @@
   padding: 7px 12px;
 }
 
+/* Màn hẹp: ô tìm kiếm thu lại cho vừa hàng tab, không đẩy tab xuống dòng. */
+.sales-orders-tabs-extra {
+  padding-inline-start: 8px;
+}
+
+/*
+ * Chỉ ép bề ngang ô ngoài cùng (dấu ">"), đừng ép cả con bên trong.
+ *
+ * Input.Search kèm allowClear lồng hai lớp: .ant-input-search bọc ngoài, bên trong
+ * còn .ant-input-affix-wrapper. Chọn theo hậu duệ thì cả hai cùng bị ép 180px, lớp
+ * trong cộng thêm nút kính lúp vượt quá lớp ngoài — ô tìm ở tab "Chờ duyệt" tràn ra
+ * đè lên nút Bộ lọc.
+ */
+.sales-orders-tabs-extra > .ant-input-affix-wrapper,
+.sales-orders-tabs-extra > .ant-input-search {
+  width: 180px !important;
+}
+
 .quick-entry {
   gap: 4px;
 }
@@ -800,8 +836,8 @@
 .approval-queue .approval-discount-input .ant-input-number-input {
   height: 20px;
   /* Cột hẹp: bỏ bớt đệm trong để số vẫn đủ chỗ, kể cả CK điều chỉnh âm bốn chữ số. */
-  padding: 0 3px;
-  font-size: 12px;
+  padding: 0 2px;
+  font-size: 11px;
   text-align: right;
 }
 

@@ -16,6 +16,7 @@ import {
 import { notify } from "../../../shared/lib/notification";
 import { ActionKey } from "../../../shared/ui/CommonActionMenu";
 import { PriceImportPdfModal } from "../ui/ImportPricePdfModal";
+import { PriceBulletinsApi } from "../api";
 
 export const PriceBulletinsPage: React.FC = () => {
   const [applied, setApplied] = useState<PriceBulletinListQuery>({
@@ -104,10 +105,73 @@ export const PriceBulletinsPage: React.FC = () => {
     });
   };
 
+  /**
+   * Tải file về máy. Backend đã đặt sẵn tên trong Content-Disposition nhưng trình duyệt
+   * không đọc được tên đó từ blob, nên tên file dựng lại ở đây theo ngày áp dụng.
+   */
+  const download = async (id: string, kind: "notice" | "decision") => {
+    const bulletin = items.find((item) => item.id === id);
+    const stamp = bulletin
+      ? new Date(bulletin.effectiveFrom)
+          .toLocaleDateString("vi-VN")
+          .split("/")
+          .map((part) => part.padStart(2, "0"))
+          .join("")
+      : "";
+    try {
+      const blob =
+        kind === "notice"
+          ? await PriceBulletinsApi.noticePng(id)
+          : await PriceBulletinsApi.decisionPdf(id);
+      const name =
+        kind === "notice" ? `thong-bao-gia-${stamp}.png` : `quyet-dinh-gia-${stamp}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      notify.error("Chưa dựng được file. Kiểm tra lại bảng giá rồi thử lại.");
+    }
+  };
+
+  /**
+   * Sao chép ảnh thông báo vào clipboard để dán thẳng vào Zalo — việc thật của người
+   * dùng là gửi cho đại lý, không phải lưu file. Trình duyệt nào không cho thì lặng lẽ
+   * quay về tải file, người dùng vẫn gửi được.
+   */
+  const copyNotice = async (id: string) => {
+    const canCopy =
+      window.isSecureContext &&
+      typeof ClipboardItem !== "undefined" &&
+      typeof navigator.clipboard?.write === "function";
+
+    if (!canCopy) {
+      notify.info("Trình duyệt không sao chép được ảnh — đã tải file về để bạn gửi.");
+      return download(id, "notice");
+    }
+
+    try {
+      // Safari đòi ClipboardItem nhận PROMISE ngay trong lượt click. Await blob xong rồi
+      // mới tạo là mất user-gesture và bị chặn, nên truyền thẳng promise vào đây.
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": PriceBulletinsApi.noticePng(id) }),
+      ]);
+      notify.success("Đã sao chép ảnh. Mở Zalo rồi dán (Ctrl+V) để gửi khách.");
+    } catch {
+      notify.info("Không sao chép được ảnh — đã tải file về để bạn gửi.");
+      await download(id, "notice");
+    }
+  };
+
   const onAction = (id: string, action: ActionKey) => {
     if (action === "edit") return openEdit(id);
     if (action === "public") return onPublish(id);
     if (action === "void") return onVoid(id);
+    if (action === "copyNotice") return void copyNotice(id);
+    if (action === "printNotice") return void download(id, "notice");
+    if (action === "printDecision") return void download(id, "decision");
   };
 
   return (
@@ -138,11 +202,7 @@ export const PriceBulletinsPage: React.FC = () => {
         onCreate={onCreate}
         onUpdate={onUpdate}
       />
-      <PriceImportPdfModal
-        open={modalOpenPdf}
-        onClose={() => setModalOpenPdf(false)}
-        productOptions={[]}
-      />
+      <PriceImportPdfModal open={modalOpenPdf} onClose={() => setModalOpenPdf(false)} />
     </>
   );
 };

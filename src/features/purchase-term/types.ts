@@ -18,6 +18,9 @@ export type TermOrderStatus =
   | "COMPLETED"
   | "CANCELLED";
 
+/** Trả trước hay trả sau; khớp enum PaymentMode bên Prisma. */
+export type PaymentMode = "PREPAID" | "POSTPAID";
+
 export type TermPurchaseFlowType = "ESTIMATE_FIRST" | "DIRECT_ORDER";
 
 export type TermNextAction =
@@ -234,6 +237,11 @@ export type TermPurchaseOrderListItem = {
 
   premium?: number | null;
 
+  /* API vẫn trả về trường này (PurchaseTermMapper.toOrderListItem) nhưng kiểu ở
+     đây bỏ sót, nên cột "Thanh toán" đọc phải undefined và hàng nào cũng hiện
+     "Trả sau". */
+  paymentMode?: PaymentMode;
+
   paymentStatus?: string | null;
 
   transportMode?: TermTransportMode | null;
@@ -253,6 +261,8 @@ export type TermPurchaseOrderListQuery = {
   status?: TermOrderStatus;
 
   paymentStatus?: string;
+
+  paymentMode?: PaymentMode;
 
   supplierCustomerId?: UUID;
 

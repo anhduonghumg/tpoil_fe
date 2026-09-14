@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Button,
   Checkbox,
@@ -34,6 +35,7 @@ import { FilterButton, FilterTags, RefreshButton } from "../../../shared/ui/Tabl
 import type { ActiveFilterTag } from "../../../shared/ui/TableFilter";
 import {
   useAdjustLineDiscount,
+  useAdjustLineTransportFee,
   useAdjustLineSupplier,
   useDecideManyApprovals,
   useDecideSalesApproval,
@@ -119,7 +121,7 @@ function groupRequests(items: SalesApprovalRequest[]): QueueGroup[] {
       key,
       requests: [request],
       head: request,
-      lines: request.salesOrder?.lines ?? [],
+      lines: request.salesOrder?.lines ?? request.withdrawalRequest?.lines ?? [],
       decidable: isDecidable(request) ? [request] : [],
     });
   }
@@ -214,16 +216,59 @@ const DiscountAdjustCell: React.FC<{
   );
 };
 
+const TransportFeeAdjustCell: React.FC<{
+  line: ApprovalOrderLine;
+  editable: boolean;
+  onCommit: (lineId: string, value: number) => Promise<unknown>;
+}> = ({ line, editable, onCommit }) => {
+  const stored = Number(line.transportFeeUnitPrice ?? 0);
+  const [draft, setDraft] = useState<number | null>(stored);
+  const [saving, setSaving] = useState(false);
+  React.useEffect(() => setDraft(stored), [stored]);
+  if (!editable) return <span>{formatMoney(stored)}</span>;
+  const commit = async () => {
+    const next = draft ?? 0;
+    if (next === stored) return;
+    setSaving(true);
+    try { await onCommit(line.id, next); } catch { setDraft(stored); } finally { setSaving(false); }
+  };
+  return (
+    <InputNumber
+      size="small"
+      variant="outlined"
+      className={`approval-discount-input${draft !== stored ? " approval-discount-dirty" : ""}`}
+      value={draft}
+      min={0}
+      disabled={saving}
+      controls={false}
+      formatter={(value) => value === undefined || value === null ? "" : `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+      parser={(value) => Number((value ?? "").replace(/\./g, "")) || 0}
+      onChange={(value) => setDraft(value as number | null)}
+      onBlur={commit}
+      onPressEnter={commit}
+    />
+  );
+};
+
 /**
  * Hàng đợi phê duyệt dùng chung: màn "Phê duyệt đơn bán" mở đầy đủ, còn tab "Chờ duyệt"
  * trong màn đơn bán nhúng lại đúng bảng này nên người duyệt thấy một giao diện duy nhất.
  */
-export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
+export function ApprovalQueue({
+  embedded = false,
+  toolbarSlot,
+}: {
+  embedded?: boolean;
+  /**
+   * Chỗ neo do màn ngoài dựng sẵn (thường là cuối thanh tab). Có nó thì ô tìm kiếm,
+   * bộ lọc và nút tải lại nhảy lên đó thay vì ăn thêm một dòng ngay trên bảng.
+   */
+  toolbarSlot?: HTMLElement | null;
+}) {
   const navigate = useNavigate();
   const [status, setStatus] = useState<SalesApprovalStatus>("PENDING");
   const [type, setType] = useState<SalesApprovalType | "ALL">("ALL");
   const [kind, setKind] = useState<SalesOrderKind | "ALL">("ALL");
-  const [onlyMine, setOnlyMine] = useState(true);
   const [customerPartyId, setCustomerPartyId] = useState<string>();
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
   const [keywordInput, setKeywordInput] = useState("");
@@ -244,7 +289,6 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     status,
     type: type === "ALL" ? undefined : type,
     kind: kind === "ALL" ? undefined : kind,
-    mine: onlyMine || undefined,
     customerPartyId,
     keyword: keyword || undefined,
     dateFrom: range?.[0]?.format("YYYY-MM-DD"),
@@ -256,6 +300,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
   const decideManyMutation = useDecideManyApprovals();
   const returnToPendingMutation = useReturnSalesApprovalToPending();
   const adjustMutation = useAdjustLineDiscount();
+  const adjustTransportFeeMutation = useAdjustLineTransportFee();
   const adjustSupplierMutation = useAdjustLineSupplier();
   const editOrderQuery = useSalesOrderDetail(editOrderId);
 
@@ -335,14 +380,6 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
         resetView();
       },
     },
-    !onlyMine && {
-      key: "mine",
-      label: "Xem cả việc của người khác",
-      onClear: () => {
-        setOnlyMine(true);
-        resetView();
-      },
-    },
   ].filter(Boolean) as ActiveFilterTag[];
 
   const filterPanel = (
@@ -409,15 +446,6 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
           }}
         />
       </div>
-      <Checkbox
-        checked={onlyMine}
-        onChange={(e) => {
-          setOnlyMine(e.target.checked);
-          resetView();
-        }}
-      >
-        Chỉ việc tôi được duyệt
-      </Checkbox>
     </div>
   );
 
@@ -449,7 +477,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: "Số đơn",
       key: "orderNo",
-      width: 150,
+      width: 176,
       fixed: "left",
       onCell: orderCell,
       render: (_, { group }) => {
@@ -504,7 +532,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: "Ngày",
       key: "date",
-      width: 58,
+      width: 68,
       onCell: orderCell,
       render: (_, { group }) => {
         const value =
@@ -565,7 +593,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: "Số lượng",
       key: "quantity",
-      width: 76,
+      width: 64,
       align: "right",
       render: (_, { line }) =>
         line ? <span className="sales-grid-num">{formatQty(line.orderedActualQty)}</span> : "—",
@@ -583,10 +611,13 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: "Mã NCC",
       key: "supplierCode",
-      // Đủ chỗ cho mã NCC dài nhất đang dùng (PETROBMHOABINH) kèm mũi tên của ô chọn.
-      width: 142,
+       // Ưu tiên phần giá/CK/CPVC nằm cùng khung; mã dài vẫn xem được qua tooltip.
+       width: 120,
       render: (_, { line, group }) => {
         if (!line) return "—";
+        if (group.head.salesOrder?.kind === "DAY_TRADE") {
+          return <Tooltip title="Nhà cung cấp và mã TP/NCC được chọn trên đơn mua đối ứng"><Tag>Chọn ở đơn mua</Tag></Tooltip>;
+        }
         const codes = [
           ...new Set(
             (line.supplierAllocations ?? [])
@@ -620,7 +651,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
         const preferredLabel = line.preferredSupplier?.code
           ? `${line.preferredSupplier.code} (${line.supplySource})`
           : `${fifoLabel} (${line.supplySource})`;
-        if (!isActionable(group)) {
+        if (!isActionable(group) || Boolean(group.head.withdrawalRequest)) {
           return (
             <Tooltip title={line.preferredSupplier?.name ?? `FIFO: ${fifoLabel}`}>
               <span className="sales-grid-clip">{preferredLabel}</span>
@@ -681,7 +712,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: "Đơn giá",
       key: "unitPrice",
-      width: 78,
+      width: 58,
       align: "right",
       render: (_, { line }) =>
         line ? <span className="sales-grid-num">{formatMoney(line.unitPrice)}</span> : "—",
@@ -689,7 +720,7 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: <Tooltip title="Chiết khấu gốc">CK gốc</Tooltip>,
       key: "discountBase",
-      width: 78,
+      width: 48,
       align: "right",
       render: (_, { line }) =>
         line ? (
@@ -701,13 +732,13 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     {
       title: <Tooltip title="Chiết khấu điều chỉnh — sửa trực tiếp">CK ĐC</Tooltip>,
       key: "discountAdjustment",
-      width: 64,
+      width: 56,
       align: "right",
       render: (_, { group, line }) =>
         line ? (
           <DiscountAdjustCell
             line={line}
-            editable={isActionable(group)}
+            editable={isActionable(group) && Boolean(group.head.salesOrder)}
             onCommit={(lineId, value) =>
               adjustMutation.mutateAsync({ lineId, discountAdjustmentAmount: value })
             }
@@ -717,6 +748,20 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
         ),
     },
     {
+      title: <Tooltip title="Chi phí vận chuyển trên mỗi đơn vị">CPVC/đv</Tooltip>,
+      key: "transportFee",
+      width: 56,
+      align: "right",
+      render: (_, { group, line }) =>
+        line ? (
+          <TransportFeeAdjustCell
+            line={line}
+            editable={isActionable(group) && Boolean(group.head.salesOrder)}
+            onCommit={(lineId, value) => adjustTransportFeeMutation.mutateAsync({ lineId, transportFeeUnitPrice: value })}
+          />
+        ) : "—",
+    },
+    {
       title: "Thành tiền",
       key: "netAmount",
       width: 104,
@@ -724,14 +769,17 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
       render: (_, { group, line }) => {
         if (!line) return "—";
         const order = group.head.salesOrder;
-        const multiLine = (order?.lines.length ?? 0) > 1;
-        const isLastLine = line.lineNo === order!.lines[order!.lines.length - 1].lineNo;
+        const documentLines = order?.lines ?? group.head.withdrawalRequest?.lines ?? [];
+        const multiLine = documentLines.length > 1;
+        const isLastLine = line.lineNo === documentLines[documentLines.length - 1]?.lineNo;
+        const documentTotal =
+          order?.orderNetAmount ?? group.head.withdrawalRequest?.requestNetAmount ?? 0;
         return (
           <div className="sales-grid-stack">
             <div className="sales-grid-num">{formatMoney(line.lineNetAmount)}</div>
             {multiLine && isLastLine && (
               <div className="sales-grid-num sales-grid-sub">
-                đơn: {formatMoney(order!.orderNetAmount)}
+                tổng: {formatMoney(documentTotal)}
               </div>
             )}
           </div>
@@ -788,7 +836,12 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
               placement="bottomRight"
               menu={{
                 items: [
-                  { key: "detail", icon: <EyeOutlined />, label: "Xem chi tiết", disabled: !order },
+                  {
+                    key: "detail",
+                    icon: <EyeOutlined />,
+                    label: "Xem chi tiết",
+                    disabled: !order && !group.head.withdrawalRequest,
+                  },
                   {
                     key: "edit",
                     icon: <EditOutlined />,
@@ -797,9 +850,11 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
                   },
                 ],
                 onClick: ({ key }) => {
-                  if (!order) return;
-                  if (key === "detail") navigate(`/sales/orders/${order.id}`);
-                  if (key === "edit") setEditOrderId(order.id);
+                  if (key === "detail") {
+                    if (order) navigate(`/sales/orders/${order.id}`);
+                    else if (group.head.withdrawalRequest) navigate("/sales/withdrawals");
+                  }
+                  if (key === "edit" && order) setEditOrderId(order.id);
                 },
               }}
             >
@@ -816,7 +871,13 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
   /** Một khối có thể mang nhiều yêu cầu; quyết định áp cho tất cả những cái duyệt được. */
   const decisionRequests = (decision?.groups ?? []).flatMap((group) => group.decidable);
   const selectedTotal = selectedGroups.reduce(
-    (sum, group) => sum + Number(group.head.salesOrder?.orderNetAmount ?? 0),
+    (sum, group) =>
+      sum +
+      Number(
+        group.head.salesOrder?.orderNetAmount ??
+          group.head.withdrawalRequest?.requestNetAmount ??
+          0,
+      ),
     0,
   );
 
@@ -854,50 +915,60 @@ export function ApprovalQueue({ embedded = false }: { embedded?: boolean }) {
     setSelected([]);
   };
 
+  /** Cụm tìm kiếm + lọc dùng chung, đặt được cả trên bảng lẫn trên thanh tab. */
+  const toolbarControls = (
+    <>
+      <Input.Search
+        size="small"
+        allowClear
+        style={{ width: 230 }}
+        placeholder="Số đơn, mã hoặc tên khách"
+        value={keywordInput}
+        onChange={(e) => setKeywordInput(e.target.value)}
+        onSearch={(value) => {
+          setKeyword(value.trim());
+          resetView();
+        }}
+      />
+      <FilterButton
+        count={filterTags.length}
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        content={filterPanel}
+      />
+      <RefreshButton loading={query.isFetching} onClick={() => query.refetch()} />
+    </>
+  );
+
   return (
     <div className={embedded ? undefined : "approval-queue-page"}>
-      <div className="table-filter-toolbar">
-        <div className="table-filter-toolbar-left">
-          {/* Nhúng trong tab "Chờ duyệt" thì tiêu đề và dải trạng thái đã nằm ở màn ngoài. */}
-          {!embedded && (
-            <>
-              <Typography.Title level={5} style={{ margin: 0 }}>
-                Phê duyệt đơn bán
-              </Typography.Title>
-              <Segmented
-                size="small"
-                value={status}
-                options={STATUS_TABS}
-                onChange={(value) => {
-                  setStatus(value as SalesApprovalStatus);
-                  resetView();
-                }}
-              />
-            </>
-          )}
+      {/* Không có chỗ neo ngoài thì thanh lọc vẫn nằm ngay trên bảng như cũ. */}
+      {(!embedded || !toolbarSlot) && (
+        <div className="table-filter-toolbar">
+          <div className="table-filter-toolbar-left">
+            {/* Nhúng trong tab "Chờ duyệt" thì tiêu đề và dải trạng thái đã nằm ở màn ngoài. */}
+            {!embedded && (
+              <>
+                <Typography.Title level={5} style={{ margin: 0 }}>
+                  Phê duyệt đơn bán
+                </Typography.Title>
+                <Segmented
+                  size="small"
+                  value={status}
+                  options={STATUS_TABS}
+                  onChange={(value) => {
+                    setStatus(value as SalesApprovalStatus);
+                    resetView();
+                  }}
+                />
+              </>
+            )}
+          </div>
+          {!toolbarSlot && <div className="table-filter-toolbar-right">{toolbarControls}</div>}
         </div>
-        <div className="table-filter-toolbar-right">
-          <Input.Search
-            size="small"
-            allowClear
-            style={{ width: 230 }}
-            placeholder="Số đơn, mã hoặc tên khách"
-            value={keywordInput}
-            onChange={(e) => setKeywordInput(e.target.value)}
-            onSearch={(value) => {
-              setKeyword(value.trim());
-              resetView();
-            }}
-          />
-          <FilterButton
-            count={filterTags.length}
-            open={filterOpen}
-            onOpenChange={setFilterOpen}
-            content={filterPanel}
-          />
-          <RefreshButton loading={query.isFetching} onClick={() => query.refetch()} />
-        </div>
-      </div>
+      )}
+
+      {toolbarSlot ? createPortal(toolbarControls, toolbarSlot) : null}
 
       <FilterTags items={filterTags} />
 

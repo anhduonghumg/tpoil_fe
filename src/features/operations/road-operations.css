@@ -1,0 +1,407 @@
+/* ===================================================================
+   Phần riêng của nhóm màn "Quản lý xe".
+
+   Khung trang (tiêu đề, thanh thao tác, dải tab, panel lọc) nay nằm ở
+   shared/ui/page-shell.css dùng chung với các nhóm màn khác. Còn lại ở đây
+   là thứ chỉ nhóm xe mới có: lưới form dày và màn chi tiết chuyến có cước.
+   =================================================================== */
+
+/* ---------- Lưới form dày dùng chung cho modal và màn chi tiết ----------
+   Ô tự xếp theo bề ngang còn trống: modal 820px được 3 cột, khung chi tiết
+   rộng được 5-6 cột. Nhờ vậy cùng một khai báo field mà không màn nào phải
+   cuộn thêm chỉ vì đổi chỗ. */
+.road-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 0 12px;
+}
+
+.road-form-grid .ant-form-item {
+  margin-bottom: 10px;
+}
+
+.road-form-grid .ant-form-item-label {
+  padding-bottom: 1px !important;
+}
+
+.road-form-grid .ant-form-item-label > label {
+  height: 18px;
+  color: #475467;
+  font-size: 12px;
+}
+
+.road-form-grid .road-span-2 {
+  grid-column: span 2;
+}
+
+.road-form-grid .road-span-all {
+  grid-column: 1 / -1;
+}
+
+/* Modal nhập liệu: cố định 3 cột để form không nhảy cột theo bề rộng màn. */
+.road-modal-form .road-form-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .road-modal-form .road-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Màn chi tiết chuyến có cước ----------
+   Bảng màu lấy đúng của .data-grid bên kho: xanh #21418f trên nền #eef4ff, số
+   dương xanh lá #168653, số âm đỏ #d4380d, cảnh báo hổ phách. Màu ở đây để phân
+   tầng thông tin chứ không phải trang trí: dải xanh là dữ liệu Sale đã chốt
+   (chỉ đọc), khối trắng là vùng nhập, khối bên phải là kết quả máy tự tính. */
+
+.road-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Thông tin Sale khai báo chỉ để đối chiếu, nên nén thành một dải nhãn/giá trị
+   thay vì một Card cao gần 200px như trước. Vạch xanh bên trái báo "vùng chỉ
+   đọc" để không ai đi tìm chỗ sửa số đơn ở đây. */
+.road-meta-strip {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px 0;
+  padding: 9px 14px 9px 16px;
+  border: 1px solid #d7e3fa;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+  overflow: hidden;
+}
+
+.road-meta-strip::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: #3b6fd4;
+}
+
+.road-meta-strip > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 14px;
+  border-left: 1px solid #dde7f8;
+}
+
+.road-meta-strip > div:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.road-meta-strip span {
+  color: #6b7f9e;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.road-meta-strip strong {
+  color: #16305f;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.road-detail-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 276px;
+  gap: 12px;
+  align-items: start;
+}
+
+.road-detail-card {
+  border-color: #e3e9f3;
+}
+
+.road-detail-card .ant-card-body {
+  padding: 12px 14px 4px;
+}
+
+.road-detail-card .ant-card-head {
+  min-height: 36px;
+  padding: 0 14px;
+  background: #f4f8ff;
+  border-bottom: 1px solid #dfe8f8;
+}
+
+.road-detail-card .ant-card-head-title {
+  padding: 7px 0;
+  color: #21418f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Nhãn nhóm bên trong form, thay cho việc tách thành nhiều Card chồng nhau.
+   Chấm tròn + vạch mờ dần để mắt bắt được ranh giới nhóm mà không cần kẻ hộp. */
+.road-form-section {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 10px;
+  color: #21418f;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.road-form-section::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3b6fd4;
+  flex: 0 0 auto;
+}
+
+.road-form-section::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, #c9d9f7 0%, rgba(201, 217, 247, 0) 100%);
+}
+
+.road-form-section:not(:first-child) {
+  margin-top: 10px;
+}
+
+/* Nhóm chi phí dùng chấm cam để tách khỏi nhóm thông tin chuyến. */
+.road-form-section.road-section-cost {
+  color: #ad4e00;
+}
+
+.road-form-section.road-section-cost::before {
+  background: #fa8c16;
+}
+
+.road-form-section.road-section-cost::after {
+  background: linear-gradient(90deg, #ffd8a8 0%, rgba(255, 216, 168, 0) 100%);
+}
+
+/* Ô nhập: viền nhạt hơn mặc định để cả lưới trông êm, đậm lên khi rê và khi nhập. */
+.road-form-grid .ant-input,
+.road-form-grid .ant-input-number,
+.road-form-grid .ant-picker,
+.road-form-grid .ant-select .ant-select-selector {
+  background: #fcfdff;
+  border-color: #dce4f0;
+}
+
+.road-form-grid .ant-input:hover,
+.road-form-grid .ant-input-number:hover,
+.road-form-grid .ant-picker:hover,
+.road-form-grid .ant-select:hover .ant-select-selector {
+  border-color: #8fb1e8;
+}
+
+.road-form-grid .ant-input-number-focused,
+.road-form-grid .ant-input-affix-wrapper-focused,
+.road-form-grid .ant-picker-focused {
+  background: #ffffff;
+}
+
+/* Ô tiền: số căn phải, chữ số đều bề ngang thì cột tiền mới thẳng hàng. */
+.road-form-grid .ant-input-number-input {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ô số nào còn giữ cặp nút tăng/giảm thì phải chừa chỗ cho nó: nút nằm đè mép
+   phải khi rê chuột, mà số thì căn phải — không chừa là mất mấy chữ số cuối.
+   antd không gắn class đánh dấu khi tắt nút, nên bắt theo sự có mặt của chính
+   khối nút; trình duyệt nào chưa hỗ trợ :has() thì bỏ qua luật này, đúng bằng
+   trạng thái hiện tại vì RoadFieldInput vốn đã tắt nút cho mọi ô số. */
+.road-form-grid .ant-input-number:has(.ant-input-number-handler-wrap) .ant-input-number-input {
+  padding-inline-end: 24px;
+}
+
+/* Kết quả tự tính bám theo khi cuộn: không phải kéo lên xem lãi gộp. */
+.road-result-panel {
+  position: sticky;
+  top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0 0 12px;
+  border: 1px solid #d7e3fa;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(33, 65, 143, 0.06);
+}
+
+.road-result-title {
+  margin-bottom: 1px;
+  padding: 7px 14px;
+  background: linear-gradient(180deg, #f4f8ff 0%, #eef4ff 100%);
+  border-bottom: 1px solid #dfe8f8;
+  color: #21418f;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.road-result-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+.road-result-row span {
+  color: #667085;
+}
+
+.road-result-row strong {
+  color: #16305f;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Tổng chi phí là số chốt của phần trên: tô cam nhạt để tách khỏi các dòng cộng dồn. */
+.road-result-cost {
+  margin-top: 1px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  background: #fff9f2;
+  border-top: 1px solid #ffe7cc;
+  border-bottom: 1px solid #ffe7cc;
+}
+
+.road-result-cost span {
+  color: #ad4e00;
+}
+
+.road-result-cost strong {
+  color: #ad4e00;
+}
+
+/* Lãi gộp: con số người ta mở màn này để xem, nên cho hẳn một dải màu. */
+.road-result-total {
+  align-items: center;
+  margin-top: 1px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+  font-size: 12px;
+}
+
+.road-result-total span {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 11px;
+}
+
+.road-result-total strong {
+  font-size: 17px;
+}
+
+.road-result-positive {
+  background: #f0fbf5;
+  border-top: 1px solid #bfe8d2;
+  border-bottom: 1px solid #bfe8d2;
+}
+
+.road-result-positive span {
+  color: #0f7a4a;
+}
+
+.road-result-positive strong {
+  color: #168653;
+}
+
+.road-result-negative {
+  background: #fff4f0;
+  border-top: 1px solid #ffccc0;
+  border-bottom: 1px solid #ffccc0;
+}
+
+.road-result-negative span {
+  color: #c0350b;
+}
+
+.road-result-negative strong {
+  color: #d4380d;
+}
+
+/* Việc còn thiếu để hoàn tất chuyến — hổ phách, cùng tông cảnh báo của antd. */
+.road-result-warning {
+  margin: 1px 12px 0;
+  padding: 7px 9px;
+  border: 1px solid #ffe0a3;
+  border-radius: 6px;
+  background: #fff8e6;
+  color: #a15c07;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.road-result-warning strong {
+  display: block;
+  margin-bottom: 1px;
+  color: #8a4b00;
+  font-weight: 700;
+}
+
+.road-result-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 3px;
+  padding: 0 12px;
+}
+
+.road-result-actions .ant-btn {
+  flex: 1;
+}
+
+/* Giá trị do hệ thống tự tính: hiện ngay dưới ô nhập liên quan, không chiếm
+   thêm một ô form chỉ để hiển thị số read-only. */
+.road-field-hint {
+  margin-top: -5px;
+  margin-bottom: 10px;
+  padding: 5px 10px;
+  border-left: 3px solid #3b6fd4;
+  border-radius: 0 6px 6px 0;
+  background: #f4f8ff;
+  color: #4a5b78;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.road-field-hint strong {
+  color: #21418f;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1100px) {
+  .road-detail-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .road-result-panel {
+    position: static;
+  }
+
+  .road-meta-strip > div {
+    padding-left: 0;
+    border-left: 0;
+  }
+}

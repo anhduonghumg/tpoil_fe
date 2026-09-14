@@ -71,13 +71,18 @@ function StatusTag({ board }: { board: DiscountBoard }) {
   return <Tag color={board.status === "DRAFT" ? "gold" : "default"}>{STATUS_LABELS[board.status]}</Tag>;
 }
 
+type DiscountBoardPageProps = {
+  /** Bật khi nhúng vào tab "Giá bán & chiết khấu" — bỏ tiêu đề và padding riêng. */
+  embedded?: boolean;
+};
+
 /**
  * Bảng thông báo chiết khấu theo kho × mặt hàng.
  *
  * Mỗi bản là ảnh chụp trọn vẹn tại một mốc giờ. Tạo bản mới thì hệ thống chép bản đang
  * chạy, vận hành chỉ sửa ô nào đổi — vì một ngày có thể đổi vài lần.
  */
-export default function DiscountBoardPage() {
+export default function DiscountBoardPage({ embedded = false }: DiscountBoardPageProps) {
   const { can } = useCan();
   const canManage = can(PERMS.SALES_DISCOUNT_MANAGE);
 
@@ -210,6 +215,9 @@ export default function DiscountBoardPage() {
     });
 
   /** Điền cả cột: cùng một mặt hàng thường cùng mức chiết khấu ở nhiều kho. */
+  /** Số đang gõ ở ô "điền cả cột" của từng mặt hàng, trước khi bấm áp dụng. */
+  const [fillDrafts, setFillDrafts] = useState<Record<string, number | null>>({});
+
   const fillColumn = (productId: string, value: number | null) =>
     setCells((current) => {
       const next = { ...current };
@@ -220,6 +228,19 @@ export default function DiscountBoardPage() {
       }
       return next;
     });
+
+  /**
+   * Áp mức vừa gõ cho mọi kho của mặt hàng đó, rồi xóa ô nhập để thấy rõ là đã ăn.
+   *
+   * Nhận cả khi Enter lẫn khi rời ô: bản cũ chỉ bắt Enter và đọc thẳng giá trị từ thẻ
+   * input, nên gõ xong bấm ra ngoài là mất trắng — nhìn y như ô nhập bị hỏng.
+   */
+  const applyFill = (productId: string) => {
+    const value = fillDrafts[productId];
+    if (value == null) return;
+    fillColumn(productId, value);
+    setFillDrafts((prev) => ({ ...prev, [productId]: null }));
+  };
 
   /** Chỉ những ô đã điền mới thành dòng công bố. */
   const filledLines = useMemo(
@@ -288,10 +309,15 @@ export default function DiscountBoardPage() {
                 controls={false}
                 placeholder="điền cả cột"
                 style={{ width: "100%", marginTop: 4 }}
-                onPressEnter={(e) => {
-                  const raw = (e.target as HTMLInputElement).value.replace(/[^\d.-]/g, "");
-                  fillColumn(product.id, raw === "" ? null : Number(raw));
-                }}
+                value={fillDrafts[product.id] ?? null}
+                onChange={(value) =>
+                  setFillDrafts((prev) => ({
+                    ...prev,
+                    [product.id]: value as number | null,
+                  }))
+                }
+                onPressEnter={() => applyFill(product.id)}
+                onBlur={() => applyFill(product.id)}
               />
             </Tooltip>
           )}
@@ -326,33 +352,14 @@ export default function DiscountBoardPage() {
   ];
 
   return (
-    <div style={{ padding: 16 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 12,
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <Typography.Title level={4} style={{ margin: 0 }}>
-          Thông báo chiết khấu
-        </Typography.Title>
-        <Space>
-          {canManage && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={openCreate}
-            >
-              Tạo thông báo mới
-            </Button>
-          )}
-          <RefreshButton loading={listQuery.isFetching} onClick={() => listQuery.refetch()} />
-        </Space>
-      </div>
+    <div style={embedded ? undefined : { padding: 16 }}>
+      {!embedded && (
+        <div style={{ marginBottom: 12 }}>
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            Thông báo chiết khấu
+          </Typography.Title>
+        </div>
+      )}
 
       <Alert
         type="info"
@@ -362,7 +369,31 @@ export default function DiscountBoardPage() {
       />
 
       <div style={{ display: "grid", gridTemplateColumns: "340px minmax(0, 1fr)", gap: 12 }}>
-        <Card size="small" title="Các bản thông báo" bodyStyle={{ padding: 8 }}>
+        <Card
+          size="small"
+          title="Các bản thông báo"
+          bodyStyle={{ padding: 8 }}
+          extra={
+            <Space size={4}>
+              {canManage && (
+                <Tooltip title="Tạo thông báo chiết khấu mới">
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={openCreate}
+                  >
+                    Tạo mới
+                  </Button>
+                </Tooltip>
+              )}
+              <RefreshButton
+                loading={listQuery.isFetching}
+                onClick={() => listQuery.refetch()}
+              />
+            </Space>
+          }
+        >
           <Segmented
             size="small"
             block

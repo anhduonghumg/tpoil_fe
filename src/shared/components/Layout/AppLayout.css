@@ -79,6 +79,28 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 12px;
+  /* Firefox: thanh mảnh, màu chìm vào nền tối thay vì thanh xám mặc định. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  overscroll-behavior: contain;
+}
+
+/* Chrome/Edge: chỉ là một vệt mảnh, và chỉ rõ lên khi con trỏ đang ở trong menu. */
+.app-menu-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-menu-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-menu-scroll::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.app-menu-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 /* Ensure Ant Design internal sider child uses full height so flex works */
@@ -94,10 +116,9 @@
   max-height: calc(100vh - 56px);
 }
 .app-logo {
-  width: 180px;
-  height: 180px;
+  width: 104px;
+  height: 40px;
   border-radius: 8px;
-  background: #fff;
   object-fit: contain;
   background: none;
 }
@@ -188,4 +209,26 @@
 .ant-menu-dark .ant-menu-item-selected,
 .ant-menu-dark .ant-menu-submenu-selected > .ant-menu-submenu-title {
   background: linear-gradient(135deg, var(--green), var(--green-dark)) !important;
+}
+
+/*
+ * Tiêu đề mục (I. TỔNG QUAN, II. KHAI BÁO...). Mặc định AntD để chữ rất mờ, đọc
+ * như phần bị vô hiệu hóa; ở đây nó là mốc điều hướng nên phải rõ hơn item thường,
+ * và có khoảng thở phía trên để tách hẳn nhóm trước.
+ */
+.app-menu-scroll .ant-menu-dark .ant-menu-item-group-title {
+  padding-top: 4px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.app-menu-scroll
+  .ant-menu-dark
+  .ant-menu-item-group
+  + .ant-menu-item-group
+  > .ant-menu-item-group-title {
+  margin-top: 10px;
 }

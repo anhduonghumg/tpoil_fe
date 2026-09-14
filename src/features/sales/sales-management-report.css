@@ -1,0 +1,66 @@
+.sales-management-report {
+  --smr-border: #e7ebf0;
+  --smr-muted: #758195;
+  --smr-green: #237804;
+  min-width: 0;
+  padding: 12px;
+  color: #172033;
+  background: #f4f6f9;
+}
+
+.sales-management-report > * + * { margin-top: 10px; }
+.smr-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 0 2px; }
+.smr-header h3 { margin: 0 !important; font-size: 22px !important; line-height: 28px !important; }
+.smr-header .ant-typography-secondary { font-size: 12px; }
+.smr-toolbar-card, .smr-panel { border: 1px solid var(--smr-border); border-radius: 10px; background: #fff; }
+.smr-toolbar-card { padding: 7px 9px; }
+.smr-date-basis { width: 158px; }
+.smr-search { width: 245px; }
+.smr-export { border-color: var(--smr-green) !important; background: var(--smr-green) !important; color: #fff !important; }
+.smr-export:hover { border-color: #389e0d !important; background: #389e0d !important; }
+.smr-filter-panel { display: grid; grid-template-columns: 230px 230px; gap: 9px 12px; width: 472px; padding: 3px; }
+.smr-filter-panel label { display: flex; flex-direction: column; gap: 4px; color: #596579; font-size: 12px; }
+.smr-filter-panel .ant-select { width: 100%; }
+.smr-check { justify-content: flex-end; }
+.smr-filter-actions { display: flex; align-items: flex-end; justify-content: flex-end; gap: 6px; }
+.smr-kpis { display: grid; grid-template-columns: repeat(5, minmax(145px, 1fr)); gap: 8px; }
+.smr-kpi { min-height: 82px; padding: 10px 12px; border: 1px solid var(--smr-border); border-radius: 10px; background: #fff; }
+.smr-kpi > span { display: block; color: var(--smr-muted); font-size: 11px; font-weight: 600; }
+.smr-kpi strong { display: block; margin-top: 2px; font-size: 21px; line-height: 28px; }
+.smr-kpi small { color: #8792a4; font-size: 11px; }
+.smr-kpi.is-good { border-left: 3px solid #389e0d; }
+.smr-kpi.is-bad { border-left: 3px solid #cf1322; }
+.smr-kpi.is-bad strong, .smr-loss, .smr-money.is-loss { color: #cf1322; }
+.smr-kpi.is-good strong, .smr-profit, .smr-money.is-profit { color: #237804; }
+.smr-alert { padding-block: 6px !important; }
+.smr-tabs .ant-tabs-nav { margin: 0 0 8px !important; padding: 0 4px; background: #fff; border: 1px solid var(--smr-border); border-radius: 9px; }
+.smr-tabs .ant-tabs-tab { padding: 8px 3px !important; }
+.smr-tabs .ant-tag { margin-inline-start: 3px; margin-inline-end: 0; }
+.smr-overview-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(360px, 0.8fr); gap: 8px; }
+.smr-panel { min-width: 0; overflow: hidden; }
+.smr-panel-title { display: flex; align-items: center; justify-content: space-between; min-height: 45px; padding: 7px 11px; border-bottom: 1px solid var(--smr-border); }
+.smr-panel-title strong, .smr-panel-title span { display: block; }
+.smr-panel-title span { margin-top: 1px; color: var(--smr-muted); font-size: 11px; }
+.smr-panel .ant-table { font-size: 12px; }
+.smr-panel .ant-table-thead > tr > th { height: 36px; padding: 6px 9px !important; color: #40506a; font-size: 11px; white-space: nowrap; background: #f6f8fb !important; }
+.smr-panel .ant-table-tbody > tr > td { padding: 7px 9px !important; }
+.smr-link { display: flex; flex-direction: column; padding: 0; border: 0; color: #0958d9; text-align: left; background: transparent; cursor: pointer; }
+.smr-link small, .smr-two-line span, .smr-sale-name span, .smr-money small { color: var(--smr-muted); font-size: 11px; font-weight: 400; }
+.smr-two-line, .smr-sale-name, .smr-money { display: flex; flex-direction: column; }
+.smr-progress .ant-progress { margin: 0; line-height: 12px; }
+.smr-progress small { color: var(--smr-muted); font-size: 10px; }
+.smr-withdrawals { padding: 8px 12px 10px 42px; background: #f7faff; }
+.smr-withdrawal-head { display: flex; justify-content: space-between; margin-bottom: 6px; color: #526078; font-size: 11px; }
+.smr-note { padding: 0 3px; color: var(--smr-muted); font-size: 11px; }
+
+@media (max-width: 1180px) {
+  .smr-kpis { grid-template-columns: repeat(3, 1fr); }
+  .smr-overview-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .sales-management-report { padding: 8px; }
+  .smr-kpis { grid-template-columns: repeat(2, 1fr); }
+  .smr-filter-panel { grid-template-columns: 1fr; width: min(78vw, 320px); }
+  .smr-search { width: 210px; }
+}

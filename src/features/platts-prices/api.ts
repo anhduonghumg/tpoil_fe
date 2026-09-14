@@ -1,6 +1,8 @@
 import { apiCall } from "../../shared/lib/api";
 import type { ApiResponse } from "../../shared/lib/types";
 import type {
+  BulkUpsertPlattsQuotesPayload,
+  BulkUpsertPlattsQuotesResult,
   DeletePlattsQuoteResult,
   PlattsPriceListQuery,
   PlattsQuote,
@@ -17,6 +19,12 @@ export const PlattsPricesApi = {
     apiCall<ApiResponse<PlattsQuote>>("commodityPriceQuotes.upsert", {
       data,
     }).then((r) => (r.data!.data ?? r.data) as any),
+
+  bulkUpsert: (data: BulkUpsertPlattsQuotesPayload) =>
+    apiCall<ApiResponse<BulkUpsertPlattsQuotesResult>>(
+      "commodityPriceQuotes.bulkUpsert",
+      { data },
+    ).then((r) => (r.data!.data ?? r.data) as any),
 
   delete: (id: string) =>
     apiCall<ApiResponse<DeletePlattsQuoteResult>>(

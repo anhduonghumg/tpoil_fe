@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Alert,
   Button,
@@ -27,12 +28,7 @@ import {
 import dayjs from "dayjs";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PartySelect } from "../../../shared/ui/PartySelect";
-import {
-  FilterButton,
-  FilterTags,
-  FilterToolbar,
-  RefreshButton,
-} from "../../../shared/ui/TableFilter";
+import { FilterButton, FilterTags, RefreshButton } from "../../../shared/ui/TableFilter";
 import type { ActiveFilterTag } from "../../../shared/ui/TableFilter";
 import { PermissionGate } from "../../../shared/authz/PermissionGate";
 import { PERMS } from "../../../shared/authz/perms";
@@ -42,10 +38,12 @@ import {
   useInternalSalesOrders,
   usePrintSalesOrders,
   useSalesOrderStatusCounts,
+  useSalesWithdrawals,
 } from "../hooks";
 import type { SalesOrder, SalesOrderKind, SalesOrderLine, SalesOrderStatus } from "../types";
 import { InternalSalesOrderModal } from "../ui/InternalSalesOrderModal";
 import { QuickEntryPanel } from "../ui/QuickEntryPanel";
+import { ApprovalQueue } from "../ui/ApprovalQueue";
 import {
   formatMoney,
   formatQty,
@@ -224,6 +222,12 @@ export default function SalesOrdersPage() {
     kind: kind === "ALL" ? undefined : kind,
     customerPartyId,
   });
+  const pendingWithdrawalsQuery = useSalesWithdrawals({
+    status: "PENDING_REVIEW",
+    customerPartyId,
+    page: 1,
+    limit: 1,
+  });
 
   /** Tab đếm theo trạng thái nó gom, riêng "Tất cả" lấy tổng. */
   const tabItems = useMemo(() => {
@@ -231,12 +235,15 @@ export default function SalesOrdersPage() {
     const total = countsQuery.data?.total ?? 0;
     return TAB_DEFS.map((item) => {
       if (ENTRY_TABS.includes(item.key)) return { key: item.key, label: item.label };
-      const count = item.statuses
+      let count = item.statuses
         ? item.statuses.reduce((sum, status) => sum + (byStatus[status] ?? 0), 0)
         : total;
+      if (item.key === "PENDING_REVIEW") {
+        count += pendingWithdrawalsQuery.data?.total ?? 0;
+      }
       return { key: item.key, label: `${item.label} (${count})` };
     });
-  }, [countsQuery.data]);
+  }, [countsQuery.data, pendingWithdrawalsQuery.data?.total]);
 
   const query = useInternalSalesOrders({
     keyword: keyword.trim() || undefined,
@@ -250,6 +257,12 @@ export default function SalesOrdersPage() {
   });
 
   const items = query.data?.items ?? [];
+
+  /**
+   * Ô neo nằm cuối thanh tab. Tab đang mở nhả cụm tìm kiếm + bộ lọc của mình vào đây
+   * nên hàng lọc không ăn thêm một dòng riêng phía trên bảng.
+   */
+  const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
 
   const changeTab = (next: string) => {
     setTab(next);
@@ -365,6 +378,32 @@ export default function SalesOrdersPage() {
         </Button>
       </div>
     </div>
+  );
+
+  /** Cụm tìm kiếm + lọc của bảng đơn, được nhả lên cuối thanh tab. */
+  const listToolbar = (
+    <>
+      <Input
+        allowClear
+        size="small"
+        style={{ width: 230 }}
+        prefix={<SearchOutlined />}
+        placeholder="Tìm số đơn hoặc tên khách"
+        value={searchText}
+        onChange={(e) => setSearchText(e.target.value)}
+        onPressEnter={() => {
+          setKeyword(searchText);
+          setPage(1);
+        }}
+      />
+      <FilterButton
+        count={activeFilterCount}
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        content={filterPanel}
+      />
+      <RefreshButton loading={query.isFetching} onClick={() => query.refetch()} />
+    </>
   );
 
   /** Cột nào cũng phải đáng chỗ nó chiếm — màn 15" không có chỗ cho cột thừa. */
@@ -616,6 +655,13 @@ export default function SalesOrdersPage() {
       render: (_, line) => <span className="sales-grid-num">{formatMoney(line.discountAmount)}</span>,
     },
     {
+      title: "CPVC/đv",
+      key: "transportFee",
+      width: 100,
+      align: "right",
+      render: (_, line) => <span className="sales-grid-num">{formatMoney(line.transportFeeUnitPrice ?? 0)}</span>,
+    },
+    {
       title: "Thành tiền",
       key: "net",
       width: 130,
@@ -666,8 +712,20 @@ export default function SalesOrdersPage() {
       </div>
 
       <div className="sales-orders-tabs">
-        <Tabs activeKey={tab} items={tabItems} onChange={changeTab} />
+        <Tabs
+          activeKey={tab}
+          items={tabItems}
+          onChange={changeTab}
+          tabBarExtraContent={{
+            right: <div className="sales-orders-tabs-extra" ref={setToolbarSlot} />,
+          }}
+        />
       </div>
+
+      {/* Tab nhập nhanh không có gì để lọc; tab chờ duyệt tự nhả thanh lọc của nó. */}
+      {toolbarSlot && !ENTRY_TABS.includes(tab) && tab !== "PENDING_REVIEW"
+        ? createPortal(listToolbar, toolbarSlot)
+        : null}
 
       {ENTRY_TABS.includes(tab) ? (
         <QuickEntryPanel
@@ -677,36 +735,14 @@ export default function SalesOrdersPage() {
         />
       ) : null}
 
-      <div style={{ display: ENTRY_TABS.includes(tab) ? "none" : undefined }}>
-      <FilterToolbar
-        left={
-          <Input
-            allowClear
-            size="small"
-            style={{ width: 300 }}
-            prefix={<SearchOutlined />}
-            placeholder="Tìm số đơn hoặc tên khách"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            onPressEnter={() => {
-              setKeyword(searchText);
-              setPage(1);
-            }}
-          />
-        }
-        right={
-          <>
-            <FilterButton
-              count={activeFilterCount}
-              open={filterOpen}
-              onOpenChange={setFilterOpen}
-              content={filterPanel}
-            />
-            <RefreshButton loading={query.isFetching} onClick={() => query.refetch()} />
-          </>
-        }
-      />
+      {tab === "PENDING_REVIEW" ? <ApprovalQueue embedded toolbarSlot={toolbarSlot} /> : null}
 
+      <div
+        style={{
+          display:
+            ENTRY_TABS.includes(tab) || tab === "PENDING_REVIEW" ? "none" : undefined,
+        }}
+      >
       <FilterTags items={filterTags} />
 
       {selectedIds.length > 0 && (

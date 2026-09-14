@@ -50,6 +50,17 @@ export type StockCardQuery = {
   dateTo?: string;
 };
 
+export type StockCardSource = {
+  type:
+    | "GOODS_RECEIPT"
+    | "SALES_DELIVERY"
+    | "WAREHOUSE_TRANSFER"
+    | "STOCK_ADJUSTMENT"
+    | "OWNERSHIP_TRANSFER";
+  id: string;
+  no: string;
+};
+
 export type StockCardEntry = {
   id: string;
   effectiveAt: string;
@@ -59,6 +70,8 @@ export type StockCardEntry = {
   runningV15Qty: string;
   documentNo: string;
   goodsReceiptId?: string | null;
+  /** Chứng từ sinh ra bút toán; null với bút toán đảo. */
+  source?: StockCardSource | null;
   posting: { id: string; postingNo: string; kind: string; status: string };
   lot: { id: string; lotNo: string };
   owner: { id: string; code?: string | null; name: string };

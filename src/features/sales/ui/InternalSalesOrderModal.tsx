@@ -9,6 +9,7 @@ import {
   Modal,
   Radio,
   Select,
+  Switch,
   Table,
   Tooltip,
   Typography,
@@ -27,7 +28,18 @@ import {
   useCurrentDiscountBoard,
   useUpdateSalesOrder,
 } from "../hooks";
-import type { SalesLotInvoiceMode, SalesOrder } from "../types";
+import { InternalSalesApi } from "../api";
+import type {
+  CreateInternalSalesOrderPayload,
+  SalesLotInvoiceMode,
+  SalesOrder,
+  SalesOrderCreditPreview,
+} from "../types";
+import {
+  CreditLimitWarningModal,
+  muteCustomerToday,
+  readMutedCustomers,
+} from "./CreditLimitWarningModal";
 import { formatMoney } from "./labels";
 import "../sales.css";
 
@@ -43,6 +55,7 @@ type LineForm = {
   discountBaseAmount?: number;
   /** CK điều chỉnh — phần Sale/người duyệt tự thêm bớt, được phép âm. */
   discountAdjustmentAmount?: number;
+  transportFeeUnitPrice?: number;
   supplySource?: "TP" | "NCC";
   note?: string;
 };
@@ -53,12 +66,20 @@ type PaymentPlanForm = {
   percent: number;
 };
 
+/** Payload đã dựng xong, chờ người dùng xác nhận cảnh báo công nợ rồi mới lưu. */
+type PendingSave = {
+  common: Omit<CreateInternalSalesOrderPayload, "kind" | "customerPartyId">;
+  kind: "SINGLE" | "LOT";
+  customerPartyId: string;
+};
+
 /** Chiết khấu là theo ĐƠN VỊ: thành tiền = SL × (giá − CK gốc − CK điều chỉnh). */
 const lineTotalOf = (line: Partial<LineForm>) =>
   Number(line.orderedActualQty ?? 0) *
   (Number(line.unitPrice ?? 0) -
     Number(line.discountBaseAmount ?? 0) -
-    Number(line.discountAdjustmentAmount ?? 0));
+    Number(line.discountAdjustmentAmount ?? 0) +
+    Number(line.transportFeeUnitPrice ?? 0));
 
 type FormValues = {
   kind: "SINGLE" | "LOT";
@@ -68,6 +89,9 @@ type FormValues = {
   paymentTermType: "SAME_DAY" | "NET_DAYS";
   paymentTermDays?: number;
   note?: string;
+  hasTransportFee?: boolean;
+  transportVehiclePlate?: string;
+  transportDriverName?: string;
   lines: LineForm[];
 };
 
@@ -96,6 +120,7 @@ function linesFromOrder(order: SalesOrder): LineForm[] {
     discountBaseAmount:
       line.discountBaseAmount == null ? undefined : Number(line.discountBaseAmount),
     discountAdjustmentAmount: Number(line.discountAdjustmentAmount ?? 0),
+    transportFeeUnitPrice: Number(line.transportFeeUnitPrice ?? 0),
     supplySource: line.supplySource ?? "TP",
     note: line.note ?? undefined,
   }));
@@ -134,9 +159,14 @@ export function InternalSalesOrderModal({
   );
   const createMutation = useCreateInternalSalesOrder();
   const updateMutation = useUpdateSalesOrder(order?.id);
+  /** Công nợ vượt hạn mức phát hiện lúc bấm Lưu; có giá trị = đang mở hộp cảnh báo. */
+  const [creditWarning, setCreditWarning] = useState<SalesOrderCreditPreview | null>(null);
+  const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
+  const [muteChecked, setMuteChecked] = useState(false);
 
   const watchedLines = (Form.useWatch("lines", form) ?? []) as LineForm[];
   const kind = Form.useWatch("kind", form) ?? "SINGLE";
+  const hasTransportFee = Boolean(Form.useWatch("hasTransportFee", form));
   const orderDate = Form.useWatch("orderDate", form) as dayjs.Dayjs | undefined;
 
   // Chiết khấu lấy từ bảng thông báo đang hiệu lực; Sale vẫn sửa được từng dòng.
@@ -192,6 +222,9 @@ export function InternalSalesOrderModal({
         paymentTermType: order.paymentTermType ?? "SAME_DAY",
         paymentTermDays: order.paymentTermDays ?? undefined,
         note: order.note ?? undefined,
+        hasTransportFee: order.hasTransportFee ?? false,
+        transportVehiclePlate: order.transportVehiclePlate ?? undefined,
+        transportDriverName: order.transportDriverName ?? undefined,
         lines,
       });
       if (order.kind === "LOT" && order.paymentTermType === "NET_DAYS") {
@@ -224,6 +257,9 @@ export function InternalSalesOrderModal({
         paymentTermType: "SAME_DAY",
         paymentTermDays: undefined,
         note: undefined,
+        hasTransportFee: false,
+        transportVehiclePlate: undefined,
+        transportDriverName: undefined,
         lines: [line],
       });
       setPaymentPlans([]);
@@ -291,6 +327,17 @@ export function InternalSalesOrderModal({
       Modal.error({ title: "Lịch thanh toán chưa hợp lệ", content: paymentPlanError });
       return;
     }
+    if (
+      values.kind !== "LOT" &&
+      values.hasTransportFee &&
+      !values.lines.some((line) => Number(line.transportFeeUnitPrice ?? 0) > 0)
+    ) {
+      Modal.error({
+        title: "Thiếu cước vận chuyển",
+        content: "Đơn đã bật cước vận chuyển nhưng chưa có dòng hàng nào có đơn giá cước lớn hơn 0.",
+      });
+      return;
+    }
     const lines = values.lines.map((line) => {
       const receiving = decodeWarehouseSource(
         line.receivingScope!,
@@ -305,6 +352,11 @@ export function InternalSalesOrderModal({
         discountBaseAmount:
           line.discountBaseAmount == null ? undefined : Number(line.discountBaseAmount),
         discountAdjustmentAmount: Number(line.discountAdjustmentAmount ?? 0),
+        transportFeeUnitPrice: values.hasTransportFee
+          ? Number(line.transportFeeUnitPrice ?? 0)
+          : 0,
+        isTransportFeeApplicable:
+          values.hasTransportFee && Number(line.transportFeeUnitPrice ?? 0) > 0,
         supplySource: line.supplySource ?? "TP",
         vehiclePlate: values.kind === "LOT" ? undefined : line.vehiclePlate?.trim() || undefined,
         driverName: values.kind === "LOT" ? undefined : line.driverName?.trim() || undefined,
@@ -314,6 +366,11 @@ export function InternalSalesOrderModal({
     const common = {
       orderDate: values.orderDate.format("YYYY-MM-DD"),
       note: values.note?.trim() || undefined,
+      hasTransportFee: values.kind === "LOT" ? false : Boolean(values.hasTransportFee),
+      transportVehiclePlate:
+        values.kind === "LOT" ? undefined : values.transportVehiclePlate?.trim() || undefined,
+      transportDriverName:
+        values.kind === "LOT" ? undefined : values.transportDriverName?.trim() || undefined,
       // Chỉ đơn lô mới có khái niệm này; gửi cho đơn lấy 1 lần sẽ bị backend từ chối.
       lotInvoiceMode: values.kind === "LOT" ? values.lotInvoiceMode : undefined,
       paymentTermType: values.paymentTermType,
@@ -338,13 +395,41 @@ export function InternalSalesOrderModal({
           : undefined,
       lines,
     };
+    const payload: PendingSave = {
+      common,
+      kind: values.kind,
+      customerPartyId: values.customerPartyId,
+    };
+
+    // Cảnh báo công nợ trước khi lưu. Không chặn: bấm "Vẫn lưu đơn" là đi tiếp, nhưng lúc
+    // gửi duyệt đơn sẽ sinh yêu cầu duyệt CREDIT mà chỉ kế toán công nợ ký được.
+    if (!readMutedCustomers().includes(values.customerPartyId)) {
+      try {
+        const preview = await InternalSalesApi.creditPreview({
+          customerPartyId: values.customerPartyId,
+          orderValue: grandTotal,
+          excludeOrderId: order?.id,
+        });
+        if (preview.exceeded) {
+          setMuteChecked(false);
+          setCreditWarning(preview);
+          setPendingSave(payload);
+          return;
+        }
+      } catch {
+        // Không tra được công nợ thì vẫn cho lưu: đây là cảnh báo, không phải chốt chặn.
+        // Chốt chặn thật nằm ở bước gửi duyệt, chỗ đó tính lại từ đầu.
+      }
+    }
+
+    await persist(payload);
+  };
+
+  /** Lưu thật. Tách riêng để hộp cảnh báo công nợ gọi lại được sau khi người dùng đồng ý. */
+  const persist = async ({ common, kind, customerPartyId }: PendingSave) => {
     const saved = isEdit
       ? await updateMutation.mutateAsync(common)
-      : await createMutation.mutateAsync({
-          ...common,
-          kind: values.kind,
-          customerPartyId: values.customerPartyId,
-        });
+      : await createMutation.mutateAsync({ ...common, kind, customerPartyId });
     onSaved?.(saved.id);
     onClose();
   };
@@ -498,6 +583,25 @@ export function InternalSalesOrderModal({
       ),
     },
     {
+      title: "CPVC/đv",
+      dataIndex: "transportFeeUnitPrice",
+      hidden: kind === "LOT",
+      width: 95,
+      align: "right",
+      render: (_, __, index) => (
+        <Form.Item name={["lines", index, "transportFeeUnitPrice"]} noStyle>
+          <InputNumber
+            size="small"
+            min={0}
+            controls={false}
+            disabled={!hasTransportFee}
+            placeholder="0"
+            style={{ width: "100%" }}
+          />
+        </Form.Item>
+      ),
+    },
+    {
       title: "Nguồn",
       dataIndex: "supplySource",
       width: 80,
@@ -517,13 +621,13 @@ export function InternalSalesOrderModal({
     {
       title: "BKS",
       dataIndex: "vehiclePlate",
-      hidden: kind === "LOT",
+      hidden: kind === "LOT" || hasTransportFee,
       width: 110,
       render: (_, __, index) => (
         <Form.Item
           name={["lines", index, "vehiclePlate"]}
           rules={
-            kind === "SINGLE" ? [{ required: true, message: "Đơn lấy 1 lần phải có BKS" }] : []
+            kind === "SINGLE" && !hasTransportFee ? [{ required: true, message: "Đơn lấy 1 lần phải có BKS" }] : []
           }
           noStyle
         >
@@ -534,13 +638,13 @@ export function InternalSalesOrderModal({
     {
       title: "Lái xe",
       dataIndex: "driverName",
-      hidden: kind === "LOT",
+      hidden: kind === "LOT" || hasTransportFee,
       width: 120,
       render: (_, __, index) => (
         <Form.Item
           name={["lines", index, "driverName"]}
           rules={
-            kind === "SINGLE" ? [{ required: true, message: "Đơn lấy 1 lần phải có lái xe" }] : []
+            kind === "SINGLE" && !hasTransportFee ? [{ required: true, message: "Đơn lấy 1 lần phải có lái xe" }] : []
           }
           noStyle
         >
@@ -575,7 +679,30 @@ export function InternalSalesOrderModal({
     },
   ];
 
+  const creditWarningModal = (
+    <CreditLimitWarningModal
+      preview={creditWarning}
+      muted={muteChecked}
+      onMutedChange={setMuteChecked}
+      loading={createMutation.isPending || updateMutation.isPending}
+      onCancel={() => {
+        setCreditWarning(null);
+        setPendingSave(null);
+      }}
+      onConfirm={async () => {
+        if (!pendingSave) return;
+        if (muteChecked) muteCustomerToday(pendingSave.customerPartyId);
+        const payload = pendingSave;
+        setCreditWarning(null);
+        setPendingSave(null);
+        await persist(payload);
+      }}
+    />
+  );
+
   return (
+    <>
+    {creditWarningModal}
     <Modal
       open={open}
       title={isEdit ? `Sửa đơn bán ${order?.orderNo}` : "Tạo đơn bán"}
@@ -657,6 +784,60 @@ export function InternalSalesOrderModal({
             <Input size="small" placeholder="Ghi chú nội bộ (nếu có)" />
           </Form.Item>
         </div>
+
+        {kind !== "LOT" && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: hasTransportFee ? "190px 180px 220px minmax(0, 1fr)" : "190px minmax(0, 1fr)",
+              gap: 12,
+              alignItems: "end",
+              padding: "8px 10px",
+              marginBottom: 10,
+              border: "1px solid #d9e5f5",
+              borderRadius: 8,
+              background: "#f8fbff",
+            }}
+          >
+            <Form.Item name="hasTransportFee" label="CPVC (cước vận chuyển)" valuePropName="checked" style={{ marginBottom: 0 }}>
+              <Switch
+                checkedChildren="Có cước"
+                unCheckedChildren="Không cước"
+                onChange={(checked) => {
+                  if (!checked) {
+                    const lines = (form.getFieldValue("lines") ?? []) as LineForm[];
+                    form.setFieldsValue({
+                      lines: lines.map((line) => ({ ...line, transportFeeUnitPrice: 0 })),
+                    });
+                  }
+                }}
+              />
+            </Form.Item>
+            {hasTransportFee && (
+              <>
+                <Form.Item
+                  name="transportVehiclePlate"
+                  label="Biển số xe"
+                  rules={[{ required: true, message: "Nhập biển số xe" }]}
+                  style={{ marginBottom: 0 }}
+                >
+                  <Input size="small" placeholder="98R-034.51" />
+                </Form.Item>
+                <Form.Item
+                  name="transportDriverName"
+                  label="Lái xe"
+                  rules={[{ required: true, message: "Nhập lái xe" }]}
+                  style={{ marginBottom: 0 }}
+                >
+                  <Input size="small" placeholder="Tên lái xe" />
+                </Form.Item>
+                <Typography.Text type="secondary" style={{ fontSize: 12, paddingBottom: 4 }}>
+                  Cước chỉ nhập tại đúng dòng hàng cần thu; khi lưu hệ thống gửi việc cho quản lý xe nhưng không chặn đơn bán.
+                </Typography.Text>
+              </>
+            )}
+          </div>
+        )}
 
         {kind === "LOT" && (
           <>
@@ -841,5 +1022,6 @@ export function InternalSalesOrderModal({
         />
       </Form>
     </Modal>
+    </>
   );
 }

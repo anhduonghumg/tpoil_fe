@@ -151,3 +151,51 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+
+/* ===== Thanh cuộn dùng chung =====
+   Mặc định của Windows là một dải xám dày có nút mũi tên hai đầu, cắt ngang mọi khối nội
+   dung và luôn chiếm chỗ. Bản này mảnh, bo tròn, chìm gần như vô hình khi không dùng tới
+   và rõ lên khi rê chuột vào đúng vùng đang cuộn.
+
+   Viết cho mọi phần tử vì thanh cuộn xuất hiện ở rất nhiều nơi rời rạc — ô nhập nhiều
+   dòng, bảng cuộn ngang, thân hộp thoại, khung danh sách. Chỗ nào cần khác đi (thanh
+   trên nền tối của menu bên trái) thì tự khai riêng và thắng luật này nhờ độ đặc thù. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.18) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Viền trong suốt + background-clip: thanh trông mảnh 6px nhưng vùng bắt chuột vẫn 10px,
+   nên vẫn dễ tóm bằng chuột. */
+*::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.16);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-clip: padding-box;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.26);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:active {
+  background: rgba(15, 23, 42, 0.42);
+  background-clip: padding-box;
+}
+
+/* Góc giao giữa thanh dọc và thanh ngang, mặc định là một ô xám lộ hẳn ra. */
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

@@ -28,9 +28,14 @@ const RISK_LABELS: Record<string, string> = {
   High: "Cao",
 };
 
+/**
+ * Chiều không còn là thuộc tính của hợp đồng mà suy ra từ loại thương nhân của đối tác:
+ * lọc "bán được" ra TNPP + TNDL, "mua được" ra TNPP + TNDM. Hợp đồng với TNPP vì thế
+ * xuất hiện ở cả hai bên.
+ */
 const KIND_LABELS: Record<ContractKind, string> = {
-  SALES: "Hợp đồng bán",
-  PURCHASE: "Hợp đồng mua",
+  SALES: "Đối tác mình bán được",
+  PURCHASE: "Đối tác mình mua được",
 };
 
 type FilterPatch = Omit<ContractListQuery, "page" | "pageSize">;
@@ -140,11 +145,11 @@ export const ContractFilters: React.FC<ContractFiltersProps> = ({
 
       {!lockedKind && (
         <div style={{ marginBottom: 10 }}>
-          {label("Chiều hợp đồng")}
+          {label("Chiều giao dịch")}
           <Select
             size="small"
             allowClear
-            placeholder="Mua và bán"
+            placeholder="Cả hai chiều"
             style={{ width: "100%" }}
             value={value.kind}
             onChange={(next) => patch({ kind: next })}

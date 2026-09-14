@@ -183,12 +183,15 @@ export function StatementTable({
       </div>
 
       <Table
+        className="data-grid"
+        size="small"
+        bordered
         rowKey="id"
         rowSelection={rowSelection}
         loading={loading}
         columns={columns}
         dataSource={data}
-        scroll={{ y: 350 }}
+        scroll={{ x: 1100, y: 350 }}
         pagination={{
           current: page,
           pageSize,

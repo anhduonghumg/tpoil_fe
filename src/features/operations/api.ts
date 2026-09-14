@@ -20,7 +20,8 @@ const patch = async <T = any>(url: string, data?: unknown) =>
 
 export const operationsApi = {
   dashboard: () => get<any>("/operations/dashboard"),
-  warehouseDashboard: () => get<any>("/operations/warehouse-dashboard"),
+  warehouseDashboard: (warehouseId?: string) =>
+    get<any>("/operations/warehouse-dashboard", warehouseId ? { warehouseId } : undefined),
   shipCharterDashboard: () => get<any>("/operations/ship-charters/dashboard"),
   shipOwners: (params?: PageParams) => get<any>("/operations/ship-owners", params),
   shipOwner: (id: string) => get<any>(`/operations/ship-owners/${id}`),
@@ -122,6 +123,27 @@ export const operationsApi = {
     id
       ? put(`/operations/drivers/${driverId}/documents/${id}`, data)
       : post(`/operations/drivers/${driverId}/documents`, data),
+  salesTransportRequests: (params?: PageParams) =>
+    get<any>("/operations/sales-transport-requests", params),
+  salesTransportRequest: (id: string) =>
+    get<any>(`/operations/sales-transport-requests/${id}`),
+  acknowledgeSalesTransportRequest: (id: string) =>
+    patch(`/operations/sales-transport-requests/${id}/acknowledge`, {}),
+  saveSalesTransportActual: (id: string, data: unknown) =>
+    put(`/operations/sales-transport-requests/${id}/actual`, data),
+  transportVehicleSettings: (params?: PageParams) =>
+    get<any>("/operations/transport-vehicle-settings", params),
+  saveTransportVehicleSetting: (data: unknown, id?: string) =>
+    id ? put(`/operations/transport-vehicle-settings/${id}`, data) : post("/operations/transport-vehicle-settings", data),
+  vehicleFuelLogs: (params?: PageParams) => get<any>("/operations/vehicle-fuel-logs", params),
+  saveVehicleFuelLog: (data: unknown, id?: string) =>
+    id ? put(`/operations/vehicle-fuel-logs/${id}`, data) : post("/operations/vehicle-fuel-logs", data),
+  vehicleMaintenanceExpenses: (params?: PageParams) => get<any>("/operations/vehicle-maintenance-expenses", params),
+  saveVehicleMaintenanceExpense: (data: unknown, id?: string) =>
+    id ? put(`/operations/vehicle-maintenance-expenses/${id}`, data) : post("/operations/vehicle-maintenance-expenses", data),
+  vehicleMonthlyFixedCosts: (params?: PageParams) => get<any>("/operations/vehicle-monthly-fixed-costs", params),
+  saveVehicleMonthlyFixedCost: (data: unknown, id?: string) => id ? put(`/operations/vehicle-monthly-fixed-costs/${id}`, data) : post("/operations/vehicle-monthly-fixed-costs", data),
+  vehicleEfficiencyReport: (params?: Record<string, string>) => get<any>("/operations/vehicle-efficiency-report", params),
   dispatches: (params?: PageParams) => get<any>("/operations/vehicle-dispatches", params),
   dispatch: (id: string) => get<any>(`/operations/vehicle-dispatches/${id}`),
   saveDispatch: (data: unknown, id?: string) =>

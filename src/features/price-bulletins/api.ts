@@ -1,5 +1,6 @@
 // features/price-bulletins/api.ts
 import { apiCall } from "../../shared/lib/api";
+import { http } from "../../shared/lib/http";
 import { ApiResponse, Paged } from "../departments/types";
 import type {
   PriceBulletinDetail,
@@ -43,11 +44,25 @@ export const PriceBulletinsApi = {
       (r) => (r.data!.data ?? r.data) as any,
     ),
 
-  productsSelect: (keyword = "") =>
-    apiCall<ApiResponse<{ items: ProductOption[] }>>(
-      "priceBulletins.productsSelect",
-      { query: { keyword } },
-    ).then((r) => r.data!.data ?? { items: [] }),
+  /**
+   * Ảnh thông báo giá và quyết định điều chỉnh giá, dựng từ chính bảng giá này.
+   * Dùng http trực tiếp vì apiCall không hỗ trợ responseType blob.
+   */
+  noticePng: (id: string) =>
+    http
+      .request<Blob>({ method: "GET", url: `/price-bulletins/${id}/notice.png`, responseType: "blob" })
+      .then((response) => response.data),
+
+  decisionPdf: (id: string) =>
+    http
+      .request<Blob>({ method: "GET", url: `/price-bulletins/${id}/decision.pdf`, responseType: "blob" })
+      .then((response) => response.data),
+
+  /** Mặt hàng được phép lên bảng giá, đã sắp đúng thứ tự của mẫu văn bản. */
+  productsSelect: () =>
+    apiCall<ApiResponse<ProductOption[]>>("priceBulletins.productsSelect").then(
+      (r) => r.data!.data ?? [],
+    ),
 
   regionsSelect: (keyword = "") =>
     apiCall<ApiResponse<RegionOption[]>>("priceBulletins.regionsSelect", {

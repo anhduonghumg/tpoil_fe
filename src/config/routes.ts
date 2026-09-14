@@ -7,9 +7,13 @@ export const ROUTES = {
   },
   notifications: {
     list: ["GET", "/notifications"] as RouteTuple,
+    summary: ["GET", "/notifications/summary"] as RouteTuple,
+    workItems: ["GET", "/notifications/work-items"] as RouteTuple,
+    quick: ["GET", "/notifications/quick"] as RouteTuple,
     unreadCount: ["GET", "/notifications/unread-count"] as RouteTuple,
     markRead: ["PATCH", "/notifications/:id/read"] as RouteTuple,
     markAllRead: ["PATCH", "/notifications/read-all"] as RouteTuple,
+    archive: ["PATCH", "/notifications/:id/archive"] as RouteTuple,
     preferences: ["GET", "/notifications/preferences"] as RouteTuple,
     updatePreference: ["PATCH", "/notifications/preferences"] as RouteTuple,
     registerDevice: ["POST", "/notifications/devices"] as RouteTuple,
@@ -93,6 +97,18 @@ export const ROUTES = {
     update: ["PATCH", "/customer-groups/:id"] as RouteTuple,
     delete: ["DELETE", "/customer-groups/:id"] as RouteTuple,
   },
+  partyBankAccounts: {
+    list: ["GET", "/customers/:customerId/bank-accounts"] as const,
+    create: ["POST", "/customers/:customerId/bank-accounts"] as const,
+    update: [
+      "PATCH",
+      "/customers/:customerId/bank-accounts/:accountId",
+    ] as const,
+    delete: [
+      "DELETE",
+      "/customers/:customerId/bank-accounts/:accountId",
+    ] as const,
+  },
   customerAddresses: {
     list: ["GET", "/customers/:customerId/addresses"] as const,
     create: ["POST", "/customers/:customerId/addresses"] as const,
@@ -113,6 +129,20 @@ export const ROUTES = {
     attachable: ["GET", "/contracts/attachable"] as RouteTuple,
     byCustomer: ["GET", "/contracts/by-customer/:customerId"] as RouteTuple,
     importExcel: ["POST", "/contracts/import"] as RouteTuple,
+  },
+  contractAppendices: {
+    list: ["GET", "/contracts/:contractId/appendices"] as RouteTuple,
+    /** Điều khoản đang áp tại một ngày, sau khi chồng các phụ lục lên hợp đồng gốc. */
+    termsAt: ["GET", "/contracts/:contractId/appendices/terms"] as RouteTuple,
+    create: ["POST", "/contracts/:contractId/appendices"] as RouteTuple,
+    update: [
+      "PATCH",
+      "/contracts/:contractId/appendices/:appendixId",
+    ] as RouteTuple,
+    delete: [
+      "DELETE",
+      "/contracts/:contractId/appendices/:appendixId",
+    ] as RouteTuple,
   },
   contractAttachments: {
     byContract: [
@@ -333,10 +363,14 @@ export const ROUTES = {
   salesDashboard: {
     get: ["GET", "/sales-dashboard"] as RouteTuple,
   },
+  salesManagementReport: {
+    get: ["GET", "/sales-management-report"] as RouteTuple,
+  },
 
   salesOrders: {
     list: ["GET", "/sales-orders"] as RouteTuple,
     statusCounts: ["GET", "/sales-orders/status-counts"] as RouteTuple,
+    creditPreview: ["GET", "/sales-orders/credit-preview"] as RouteTuple,
     create: ["POST", "/sales-orders"] as RouteTuple,
     detail: ["GET", "/sales-orders/:id"] as RouteTuple,
     createFromPurchaseOrder: [
@@ -377,6 +411,7 @@ export const ROUTES = {
     approveMany: ["POST", "/sales-approvals/approve-many"] as RouteTuple,
     rejectMany: ["POST", "/sales-approvals/reject-many"] as RouteTuple,
     adjustLineDiscount: ["PATCH", "/sales-approvals/lines/:lineId/discount"] as RouteTuple,
+    adjustLineTransportFee: ["PATCH", "/sales-approvals/lines/:lineId/transport-fee"] as RouteTuple,
     adjustLineSupplier: ["PATCH", "/sales-approvals/lines/:lineId/supplier"] as RouteTuple,
   },
 
@@ -447,6 +482,8 @@ export const ROUTES = {
     ] as RouteTuple,
     detail: ["GET", "/receivables/:id"] as RouteTuple,
     allocate: ["POST", "/receivables/allocations"] as RouteTuple,
+    receiptSuggestions: ["GET", "/receivables/bank-transactions/:bankTransactionId/suggestions"] as RouteTuple,
+    allocateBankReceipt: ["POST", "/receivables/bank-transactions/:bankTransactionId/allocate"] as RouteTuple,
     reverseAllocation: ["POST", "/receivables/allocations/:id/reverse"] as RouteTuple,
   },
 
@@ -496,6 +533,7 @@ export const ROUTES = {
   commodityPriceQuotes: {
     list: ["GET", "/commodity-price-quotes"] as RouteTuple,
     upsert: ["POST", "/commodity-price-quotes/upsert"] as RouteTuple,
+    bulkUpsert: ["POST", "/commodity-price-quotes/bulk-upsert"] as RouteTuple,
     delete: ["DELETE", "/commodity-price-quotes/:id"] as RouteTuple,
   },
 
@@ -636,6 +674,7 @@ export const ROUTES = {
     publish: ["POST", "/price-bulletins/:id/publish"] as RouteTuple,
     void: ["POST", "/price-bulletins/:id/void"] as RouteTuple,
 
+    productsSelect: ["GET", "/price-bulletins/products/select"] as RouteTuple,
     regionsSelect: ["GET", "/price-bulletins/regions/select"] as RouteTuple,
     quote: ["GET", "/price-bulletins/quote"] as RouteTuple,
     quoteBatch: ["POST", "/price-bulletins/quote-batch"] as RouteTuple,

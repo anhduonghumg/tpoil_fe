@@ -13,7 +13,11 @@ const formatQty = (value?: number | string | null) =>
 /** Customer orders raised by sales, with a shortcut for purchasing to buy against them. */
 export function SalesOrdersPendingPanel() {
   const navigate = useNavigate();
-  const query = useSalesOrders({ limit: 50 });
+  const query = useSalesOrders({
+    kind: "DAY_TRADE",
+    status: "AWAITING_STOCK,PARTIALLY_RESERVED,RESERVED,WAREHOUSE_PROCESSING,PARTIALLY_DELIVERED,DELIVERED,AWAITING_RECONCILIATION,AWAITING_INVOICE",
+    limit: 50,
+  });
   const items = query.data?.items ?? [];
 
   const columns: ColumnsType<SalesOrder> = useMemo(
@@ -37,13 +41,16 @@ export function SalesOrdersPendingPanel() {
           row.lines?.map((line) => line.product?.code).filter(Boolean).join(", ") || "-",
       },
       {
-        title: "Số lượng",
+        title: "Còn phải mua",
         key: "qty",
         width: 110,
         align: "right",
         render: (_, row) =>
           formatQty(
-            (row.lines ?? []).reduce((sum, line) => sum + Number(line.orderedActualQty ?? 0), 0),
+            (row.lines ?? []).reduce(
+              (sum, line) => sum + Number(line.purchaseProgress?.remainingQty ?? line.orderedActualQty ?? 0),
+              0,
+            ),
           ),
       },
       {
@@ -66,9 +73,9 @@ export function SalesOrdersPendingPanel() {
         key: "purchase",
         width: 170,
         render: (_, row) =>
-          row.purchaseOrders?.length ? (
+          row.purchaseOrders?.filter((po) => po.status !== "CANCELLED").length ? (
             <Space size={4} wrap>
-              {row.purchaseOrders.map((po) => (
+              {row.purchaseOrders.filter((po) => po.status !== "CANCELLED").map((po) => (
                 <Tag
                   key={po.id}
                   color="green"
@@ -88,7 +95,9 @@ export function SalesOrdersPendingPanel() {
         key: "action",
         width: 130,
         render: (_, row) =>
-          row.purchaseOrders?.length ? null : (
+          (row.lines ?? []).every(
+            (line) => Number(line.purchaseProgress?.remainingQty ?? line.orderedActualQty ?? 0) <= 0,
+          ) ? <Tag color="success">Đã đặt đủ</Tag> : (
             <Button
               size="small"
               type="primary"
@@ -97,7 +106,7 @@ export function SalesOrdersPendingPanel() {
                 navigate(`/commercial-purchases/retail/create?salesOrderId=${row.id}`)
               }
             >
-              Tạo đơn mua
+              {row.purchaseOrders?.some((po) => po.status !== "CANCELLED") ? "Mua tiếp" : "Tạo đơn mua"}
             </Button>
           ),
       },

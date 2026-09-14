@@ -12,6 +12,7 @@ import type {
   CustomerOverview,
   MerchantRole,
   Paged,
+  PartyBankAccount,
   UpdateCustomerPurchaseDefaultsPayload,
 } from "./types";
 import { notify } from "../../shared/lib/notification";
@@ -274,6 +275,59 @@ export function useUpdateCustomerPurchaseDefaults(customerId?: string) {
       queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
     },
   });
+}
+
+// ===== Tài khoản ngân hàng của đối tác =====
+
+export function usePartyBankAccounts(customerId?: string) {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["customers", customerId, "bank-accounts"] });
+    qc.invalidateQueries({ queryKey: ["customers", "detail", customerId] });
+  };
+
+  const list = useQuery<PartyBankAccount[]>({
+    queryKey: ["customers", customerId, "bank-accounts"],
+    enabled: Boolean(customerId),
+    queryFn: () => CustomersApi.listBankAccounts(customerId!),
+  });
+
+  const create = useMutation({
+    mutationFn: (d: PartyBankAccount) =>
+      CustomersApi.createBankAccount(customerId!, d),
+    onSuccess: () => {
+      invalidate();
+      notify.success("Đã thêm tài khoản ngân hàng");
+    },
+    onError: (e) =>
+      notify.error(extractApiError(e).message || "Không thêm được tài khoản"),
+  });
+
+  const update = useMutation({
+    mutationFn: (args: { accountId: string; data: Partial<PartyBankAccount> }) =>
+      CustomersApi.updateBankAccount(customerId!, args.accountId, args.data),
+    onSuccess: () => {
+      invalidate();
+      notify.success("Đã cập nhật tài khoản ngân hàng");
+    },
+    onError: (e) =>
+      notify.error(extractApiError(e).message || "Không cập nhật được tài khoản"),
+  });
+
+  const remove = useMutation({
+    mutationFn: (accountId: string) =>
+      CustomersApi.deleteBankAccount(customerId!, accountId),
+    onSuccess: (res) => {
+      invalidate();
+      // Tài khoản đã gắn chứng từ chỉ bị ngừng dùng — nói rõ để người dùng không tưởng
+      // là đã xóa mà vẫn thấy nó trong danh sách.
+      notify.success(res.message);
+    },
+    onError: (e) =>
+      notify.error(extractApiError(e).message || "Không xóa được tài khoản"),
+  });
+
+  return { list, create, update, remove };
 }
 
 // ===== Loại thương nhân xăng dầu =====

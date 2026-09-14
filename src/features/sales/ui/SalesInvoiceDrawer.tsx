@@ -26,10 +26,10 @@ import {
   useViewInvoiceDocument,
   openBlankTab,
 } from "../hooks";
-import type { InvoiceCreditAssessment, SalesInvoiceIssuance, SalesInvoiceLine } from "../types";
+import type { SalesInvoiceIssuance, SalesInvoiceLine } from "../types";
 import { formatMoney, formatQty, INVOICE_DOC_TYPE_LABELS, InvoiceStatusTag } from "./labels";
 import { IssueInvoiceModal } from "./IssueInvoiceModal";
-import { CreditWarningModal, creditAssessmentFromError } from "./CreditWarningModal";
+import { extractApiError } from "../../../shared/lib/httpError";
 
 /** Backend bắt buộc có lý do hủy; nháp bỏ đi thì lý do lúc nào cũng là câu này. */
 const DISCARD_DRAFT_REASON = "Hủy nháp, trả chứng từ về Chưa xuất HĐ";
@@ -47,9 +47,6 @@ export function SalesInvoiceDrawer({
   const { can } = useCan();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [creditOpen, setCreditOpen] = useState(false);
-  const [creditAssessment, setCreditAssessment] = useState<InvoiceCreditAssessment | null>(null);
-  const [creditRetry, setCreditRetry] = useState(false);
   /** Hộp xác nhận trước khi gửi chứng từ ra ngoài; giữ cờ "thử lại" để đổi nhãn. */
   const [confirmIssue, setConfirmIssue] = useState<false | { isRetry: boolean }>(false);
 
@@ -60,19 +57,31 @@ export function SalesInvoiceDrawer({
   const viewDocumentMutation = useViewInvoiceDocument();
   const isDraft = invoice?.status === "DRAFT";
 
-  const requestIssue = async (isRetry: boolean) => {
+  const requestIssue = async (isRetry: boolean, overrideMissingPurchaseInvoice = false) => {
     if (!invoice) return;
     try {
-      await issueMutation.mutateAsync({ invoiceId: invoice.id, isRetry });
+      await issueMutation.mutateAsync({
+        invoiceId: invoice.id,
+        isRetry,
+        overrideMissingPurchaseInvoice: overrideMissingPurchaseInvoice || undefined,
+      });
       setConfirmIssue(false);
     } catch (error) {
-      const assessment = creditAssessmentFromError(error);
-      if (!assessment) return;
-      // Nhường chỗ cho hộp cảnh báo công nợ, không chồng hai hộp lên nhau.
-      setConfirmIssue(false);
-      setCreditAssessment(assessment);
-      setCreditRetry(isRetry);
-      setCreditOpen(true);
+      // Bộ lọc lỗi của backend đưa mã xuống `error.code` nhưng giữ câu thông báo ở
+      // `message` ngoài cùng, nên đọc mã và đọc lời phải bằng hai đường khác nhau.
+      const apiError = extractApiError(error);
+      if (apiError.code === "PURCHASE_INVOICE_CONFIRMATION_REQUIRED") {
+        setConfirmIssue(false);
+        Modal.confirm({
+          title: "Chưa có hóa đơn đầu vào",
+          content: apiError.message,
+          okText: "Xác nhận phát hành",
+          cancelText: "Dừng lại",
+          onOk: () => requestIssue(isRetry, true),
+        });
+        return;
+      }
+      // Mọi lỗi còn lại đã được hook báo bằng toast; giữ hộp mở để bấm lại được.
     }
   };
 
@@ -356,29 +365,6 @@ export function SalesInvoiceDrawer({
         isRetry={confirmIssue ? confirmIssue.isRetry : false}
         onCancel={() => setConfirmIssue(false)}
         onConfirm={() => void requestIssue(confirmIssue ? confirmIssue.isRetry : false)}
-      />
-
-      <CreditWarningModal
-        open={creditOpen}
-        assessment={creditAssessment}
-        loading={issueMutation.isPending}
-        onCancel={() => setCreditOpen(false)}
-        onConfirm={async () => {
-          if (!invoice || !creditAssessment) return;
-          try {
-            await issueMutation.mutateAsync({
-              invoiceId: invoice.id,
-              isRetry: creditRetry,
-              overrideCredit: true,
-              creditSnapshotHash: creditAssessment.snapshotHash,
-            });
-            setCreditOpen(false);
-            setCreditAssessment(null);
-          } catch (error) {
-            const current = creditAssessmentFromError(error);
-            if (current) setCreditAssessment(current);
-          }
-        }}
       />
 
       <Modal

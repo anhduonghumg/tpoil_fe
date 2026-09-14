@@ -16,11 +16,13 @@ import {
   SalesOrderAdjustmentsApi,
   SalesOrdersApi,
   SalesDashboardApi,
+  SalesManagementReportApi,
   SalesProfitabilityApi,
   SalesReconciliationApi,
   SalesWithdrawalsApi,
 } from "./api";
 import type {
+  AllocateBankReceiptPayload,
   AllocateReceivablePayload,
   ConfirmDeliveryPayload,
   ConfirmQuickEntryPayload,
@@ -47,6 +49,7 @@ import type {
   InvoiceEnvironment,
   UpdateMisaSettingsPayload,
   UpdateSalesOrderPayload,
+  SalesManagementReportQuery,
   UpsertDiscountBoardPayload,
 } from "./types";
 
@@ -60,7 +63,21 @@ export function useSalesDashboard() {
   });
 }
 
-export function useSalesOrders(query: { keyword?: string; page?: number; limit?: number } = {}) {
+export function useSalesManagementReport(query: SalesManagementReportQuery) {
+  return useQuery({
+    queryKey: ["sales", "management-report", query],
+    queryFn: () => SalesManagementReportApi.get(query),
+    staleTime: 30_000,
+  });
+}
+
+export function useSalesOrders(query: {
+  keyword?: string;
+  kind?: SalesOrderKind;
+  status?: string;
+  page?: number;
+  limit?: number;
+} = {}) {
   return useQuery({
     queryKey: ["salesOrders", "list", query],
     queryFn: () => SalesOrdersApi.list(query),
@@ -279,9 +296,17 @@ export function useReserveSalesOrder(id?: string) {
   const refresh = useRefreshSalesOrder(id);
   return useMutation({
     mutationFn: (orderId: string) => InternalSalesApi.reserve(orderId),
-    onSuccess: () => {
+    onSuccess: (order) => {
       refresh();
-      notify.success("Đã thử giữ hàng lại");
+      if (order.workflow?.warehouse === "PROCESSING") {
+        notify.success("Đã tạo lệnh xuất kho, chờ kho xác nhận xuất.");
+        return;
+      }
+      if (order.workflow?.warehouse === "ISSUED") {
+        notify.success("Đơn đã có phiếu xuất kho.");
+        return;
+      }
+      notify.warning("Chưa tạo được lệnh xuất vì hàng chưa được giữ đủ cho đơn bán.");
     },
     onError: (error) => notify.error(extractApiError(error).message || "Không giữ được hàng"),
   });
@@ -437,19 +462,19 @@ export function useSalesWithdrawalDetail(id?: string) {
  */
 export function useWithdrawalSourceCandidates(params: {
   customerPartyId?: string;
-  productId?: string;
-  warehouseId?: string;
-  qty?: number;
+  lines: Array<{ productId?: string; warehouseId?: string; qty?: number }>;
 }) {
-  const enabled = Boolean(params.customerPartyId && params.productId);
+  const lines = params.lines.filter(
+    (line): line is { productId: string; warehouseId?: string; qty?: number } =>
+      Boolean(line.productId && line.warehouseId && Number(line.qty) > 0),
+  );
+  const enabled = Boolean(params.customerPartyId && lines.length === params.lines.length && lines.length);
   return useQuery({
-    queryKey: ["salesWithdrawals", "sourceCandidates", params],
+    queryKey: ["salesWithdrawals", "sourceCandidates", params.customerPartyId, lines],
     queryFn: () =>
-      SalesWithdrawalsApi.sourceCandidates({
+      SalesWithdrawalsApi.sourceCandidatesForLines({
         customerPartyId: params.customerPartyId!,
-        productId: params.productId!,
-        warehouseId: params.warehouseId,
-        qty: params.qty,
+        lines,
       }),
     enabled,
   });
@@ -906,17 +931,15 @@ export function useIssueInvoice(id?: string) {
     mutationFn: ({
       invoiceId,
       isRetry,
-      overrideCredit,
-      creditSnapshotHash,
+      overrideMissingPurchaseInvoice,
     }: {
       invoiceId: string;
       isRetry?: boolean;
-      overrideCredit?: boolean;
-      creditSnapshotHash?: string;
+      overrideMissingPurchaseInvoice?: boolean;
     }) =>
       isRetry
-        ? SalesInvoicesApi.retry(invoiceId, { overrideCredit, creditSnapshotHash })
-        : SalesInvoicesApi.issue(invoiceId, { overrideCredit, creditSnapshotHash }),
+        ? SalesInvoicesApi.retry(invoiceId, { overrideMissingPurchaseInvoice })
+        : SalesInvoicesApi.issue(invoiceId, { overrideMissingPurchaseInvoice }),
     onSuccess: (invoice) => {
       refresh();
       if (invoice.status === "ISSUED") {
@@ -933,7 +956,9 @@ export function useIssueInvoice(id?: string) {
           : body?.message && typeof body.message === "object"
             ? body.message
             : body;
-      if (["CREDIT_CONFIRMATION_REQUIRED", "CREDIT_CONFIRMATION_STALE"].includes(payload?.code)) return;
+      // Mã duy nhất được hook nhường chỗ: hộp thoại phía trên dựng lại nó thành câu hỏi
+      // xác nhận. Mọi mã khác phải ra toast, không thì người dùng bấm xong không thấy gì.
+      if (payload?.code === "PURCHASE_INVOICE_CONFIRMATION_REQUIRED") return;
       // Phát hành lỗi vẫn đổi trạng thái hóa đơn sang ISSUE_FAILED và ghi thêm một dòng
       // nhật ký. Không nạp lại thì bảng, số đếm trên tab và cả hộp chi tiết đều đứng ở
       // trạng thái cũ — người dùng tưởng hóa đơn còn là nháp.
@@ -980,11 +1005,19 @@ export function useReceivableDetail(id?: string) {
   });
 }
 
-export function useReceivableAging(customerPartyId?: string, enabled = true) {
+export function useReceivableAging(customerPartyId?: string, enabled = true, asOf?: string) {
   return useQuery({
-    queryKey: ["receivables", "aging", customerPartyId],
-    queryFn: () => ReceivablesApi.aging(customerPartyId),
+    queryKey: ["receivables", "aging", customerPartyId, asOf],
+    queryFn: () => ReceivablesApi.aging(customerPartyId, asOf),
     enabled,
+  });
+}
+
+export function useBankReceiptSuggestions(bankTransactionId?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["receivables", "receiptSuggestions", bankTransactionId],
+    queryFn: () => ReceivablesApi.receiptSuggestions(bankTransactionId!),
+    enabled: Boolean(bankTransactionId) && enabled,
   });
 }
 
@@ -1022,6 +1055,18 @@ export function useAllocateReceivable() {
       notify.success("Đã đối trừ tiền về vào công nợ");
     },
     onError: (error) => notify.error(extractApiError(error).message || "Không đối trừ được"),
+  });
+}
+
+export function useAllocateBankReceipt() {
+  const refresh = useRefreshReceivables();
+  return useMutation({
+    mutationFn: (payload: AllocateBankReceiptPayload) => ReceivablesApi.allocateBankReceipt(payload),
+    onSuccess: () => {
+      refresh();
+      notify.success("Đã xác nhận thu tiền và phân bổ công nợ");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không đối soát được giao dịch thu tiền"),
   });
 }
 
@@ -1452,6 +1497,20 @@ export function useAdjustLineDiscount() {
     },
     onError: (error) =>
       notify.error(extractApiError(error).message || "Không sửa được chiết khấu"),
+  });
+}
+
+export function useAdjustLineTransportFee() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lineId, transportFeeUnitPrice }: { lineId: string; transportFeeUnitPrice: number }) =>
+      SalesApprovalsApi.adjustLineTransportFee(lineId, transportFeeUnitPrice),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["salesApprovals"] });
+      client.invalidateQueries({ queryKey: ["salesOrders"] });
+      notify.success("Đã cập nhật CPVC, thành tiền tính lại theo mức mới");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không sửa được CPVC"),
   });
 }
 

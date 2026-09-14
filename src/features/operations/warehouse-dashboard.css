@@ -97,9 +97,21 @@
 
 .wd-actions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+}
+
+/* Ô chọn kho là thứ đọc trước khi tin bất kỳ con số nào trên màn, nên nó rộng
+   hơn nút và đứng đầu hàng thay vì lọt thỏm giữa mấy nút hành động. */
+.wd-scope-select {
+  min-width: 190px;
+}
+
+.wd-scope-select .ant-select-selector {
+  box-shadow: var(--lift-1);
 }
 
 .wd-actions .ant-btn {
@@ -141,7 +153,7 @@
 
 .wd-kpi-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -161,17 +173,71 @@
   font-weight: 600;
 }
 
+/* Icon nằm trong ô tint riêng, cùng ngôn ngữ với dải chip bên dưới. */
 .wd-kpi-label .anticon {
-  color: var(--ink-3);
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--kpi-wash, #f2f4f8);
+  color: var(--kpi-tone, var(--ink-3));
+  font-size: 12px;
 }
 
+/*
+ * Con số mặc bậc ĐẬM của chính tông đó, không phải bậc sáng của icon: năm con số to
+ * tô màu rực cạnh nhau thì chẳng con nào nổi lên, còn bậc đậm thì nhìn thoáng vẫn
+ * như chữ đen, nhìn kỹ mới thấy ám màu. Mọi bậc đậm đều trên 5:1 so với nền trắng.
+ */
 .wd-kpi-value {
   margin: 7px 0 2px;
-  color: var(--ink);
+  color: var(--kpi-ink, var(--ink));
   font-size: 27px;
   font-weight: 650;
   line-height: 30px;
+}
+
+/* Gạch ngang "chưa có số" phải nhạt hơn số thật, nếu không nó lại đòi chú ý như
+   một giá trị. */
+.wd-kpi-value.is-empty {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+/* Nhập / xuất mượn đúng cặp màu của biểu đồ xu hướng, để ô chỉ số và biểu đồ nói
+   cùng một thứ tiếng. Riêng bậc icon của "xuất" phải đậm hơn swatch trong biểu đồ
+   (#7d93ac chỉ được 2.79:1 trên nền tint) nên hạ xuống #64798f. */
+
+.wd-kpi.tone-onhand {
+  --kpi-tone: #2a6072;
+  --kpi-wash: #e6f0f3;
+  --kpi-ink: #1f4b59;
+}
+
+.wd-kpi.tone-sellable {
+  --kpi-tone: #0a8a0a;
+  --kpi-wash: #e8f6e8;
+  --kpi-ink: #076b07;
+}
+
+.wd-kpi.tone-value {
+  --kpi-tone: #b57b04;
+  --kpi-wash: #fdf3e0;
+  --kpi-ink: #8a5d03;
+}
+
+.wd-kpi.tone-in {
+  --kpi-tone: #3f5b78;
+  --kpi-wash: #eaeff5;
+  --kpi-ink: #2f4459;
+}
+
+.wd-kpi.tone-out {
+  --kpi-tone: #64798f;
+  --kpi-wash: #eef1f6;
+  --kpi-ink: #566d87;
 }
 
 .wd-unit {
@@ -185,6 +251,177 @@
   margin-top: auto;
   color: var(--ink-3);
   font-size: 11px;
+}
+
+/* ---------- Dải chip cảnh báo ----------
+
+   Một hàng ô dẹt dưới hàng chỉ số: mỗi loại bất thường một ô, luôn hiện kể cả khi
+   bằng 0. Icon và nền tint giữ màu ở mọi trạng thái để nhận mặt từng chip; riêng
+   chip bằng 0 thì số về xám và mất viền, nên mắt vẫn dừng đúng ô đang có việc. */
+
+.wd-chip-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.wd-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 13px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--lift-1);
+  color: var(--ink);
+  text-align: left;
+}
+
+button.wd-chip {
+  cursor: pointer;
+  transition:
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+/* Giữ lại viền trong khi hover, nếu không chip đang có việc sẽ mất viền lúc rê chuột. */
+button.wd-chip:hover {
+  box-shadow:
+    var(--lift-2),
+    inset 0 0 0 1px var(--chip-edge);
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.wd-chip {
+    transition: none;
+  }
+
+  button.wd-chip:hover {
+    transform: none;
+  }
+}
+
+.wd-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--chip-wash);
+  color: var(--chip-tone);
+  font-size: 13px;
+}
+
+.wd-chip-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.wd-chip-text b {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wd-chip-text small {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wd-chip-count {
+  flex: 0 0 auto;
+  color: var(--chip-tone);
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* Thang màu trạng thái, mỗi chip một tông riêng để nhận mặt được từ xa. Đây là
+   trạng thái kho chứ không phải chuỗi dữ liệu, nên dùng màu status là đúng chỗ —
+   và chip nào cũng có icon kèm hai dòng chữ, màu không bao giờ đứng một mình.
+
+   Cả năm tông đều đã đo: ≥ 3:1 trên nền trắng lẫn trên nền tint của chính nó, đủ
+   cho số 19px đậm và icon. Vàng #fab219 quá sáng nên hạ xuống bậc #b57b04. */
+
+.wd-chip.tone-danger {
+  --chip-tone: var(--status-critical);
+  --chip-wash: #fbecec;
+  --chip-edge: #f3d4d4;
+}
+
+.wd-chip.tone-serious {
+  --chip-tone: #c2410c;
+  --chip-wash: #fdf0e6;
+  --chip-edge: #f6ddc9;
+}
+
+.wd-chip.tone-warning {
+  --chip-tone: #b57b04;
+  --chip-wash: #fdf3e0;
+  --chip-edge: #f5e4bf;
+}
+
+.wd-chip.tone-pending {
+  --chip-tone: #5b4bbd;
+  --chip-wash: #eeecfa;
+  --chip-edge: #dcd8f3;
+}
+
+.wd-chip.tone-good {
+  --chip-tone: #0a8a0a;
+  --chip-wash: #e8f6e8;
+  --chip-edge: #cfe8cf;
+}
+
+/* Chip đang có việc được viền mảnh cùng tông — thêm một lớp nhận biết ngoài con số. */
+.wd-chip:not(.is-zero) {
+  box-shadow:
+    var(--lift-1),
+    inset 0 0 0 1px var(--chip-edge);
+}
+
+/* Không có gì phải xử lý: chỉ con số về xám. Icon và nền tint giữ nguyên màu để cả
+   dải vẫn nhận mặt được, đúng kiểu chip số 0 vẫn có màu trong mẫu tham khảo. */
+.wd-chip.is-zero .wd-chip-count {
+  color: var(--ink-3);
+  font-weight: 600;
+}
+
+/* Danh sách chi tiết trong tooltip của chip. */
+.wd-chip-tip {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+}
+
+.wd-chip-tip li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 1px 0;
+}
+
+.wd-chip-tip code {
+  opacity: 0.75;
+  font-size: 10px;
+}
+
+.wd-chip-tip b {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Khung thẻ ---------- */
@@ -467,6 +704,15 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
+  text-align: right;
+}
+
+/* Giá vốn đứng dưới sản lượng: cùng một kho, hai đơn vị, không nhồi một dòng. */
+.wd-warehouse-value small {
+  display: block;
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .wd-warehouse-bar {
@@ -614,6 +860,153 @@
 
 .wd-table-scroll {
   overflow-x: auto;
+}
+
+/* ---------- Biểu đồ xu hướng nhập – xuất ---------- */
+
+.wd-chart {
+  position: relative;
+}
+
+.wd-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Trục gốc là mốc đọc, không phải dữ liệu — mảnh và chìm. */
+.wd-chart-axis {
+  stroke: #d8dee7;
+  stroke-width: 1;
+}
+
+.wd-chart-tick {
+  fill: var(--ink-3);
+  font-size: 10px;
+  text-anchor: middle;
+}
+
+.wd-chart-hoverband {
+  fill: #f4f6fa;
+}
+
+.wd-chart-hit {
+  fill: transparent;
+  cursor: default;
+}
+
+.wd-chart-tip {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--lift-2);
+  font-size: 11px;
+  pointer-events: none;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.wd-chart-tip strong {
+  font-size: 11px;
+}
+
+.wd-chart-tip span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+}
+
+.wd-chart-tip b {
+  margin-left: auto;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.wd-chart-tip i,
+.wd-chart-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.wd-chart-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 8px;
+}
+
+.wd-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-2);
+  font-size: 11px;
+}
+
+.wd-chart-legend .anticon {
+  color: var(--ink-3);
+  font-size: 10px;
+}
+
+.wd-chart-legend small {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 10px;
+}
+
+/* ---------- Xuất nhiều nhất ---------- */
+
+.wd-top-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wd-top-list li + li {
+  margin-top: 11px;
+}
+
+.wd-top-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.wd-top-head span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wd-top-head b {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.wd-top-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--grid);
+  overflow: hidden;
+}
+
+.wd-top-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
 }
 
 /* ---------- Màn hẹp ---------- */

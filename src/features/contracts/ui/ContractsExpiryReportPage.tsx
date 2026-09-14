@@ -1,5 +1,6 @@
 // features/contracts/ui/ContractsExpiryReportPage.tsx
 import { useMemo, useState } from "react";
+import "../../../shared/ui/data-grid.css";
 import {
   Card,
   DatePicker,
@@ -247,6 +248,8 @@ export const ContractsExpiryReportPage = () => {
 
       {summaryText && <Text type="secondary">{summaryText}</Text>}
       <Table<ContractExpiryListItem>
+        className="data-grid"
+        bordered
         rowKey="contractId"
         loading={isLoading}
         columns={columns}

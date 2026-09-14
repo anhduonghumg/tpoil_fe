@@ -2,10 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Alert, Modal, Skeleton } from "antd";
 import dayjs from "dayjs";
 import { useCancelInvoice, useCreateInvoiceDraft, useInvoicePreview, useIssueInvoice } from "../hooks";
-import type { InvoiceCreditAssessment, UnissuedInvoiceSource } from "../types";
+import type { UnissuedInvoiceSource } from "../types";
 import { extractApiError } from "../../../shared/lib/httpError";
 import { IssueInvoiceModal } from "./IssueInvoiceModal";
-import { CreditWarningModal, creditAssessmentFromError } from "./CreditWarningModal";
 
 /**
  * Phát hành hóa đơn thẳng từ một chứng từ ở tab "Chưa xuất HĐ".
@@ -32,26 +31,21 @@ export function IssueFromSourceModal({
   const previewQuery = useInvoicePreview(source, open);
   const draftMutation = useCreateInvoiceDraft({ silent: true });
   const issueMutation = useIssueInvoice();
-  // Bản nháp được dựng tạm để chạy kiểm tra công nợ. Nếu kiểm tra trước khi
-  // gọi MISA bị chặn, phải dọn bản nháp này để chứng từ nguồn vẫn nằm ở
-  // "Chưa xuất HĐ" (không biến thành "Xuất nháp").
+  // Bản nháp dựng tạm để chạy các bước kiểm trước khi gọi MISA. Nếu bị chặn, phải dọn
+  // bản nháp này để chứng từ nguồn vẫn nằm ở "Chưa xuất HĐ" (không biến thành "Xuất nháp").
   const cleanupDraftMutation = useCancelInvoice(undefined, { silent: true });
-  const [creditAssessment, setCreditAssessment] = useState<InvoiceCreditAssessment | null>(null);
   /** Giữ lại ID khi đã gửi sang MISA để có thể retry đúng chứng từ đó. */
   const [draftId, setDraftId] = useState<string>();
 
   useEffect(() => {
-    if (!open) {
-      setCreditAssessment(null);
-      setDraftId(undefined);
-    }
+    if (!open) setDraftId(undefined);
   }, [open]);
 
   const preview = previewQuery.data;
   const busy = draftMutation.isPending || issueMutation.isPending || cleanupDraftMutation.isPending;
 
-  /** Dựng nháp (nếu chưa có) rồi phát hành. Vướng công nợ thì nhường cho hộp cảnh báo. */
-  const issue = async (overrideCredit?: InvoiceCreditAssessment) => {
+  /** Dựng nháp (nếu chưa có) rồi phát hành liền trong một mạch. */
+  const issue = async (overrideMissingPurchaseInvoice = false) => {
     if (!row) return;
     let invoiceId = draftId;
     let draftCreatedInThisAttempt = false;
@@ -65,13 +59,13 @@ export function IssueFromSourceModal({
     try {
       await issueMutation.mutateAsync({
         invoiceId,
-        overrideCredit: overrideCredit ? true : undefined,
-        creditSnapshotHash: overrideCredit?.snapshotHash,
+        overrideMissingPurchaseInvoice:
+          overrideMissingPurchaseInvoice ||
+          preview?.warnings?.some((warning) => warning.code === "PURCHASE_INVOICE_PENDING") ||
+          undefined,
       });
-      setCreditAssessment(null);
       onClose();
     } catch (error) {
-      const assessment = creditAssessmentFromError(error);
       const errorCode = extractApiError(error).code;
       const isMisaFailure = Boolean(errorCode?.startsWith("MISA_"));
 
@@ -91,24 +85,18 @@ export function IssueFromSourceModal({
         }
       }
 
-      // Không phải cảnh báo công nợ thì hook đã báo lỗi rồi; giữ hộp mở để bấm lại được.
-      if (assessment) {
-        setCreditAssessment(assessment);
+      // Các lỗi khác đã được hook báo bằng toast; giữ hộp mở để bấm lại được.
+      if (errorCode === "PURCHASE_INVOICE_CONFIRMATION_REQUIRED") {
+        Modal.confirm({
+          title: "Chưa có hóa đơn đầu vào",
+          content: extractApiError(error).message,
+          okText: "Xác nhận phát hành",
+          cancelText: "Dừng lại",
+          onOk: () => issue(true),
+        });
       }
     }
   };
-
-  if (creditAssessment) {
-    return (
-      <CreditWarningModal
-        open={open}
-        assessment={creditAssessment}
-        loading={busy}
-        onCancel={onClose}
-        onConfirm={() => void issue(creditAssessment)}
-      />
-    );
-  }
 
   // Chưa dựng được bản xem trước thì không cho bấm phát hành — chưa biết sẽ xuất cái gì.
   if (previewQuery.isLoading || previewQuery.isError || !preview) {
@@ -154,6 +142,9 @@ export function IssueFromSourceModal({
         grandTotal: preview.totals.grandTotal,
         lines: preview.lines,
         creditWarning: row.creditWarning,
+        purchaseInvoiceWarning:
+          preview.warnings?.find((warning) => warning.code === "PURCHASE_INVOICE_PENDING") ??
+          row.purchaseInvoiceWarning,
       }}
       onCancel={onClose}
       onConfirm={() => void issue()}

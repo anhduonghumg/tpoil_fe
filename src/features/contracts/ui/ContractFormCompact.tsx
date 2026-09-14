@@ -23,7 +23,6 @@ export type ContractFormMode = "create" | "edit";
 export interface ContractFormValues {
   customerId?: string | null;
   contractTypeId: string;
-  kind: ContractKind;
 
   code: string;
   name: string;
@@ -91,25 +90,6 @@ export const ContractCompactForm: React.FC<ContractCompactFormProps> = ({
           </Form.Item>
         </Col>
 
-        <Col xs={24} md={8}>
-          {/*
-            "Hợp đồng mua bán xăng dầu" dùng cho cả hai chiều, nên loại hợp đồng không
-            nói được mình đang mua hay bán — phải hỏi thẳng.
-          */}
-          <Form.Item
-            label="Chiều hợp đồng"
-            name="kind"
-            rules={[{ required: true, message: "Chọn mình bán hay mình mua" }]}
-          >
-            <Select
-              placeholder="Chọn chiều hợp đồng"
-              options={[
-                { value: "SALES", label: "Mình bán cho đối tác" },
-                { value: "PURCHASE", label: "Mình mua của đối tác" },
-              ]}
-            />
-          </Form.Item>
-        </Col>
 
         <Col xs={24} md={8}>
           <Form.Item

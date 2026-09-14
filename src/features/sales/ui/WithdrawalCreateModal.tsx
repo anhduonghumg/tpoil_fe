@@ -11,6 +11,7 @@ import {
   Select,
   Space,
   Table,
+  Tag,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -65,14 +66,17 @@ export function WithdrawalCreateModal({
 
   const customerPartyId = Form.useWatch("customerPartyId", form);
   const watchedLines = (Form.useWatch("lines", form) ?? []) as LineForm[];
-  const firstLine = watchedLines[0];
+  const sourceQueryLines = watchedLines.map((line) => ({
+    productId: line.productId,
+    warehouseId: line.warehouseId,
+    qty: line.requestedQty,
+  }));
+  const sourceQueryKey = JSON.stringify(sourceQueryLines);
 
-  // Ứng viên lô nguồn tính theo dòng đầu — đủ để Sale thấy còn lô nào và bao nhiêu.
+  // Chỉ những đơn lô phục vụ được toàn bộ các dòng mới được đưa ra cho Sale chọn.
   const candidatesQuery = useWithdrawalSourceCandidates({
     customerPartyId,
-    productId: firstLine?.productId,
-    warehouseId: firstLine?.warehouseId,
-    qty: firstLine?.requestedQty,
+    lines: sourceQueryLines,
   });
   const candidates = candidatesQuery.data?.candidates ?? [];
   const hasMultiple = candidatesQuery.data?.hasMultiple ?? false;
@@ -96,7 +100,14 @@ export function WithdrawalCreateModal({
   // Đổi khách/hàng thì lựa chọn cũ không còn ý nghĩa.
   useEffect(() => {
     setSourceOrderId(undefined);
-  }, [customerPartyId, firstLine?.productId, firstLine?.warehouseId]);
+  }, [customerPartyId, sourceQueryKey]);
+
+  // Hiển thị luôn lựa chọn tự động để Sale biết chính xác phiếu sẽ rút vào lô nào.
+  useEffect(() => {
+    if (!sourceOrderId && suggestedSalesOrderId) {
+      setSourceOrderId(suggestedSalesOrderId);
+    }
+  }, [sourceOrderId, suggestedSalesOrderId]);
 
   const addLine = () => {
     const line = emptyLine();
@@ -231,7 +242,17 @@ export function WithdrawalCreateModal({
       width: 40,
       render: (_, candidate) => <Radio value={candidate.salesOrderId} />,
     },
-    { title: "Đơn lô", dataIndex: "orderNo", width: 150 },
+    {
+      title: "Đơn lô nguồn",
+      dataIndex: "orderNo",
+      width: 210,
+      render: (value: string, candidate) => (
+        <Space size={6}>
+          <span>{value}</span>
+          {candidate.salesOrderId === suggestedSalesOrderId && <Tag color="blue">FIFO</Tag>}
+        </Space>
+      ),
+    },
     {
       title: "Ngày",
       dataIndex: "orderDate",
@@ -355,14 +376,14 @@ export function WithdrawalCreateModal({
         />
       </Form>
 
-      {customerPartyId && firstLine?.productId && (
+      {customerPartyId && sourceQueryLines.some((line) => line.productId) && (
         <div style={{ marginTop: 16 }}>
           <Space style={{ marginBottom: 8 }}>
             <Typography.Text strong>Lô nguồn</Typography.Text>
             <Typography.Text type="secondary">
               {hasMultiple
-                ? "Để trống thì hệ thống lấy lô cũ nhất (FIFO); chọn dòng bên dưới nếu muốn khác"
-                : "Hệ thống tự gắn lô phù hợp; chọn dòng bên dưới nếu muốn khác"}
+                ? "Đã chọn lô cũ nhất theo FIFO; Sale có thể chọn một lô khác bên dưới"
+                : "Hệ thống đã chọn lô phù hợp theo FIFO"}
             </Typography.Text>
           </Space>
 

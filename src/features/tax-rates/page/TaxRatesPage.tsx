@@ -1,6 +1,7 @@
 import React, { useState } from "react"
 import { Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from "antd"
 import type { ColumnsType } from "antd/es/table"
+import "../../../shared/ui/data-grid.css"
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons"
 import { useCreateVatRate, useDeleteVatRate, useUpdateVatRate, useVatRates } from "../hooks"
 import type { UpsertVatRatePayload, VatRate } from "../types"
@@ -77,7 +78,7 @@ export default function TaxRatesPage() {
         </div>
         <Button size="small" type="primary" icon={<PlusOutlined />} onClick={openCreate}>Thêm mức thuế</Button>
       </div>
-      <Table<VatRate> size="small" rowKey="id" loading={ratesQuery.isLoading} columns={columns} dataSource={ratesQuery.data ?? []} pagination={false} />
+      <Table<VatRate> className="data-grid" bordered size="small" rowKey="id" loading={ratesQuery.isLoading} columns={columns} dataSource={ratesQuery.data ?? []} pagination={false} />
       <Modal open={open} title={editing ? "Cập nhật mức thuế" : "Thêm mức thuế"} onCancel={close} onOk={save} confirmLoading={create.isPending || update.isPending} destroyOnHidden>
         <Form form={form} layout="vertical" size="small">
           <Form.Item name="name" label="Tên mức thuế" rules={[{ required: true, message: "Nhập tên mức thuế" }]}><Input placeholder="Ví dụ: 10% hoặc Không chịu thuế" /></Form.Item>

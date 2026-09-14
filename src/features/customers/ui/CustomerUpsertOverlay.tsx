@@ -1,11 +1,16 @@
 import React, { useEffect } from "react";
 import { type FormInstance } from "antd";
+import type { Dayjs } from "dayjs";
 import {
   useCreateCustomer,
   useCustomerDetail,
   useUpdateCustomer,
 } from "../hooks";
-import type { Customer, CustomerRole, CustomerType, PartnerRole, PartyType } from "../types";
+import type {
+  Customer,
+  PartnerRole,
+  PartyType,
+} from "../types";
 import CustomerCompactForm from "./CustomerCompactForm";
 import OverlayForm from "../../employees/ui/OverlayForm";
 
@@ -172,13 +177,11 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
         shippingAddress: detail.shippingAddress,
         contactEmail: detail.contactEmail,
         contactPhone: detail.contactPhone,
-        bankAccountNo: detail.bankAccountNo,
-        roles: detail.roles,
         merchantRole: detail.merchantRole ?? undefined,
-        type: detail.type,
+        // Bỏ trống ngày áp dụng: chỉ khi người dùng đổi loại thương nhân mới cần điền,
+        // điền sẵn ngày cũ sẽ khiến kỳ mới bị lùi về quá khứ ngoài ý muốn.
+        merchantEffectiveFrom: undefined,
         partnerRoles,
-        creditLimit: detail.creditLimit,
-        paymentTermDays: detail.paymentTermDays,
         taxVerified: detail.taxVerified,
         taxSource: detail.taxSource,
         salesOwnerEmpId: detail?.salesOwnerEmpId ?? undefined,
@@ -215,9 +218,11 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
     const payload: Partial<Customer> = {
       code: values.code || undefined,
       name: values.name,
-      type: values.type as CustomerType,
-      roles: values.roles as CustomerRole[] | undefined,
       merchantRole: values.merchantRole ?? null,
+      // Bỏ trống = backend áp dụng từ hôm nay.
+      merchantEffectiveFrom: values.merchantEffectiveFrom
+        ? (values.merchantEffectiveFrom as Dayjs).format("YYYY-MM-DD")
+        : undefined,
       // flags + partyType
       isCustomer,
       isSupplier,
@@ -230,16 +235,9 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
       shippingAddress: values.shippingAddress || undefined,
       contactEmail: values.contactEmail || undefined,
       contactPhone: values.contactPhone || undefined,
-      bankAccountNo: values.bankAccountNo || undefined,
-
-      creditLimit:
-        values.creditLimit !== undefined
-          ? Number(values.creditLimit)
-          : undefined,
-      paymentTermDays:
-        values.paymentTermDays !== undefined
-          ? Number(values.paymentTermDays)
-          : undefined,
+      // Tài khoản ngân hàng có màn quản lý riêng (PartyBankAccountsModal) vì chúng được
+      // kế toán sửa theo nhịp khác, và xóa một tài khoản đã gắn chứng từ có ràng buộc
+      // riêng — không gộp vào một lần lưu hồ sơ.
 
       taxVerified: !!values.taxVerified,
       taxSource: values.taxSource || undefined,
@@ -266,6 +264,7 @@ const CustomerUpsertFormContent: React.FC<CustomerUpsertFormContentProps> = ({
       onFinish={handleFinish}
       partyTypeDefault={partyTypeDefault}
       partnerRoleDefault={partnerRoleDefault}
+      merchantHistory={isEdit ? detail?.merchantHistory : undefined}
     />
   );
 };

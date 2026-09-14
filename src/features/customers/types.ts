@@ -21,6 +21,8 @@ export interface Customer {
   type: CustomerType;
   partyType: PartyType;
   merchantRole?: MerchantRole | null;
+  /** Tên đầy đủ của loại thương nhân; chỉ API overview trả về. */
+  merchantLabel?: string | null;
   roles?: CustomerRole[];
   partnerRoles?: OperationalPartnerRole[];
 
@@ -35,8 +37,19 @@ export interface Customer {
 
   contactEmail?: string | null;
   contactPhone?: string | null;
+  /** Bản sao của tài khoản mặc định trong `bankAccounts`, backend tự đồng bộ. */
   bankAccountNo?: string | null;
+  bankAccounts?: PartyBankAccount[];
 
+  /** Ngày loại thương nhân mới bắt đầu có hiệu lực (chỉ dùng khi gửi lên). */
+  merchantEffectiveFrom?: string;
+  /** Các kỳ phân loại thương nhân, mới nhất trước; chỉ có ở API chi tiết. */
+  merchantHistory?: MerchantRolePeriod[];
+
+  /**
+   * Hạn mức và kỳ thanh toán thuộc màn Quản lý công nợ (có kiểm quyền, lý do và lịch sử).
+   * Ở đây chỉ để đọc, form hồ sơ đối tác không gửi lên.
+   */
   creditLimit?: number | null;
   paymentTermDays?: number | null;
 
@@ -59,6 +72,20 @@ export interface Customer {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;
+}
+
+/**
+ * Tài khoản ngân hàng của đối tác. Một nhà cung cấp thường có nhiều tài khoản, và đề
+ * nghị thanh toán chọn tài khoản thụ hưởng trong số này.
+ */
+export interface PartyBankAccount {
+  id?: string;
+  bankName: string;
+  bankCode?: string | null;
+  accountNo: string;
+  accountName: string;
+  isDefault?: boolean;
+  isActive?: boolean;
 }
 
 export interface CustomerGroupOption {

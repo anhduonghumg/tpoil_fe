@@ -65,6 +65,24 @@ export function ContractTypeTable({
       align: "center",
     },
     {
+      // Cột này quyết định loại hợp đồng có dùng để đặt đơn mua/bán được không, nên nó
+      // đáng nhìn ngang với trạng thái chứ không nên giấu trong form.
+      title: "Giao dịch",
+      dataIndex: "allowsTrading",
+      width: 130,
+      align: "center",
+      render: (v: boolean) =>
+        v ? (
+          <Tooltip title="Đối tác có hợp đồng loại này thì đặt được đơn mua / đơn bán">
+            <Tag color="blue">Cho phép</Tag>
+          </Tooltip>
+        ) : (
+          <Tooltip title="Hợp đồng dịch vụ — không dùng để đặt đơn mua bán xăng dầu">
+            <Tag color="default">Không</Tag>
+          </Tooltip>
+        ),
+    },
+    {
       title: "Trạng thái",
       dataIndex: "isActive",
       width: 120,
@@ -98,7 +116,9 @@ export function ContractTypeTable({
 
   return (
     <Table
-      size="middle"
+      className="data-grid"
+      bordered
+      size="small"
       rowKey={(r) => r.id}
       loading={isLoading}
       columns={columns}

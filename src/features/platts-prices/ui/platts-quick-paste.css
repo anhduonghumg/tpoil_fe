@@ -1,0 +1,81 @@
+/* Modal dán nhanh giá Platts. */
+
+.platts-paste-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.platts-paste-body textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.platts-paste-summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.platts-paste-summary .ant-tag {
+  margin: 0;
+}
+
+/* Ô chọn mặt hàng nằm ngay dưới tên cột: người dùng sửa đúng chỗ đang nhìn. */
+.platts-paste-column-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+}
+
+.platts-paste-column-name {
+  color: #21418f;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.platts-paste-preview .ant-table-thead > tr > th {
+  background: #f4f8ff !important;
+  padding: 6px 8px !important;
+  vertical-align: top;
+}
+
+.platts-paste-preview .ant-table-tbody > tr > td {
+  padding: 3px 8px !important;
+  font-size: 12px;
+}
+
+.platts-paste-value {
+  color: #16305f;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Cột chưa gán mặt hàng: số vẫn đọc được nhưng sẽ không lưu, nên hiện mờ. */
+.platts-paste-ignored {
+  color: #98a2b3;
+  font-variant-numeric: tabular-nums;
+  text-decoration: line-through;
+}
+
+.platts-paste-invalid {
+  color: #d4380d;
+  font-weight: 600;
+}
+
+.platts-paste-blank {
+  color: #d0d5dd;
+}
+
+/* Ngày rơi ngoài tháng đang xem: vẫn lưu được, chỉ nhắc để khỏi tưởng dán nhầm. */
+.platts-paste-outside {
+  color: #ad4e00;
+  font-weight: 600;
+}

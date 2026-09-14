@@ -98,6 +98,14 @@ export default function SalesOrderDetailPage() {
     () => (order?.lines ?? []).reduce((sum, line) => sum + lineNetAmount(line), 0),
     [order],
   );
+  const transportTotal = useMemo(
+    () =>
+      (order?.lines ?? []).reduce(
+        (sum, line) => sum + Number(line.orderedActualQty ?? 0) * Number(line.transportFeeUnitPrice ?? 0),
+        0,
+      ),
+    [order],
+  );
 
   if (orderQuery.isLoading) {
     return (
@@ -164,6 +172,13 @@ export default function SalesOrderDetailPage() {
       title: "Chiết khấu",
       dataIndex: "discountAmount",
       width: 100,
+      align: "right",
+      render: (value) => formatMoney(value ?? 0),
+    },
+    {
+      title: "CPVC/đv",
+      dataIndex: "transportFeeUnitPrice",
+      width: 105,
       align: "right",
       render: (value) => formatMoney(value ?? 0),
     },
@@ -377,6 +392,16 @@ export default function SalesOrderDetailPage() {
           <Descriptions.Item label="Tổng tiền chưa thuế">
             <strong>{formatMoney(total)} đ</strong>
           </Descriptions.Item>
+          {order.hasTransportFee && (
+            <>
+              <Descriptions.Item label="Tổng CPVC">
+                <strong>{formatMoney(transportTotal)} đ</strong>
+              </Descriptions.Item>
+              <Descriptions.Item label="Xe / lái xe" span={2}>
+                {[order.transportVehiclePlate, order.transportDriverName].filter(Boolean).join(" / ") || "—"}
+              </Descriptions.Item>
+            </>
+          )}
           <Descriptions.Item label="Ghi chú" span={4}>
             {order.note ?? "—"}
           </Descriptions.Item>

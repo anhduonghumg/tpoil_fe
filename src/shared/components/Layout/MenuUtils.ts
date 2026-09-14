@@ -30,6 +30,11 @@ export function getAuthorizedMenu(
       label: item.label,
     };
 
+    // Tiêu đề mục phải giữ nguyên type, nếu không AntD dựng nó thành item bấm được.
+    if (item.type) {
+      mappedItem.type = item.type;
+    }
+
     if (visibleChildren && visibleChildren.length > 0) {
       mappedItem.children = visibleChildren;
     }

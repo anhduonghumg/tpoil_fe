@@ -1,0 +1,24 @@
+/* Hộp nhập bảng giá: gom đủ 6 ô văn thư + lưới giá vào một màn hình, không phải cuộn.
+   Sáu ô đầu chỉ là thông tin đi kèm, chỗ đáng chiếm là lưới giá bên dưới. */
+.price-bulletin-form .ant-form-item {
+  margin-bottom: 8px;
+}
+
+.price-bulletin-form .ant-form-item-label {
+  padding-bottom: 2px;
+}
+
+.price-bulletin-form .ant-form-item-label > label {
+  height: 20px;
+  font-size: 12px;
+  color: #475569;
+}
+
+/* Lưới giá: hàng vừa đủ cao cho một ô nhập, không hơn. */
+.price-bulletin-grid .ant-table-tbody > tr > td {
+  padding: 4px 8px !important;
+}
+
+.price-bulletin-grid .ant-table-thead > tr > th {
+  padding: 6px 8px !important;
+}

@@ -62,6 +62,10 @@ export const CustomerGroupTable: React.FC<{
 
   return (
     <Table
+      size="small"
+      className="data-grid"
+      scroll={{ x: 640 }}
+      bordered
       rowKey="id"
       columns={columns}
       dataSource={items}

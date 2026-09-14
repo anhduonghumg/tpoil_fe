@@ -26,7 +26,6 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { PartySelect } from "../../../shared/ui/PartySelect";
 import { useProductSelect } from "../../products/hooks";
 import { useVatRatesSelect } from "../../tax-rates/hooks";
-import { SalesOrdersApi } from "../../sales/api";
 import { useSalesOrderDetail } from "../../sales/hooks";
 import { notify } from "../../../shared/lib/notification";
 import { PurchasesApi } from "../api";
@@ -47,6 +46,7 @@ import "../retail-purchase.css";
 
 type LineForm = {
   key: string;
+  salesOrderLineId?: string;
   productId?: string;
   receivingScope?: string;
   orderedQty?: number;
@@ -63,7 +63,6 @@ type FormValues = {
   orderDate: dayjs.Dayjs;
   expectedDate?: dayjs.Dayjs;
   supplierCustomerId: string;
-  customerPartyId?: string;
   priceRegionCode: string;
   paymentMode: "PREPAID" | "POSTPAID";
   releaseCode: "TP" | "NCC";
@@ -132,6 +131,7 @@ export default function RetailPurchaseCreatePage() {
     if (!id || !order) return;
     const loadedLines = (order.lines ?? []).map((line: any) => ({
       key: line.id,
+      salesOrderLineId: line.salesOrderLineId,
       productId: line.productId,
       receivingScope: line.receivingWarehouse?.id
         ? `warehouse:${line.receivingWarehouse.id}`
@@ -159,20 +159,31 @@ export default function RetailPurchaseCreatePage() {
   useEffect(() => {
     const salesOrder = salesOrderQuery.data;
     if (id || !salesOrder?.lines?.length) return;
-    const loadedLines = salesOrder.lines.map((line) => ({
+    const remainingLines = salesOrder.lines.filter(
+      (line) => Number(line.purchaseProgress?.remainingQty ?? line.orderedActualQty) > 0,
+    );
+    const initialReleaseCode = remainingLines[0]?.supplySource ?? "TP";
+    // Một đơn mua hiện dùng chung một mã rút. Nếu đơn bán có cả TP và NCC,
+    // tạo nhóm đầu tiên trước; lần bấm "Mua tiếp" sẽ nạp nhóm còn lại.
+    const loadedLines = remainingLines
+      .filter((line) => (line.supplySource ?? "TP") === initialReleaseCode)
+      .map((line) => ({
       key: line.id,
+      salesOrderLineId: line.id,
       productId: line.productId,
       receivingScope: line.receivingWarehouse?.id
         ? `warehouse:${line.receivingWarehouse.id}`
         : undefined,
-      orderedQty: Number(line.orderedActualQty),
+      orderedQty: Number(line.purchaseProgress?.remainingQty ?? line.orderedActualQty),
       discountAmount: 0,
       taxRate: 10,
+      releaseCode: initialReleaseCode,
     }));
     setLineRows(loadedLines);
     form.setFieldsValue({
       orderDate: dayjs(salesOrder.orderDate),
       note: salesOrder.note ?? undefined,
+      releaseCode: initialReleaseCode,
       lines: loadedLines,
     });
   }, [salesOrderQuery.data, form, id]);
@@ -470,6 +481,7 @@ export default function RetailPurchaseCreatePage() {
         values.paymentMode === "POSTPAID" ? Number(values.paymentTermDays ?? 7) : 0;
 
       const payload: UpsertPurchaseOrderPayload = {
+        salesOrderId: id ? undefined : salesOrderId,
         orderNo: "AUTO",
         supplierCustomerId: values.supplierCustomerId,
         orderType: "SINGLE",
@@ -497,6 +509,7 @@ export default function RetailPurchaseCreatePage() {
             (warehousesQuery.data ?? []) as any,
           );
           return {
+            salesOrderLineId: line.salesOrderLineId,
             productId: line.productId!,
             supplierLocationId: receiving?.warehouseId,
             plannedReceivingAreaId: receiving?.warehouseId ? undefined : receiving?.areaId,
@@ -514,26 +527,7 @@ export default function RetailPurchaseCreatePage() {
       const savedOrderId = result?.po?.id ?? result?.id ?? id;
 
       if (savedOrderId && salesOrderId) {
-        // Started from a customer order: link the two instead of creating a new one.
-        try {
-          await SalesOrdersApi.attachPurchaseOrder(salesOrderId, savedOrderId);
-          notify.success("Đã gắn đơn mua với đơn đặt hàng của khách");
-        } catch {
-          notify.warning("Đã lưu đơn mua nhưng chưa gắn được với đơn đặt hàng.");
-        }
-      } else if (savedOrderId && values.customerPartyId) {
-        // Entering the customer here creates the sales order in the same step, so the
-        // retail flow only needs the data once.
-        try {
-          await SalesOrdersApi.createFromPurchaseOrder(savedOrderId, {
-            customerPartyId: values.customerPartyId,
-          });
-          notify.success("Đã tạo kèm đơn đặt hàng của khách");
-        } catch {
-          notify.warning(
-            "Đã lưu đơn mua nhưng chưa tạo được đơn đặt hàng. Bạn có thể tạo lại ở màn chi tiết.",
-          );
-        }
+        notify.success("Đã tạo và gắn đơn mua đối ứng");
       }
 
       navigate(savedOrderId ? `/purchase-orders/${savedOrderId}` : "/commercial-purchases/retail");
@@ -669,20 +663,6 @@ export default function RetailPurchaseCreatePage() {
               )}
             </Form.Item>
 
-            {!id && !salesOrderId ? (
-              <Form.Item
-                className="commercial-lot-field-customer"
-                name="customerPartyId"
-                label="Khách hàng đặt (kinh doanh)"
-                tooltip="Nhập khách đặt hàng để tạo luôn đơn bán, khỏi nhập lại lần hai"
-              >
-                <PartySelect
-                  partyRole="SELLABLE"
-                  displayMode="code"
-                  placeholder="Chọn khách hàng đặt (nếu có)"
-                />
-              </Form.Item>
-            ) : null}
             {salesOrderId && salesOrderQuery.data ? (
               <Form.Item className="commercial-lot-field-customer" label="Đơn khách đặt">
                 <div className="commercial-lot-contract-state is-valid">

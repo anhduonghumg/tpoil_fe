@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Button,
   Card,
@@ -13,7 +13,10 @@ import {
   Row,
   Select,
   Space,
+  Switch,
   Table,
+  Tag,
+  Tooltip,
   Tabs,
   Typography,
   DatePicker,
@@ -25,12 +28,14 @@ import {
   PlusOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { CustomerSelect } from "../../shared/ui/CustomerSelect";
 import type { CustomerSelectRole } from "../../shared/ui/CustomerSelect";
 import { notify } from "../../shared/lib/notification";
+import { extractApiError } from "../../shared/lib/httpError";
 import { http } from "../../shared/lib/http";
 import { exportExcelWorkbook } from "../../shared/utils/exportExcelExcelJS";
 import {
@@ -803,16 +808,6 @@ type MatrixMetric =
   | "accountingQty"
   | "accountingValue";
 
-type InventoryMatrixExportColumn = {
-  supplierId: string;
-  supplierName: string;
-  productId: string;
-  productCode: string;
-  productName: string;
-  releaseCode: string;
-  dataIndex: string;
-};
-
 function numberOf(value: unknown) {
   const result = Number(value ?? 0);
   return Number.isFinite(result) ? result : 0;
@@ -879,157 +874,281 @@ function metricValue(row: any, metric: MatrixMetric) {
   return numberOf(row.accountingValue);
 }
 
-function inventoryMatrix(rows: any[], metric: MatrixMetric) {
-  const suppliers = new Map<
-    string,
-    {
-      id: string;
-      name: string;
-      products: Map<
-        string,
-        { code?: string; name: string; releaseCodes: Set<string> }
-      >;
-    }
-  >();
-  const warehouses = new Map<string, any>();
+/**
+ * Trục của ma trận tồn kho — đặt tên theo chiều nằm trên trục cột.
+ *
+ * - "byParty"     cột là NCC > mặt hàng, dòng là khu vực > kho. Bố cục gốc.
+ * - "byWarehouse" cột là khu vực > kho > mặt hàng, dòng chỉ còn NCC. Mỗi NCC đúng
+ *                 một dòng nên danh sách 150 NCC vẫn quét mắt được; đổi lại bảng
+ *                 rộng theo (số kho × số mặt hàng).
+ *
+ * Mã rút TP/NCC luôn là cấp cột trong cùng ở cả hai. Hai bố cục dùng chung một bộ
+ * dựng, chỉ khai báo khác nhau chiều nào xuống dòng, chiều nào lên cột.
+ */
+type MatrixAxis = "byParty" | "byWarehouse";
 
-  rows.forEach((row) => {
+/** Một cột lá của bản xuất Excel: nhãn từng cấp tiêu đề, cấp cuối là mã rút. */
+type InventoryMatrixExportColumn = {
+  path: string[];
+  dataIndex: string;
+};
+
+/** Một dòng dữ liệu thô đã rút gọn về đúng các chiều mà ma trận cần. */
+type MatrixFact = {
+  areaId: string;
+  areaName: string;
+  warehouseId: string;
+  warehouseName: string;
+  partyId: string;
+  partyName: string;
+  productId: string;
+  productLabel: string;
+  productName: string;
+  releaseCode: string;
+  value: number;
+};
+
+function toMatrixFacts(rows: any[], metric: MatrixMetric): MatrixFact[] {
+  return rows.flatMap((row) => {
     const warehouseId = row.supplierLocation?.id ?? row.supplierLocationId;
     const productId = row.product?.id ?? row.productId;
-    if (!warehouseId || !productId) return;
-
-    const supplierId = supplierIdOf(row);
-    const supplierName = supplierCodeOf(row);
-    const productName = row.product?.name ?? "Chưa xác định";
-    const releaseCode = releaseCodeOf(row);
-    const cellKey = `m:${supplierId}:${productId}:${releaseCode}`;
-    const supplier = suppliers.get(supplierId) ?? {
-      id: supplierId,
-      name: supplierName,
-      products: new Map(),
-    };
-    const product = supplier.products.get(productId) ?? {
-      code: row.product?.code ?? undefined,
-      name: productName,
-      // Ma trận tồn luôn phải cho thấy cả hai mã rút. Nhờ vậy người dùng biết
-      // rõ mã TP/NCC nào hiện chưa có tồn, thay vì nhầm ô trống là thiếu dữ liệu.
-      releaseCodes: new Set<string>(["TP", "NCC"]),
-    };
-    product.releaseCodes.add(releaseCode);
-    supplier.products.set(productId, product);
-    suppliers.set(supplierId, supplier);
+    if (!warehouseId || !productId) return [];
 
     const isAreaOnly = row.supplierLocationType === "AREA";
-    const areaName = inventoryAreaNameOf(row);
-    const areaId = inventoryAreaIdOf(row);
-    const locationName = isAreaOnly
-      ? "Chưa xác định kho"
-      : row.supplierLocation?.name ?? "Chưa xác định kho";
-    const warehouse = warehouses.get(warehouseId) ?? {
-      id: warehouseId,
-      areaId,
-      areaName,
-      warehouseName: locationName,
-    };
-    warehouse.warehouseName = locationName;
-    warehouse[cellKey] =
-      numberOf(warehouse[cellKey]) + metricValue(row, metric);
-    warehouses.set(warehouseId, warehouse);
+    const productName = row.product?.name ?? "Chưa xác định";
+    return [
+      {
+        areaId: inventoryAreaIdOf(row),
+        areaName: inventoryAreaNameOf(row),
+        warehouseId,
+        warehouseName: isAreaOnly
+          ? "Chưa xác định kho"
+          : row.supplierLocation?.name ?? "Chưa xác định kho",
+        partyId: supplierIdOf(row),
+        partyName: supplierCodeOf(row),
+        productId,
+        productLabel: row.product?.code ?? productName,
+        productName,
+        releaseCode: releaseCodeOf(row),
+        value: metricValue(row, metric),
+      },
+    ];
   });
+}
 
-  const releaseCodeOrder = (a: string, b: string) => {
-    const order = ["TP", "NCC", "UNCLASSIFIED"];
-    return order.indexOf(a) - order.indexOf(b);
-  };
-  const sortedSuppliers = [...suppliers.values()].sort((a, b) =>
-    a.name.localeCompare(b.name, "vi")
-  );
-  const exportColumns: InventoryMatrixExportColumn[] = sortedSuppliers.flatMap(
-    (supplier) =>
-      [...supplier.products.entries()]
-        .sort(([, a], [, b]) =>
-          (a.code ?? a.name).localeCompare(b.code ?? b.name, "vi")
-        )
-        .flatMap(([productId, product]) =>
-          [...product.releaseCodes]
-            .sort(releaseCodeOrder)
-            .map((releaseCode) => ({
-              supplierId: supplier.id,
-              supplierName: supplier.name,
-              productId,
-              productCode: product.code ?? product.name,
-              productName: product.name,
-              releaseCode,
-              dataIndex: `m:${supplier.id}:${productId}:${releaseCode}`,
-            }))
-        )
-  );
-  const supplierColumns = sortedSuppliers.map((supplier) => ({
-    title: supplier.name,
-    children: [...supplier.products.entries()]
-      .sort(([, a], [, b]) =>
-        (a.code ?? a.name).localeCompare(b.code ?? b.name, "vi")
-      )
-      .map(([productId, product]) => ({
-        title: <span title={product.name}>{product.code ?? product.name}</span>,
-        children: [...product.releaseCodes]
-          .sort(releaseCodeOrder)
-          .map((releaseCode) => ({
-            title: releaseCode === "UNCLASSIFIED" ? "CXD" : releaseCode,
-            dataIndex: `m:${supplier.id}:${productId}:${releaseCode}`,
-            width: 88,
-            align: "right" as const,
-            onHeaderCell: () => ({ style: { textAlign: "center" } }),
-            render: (value: unknown, record: any) =>
-              record.isAreaGroup ? (
-                <strong>{n(numberOf(value))}</strong>
-              ) : (
-                n(numberOf(value))
-              ),
-          })),
-      })),
-  }));
+type MatrixNode = { id: string; label: string; title?: string };
+type MatrixLevel = (fact: MatrixFact) => MatrixNode;
 
-  const areas = new Map<string, any>();
-  for (const warehouse of warehouses.values()) {
-    const groupKey = `area:${warehouse.areaId}`;
-    const area = areas.get(groupKey) ?? {
-      id: groupKey,
-      warehouseName: warehouse.areaName,
-      isAreaGroup: true,
-      children: [],
+type MatrixAxisSpec = {
+  rowHeaderTitle: string;
+  /** 1 hoặc 2 cấp. Có 2 cấp thì cấp đầu là dòng nhóm, cộng dồn từ các dòng con. */
+  rowLevels: MatrixLevel[];
+  /** 1..n cấp tiêu đề cột. Mã rút là cấp trong cùng, bộ dựng tự thêm. */
+  colLevels: MatrixLevel[];
+};
+
+const areaLevel: MatrixLevel = (fact) => ({
+  id: `area:${fact.areaId}`,
+  label: fact.areaName,
+});
+const warehouseLevel: MatrixLevel = (fact) => ({
+  id: fact.warehouseId,
+  label: fact.warehouseName,
+});
+const productLevel: MatrixLevel = (fact) => ({
+  id: fact.productId,
+  label: fact.productLabel,
+  title: fact.productName,
+});
+
+function matrixAxisSpec(axis: MatrixAxis, partyLabel: string): MatrixAxisSpec {
+  if (axis === "byWarehouse") {
+    return {
+      rowHeaderTitle: partyLabel,
+      // Chỉ NCC nằm dọc: mỗi NCC đúng một dòng, không có dòng con để bung.
+      rowLevels: [(fact) => ({ id: `party:${fact.partyId}`, label: fact.partyName })],
+      colLevels: [areaLevel, warehouseLevel, productLevel],
     };
-    for (const [key, value] of Object.entries(warehouse)) {
-      if (!key.startsWith("m:")) continue;
-      area[key] = numberOf(area[key]) + numberOf(value);
-    }
-    area.children.push({ ...warehouse, isAreaGroup: false });
-    areas.set(groupKey, area);
   }
 
-  const groupedRows = [...areas.values()]
-    .sort((a, b) => a.warehouseName.localeCompare(b.warehouseName, "vi"))
-    .map((area) => ({
-      ...area,
-      children: area.children.sort((a: any, b: any) =>
-        a.warehouseName.localeCompare(b.warehouseName, "vi")
-      ),
-    }));
+  return {
+    rowHeaderTitle: "Khu vực / Kho",
+    rowLevels: [areaLevel, warehouseLevel],
+    colLevels: [
+      (fact) => ({ id: fact.partyId, label: fact.partyName }),
+      productLevel,
+    ],
+  };
+}
+
+const RELEASE_CODE_ORDER = ["TP", "NCC", "UNCLASSIFIED"];
+const releaseCodeOrder = (a: string, b: string) =>
+  RELEASE_CODE_ORDER.indexOf(a) - RELEASE_CODE_ORDER.indexOf(b);
+const releaseCodeTitle = (code: string) => (code === "UNCLASSIFIED" ? "CXD" : code);
+const byLabel = (a: { label: string }, b: { label: string }) =>
+  a.label.localeCompare(b.label, "vi");
+
+/** Nút trên cây tiêu đề cột; cấp cuối giữ danh sách mã rút thay cho con. */
+type ColTreeNode = MatrixNode & {
+  children: Map<string, ColTreeNode>;
+  releaseCodes: Set<string>;
+};
+
+const newColNode = (node: MatrixNode): ColTreeNode => ({
+  ...node,
+  children: new Map(),
+  // Luôn bày cả hai mã rút, kể cả mã chưa có tồn: ô trống có nghĩa là "không còn
+  // hàng", đừng để người dùng nhầm thành "thiếu dữ liệu".
+  releaseCodes: new Set<string>(["TP", "NCC"]),
+});
+
+function inventoryMatrix(
+  rows: any[],
+  metric: MatrixMetric,
+  options?: { axis?: MatrixAxis; partyLabel?: string },
+) {
+  const spec = matrixAxisSpec(
+    options?.axis ?? "byParty",
+    options?.partyLabel ?? "Nhà cung cấp",
+  );
+  const facts = toMatrixFacts(rows, metric);
+
+  type RowNode = MatrixNode & {
+    children: Map<string, RowNode>;
+    cells: Record<string, number>;
+  };
+
+  const colRoots = new Map<string, ColTreeNode>();
+  const rowRoots = new Map<string, RowNode>();
+
+  for (const fact of facts) {
+    // Cây cột: đi dần xuống theo từng cấp đã khai báo.
+    let colLevelNodes = colRoots;
+    let colNode: ColTreeNode | undefined;
+    const colPath: string[] = [];
+    for (const level of spec.colLevels) {
+      const node = level(fact);
+      colPath.push(node.id);
+      colNode = colLevelNodes.get(node.id) ?? newColNode(node);
+      colLevelNodes.set(node.id, colNode);
+      colLevelNodes = colNode.children;
+    }
+    colNode?.releaseCodes.add(fact.releaseCode);
+    const cellKey = `m:${colPath.join(":")}:${fact.releaseCode}`;
+
+    // Cây dòng: tương tự, và ô số nằm ở cấp cuối.
+    let rowLevelNodes = rowRoots;
+    let rowNode: RowNode | undefined;
+    let rowPath = "";
+    for (const level of spec.rowLevels) {
+      const node = level(fact);
+      // Cùng một mặt hàng/kho nằm dưới nhiều nhóm nên khóa dòng phải kèm cả đường đi.
+      rowPath = rowPath ? `${rowPath}|${node.id}` : node.id;
+      rowNode = rowLevelNodes.get(node.id) ?? {
+        ...node,
+        id: rowPath,
+        children: new Map(),
+        cells: {},
+      };
+      rowLevelNodes.set(node.id, rowNode);
+      rowLevelNodes = rowNode.children;
+    }
+    if (rowNode) {
+      rowNode.cells[cellKey] = numberOf(rowNode.cells[cellKey]) + fact.value;
+    }
+  }
+
+  const sortedNodes = <T extends MatrixNode>(nodes: Map<string, T>) =>
+    [...nodes.values()].sort(byLabel);
+
+  /** Duyệt cây cột thành cột antd; cấp cuối nở ra thành các cột mã rút. */
+  const buildColumns = (
+    nodes: Map<string, ColTreeNode>,
+    depth: number,
+    parentPath: string[],
+  ): any[] =>
+    sortedNodes(nodes).map((node) => {
+      const path = [...parentPath, node.id];
+      const isLeafLevel = depth === spec.colLevels.length - 1;
+      const title = <span title={node.title ?? node.label}>{node.label}</span>;
+      return {
+        title,
+        children: isLeafLevel
+          ? [...node.releaseCodes].sort(releaseCodeOrder).map((releaseCode) => ({
+              title: releaseCodeTitle(releaseCode),
+              dataIndex: `m:${path.join(":")}:${releaseCode}`,
+              width: 88,
+              align: "right" as const,
+              onHeaderCell: () => ({ style: { textAlign: "center" } }),
+              render: (value: unknown, record: any) =>
+                record.isAreaGroup ? (
+                  <strong>{n(numberOf(value))}</strong>
+                ) : (
+                  n(numberOf(value))
+                ),
+            }))
+          : buildColumns(node.children, depth + 1, path),
+      };
+    });
+
+  /** Cùng thứ tự duyệt như buildColumns, nhưng phẳng ra cho bản xuất Excel. */
+  const buildExportColumns = (
+    nodes: Map<string, ColTreeNode>,
+    depth: number,
+    parentPath: string[],
+    parentLabels: string[],
+  ): InventoryMatrixExportColumn[] =>
+    sortedNodes(nodes).flatMap((node) => {
+      const path = [...parentPath, node.id];
+      const labels = [...parentLabels, node.label];
+      return depth === spec.colLevels.length - 1
+        ? [...node.releaseCodes].sort(releaseCodeOrder).map((releaseCode) => ({
+            path: [...labels, releaseCodeTitle(releaseCode)],
+            dataIndex: `m:${path.join(":")}:${releaseCode}`,
+          }))
+        : buildExportColumns(node.children, depth + 1, path, labels);
+    });
+
+  /* Dòng nhóm cộng dồn từ dòng con. Giữ nguyên tên cờ isAreaGroup dù ở bố cục đảo
+     nó là dòng NCC — đổi tên sẽ phải sửa cả CSS lẫn hàm xuất Excel. */
+  const toTableRow = (node: RowNode): any => {
+    const children = sortedNodes(node.children).map(toTableRow);
+    const totals: Record<string, number> = { ...node.cells };
+    for (const child of children) {
+      for (const [key, value] of Object.entries(child)) {
+        if (!key.startsWith("m:")) continue;
+        totals[key] = numberOf(totals[key]) + numberOf(value);
+      }
+    }
+    return {
+      id: node.id,
+      warehouseName: node.label,
+      warehouseTitle: node.title,
+      isAreaGroup: children.length > 0,
+      ...(children.length ? { children } : {}),
+      ...totals,
+    };
+  };
 
   return {
+    rowHeaderTitle: spec.rowHeaderTitle,
     columns: [
       {
-        title: "Khu vực / Kho",
+        title: spec.rowHeaderTitle,
         dataIndex: "warehouseName",
         fixed: "left" as const,
         width: 210,
         render: (value: string, record: any) =>
-          record.isAreaGroup ? <strong>{value}</strong> : value,
+          record.isAreaGroup ? (
+            <strong>{value}</strong>
+          ) : (
+            <span title={record.warehouseTitle}>{value}</span>
+          ),
       },
-      ...supplierColumns,
+      ...buildColumns(colRoots, 0, []),
     ],
-    rows: groupedRows,
-    exportColumns,
+    rows: sortedNodes(rowRoots).map(toTableRow),
+    exportColumns: buildExportColumns(colRoots, 0, [], []),
   };
 }
 
@@ -1052,20 +1171,29 @@ const inventoryReportLabels: Record<string, string> = {
   detail: "Chi tiết tồn kho",
 };
 
-async function exportInventoryToExcel(rows: any[], report: string) {
+/*
+ * Tên file và tiêu đề trước đây ghi cứng "ton-kho-kinh-doanh" nên tab Tồn kế toán
+ * xuất ra cũng mang tên tồn kinh doanh. Cho phép từng tab tự đặt.
+ */
+async function exportInventoryToExcel(
+  rows: any[],
+  report: string,
+  options?: { fileName?: string; title?: string; axis?: MatrixAxis; partyLabel?: string },
+) {
   if (!rows.length) return false;
 
-  await exportExcelWorkbook("ton-kho-kinh-doanh", async (workbook) => {
+  await exportExcelWorkbook(options?.fileName ?? "ton-kho-kinh-doanh", async (workbook) => {
     workbook.creator = "TPOIL ERP";
     const sheet = workbook.addWorksheet("Tồn kho", {
       views: [
-        { state: "frozen", xSplit: 1, ySplit: report === "detail" ? 4 : 6 },
+        // Số hàng tiêu đề của ma trận đổi theo bố cục cột nên chốt lúc dựng xong.
+        { state: "frozen", xSplit: 1 },
       ],
     });
     sheet.showGridLines = false;
 
     const title = `BÁO CÁO ${
-      inventoryReportLabels[report] ?? "TỒN KHO"
+      options?.title ?? inventoryReportLabels[report] ?? "TỒN KHO"
     }`.toUpperCase();
     const border = {
       top: { style: "thin" as const, color: { argb: "FFB9CBE5" } },
@@ -1089,6 +1217,8 @@ async function exportInventoryToExcel(rows: any[], report: string) {
     };
 
     if (report === "detail") {
+      // Bảng chi tiết chỉ có một hàng tiêu đề, nằm ở hàng 4.
+      sheet.views = [{ state: "frozen", xSplit: 1, ySplit: 4 }];
       const headers = [
         "Khu vực",
         "Kho",
@@ -1148,7 +1278,10 @@ async function exportInventoryToExcel(rows: any[], report: string) {
         sheet.getColumn(index + 1).width = width;
       });
     } else {
-      const matrix = inventoryMatrix(rows, businessMatrixMetric(report));
+      const matrix = inventoryMatrix(rows, businessMatrixMetric(report), {
+        axis: options?.axis,
+        partyLabel: options?.partyLabel,
+      });
       const columns = matrix.exportColumns;
       const lastColumn = columns.length + 1;
       sheet.mergeCells(1, 1, 1, lastColumn);
@@ -1170,52 +1303,47 @@ async function exportInventoryToExcel(rows: any[], report: string) {
       sheet.getCell(2, 1).font = { italic: true, color: { argb: "FF5B6B82" } };
       sheet.getCell(2, 1).alignment = { horizontal: "center" };
 
-      sheet.mergeCells(4, 1, 6, 1);
-      sheet.getCell(4, 1).value = "Khu vực / Kho";
-      Object.assign(sheet.getCell(4, 1), headerStyle);
+      /* Tiêu đề cột dựng theo đúng số cấp mà bố cục đang chọn sinh ra (2 cấp + mã
+         rút ở bố cục gốc, 3 cấp + mã rút khi cột là khu vực > kho > mặt hàng): gộp
+         các ô liền nhau có chung đường dẫn tới cấp đó. */
+      const headerDepth = columns[0]?.path.length ?? 1;
+      const headerTop = 4;
+      const headerBottom = headerTop + headerDepth - 1;
+      sheet.views = [{ state: "frozen", xSplit: 1, ySplit: headerBottom }];
+
+      sheet.mergeCells(headerTop, 1, headerBottom, 1);
+      sheet.getCell(headerTop, 1).value = matrix.rowHeaderTitle;
+      Object.assign(sheet.getCell(headerTop, 1), headerStyle);
       sheet.getColumn(1).width = 30;
 
-      let currentColumn = 2;
-      const suppliers = new Map<string, InventoryMatrixExportColumn[]>();
-      columns.forEach((column) => {
-        const group = suppliers.get(column.supplierId) ?? [];
-        group.push(column);
-        suppliers.set(column.supplierId, group);
-      });
-      for (const supplierColumns of suppliers.values()) {
-        const supplierStart = currentColumn;
-        const supplierEnd = currentColumn + supplierColumns.length - 1;
-        if (supplierStart !== supplierEnd)
-          sheet.mergeCells(4, supplierStart, 4, supplierEnd);
-        sheet.getCell(4, supplierStart).value = supplierColumns[0].supplierName;
-        Object.assign(sheet.getCell(4, supplierStart), headerStyle);
+      const samePrefix = (
+        a: InventoryMatrixExportColumn,
+        b: InventoryMatrixExportColumn,
+        depth: number,
+      ) => a.path.slice(0, depth + 1).every((value, level) => value === b.path[level]);
 
-        const products = new Map<string, InventoryMatrixExportColumn[]>();
-        supplierColumns.forEach((column) => {
-          const group = products.get(column.productId) ?? [];
-          group.push(column);
-          products.set(column.productId, group);
-        });
-        for (const productColumns of products.values()) {
-          const productStart = currentColumn;
-          const productEnd = currentColumn + productColumns.length - 1;
-          if (productStart !== productEnd)
-            sheet.mergeCells(5, productStart, 5, productEnd);
-          sheet.getCell(5, productStart).value = productColumns[0].productCode;
-          Object.assign(sheet.getCell(5, productStart), headerStyle);
-          productColumns.forEach((column, index) => {
-            const cell = sheet.getCell(6, productStart + index);
-            cell.value =
-              column.releaseCode === "UNCLASSIFIED"
-                ? "CXD"
-                : column.releaseCode;
-            Object.assign(cell, headerStyle);
-            sheet.getColumn(productStart + index).width = 14;
-          });
-          currentColumn = productEnd + 1;
+      for (let depth = 0; depth < headerDepth; depth += 1) {
+        let index = 0;
+        while (index < columns.length) {
+          let last = index;
+          while (last + 1 < columns.length && samePrefix(columns[last + 1], columns[index], depth)) {
+            last += 1;
+          }
+          const from = index + 2;
+          const to = last + 2;
+          if (from !== to) sheet.mergeCells(headerTop + depth, from, headerTop + depth, to);
+          sheet.getCell(headerTop + depth, from).value = columns[index].path[depth];
+          Object.assign(sheet.getCell(headerTop + depth, from), headerStyle);
+          index = last + 1;
         }
       }
-      [4, 5, 6].forEach((rowNumber) => (sheet.getRow(rowNumber).height = 22));
+
+      columns.forEach((_, index) => {
+        sheet.getColumn(index + 2).width = 14;
+      });
+      for (let row = headerTop; row <= headerBottom; row += 1) {
+        sheet.getRow(row).height = 22;
+      }
 
       const addMatrixRow = (record: any, isAreaGroup: boolean) => {
         const row = sheet.addRow([
@@ -1307,6 +1435,15 @@ function useMatrixFilters(rows: any[]) {
   };
 }
 
+/**
+ * Chỗ để tab đang mở gắn thanh công cụ của nó lên cùng hàng với dải tab.
+ *
+ * Dải tab do InventoryMatrixReportPage dựng, còn thanh công cụ thuộc về từng màn con
+ * (mỗi màn có bộ lọc, chế độ xem và nút xuất riêng). Thay vì kéo toàn bộ trạng thái
+ * đó lên component cha, màn con bắn thanh công cụ của nó vào ô trống trên dải tab.
+ */
+const MatrixToolbarSlotContext = React.createContext<HTMLElement | null>(null);
+
 const MatrixFilterBar: React.FC<{
   report: string;
   reportOptions: Array<{ value: string; label: string }>;
@@ -1315,6 +1452,11 @@ const MatrixFilterBar: React.FC<{
   partyPlaceholder?: string;
   onExportExcel?: () => void;
   exporting?: boolean;
+  /** Có truyền thì hiện nút đảo trục (không áp dụng cho chế độ "Chi tiết theo dòng"). */
+  axis?: MatrixAxis;
+  onAxisChange?: (value: MatrixAxis) => void;
+  /** Nhãn bên đối tác trên nút đảo trục: "NCC" hoặc "Khách hàng". */
+  partyAxisLabel?: string;
 }> = ({
   report,
   reportOptions,
@@ -1323,7 +1465,11 @@ const MatrixFilterBar: React.FC<{
   partyPlaceholder,
   onExportExcel,
   exporting,
+  axis,
+  onAxisChange,
+  partyAxisLabel = "NCC",
 }) => {
+  const toolbarSlot = React.useContext(MatrixToolbarSlotContext);
   const [filterOpen, setFilterOpen] = useState(false);
   const areaNames = new Map(
     filters.options.areas.map((item) => [item.value, item.label])
@@ -1401,57 +1547,70 @@ const MatrixFilterBar: React.FC<{
     </div>
   );
 
+  const toolbar = (
+    <Space size={8} wrap className="inventory-matrix-toolbar">
+      <Select
+        size="small"
+        value={report}
+        onChange={onReportChange}
+        style={{ width: 190 }}
+        options={reportOptions}
+      />
+      <Input
+        size="small"
+        allowClear
+        prefix={<SearchOutlined />}
+        value={filters.productKeyword}
+        onChange={(event) => filters.setProductKeyword(event.target.value)}
+        placeholder="Tìm mã hoặc tên mặt hàng"
+        style={{ width: 210 }}
+      />
+      {/* Chọn chiều nằm trên trục cột; hai chiều còn lại tự xuống dòng. Chế độ
+          "Chi tiết theo dòng" là bảng phẳng nên không có trục để đổi. */}
+      {onAxisChange && report !== "detail" ? (
+        <Tooltip title={`Chiều nằm trên trục cột: ${partyAxisLabel} hoặc kho`}>
+          <Space size={4}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Cột:
+            </Typography.Text>
+            <Switch
+              checked={axis === "byWarehouse"}
+              onChange={(checked) => onAxisChange(checked ? "byWarehouse" : "byParty")}
+              checkedChildren="Kho"
+              unCheckedChildren={partyAxisLabel}
+            />
+          </Space>
+        </Tooltip>
+      ) : null}
+      <Typography.Text type="secondary">
+        {filters.filteredRows.length} dòng
+      </Typography.Text>
+      {onExportExcel ? (
+        <Button
+          className="inventory-export-button"
+          size="small"
+          icon={<DownloadOutlined />}
+          loading={exporting}
+          disabled={!filters.filteredRows.length}
+          onClick={onExportExcel}
+        >
+          Xuất Excel
+        </Button>
+      ) : null}
+      <FilterButton
+        count={activeFilters.length}
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        content={filterPanel}
+      />
+    </Space>
+  );
+
+  /* Trong báo cáo ma trận, thanh công cụ được gắn thẳng vào dải tab cho cùng một
+     hàng; mở màn riêng lẻ thì không có chỗ gắn nên nó tự đứng thành một hàng. */
   return (
     <>
-      <FilterToolbar
-        left={
-          <Space size={8} wrap>
-            <Select
-              size="small"
-              value={report}
-              onChange={onReportChange}
-              style={{ width: 210 }}
-              options={reportOptions}
-            />
-            <Input
-              size="small"
-              allowClear
-              prefix={<SearchOutlined />}
-              value={filters.productKeyword}
-              onChange={(event) =>
-                filters.setProductKeyword(event.target.value)
-              }
-              placeholder="Tìm mã hoặc tên mặt hàng"
-              style={{ width: 250 }}
-            />
-          </Space>
-        }
-        right={
-          <Space size={8}>
-            <Typography.Text type="secondary">
-              {filters.filteredRows.length} dòng
-            </Typography.Text>
-            {onExportExcel ? (
-              <Button
-                className="inventory-export-button"
-                size="small"
-                icon={<DownloadOutlined />}
-                loading={exporting}
-                disabled={!filters.filteredRows.length}
-                onClick={onExportExcel}
-              >
-                Xuất Excel
-              </Button>
-            ) : null}
-            <FilterButton
-              count={activeFilters.length}
-              open={filterOpen}
-              onOpenChange={setFilterOpen}
-              content={filterPanel}
-            />
-          </Space>
-        }
-      />
+      {toolbarSlot ? createPortal(toolbar, toolbarSlot) : <FilterToolbar right={toolbar} />}
       <FilterTags items={activeFilters} />
     </>
   );
@@ -1728,21 +1887,68 @@ const TankInventoryView: React.FC<{ rows: any[]; loading?: boolean }> = ({
   );
 };
 
+/**
+ * Bảng ma trận dùng chung cho cả ba tab của báo cáo tồn kho.
+ *
+ * Trước đây mỗi tab tự dựng <Table> riêng nên trôi dạt: chỉ tab "Tồn kinh doanh"
+ * có class .inventory-matrix-table (tiêu đề nhóm nền xanh, viền bảng) và dòng khu
+ * vực được tô nền; hai tab kia ra bảng antd trần. Gom về một chỗ thì sửa một lần
+ * là cả ba đổi theo.
+ */
+const InventoryMatrixTable: React.FC<{
+  matrix: { rows: any[]; columns: any[] };
+  loading?: boolean;
+}> = ({ matrix, loading }) => (
+  <Table
+    className="inventory-matrix-table"
+    rowKey="id"
+    loading={loading}
+    size="small"
+    bordered
+    pagination={false}
+    dataSource={matrix.rows}
+    columns={matrix.columns}
+    expandable={{ defaultExpandAllRows: true }}
+    rowClassName={(record: any) =>
+      record.isAreaGroup ? "inventory-matrix-area-row" : ""
+    }
+    scroll={{ x: "max-content", y: 520 }}
+  />
+);
+
+/** Bảng "Chi tiết theo dòng": phẳng, nhưng tiêu đề và viền vẫn theo ma trận. */
+const InventoryDetailTable: React.FC<{
+  rows: any[];
+  loading?: boolean;
+  columns: any[];
+  scrollX: number;
+}> = ({ rows, loading, columns, scrollX }) => (
+  <Table
+    className="inventory-matrix-table"
+    rowKey="id"
+    loading={loading}
+    size="small"
+    bordered
+    dataSource={rows}
+    columns={columns}
+    scroll={{ x: scrollX, y: 520 }}
+  />
+);
+
 const BusinessInventoryMatrix: React.FC<{
   rows: any[];
   report: string;
+  axis?: MatrixAxis;
   loading?: boolean;
-}> = ({ rows, report, loading }) => {
+}> = ({ rows, report, axis, loading }) => {
   if (report === "tank")
     return <TankInventoryView rows={rows} loading={loading} />;
   if (report === "detail") {
     return (
-      <Table
-        rowKey="id"
+      <InventoryDetailTable
+        rows={rows}
         loading={loading}
-        dataSource={rows}
-        scroll={{ x: 1100, y: 520 }}
-        sticky
+        scrollX={1100}
         columns={[
           {
             title: "Nguồn",
@@ -1785,23 +1991,10 @@ const BusinessInventoryMatrix: React.FC<{
     );
   }
 
-  const matrix = inventoryMatrix(rows, businessMatrixMetric(report));
   return (
-    <Table
-      className="inventory-matrix-table"
-      rowKey="id"
+    <InventoryMatrixTable
+      matrix={inventoryMatrix(rows, businessMatrixMetric(report), { axis })}
       loading={loading}
-      size="small"
-      bordered
-      pagination={false}
-      dataSource={matrix.rows}
-      columns={matrix.columns}
-      sticky
-      defaultExpandAllRows
-      rowClassName={(record: any) =>
-        record.isAreaGroup ? "inventory-matrix-area-row" : ""
-      }
-      scroll={{ x: "max-content", y: 520 }}
     />
   );
 };
@@ -1809,16 +2002,15 @@ const BusinessInventoryMatrix: React.FC<{
 const AccountingInventoryMatrix: React.FC<{
   rows: any[];
   report: string;
+  axis?: MatrixAxis;
   loading?: boolean;
-}> = ({ rows, report, loading }) => {
+}> = ({ rows, report, axis, loading }) => {
   if (report === "detail") {
     return (
-      <Table
-        rowKey="id"
+      <InventoryDetailTable
+        rows={rows}
         loading={loading}
-        dataSource={rows}
-        scroll={{ x: 900, y: 520 }}
-        sticky
+        scrollX={900}
         columns={[
           {
             title: "Nguồn",
@@ -1851,27 +2043,28 @@ const AccountingInventoryMatrix: React.FC<{
     );
   }
 
-  const matrix = inventoryMatrix(
-    rows,
-    report === "value" ? "accountingValue" : "accountingQty"
-  );
   return (
-    <Table
-      rowKey="id"
+    <InventoryMatrixTable
+      matrix={inventoryMatrix(
+        rows,
+        report === "value" ? "accountingValue" : "accountingQty",
+        { axis }
+      )}
       loading={loading}
-      size="small"
-      bordered
-      pagination={false}
-      dataSource={matrix.rows}
-      columns={matrix.columns}
-      sticky
-      scroll={{ x: "max-content", y: 520 }}
     />
   );
 };
 
-export const InventoryAvailabilityPage: React.FC = () => {
+/**
+ * Ba màn tồn kho vừa là tab của "Báo cáo ma trận tồn kho", vừa có đường dẫn riêng.
+ * Nằm trong tab thì nhãn tab đã nói rõ đang xem gì, thêm tiêu đề nữa là lặp hai lần
+ * trên cùng một màn; mở riêng thì vẫn cần tiêu đề.
+ */
+type MatrixTabProps = { embedded?: boolean };
+
+export const InventoryAvailabilityPage: React.FC<MatrixTabProps> = ({ embedded }) => {
   const [report, setReport] = useState("actual");
+  const [axis, setAxis] = useState<MatrixAxis>("byParty");
   const [exporting, setExporting] = useState(false);
   const query = useOperationList("availability", { page: 1, pageSize: 200 });
   const commercialLots = useOperationList("commercialLotInventory", {
@@ -1887,10 +2080,9 @@ export const InventoryAvailabilityPage: React.FC = () => {
   const handleExportExcel = async () => {
     try {
       setExporting(true);
-      const exported = await exportInventoryToExcel(
-        filters.filteredRows,
-        report
-      );
+      const exported = await exportInventoryToExcel(filters.filteredRows, report, {
+        axis,
+      });
       if (exported) notify.success("Đã xuất báo cáo tồn kho ra Excel");
     } catch {
       notify.error("Xuất Excel thất bại. Vui lòng thử lại.");
@@ -1900,13 +2092,15 @@ export const InventoryAvailabilityPage: React.FC = () => {
   };
   return (
     <>
-      <PageTitle title="Tồn kho kinh doanh" />
+      {embedded ? null : <PageTitle title="Tồn kho kinh doanh" />}
       <MatrixFilterBar
         report={report}
         onReportChange={setReport}
         filters={filters}
         onExportExcel={handleExportExcel}
         exporting={exporting}
+        axis={axis}
+        onAxisChange={setAxis}
         reportOptions={[
           { value: "actual", label: "Ma trận tồn thực tế" },
           { value: "sellable", label: "Ma trận tồn có thể bán" },
@@ -1926,13 +2120,16 @@ export const InventoryAvailabilityPage: React.FC = () => {
       <BusinessInventoryMatrix
         rows={filters.filteredRows}
         report={report}
+        axis={axis}
         loading={loading}
       />
     </>
   );
 };
 
-export const CustomerHeldInventoryPage: React.FC = () => {
+export const CustomerHeldInventoryPage: React.FC<MatrixTabProps> = ({ embedded }) => {
+  const [axis, setAxis] = useState<MatrixAxis>("byParty");
+  const [exporting, setExporting] = useState(false);
   const query = useOperationList("customerHeldInventory", {
     page: 1,
     pageSize: 500,
@@ -1945,37 +2142,61 @@ export const CustomerHeldInventoryPage: React.FC = () => {
     supplier: item.customer,
   }));
   const filters = useMatrixFilters(rows);
-  const matrix = inventoryMatrix(filters.filteredRows, "held");
-  if (matrix.columns[0]) matrix.columns[0].title = "Kho / Khách hàng";
+  // Ở màn này "đối tác" là khách hàng đang giữ hàng, không phải NCC — nhãn trục và
+  // tiêu đề cột đầu phải nói đúng như vậy.
+  const matrix = inventoryMatrix(filters.filteredRows, "held", {
+    axis,
+    partyLabel: "Khách hàng",
+  });
+  const handleExportExcel = async () => {
+    try {
+      setExporting(true);
+      const exported = await exportInventoryToExcel(filters.filteredRows, "held", {
+        fileName: "ton-giu-theo-khach-hang",
+        title: "Ma trận tồn đang giữ cho khách",
+        axis,
+        partyLabel: "Khách hàng",
+      });
+      if (exported) notify.success("Đã xuất tồn giữ theo khách hàng ra Excel");
+    } catch {
+      notify.error("Xuất Excel thất bại. Vui lòng thử lại.");
+    } finally {
+      setExporting(false);
+    }
+  };
   return (
     <>
-      <PageTitle title="Tồn đang giữ theo khách hàng" />
+      {embedded ? null : <PageTitle title="Tồn đang giữ theo khách hàng" />}
       <MatrixFilterBar
         report="held"
         onReportChange={() => undefined}
         filters={filters}
         partyPlaceholder="Lọc khách hàng"
+        onExportExcel={handleExportExcel}
+        exporting={exporting}
+        axis={axis}
+        onAxisChange={setAxis}
+        partyAxisLabel="Khách hàng"
         reportOptions={[
           { value: "held", label: "Ma trận tồn đang giữ cho khách" },
         ]}
       />
-      <Table
-        rowKey="id"
-        loading={query.isLoading}
-        size="small"
-        bordered
-        pagination={false}
-        dataSource={matrix.rows}
-        columns={matrix.columns}
-        sticky
-        scroll={{ x: "max-content", y: 520 }}
-      />
+      {!query.isLoading && filters.filteredRows.length === 0 ? (
+        <Alert
+          type="info"
+          showIcon
+          message="Chưa có lượng hàng nào đang giữ cho khách."
+          style={{ marginBottom: 12 }}
+        />
+      ) : null}
+      <InventoryMatrixTable matrix={matrix} loading={query.isLoading} />
     </>
   );
 };
 
-export const InventoryAccountingPage: React.FC = () => {
+export const InventoryAccountingPage: React.FC<MatrixTabProps> = ({ embedded }) => {
   const [report, setReport] = useState("quantity");
+  const [axis, setAxis] = useState<MatrixAxis>("byParty");
   const [exporting, setExporting] = useState(false);
   const query = useOperationList("matrix", { page: 1, pageSize: 200 });
   const rows = query.data?.accounting || [];
@@ -1984,10 +2205,10 @@ export const InventoryAccountingPage: React.FC = () => {
   const handleExportExcel = async () => {
     try {
       setExporting(true);
-      const exported = await exportInventoryToExcel(
-        filters.filteredRows,
-        report
-      );
+      const exported = await exportInventoryToExcel(filters.filteredRows, report, {
+        fileName: "ton-kho-ke-toan",
+        axis,
+      });
       if (exported) notify.success("Đã xuất tồn kế toán ra Excel");
     } catch {
       notify.error("Xuất Excel thất bại. Vui lòng thử lại.");
@@ -1997,13 +2218,15 @@ export const InventoryAccountingPage: React.FC = () => {
   };
   return (
     <>
-      <PageTitle title="Tồn kho kế toán" />
+      {embedded ? null : <PageTitle title="Tồn kho kế toán" />}
       <MatrixFilterBar
         report={report}
         onReportChange={setReport}
         filters={filters}
         onExportExcel={handleExportExcel}
         exporting={exporting}
+        axis={axis}
+        onAxisChange={setAxis}
         reportOptions={[
           { value: "quantity", label: "Ma trận số lượng" },
           { value: "value", label: "Ma trận giá trị" },
@@ -2021,36 +2244,51 @@ export const InventoryAccountingPage: React.FC = () => {
       <AccountingInventoryMatrix
         rows={filters.filteredRows}
         report={report}
+        axis={axis}
         loading={loading}
       />
     </>
   );
 };
 
-export const InventoryMatrixReportPage = () => (
-  <>
-    <PageTitle title="Báo cáo ma trận tồn kho" />
-    <Tabs
-      items={[
-        {
-          key: "business",
-          label: "Tồn kinh doanh",
-          children: <InventoryAvailabilityPage />,
-        },
-        {
-          key: "customer",
-          label: "Theo khách hàng",
-          children: <CustomerHeldInventoryPage />,
-        },
-        {
-          key: "accounting",
-          label: "Tồn kế toán",
-          children: <InventoryAccountingPage />,
-        },
-      ]}
-    />
-  </>
-);
+const MATRIX_TABS: Array<{
+  key: string;
+  label: string;
+  render: () => React.ReactNode;
+}> = [
+  { key: "business", label: "Tồn kinh doanh", render: () => <InventoryAvailabilityPage embedded /> },
+  { key: "customer", label: "Theo khách hàng", render: () => <CustomerHeldInventoryPage embedded /> },
+  { key: "accounting", label: "Tồn kế toán", render: () => <InventoryAccountingPage embedded /> },
+];
+
+export const InventoryMatrixReportPage = () => {
+  const [tab, setTab] = useState(MATRIX_TABS[0].key);
+  const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
+  const active = MATRIX_TABS.find((item) => item.key === tab) ?? MATRIX_TABS[0];
+
+  return (
+    <>
+      {/* Dải tab và thanh công cụ là hai khối anh em trong một hàng flex của mình,
+          chứ không nhét thanh công cụ vào tabBarExtraContent: hộp nav của antd cao
+          theo nhãn tab, thanh công cụ cao hơn thì tràn ra ngoài và bị bảng bên dưới
+          đè lên. Dải tab chỉ còn phần nhãn; nội dung dựng bên dưới để mỗi lúc chỉ
+          một màn được mount — nếu để antd giữ cả ba thì cả ba cùng bắn thanh công
+          cụ vào một ô và chúng chồng lên nhau. */}
+      <div className="inventory-matrix-header">
+        <Tabs
+          className="inventory-matrix-tabs"
+          activeKey={tab}
+          onChange={setTab}
+          items={MATRIX_TABS.map(({ key, label }) => ({ key, label }))}
+        />
+        <div className="inventory-matrix-header-tools" ref={setToolbarSlot} />
+      </div>
+      <MatrixToolbarSlotContext.Provider value={toolbarSlot}>
+        {active.render()}
+      </MatrixToolbarSlotContext.Provider>
+    </>
+  );
+};
 
 export const ExpectedInventoryPage: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -2237,6 +2475,7 @@ export const ExpectedInventoryPage: React.FC = () => {
 };
 
 export const WarehouseReservationPage: React.FC = () => {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
   const query = useOperationList("reservations", { page: 1, pageSize: 100 });
@@ -2246,6 +2485,24 @@ export const WarehouseReservationPage: React.FC = () => {
   const createMutation = useOperationMutation<any>(
     operationsApi.saveReservation
   );
+  const releaseReservation = (row: any) => {
+    Modal.confirm({
+      title: "Giải phóng lượng giữ?",
+      content: `Lượng ${n(row.activeQty)} sẽ trở lại tồn có thể bán.`,
+      okText: "Giải phóng",
+      okButtonProps: { danger: true },
+      cancelText: "Đóng",
+      onOk: async () => {
+        try {
+          await mutation.mutateAsync({ id: row.id, status: "RELEASED" });
+          notify.success("Đã giải phóng lượng giữ.");
+        } catch (error) {
+          notify.error(extractApiError(error).message || "Không thể giải phóng lượng giữ.");
+          throw error;
+        }
+      },
+    });
+  };
   return (
     <>
       <PageTitle
@@ -2268,32 +2525,37 @@ export const WarehouseReservationPage: React.FC = () => {
           },
           { title: "Sản phẩm", render: (_: any, x: any) => x.product?.name },
           { title: "Khách hàng", render: (_: any, x: any) => x.customer?.name },
-          { title: "Số lượng", render: (_: any, x: any) => n(x.reservedQty) },
+          { title: "Đang giữ", render: (_: any, x: any) => n(x.activeQty) },
           {
             title: "Trạng thái",
             render: (_: any, x: any) => <StatusBadge status={x.status} />,
           },
           {
             title: "Thao tác",
-            render: (_: any, x: any) =>
-              x.status === "ACTIVE" && (
-                <Space>
+            render: (_: any, x: any) => {
+              // Holds made by a sales order are controlled by the order/delivery workflow.
+              // Releasing or marking them "issued" here would desynchronise stock posting.
+              if (x.salesOrder?.id) {
+                return (
+                  <Button size="small" onClick={() => navigate(`/sales/orders/${x.salesOrder.id}`)}>
+                    Mở đơn bán
+                  </Button>
+                );
+              }
+              if (x.status === "ACTIVE" && Number(x.activeQty) > 0) {
+                return (
                   <Button
-                    onClick={() =>
-                      mutation.mutate({ id: x.id, status: "RELEASED" })
-                    }
+                    size="small"
+                    danger
+                    loading={mutation.isPending && mutation.variables?.id === x.id}
+                    onClick={() => releaseReservation(x)}
                   >
                     Giải phóng
                   </Button>
-                  <Button
-                    onClick={() =>
-                      mutation.mutate({ id: x.id, status: "CONSUMED" })
-                    }
-                  >
-                    Đã xuất
-                  </Button>
-                </Space>
-              ),
+                );
+              }
+              return "—";
+            },
           },
         ]}
       />
@@ -2788,428 +3050,24 @@ export const WarehouseTransferDetailPage: React.FC = () => {
   );
 };
 
-export const VehicleListPage = () => (
-  <CrudPage
-    title="Danh mục xe"
-    resource="vehicles"
-    save={operationsApi.saveVehicle}
-    columns={[
-      { title: "Biển số", dataIndex: "licensePlate" },
-      { title: "Đơn vị", render: (_: any, x: any) => x.supplier?.name },
-      { title: "Loại xe", dataIndex: "type" },
-      { title: "Sức chứa", render: (_: any, x: any) => n(x.capacity) },
-      {
-        title: "Trạng thái",
-        render: (_: any, x: any) => (x.isActive ? "Hoạt động" : "Ngừng"),
-      },
-    ]}
-    fields={[
-      {
-        name: "supplierCustomerId",
-        label: "Đơn vị vận tải",
-        kind: "customer",
-        required: true,
-      },
-      { name: "licensePlate", label: "Biển số", required: true },
-      { name: "type", label: "Loại xe" },
-      { name: "capacity", label: "Sức chứa", kind: "number" },
-      { name: "note", label: "Ghi chú" },
-    ]}
-  />
-);
-const DocumentManagerPage: React.FC<{ type: "vehicle" | "driver" }> = ({
-  type,
-}) => {
-  const [selectedId, setSelectedId] = useState<string>();
-  const [form] = Form.useForm();
-  const list = useOperationList(type === "vehicle" ? "vehicles" : "drivers", {
-    page: 1,
-    pageSize: 200,
-  });
-  const detail = useOperationDetail(
-    type === "vehicle" ? "vehicle" : "driver",
-    selectedId
-  );
-  const mutation = useOperationMutation<any>((data) =>
-    type === "vehicle"
-      ? operationsApi.saveVehicleDocument(selectedId!, data)
-      : operationsApi.saveDriverDocument(selectedId!, data)
-  );
-  const options = (list.data?.items || []).map((x: any) => ({
-    value: x.id,
-    label: type === "vehicle" ? x.licensePlate : x.fullName,
-  }));
-  const types =
-    type === "vehicle"
-      ? ["REGISTRATION", "INSPECTION", "INSURANCE", "OTHER"]
-      : ["DRIVER_LICENSE", "ID_CARD", "TRAINING_CERTIFICATE", "OTHER"];
-  return (
-    <>
-      <PageTitle title={type === "vehicle" ? "Hồ sơ xe" : "Hồ sơ lái xe"} />
-      <Card>
-        <Select
-          showSearch
-          optionFilterProp="label"
-          placeholder={type === "vehicle" ? "Chọn xe" : "Chọn lái xe"}
-          options={options}
-          value={selectedId}
-          onChange={setSelectedId}
-          style={{ width: 360, marginBottom: 16 }}
-        />
-        {selectedId ? (
-          <>
-            <Table
-              rowKey="id"
-              dataSource={detail.data?.documents || []}
-              loading={detail.isLoading}
-              pagination={false}
-              columns={[
-                {
-                  title: "Loại hồ sơ",
-                  render: (_: any, x: any) =>
-                    labelOf("documentType", x.documentType),
-                },
-                { title: "Số hồ sơ", dataIndex: "documentNo" },
-                {
-                  title: "Ngày cấp",
-                  render: (_: any, x: any) => date(x.issuedDate),
-                },
-                {
-                  title: "Hết hạn",
-                  render: (_: any, x: any) => date(x.expiredDate),
-                },
-                {
-                  title: "File",
-                  render: (_: any, x: any) =>
-                    x.fileUrl ? (
-                      <a href={x.fileUrl} target="_blank">
-                        Xem file
-                      </a>
-                    ) : (
-                      "-"
-                    ),
-                },
-              ]}
-            />
-            <Divider />
-            <Form
-              form={form}
-              layout="vertical"
-              onFinish={async (values) => {
-                await mutation.mutateAsync({
-                  ...values,
-                  issuedDate: values.issuedDate?.format("YYYY-MM-DD"),
-                  expiredDate: values.expiredDate?.format("YYYY-MM-DD"),
-                });
-                notify.success("Đã lưu hồ sơ.");
-                form.resetFields();
-              }}
-            >
-              <Row gutter={16}>
-                <Col xs={24} md={6}>
-                  <Form.Item
-                    name="documentType"
-                    label="Loại"
-                    rules={[{ required: true }]}
-                  >
-                    <Select options={optionsOf("documentType", types)} />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={6}>
-                  <Form.Item name="documentNo" label="Số hồ sơ">
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={6}>
-                  <Form.Item name="issuedDate" label="Ngày cấp">
-                    <DatePicker style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} md={6}>
-                  <Form.Item name="expiredDate" label="Hết hạn">
-                    <DatePicker style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-                <Col span={24}>
-                  <Form.Item name="fileUrl" label="File">
-                    <FileUploadField />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={mutation.isPending}
-              >
-                Thêm hồ sơ
-              </Button>
-            </Form>
-          </>
-        ) : (
-          <Alert
-            type="info"
-            message="Chọn đối tượng để xem và cập nhật hồ sơ."
-          />
-        )}
-      </Card>
-    </>
-  );
-};
-
-export const VehicleDocumentPage = () => <DocumentManagerPage type="vehicle" />;
-
-export const DriverListPage = () => (
-  <CrudPage
-    title="Lái xe"
-    resource="drivers"
-    save={operationsApi.saveDriver}
-    columns={[
-      { title: "Họ tên", dataIndex: "fullName" },
-      { title: "Đơn vị", render: (_: any, x: any) => x.supplier?.name },
-      { title: "Điện thoại", dataIndex: "phone" },
-      { title: "CCCD", dataIndex: "idCard" },
-      {
-        title: "Trạng thái",
-        render: (_: any, x: any) => (x.isActive ? "Hoạt động" : "Ngừng"),
-      },
-    ]}
-    fields={[
-      {
-        name: "supplierCustomerId",
-        label: "Đơn vị vận tải",
-        kind: "customer",
-        required: true,
-      },
-      { name: "fullName", label: "Họ tên", required: true },
-      { name: "phone", label: "Điện thoại" },
-      { name: "idCard", label: "CCCD" },
-      { name: "note", label: "Ghi chú" },
-    ]}
-  />
-);
-export const DriverDocumentPage = () => <DocumentManagerPage type="driver" />;
-
-export const VehicleDispatchOrderListPage: React.FC = () => {
-  const navigate = useNavigate();
-  const query = useOperationList("dispatches", { page: 1, pageSize: 100 });
-  return (
-    <>
-      <PageTitle
-        title="Đơn điều xe / Chuyến xe"
-        action={
-          <Button
-            type="primary"
-            onClick={() => navigate("/operations/vehicle-dispatches/create")}
-          >
-            Tạo chuyến
-          </Button>
-        }
-      />
-      <Table
-        rowKey="id"
-        loading={query.isLoading}
-        dataSource={query.data?.items || []}
-        onRow={(row: any) => ({
-          onClick: () => navigate(`/operations/vehicle-dispatches/${row.id}`),
-        })}
-        columns={[
-          { title: "Số điều xe", dataIndex: "dispatchNo" },
-          { title: "Xe", render: (_: any, x: any) => x.vehicle?.licensePlate },
-          { title: "Lái xe", render: (_: any, x: any) => x.driver?.fullName },
-          {
-            title: "Tuyến",
-            render: (_: any, x: any) =>
-              `${x.fromLocationText} → ${x.toLocationText}`,
-          },
-          {
-            title: "Bắt đầu",
-            render: (_: any, x: any) =>
-              dayjs(x.plannedStartAt).format("DD/MM/YYYY HH:mm"),
-          },
-          {
-            title: "Trạng thái",
-            render: (_: any, x: any) => <StatusBadge status={x.status} />,
-          },
-        ]}
-      />
-    </>
-  );
-};
-
-export const VehicleDispatchOrderFormPage: React.FC = () => {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const detail = useOperationDetail("dispatch", id);
-  const mutation = useOperationMutation<any>((data) =>
-    operationsApi.saveDispatch(data, id)
-  );
-  const [form] = Form.useForm();
-  React.useEffect(() => {
-    if (detail.data)
-      form.setFieldsValue({
-        ...detail.data,
-        plannedStartAt: dayjs(detail.data.plannedStartAt),
-      });
-  }, [detail.data, form]);
-  return (
-    <>
-      <PageTitle title={id ? "Cập nhật chuyến xe" : "Tạo chuyến xe"} />
-      <Card>
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{ sourceType: "DIRECT", status: "DRAFT" }}
-          onFinish={async (values) => {
-            await mutation.mutateAsync({
-              ...values,
-              plannedStartAt: values.plannedStartAt.toISOString(),
-            });
-            notify.success("Đã lưu chuyến xe.");
-            navigate("/operations/vehicle-dispatches");
-          }}
-        >
-          <Row gutter={16}>
-            <Col xs={24} md={8}>
-              <Form.Item
-                name="dispatchNo"
-                label="Số điều xe"
-                rules={[{ required: true }]}
-              >
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={8}>
-              <Form.Item
-                name="vehicleId"
-                label="ID xe"
-                rules={[{ required: true }]}
-              >
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={8}>
-              <Form.Item
-                name="driverId"
-                label="ID lái xe"
-                rules={[{ required: true }]}
-              >
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={8}>
-              <Form.Item
-                name="fromLocationText"
-                label="Điểm đi"
-                rules={[{ required: true }]}
-              >
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={8}>
-              <Form.Item
-                name="toLocationText"
-                label="Điểm đến"
-                rules={[{ required: true }]}
-              >
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={8}>
-              <Form.Item
-                name="plannedStartAt"
-                label="Thời gian dự kiến"
-                rules={[{ required: true }]}
-              >
-                <DatePicker showTime style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={8}>
-              <Form.Item name="plannedQty" label="Số lượng dự kiến">
-                <InputNumber style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={8}>
-              <Form.Item name="transportFeeVnd" label="Phí vận chuyển">
-                <InputNumber style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={8}>
-              <Form.Item name="sourceType" label="Nguồn">
-                <Select
-                  options={optionsOf("sourceType", [
-                    "DIRECT",
-                    "PURCHASE_ORDER",
-                    "SALES_ORDER",
-                    "GOODS_RECEIPT",
-                    "WAREHOUSE_TRANSFER",
-                  ])}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item name="fileUrl" label="File">
-                <FileUploadField />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Button type="primary" htmlType="submit" loading={mutation.isPending}>
-            Lưu chuyến
-          </Button>
-        </Form>
-      </Card>
-    </>
-  );
-};
-
-export const VehicleDispatchOrderDetailPage: React.FC = () => {
-  const { id } = useParams();
-  const query = useOperationDetail("dispatch", id);
-  const mutation = useOperationMutation<string>((status) =>
-    operationsApi.changeDispatchStatus(id!, status)
-  );
-  const row = query.data;
-  if (!row) return <Card loading={query.isLoading} />;
-  return (
-    <>
-      <PageTitle
-        title={`Chuyến xe ${row.dispatchNo}`}
-        action={
-          <Space>
-            {[
-              "ASSIGNED",
-              "LOADING",
-              "IN_TRANSIT",
-              "DELIVERED",
-              "CLOSED",
-              "CANCELLED",
-            ].map((status) => (
-              <Button key={status} onClick={() => mutation.mutate(status)}>
-                {labelOf("status", status)}
-              </Button>
-            ))}
-          </Space>
-        }
-      />
-      <Descriptions bordered column={2}>
-        <Descriptions.Item label="Xe">
-          {row.vehicle?.licensePlate}
-        </Descriptions.Item>
-        <Descriptions.Item label="Lái xe">
-          {row.driver?.fullName}
-        </Descriptions.Item>
-        <Descriptions.Item label="Tuyến">
-          {row.fromLocationText} → {row.toLocationText}
-        </Descriptions.Item>
-        <Descriptions.Item label="Trạng thái">
-          <StatusBadge status={row.status} />
-        </Descriptions.Item>
-        <Descriptions.Item label="Dự kiến">
-          {dayjs(row.plannedStartAt).format("DD/MM/YYYY HH:mm")}
-        </Descriptions.Item>
-        <Descriptions.Item label="Số lượng">
-          {n(row.plannedQty)}
-        </Descriptions.Item>
-      </Descriptions>
-    </>
-  );
-};
+/*
+ * Nhóm màn "Quản lý xe" đã tách sang road-vehicle-pages.tsx và dựng lại theo đúng
+ * quy ước của nhóm màn kho (.data-grid + FilterButton/FilterTags). Giữ lại re-export
+ * ở đây để router và các chỗ import cũ không phải đổi đường dẫn.
+ */
+export {
+  DriverDocumentPage,
+  DriverListPage,
+  SalesTransportRequestDetailPage,
+  SalesTransportRequestListPage,
+  TransportVehicleSettingPage,
+  VehicleDispatchOrderDetailPage,
+  VehicleDispatchOrderFormPage,
+  VehicleDispatchOrderListPage,
+  VehicleDocumentPage,
+  VehicleEfficiencyReportPage,
+  VehicleFuelLogPage,
+  VehicleListPage,
+  VehicleMaintenanceExpensePage,
+  VehicleMonthlyFixedCostPage,
+} from "./road-vehicle-pages";

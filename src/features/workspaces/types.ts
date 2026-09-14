@@ -4,6 +4,7 @@ export type DepartmentWorkspaceKey =
   | "purchase"
   | "sales"
   | "operations"
+  | "warehouse"
   | "legal"
   | "executive"
   | "admin"
@@ -14,6 +15,8 @@ export type WorkspaceMenuItem = {
   label: string;
   icon?: ReactNode | string | null;
   need?: string | string[] | null;
+  /** "group" dựng tiêu đề mục (I. TỔNG QUAN, II. KHAI BÁO...), không bấm được. */
+  type?: "group";
   children?: WorkspaceMenuItem[];
 };
 

@@ -7,12 +7,14 @@ type Props = {
   open: boolean;
   onCancel: () => void;
   onSuccess: () => void;
+  defaultDirection?: "IN" | "OUT";
 };
 
 export function ManualBankTransactionModal({
   open,
   onCancel,
   onSuccess,
+  defaultDirection = "OUT",
 }: Props) {
   const [form] = Form.useForm();
   const accountsQuery = useBankAccountsOptions();
@@ -60,7 +62,7 @@ export function ManualBankTransactionModal({
         layout="vertical"
         initialValues={{
           txnDate: dayjs(),
-          direction: "OUT",
+          direction: defaultDirection,
         }}
       >
         <Form.Item

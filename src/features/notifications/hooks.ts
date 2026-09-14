@@ -2,18 +2,46 @@ import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { API_BASE } from "../../config/env";
 import { NotificationsApi } from "./api";
+import type { NotificationKind, NotificationTab } from "./types";
 
 export const notificationKeys = {
   all: ["common-notifications"] as const,
-  list: (unreadOnly: boolean) =>
-    ["common-notifications", "list", unreadOnly] as const,
+  list: (input: { unreadOnly?: boolean; tab?: NotificationTab; kind?: NotificationKind }) =>
+    ["common-notifications", "list", input] as const,
   unreadCount: ["common-notifications", "unread-count"] as const,
+  summary: ["common-notifications", "summary"] as const,
+  quick: ["common-notifications", "quick"] as const,
+  workItems: ["common-notifications", "work-items"] as const,
 };
 
-export function useNotifications(unreadOnly = false) {
+export function useNotifications(input: { unreadOnly?: boolean; tab?: NotificationTab; kind?: NotificationKind } = {}) {
   return useQuery({
-    queryKey: notificationKeys.list(unreadOnly),
-    queryFn: () => NotificationsApi.list({ unreadOnly, limit: 40 }),
+    queryKey: notificationKeys.list(input),
+    queryFn: () => NotificationsApi.list({ ...input, limit: 40 }),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useNotificationSummary() {
+  return useQuery({
+    queryKey: notificationKeys.summary,
+    queryFn: NotificationsApi.summary,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useNotificationQuick() {
+  return useQuery({
+    queryKey: notificationKeys.quick,
+    queryFn: NotificationsApi.quick,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useNotificationWorkItems() {
+  return useQuery({
+    queryKey: notificationKeys.workItems,
+    queryFn: () => NotificationsApi.workItems({ limit: 40 }),
     refetchInterval: 60_000,
   });
 }
@@ -42,6 +70,14 @@ export function useMarkAllNotificationsRead() {
   });
 }
 
+export function useArchiveNotification() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: NotificationsApi.archive,
+    onSuccess: () => client.invalidateQueries({ queryKey: notificationKeys.all }),
+  });
+}
+
 export function useNotificationRealtime(enabled = true) {
   const client = useQueryClient();
 
@@ -61,4 +97,3 @@ export function useNotificationRealtime(enabled = true) {
     };
   }, [client, enabled]);
 }
-

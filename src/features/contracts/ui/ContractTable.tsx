@@ -2,7 +2,7 @@
 import React, { useMemo } from "react";
 import { Space, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { FileOutlined } from "@ant-design/icons";
+import { FileOutlined, FileTextOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { Contract, ContractListItem } from "../types";
 import ActionButtons from "../../../shared/ui/ActionButtons";
@@ -18,6 +18,7 @@ interface ContractTableProps {
   onDelete: (id: string) => void;
   onRowClick?: (id: string) => void;
   onOpenFiles?: (id: string) => void;
+  onOpenAppendices?: (id: string) => void;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -47,6 +48,7 @@ export const ContractTable: React.FC<ContractTableProps> = ({
   onDelete,
   onRowClick,
   onOpenFiles,
+  onOpenAppendices,
 }) => {
   const renewalChildCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -222,6 +224,23 @@ export const ContractTable: React.FC<ContractTableProps> = ({
       },
     },
     {
+      // Phụ lục điều chỉnh điều khoản theo ngày — click để xem dòng thời gian.
+      title: "Phụ lục",
+      key: "appendices",
+      width: 90,
+      align: "center",
+      render: (_, record) => (
+        <Tooltip title="Xem / thêm phụ lục điều chỉnh điều khoản">
+          <a
+            onClick={() => onOpenAppendices?.(record.id)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+          >
+            <FileTextOutlined /> Phụ lục
+          </a>
+        </Tooltip>
+      ),
+    },
+    {
       // 🔹 File – click để xem
       title: "File",
       key: "attachments",
@@ -266,6 +285,8 @@ export const ContractTable: React.FC<ContractTableProps> = ({
 
   return (
     <Table<ContractListItem>
+      className="data-grid"
+      bordered
       rowKey="id"
       size="small"
       loading={loading}

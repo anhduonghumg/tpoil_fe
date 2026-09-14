@@ -15,6 +15,7 @@ import { ContractFilters } from "../ui/ContractFilters";
 import { ContractTable } from "../ui/ContractTable";
 import { notify } from "../../../shared/lib/notification";
 import ContractFilesModal from "../ui/ContractFilesModal";
+import ContractAppendicesModal from "../ui/ContractAppendicesModal";
 import {
   ExcelImportOverlay,
   ExcelImportConfig,
@@ -32,6 +33,9 @@ const WORKSPACE_CONTRACT_KIND: Record<string, ContractKind> = {
   sales: "SALES",
   purchase: "PURCHASE",
 };
+
+/** Loại hợp đồng do module khác quản, không thuộc màn hợp đồng chung. */
+const EXCLUDED_CONTRACT_TYPE_CODES = ["WAREHOUSE_RENTAL"];
 
 export const ContractsPage: React.FC = () => {
   const workspace = useDepartmentWorkspaceContext();
@@ -52,7 +56,12 @@ export const ContractsPage: React.FC = () => {
     );
   }, [workspaceKind]);
 
-  const { data, isLoading } = useContractList(query);
+  // Ghim ở đây thay vì để trong state: bộ lọc có nút "đặt lại" ghi đè cả object, ghim
+  // tại chỗ gọi thì không thao tác lọc nào làm rơi mất điều kiện này.
+  const { data, isLoading } = useContractList({
+    ...query,
+    excludeTypeCodes: EXCLUDED_CONTRACT_TYPE_CODES,
+  });
   const deleteMutation = useDeleteContract();
   const importMutation = useImportContracts();
 
@@ -68,8 +77,12 @@ export const ContractsPage: React.FC = () => {
     string | null
   >(null);
 
+  const [appendixContractId, setAppendixContractId] = useState<string | null>(null);
+
   // ===== Data helpers =====
   const items = data?.items ?? [];
+  // Tiêu đề modal phụ lục lấy từ chính dòng đang mở, khỏi gọi thêm API chi tiết.
+  const appendixContract = items.find((c: any) => c.id === appendixContractId);
   const total = data?.total ?? 0;
   const page = data?.page ?? query.page ?? 1;
   const pageSize = data?.pageSize ?? query.pageSize ?? DEFAULT_PAGE_SIZE;
@@ -361,6 +374,7 @@ export const ContractsPage: React.FC = () => {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onOpenFiles={(id) => setFilePreviewContractId(id)}
+          onOpenAppendices={(id) => setAppendixContractId(id)}
         />
       </Space>
 
@@ -374,6 +388,15 @@ export const ContractsPage: React.FC = () => {
           setEditingId(undefined);
         }}
         onSuccess={handleUpsertSuccess}
+      />
+
+      {/* Modal phụ lục hợp đồng */}
+      <ContractAppendicesModal
+        open={!!appendixContractId}
+        onClose={() => setAppendixContractId(null)}
+        contractId={appendixContractId || undefined}
+        contractCode={appendixContract?.code}
+        contractName={appendixContract?.name}
       />
 
       {/* Modal xem file đính kèm */}

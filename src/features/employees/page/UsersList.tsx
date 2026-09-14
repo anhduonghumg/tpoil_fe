@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import "../../../shared/ui/data-grid.css";
 import { Button, Space, Table, Tag, Typography } from "antd";
 import { useSearchParams } from "react-router-dom";
 import { PlusOutlined } from "@ant-design/icons";
@@ -278,6 +279,9 @@ export default function UsersList() {
       </div>
 
       <Table
+        className="data-grid"
+        size="small"
+        bordered
         rowKey={(r: any) => r.id ?? r._id ?? r.code}
         loading={isLoading}
         dataSource={items}
@@ -299,7 +303,6 @@ export default function UsersList() {
           },
           showSizeChanger: true,
         }}
-        size="middle"
         scroll={{ x: 900, y: 400 }}
       />
       <UserUpsertAllTabsOverlay

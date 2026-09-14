@@ -102,6 +102,7 @@ export type PaymentPlanLine = {
 };
 
 export type UpsertPurchaseOrderLinePayload = {
+  salesOrderLineId?: UUID;
   productId: UUID;
   supplierLocationId?: UUID;
   plannedReceivingAreaId?: UUID;
@@ -112,6 +113,7 @@ export type UpsertPurchaseOrderLinePayload = {
 };
 
 export type UpsertPurchaseOrderPayload = {
+  salesOrderId?: UUID;
   orderNo: string;
   supplierCustomerId: UUID;
   orderType: PurchaseOrderType;

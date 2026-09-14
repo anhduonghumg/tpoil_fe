@@ -37,10 +37,12 @@ import { PERMS } from "../../../shared/authz/perms";
 import { useWarehouseSelect } from "../../purchases/hooks";
 import {
   useQuickConfirmDeliveries,
+  useReserveSalesOrder,
   useResendDelivery,
   useReturnDeliveryToSales,
   useSalesDeliveries,
   useSalesDeliveryDetail,
+  useSalesOrders,
   useVoidDelivery,
 } from "../hooks";
 import type { SalesDelivery, SalesDeliveryLine, SalesDeliveryStatus } from "../types";
@@ -74,6 +76,9 @@ export default function SalesDeliveriesPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [voidReason, setVoidReason] = useState("");
   const [createRevision, setCreateRevision] = useState(true);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryKeyword, setRecoveryKeyword] = useState("");
+  const [recoveryOrderId, setRecoveryOrderId] = useState<string>();
 
   const warehousesQuery = useWarehouseSelect(warehouseKeyword);
   const query = useSalesDeliveries({
@@ -94,6 +99,14 @@ export default function SalesDeliveriesPage() {
   const resendMutation = useResendDelivery();
   const voidMutation = useVoidDelivery(voidTarget?.id);
   const quickConfirmMutation = useQuickConfirmDeliveries();
+  const recoverOrderMutation = useReserveSalesOrder();
+  const recoveryOrdersQuery = useSalesOrders({
+    kind: "DAY_TRADE",
+    status: "AWAITING_STOCK,PARTIALLY_RESERVED",
+    keyword: recoveryKeyword || undefined,
+    page: 1,
+    limit: 50,
+  });
 
   /** Chỉ lệnh đang chờ kho xuất mới tích chọn được — các trạng thái khác không còn gì để xác nhận. */
   const rows = query.data?.items ?? [];
@@ -104,6 +117,7 @@ export default function SalesDeliveriesPage() {
   const selectedReadyIds = selectedIds.filter((id) => readyIds.includes(id));
 
   const warehouseName = (warehousesQuery.data ?? []).find((row) => row.id === warehouseId)?.label;
+  const recoveryOrders = recoveryOrdersQuery.data?.items ?? [];
 
   const filterTags = [
     warehouseId && {
@@ -394,6 +408,18 @@ export default function SalesDeliveriesPage() {
                     : "Xác nhận nhanh"}
                 </Button>
               )}
+              {can(PERMS.SALES_UPDATE) && (
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setRecoveryKeyword("");
+                    setRecoveryOrderId(undefined);
+                    setRecoveryOpen(true);
+                  }}
+                >
+                  Bổ sung từ đơn bán
+                </Button>
+              )}
               <FilterButton
                 count={Number(status !== "ALL") + Number(Boolean(warehouseId)) + Number(Boolean(dateFrom || dateTo))}
                 open={filterOpen}
@@ -416,6 +442,49 @@ export default function SalesDeliveriesPage() {
       />
 
       <FilterTags items={filterTags} />
+
+      <Modal
+        title="Bổ sung lệnh xuất từ đơn bán"
+        open={recoveryOpen}
+        okText="Tạo lệnh xuất"
+        cancelText="Đóng"
+        confirmLoading={recoverOrderMutation.isPending}
+        okButtonProps={{ disabled: !recoveryOrderId }}
+        onCancel={() => setRecoveryOpen(false)}
+        onOk={() => {
+          if (!recoveryOrderId) return;
+          void recoverOrderMutation
+            .mutateAsync(recoveryOrderId)
+            .then(() => {
+              setRecoveryOpen(false);
+              setRecoveryOrderId(undefined);
+              void query.refetch();
+              void readyCountQuery.refetch();
+            })
+            .catch(() => undefined);
+        }}
+      >
+        <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
+          Chỉ dùng để khôi phục đơn đối ứng đã có hàng nhập kho nhưng chưa sinh lệnh xuất.
+          Hệ thống tự kiểm tra đơn mua liên kết, giữ đúng lô đã nhập và không tạo trùng lệnh xuất.
+        </Typography.Paragraph>
+        <Select
+          showSearch
+          filterOption={false}
+          allowClear
+          loading={recoveryOrdersQuery.isFetching}
+          value={recoveryOrderId}
+          placeholder="Tìm số đơn hoặc khách hàng"
+          style={{ width: "100%" }}
+          onSearch={setRecoveryKeyword}
+          onChange={setRecoveryOrderId}
+          options={recoveryOrders.map((order) => ({
+            value: order.id,
+            label: `${order.orderNo} — ${order.customer.code ?? order.customer.name}`,
+          }))}
+          notFoundContent={recoveryOrdersQuery.isFetching ? "Đang tìm…" : "Không có đơn chờ hàng"}
+        />
+      </Modal>
 
       <Table<SalesDelivery>
         className="sales-grid sales-deliveries-grid"

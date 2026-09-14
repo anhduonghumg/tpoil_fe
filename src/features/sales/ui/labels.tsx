@@ -296,12 +296,14 @@ export function lineNetAmount(line: {
   orderedActualQty?: string | number | null;
   unitPrice?: string | number | null;
   discountAmount?: string | number | null;
+  transportFeeUnitPrice?: string | number | null;
 }) {
   const qty = Number(line.orderedActualQty ?? 0);
   const price = Number(line.unitPrice ?? 0);
   const discount = Number(line.discountAmount ?? 0);
+  const transportFee = Number(line.transportFeeUnitPrice ?? 0);
   if (Number.isNaN(qty) || Number.isNaN(price)) return 0;
-  return qty * (price - (Number.isNaN(discount) ? 0 : discount));
+  return qty * (price - (Number.isNaN(discount) ? 0 : discount) + (Number.isNaN(transportFee) ? 0 : transportFee));
 }
 
 /** Độ tin cậy của nhập nhanh: dưới 0.75 thì bắt Sale nhìn lại. */

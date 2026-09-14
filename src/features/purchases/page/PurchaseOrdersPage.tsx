@@ -1,27 +1,24 @@
 import { useMemo, useState } from "react";
+import "../../../shared/ui/data-grid.css";
 import {
-  Badge,
   Button,
   DatePicker,
   Input,
   Modal,
-  Popover,
   Progress,
   Space,
   Table,
   Tabs,
   Tag,
-  Tooltip,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { FilterButton, RefreshButton } from "../../../shared/ui/TableFilter";
 import {
-  FilterOutlined,
   PlusOutlined,
   PrinterOutlined,
-  ReloadOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
 import PrintBatchModal from "../ui/PrintBatchModal";
@@ -351,9 +348,8 @@ export default function PurchaseOrdersPage() {
             }}
           />
           <Space size={6}>
-            <Popover
-              trigger="click"
-              placement="bottomRight"
+            <FilterButton
+              count={Number(Boolean(supplierId)) + Number(Boolean(dates))}
               open={filterOpen}
               onOpenChange={(open) => {
                 setFilterOpen(open);
@@ -408,24 +404,8 @@ export default function PurchaseOrdersPage() {
                   </Space>
                 </div>
               }
-            >
-              <Badge
-                count={Number(Boolean(supplierId)) + Number(Boolean(dates))}
-                size="small"
-                offset={[-3, 3]}
-              >
-                <Button size="small" icon={<FilterOutlined />}>
-                  Bộ lọc
-                </Button>
-              </Badge>
-            </Popover>
-            <Tooltip title="Làm mới">
-              <Button
-                size="small"
-                icon={<ReloadOutlined spin={listQuery.isFetching} />}
-                onClick={() => listQuery.refetch()}
-              />
-            </Tooltip>
+            />
+            <RefreshButton loading={listQuery.isFetching} onClick={() => listQuery.refetch()} />
           </Space>
         </div>
       ) : null}
@@ -522,7 +502,8 @@ export default function PurchaseOrdersPage() {
           ) : null}
 
           <Table<RetailPurchaseListItem>
-            className="commercial-lot-table"
+            bordered
+            className="data-grid"
             rowKey="id"
             size="small"
             loading={listQuery.isLoading}

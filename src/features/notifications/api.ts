@@ -1,5 +1,12 @@
 import { apiCall } from "../../shared/lib/api";
-import type { CommonNotification, NotificationListResult } from "./types";
+import type {
+  CommonNotification,
+  NotificationKind,
+  NotificationListResult,
+  NotificationQuickResult,
+  NotificationSummary,
+  NotificationTab,
+} from "./types";
 
 const unwrap = <T,>(response: any) =>
   (response.data?.data ?? response.data) as T;
@@ -9,8 +16,17 @@ export const NotificationsApi = {
     unreadOnly?: boolean;
     cursor?: string;
     limit?: number;
+    tab?: NotificationTab;
+    kind?: NotificationKind;
   }) =>
     apiCall("notifications.list", { query }).then(unwrap<NotificationListResult>),
+
+  summary: () => apiCall("notifications.summary").then(unwrap<NotificationSummary>),
+
+  workItems: (query?: { cursor?: string; limit?: number }) =>
+    apiCall("notifications.workItems", { query }).then(unwrap<NotificationListResult>),
+
+  quick: () => apiCall("notifications.quick").then(unwrap<NotificationQuickResult>),
 
   unreadCount: () =>
     apiCall("notifications.unreadCount").then(unwrap<{ count: number }>),
@@ -23,6 +39,11 @@ export const NotificationsApi = {
   markAllRead: () =>
     apiCall("notifications.markAllRead", { data: {} }).then(
       unwrap<{ updated: number }>,
+    ),
+
+  archive: (id: string) =>
+    apiCall("notifications.archive", { params: { id }, data: {} }).then(
+      unwrap<{ ok: boolean }>,
     ),
 
   preferences: () =>
@@ -54,4 +75,3 @@ export const NotificationsApi = {
 };
 
 export type { CommonNotification };
-

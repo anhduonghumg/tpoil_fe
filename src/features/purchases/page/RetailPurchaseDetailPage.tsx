@@ -3,6 +3,8 @@ import {
   Alert,
   Button,
   Empty,
+  Form,
+  Input,
   Modal,
   Progress,
   Space,
@@ -108,6 +110,11 @@ export default function RetailPurchaseDetailPage() {
   const cancelMutation = useCancelPurchaseOrder();
   const createPaymentRequest = useCreateCommercialLotPaymentRequest(id);
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [paymentRequestOpen, setPaymentRequestOpen] = useState(false);
+  const [paymentRequestForm] = Form.useForm<{
+    beneficiaryAccountNo: string;
+    note?: string;
+  }>();
 
   const order = detail.data;
 
@@ -133,6 +140,37 @@ export default function RetailPurchaseDetailPage() {
       ),
     [order],
   );
+
+  // Only expose a new receipt request while the purchase still has an
+  // outstanding quantity. A completed receipt must never invite users to
+  // create a duplicate request.
+  const canRequestReceipt = Boolean(
+    order &&
+      order.status !== "DRAFT" &&
+      order.status !== "CANCELLED" &&
+      Number(order.quantities.remainingToReceive) > 0,
+  );
+
+  const openPaymentRequest = () => {
+    paymentRequestForm.setFieldsValue({
+      beneficiaryAccountNo: (order?.supplier as any)?.bankAccountNo ?? "",
+      note: "",
+    });
+    setPaymentRequestOpen(true);
+  };
+
+  const submitPaymentRequest = async (values: {
+    beneficiaryAccountNo: string;
+    note?: string;
+  }) => {
+    if (!payableInvoice) return;
+    await createPaymentRequest.mutateAsync({
+      supplierInvoiceId: payableInvoice.id,
+      beneficiaryAccountNo: values.beneficiaryAccountNo.trim(),
+      note: values.note?.trim() || undefined,
+    });
+    setPaymentRequestOpen(false);
+  };
 
   const lineColumns: ColumnsType<RetailPurchaseDetail["lines"][number]> = [
     { title: "#", dataIndex: "lineNo", width: 50 },
@@ -503,9 +541,7 @@ export default function RetailPurchaseDetailPage() {
               type="primary"
               icon={<FileAddOutlined />}
               loading={createPaymentRequest.isPending}
-              onClick={() =>
-                createPaymentRequest.mutate({ supplierInvoiceId: payableInvoice.id })
-              }
+              onClick={openPaymentRequest}
             >
               Đề nghị thanh toán
             </Button>
@@ -517,7 +553,7 @@ export default function RetailPurchaseDetailPage() {
               Nhận hóa đơn
             </Button>
           ) : null}
-          {order.status !== "DRAFT" && order.status !== "CANCELLED" ? (
+          {canRequestReceipt ? (
             <Button
               type="primary"
               icon={<InboxOutlined />}
@@ -528,6 +564,31 @@ export default function RetailPurchaseDetailPage() {
           ) : null}
         </Space>
       </div>
+
+      <Modal
+        title="Lập đề nghị thanh toán"
+        open={paymentRequestOpen}
+        onCancel={() => setPaymentRequestOpen(false)}
+        onOk={() => paymentRequestForm.submit()}
+        confirmLoading={createPaymentRequest.isPending}
+        okText="Gửi đề nghị"
+        cancelText="Đóng"
+        destroyOnHidden
+        width={520}
+      >
+        <Form form={paymentRequestForm} layout="vertical" size="small" onFinish={submitPaymentRequest}>
+          <Form.Item
+            name="beneficiaryAccountNo"
+            label="Tài khoản nhận của nhà cung cấp"
+            rules={[{ required: true, message: "Nhập tài khoản nhận thanh toán" }]}
+          >
+            <Input placeholder="Tự lấy từ danh mục nhà cung cấp" />
+          </Form.Item>
+          <Form.Item name="note" label="Ghi chú">
+            <Input.TextArea autoSize={{ minRows: 2, maxRows: 3 }} />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <div className="commercial-lot-workflow">
         <Steps

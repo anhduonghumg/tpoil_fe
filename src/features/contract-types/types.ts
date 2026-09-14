@@ -4,6 +4,8 @@ export interface ContractType {
   name: string;
   description?: string | null;
   isActive: boolean;
+  /** Loại hợp đồng này có cho phép mua bán xăng dầu không. */
+  allowsTrading?: boolean;
   sortOrder?: number | null;
   createdAt: string;
   updatedAt: string;

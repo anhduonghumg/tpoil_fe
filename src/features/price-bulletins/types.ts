@@ -41,8 +41,14 @@ export type PriceBulletinDetail = PriceBulletinListItem & {
 };
 
 export type CreatePriceBulletinPayload = {
+  /** ISO đầy đủ, giữ cả giờ — quyết định in ra ghi "có hiệu lực từ 15 giờ 00". */
   effectiveFrom: string;
   effectiveTo?: string;
+  /** Số quyết định của công ty, ví dụ "03.09.2026/TP". */
+  decisionNo?: string;
+  /** Công văn Bộ Công Thương làm căn cứ, ví dụ "7010/BCT-TTTN". */
+  basisDocNo?: string;
+  basisDocDate?: string;
   note?: string;
   fileUrl?: string;
   fileChecksum?: string;
@@ -64,6 +70,9 @@ export type PriceBulletinListItem = {
   effectiveFrom: string;
   effectiveTo?: string | null;
   publishedAt?: string | null;
+  decisionNo?: string | null;
+  basisDocNo?: string | null;
+  basisDocDate?: string | null;
   note?: string | null;
   items?: PriceBulletinItemLite[];
 };

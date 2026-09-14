@@ -3,21 +3,31 @@ import { Empty, Spin, Typography, Tag, Divider, Button, Tooltip } from "antd";
 import { EditOutlined, PlusOutlined } from "@ant-design/icons"; // Thêm icon nếu cần
 import { useState } from "react";
 import type { CustomerOverview } from "../types";
-import { useCustomerOverview } from "../hooks";
+import { useCustomerOverview, usePartyBankAccounts } from "../hooks";
 import CustomerContractsModal from "./CustomerContractsModal";
 import AssignContractsModal from "./AssignContractModal";
+import PartyBankAccountsModal from "./PartyBankAccountsModal";
 
 const { Text, Link } = Typography;
 
 interface Props {
   customerId?: string | null;
+  /** Quyết định cách diễn giải tài khoản ngân hàng: chi tiền đi hay nhận tiền về. */
+  partyKind?: "CUSTOMER" | "SUPPLIER";
 }
 
-export default function CustomerOverviewSidebar({ customerId }: Props) {
+export default function CustomerOverviewSidebar({
+  customerId,
+  partyKind = "CUSTOMER",
+}: Props) {
   const [contractsOpen, setContractsOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [bankOpen, setBankOpen] = useState(false);
 
   const { data, isLoading } = useCustomerOverview(customerId || undefined);
+  // API overview không trả tài khoản ngân hàng; dùng thẳng endpoint riêng để khối này
+  // tự làm mới sau khi sửa trong modal (cùng query key).
+  const bankAccounts = usePartyBankAccounts(customerId || undefined);
 
   // ===== Style chung cho container căn giữa =====
   const centerStyle: React.CSSProperties = {
@@ -66,6 +76,15 @@ export default function CustomerOverviewSidebar({ customerId }: Props) {
     typeof customer.paymentTermDays === "number"
       ? `${customer.paymentTermDays} ngày`
       : "-";
+
+  // Tài khoản đã ngừng dùng vẫn còn trong DB để chứng từ cũ tra lại được, nhưng không
+  // nên chiếm chỗ ở bảng tóm tắt.
+  const activeBankAccounts = (bankAccounts.list.data ?? []).filter(
+    (account) => account.isActive !== false,
+  );
+  const defaultBankAccount =
+    activeBankAccounts.find((account) => account.isDefault) ??
+    activeBankAccounts[0];
   // console.log("Customer overview data:", customer);
   // console.log("account", customer?.owners?.accounting?.fullName);
   // console.log("sale", customer?.owners?.sales?.fullName);
@@ -118,7 +137,25 @@ export default function CustomerOverviewSidebar({ customerId }: Props) {
         <SectionTitle>Thông tin chung</SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <InfoRow label="MST" value={customer.taxCode} copyable />
-          <InfoRow label="Loại KH" value={customer.type} />
+          {/*
+            Loại thương nhân quyết định chiều được phép giao dịch (TNPP mua và bán, TNDM
+            chỉ bán cho họ, TNDL chỉ mua của họ), nên nó mới là phân loại đáng nhìn ở đây
+            — thay cho B2B/B2C vốn không còn được khai ở đâu nữa.
+          */}
+          <InfoRow
+            label="Loại thương nhân"
+            value={
+              customer.merchantRole ? (
+                <Tooltip title={customer.merchantLabel}>
+                  <Tag color="blue" style={{ marginInlineEnd: 0 }}>
+                    {customer.merchantRole}
+                  </Tag>
+                </Tooltip>
+              ) : (
+                <Text type="secondary">Không phải thương nhân xăng dầu</Text>
+              )
+            }
+          />
           {/* <InfoRow
             label="Trạng thái"
             value={
@@ -217,6 +254,80 @@ export default function CustomerOverviewSidebar({ customerId }: Props) {
           )}
         </div>
 
+        <StyledDivider />
+
+        {/* ===== SECTION 4: TÀI KHOẢN NGÂN HÀNG ===== */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <SectionTitle style={{ marginBottom: 0 }}>
+            Tài khoản ngân hàng
+          </SectionTitle>
+          <Tooltip title="Thêm tài khoản ngân hàng">
+            <Button
+              type="dashed"
+              size="small"
+              shape="circle"
+              icon={<PlusOutlined />}
+              onClick={() => setBankOpen(true)}
+            />
+          </Tooltip>
+        </div>
+
+        <div
+          style={{
+            backgroundColor: "#F9FAFB",
+            padding: "10px 12px",
+            borderRadius: 6,
+          }}
+        >
+          {activeBankAccounts.length === 0 ? (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 13,
+              }}
+            >
+              <Text type="secondary">Chưa có tài khoản</Text>
+              <Link onClick={() => setBankOpen(true)}>Thêm ngay</Link>
+            </div>
+          ) : (
+            <div style={{ fontSize: 13 }}>
+              {/* Tài khoản mặc định là cái được điền sẵn lên chứng từ, nên nó đứng đầu. */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <span style={{ minWidth: 0 }}>
+                  <b>{defaultBankAccount?.accountNo}</b>
+                  <Text
+                    type="secondary"
+                    style={{ display: "block", fontSize: 12 }}
+                    ellipsis
+                  >
+                    {defaultBankAccount?.bankName}
+                  </Text>
+                </span>
+                <Link onClick={() => setBankOpen(true)}>
+                  {activeBankAccounts.length > 1
+                    ? `+${activeBankAccounts.length - 1} tài khoản →`
+                    : "Xem chi tiết →"}
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* ===== GHI CHÚ ===== */}
         {customer.note && (
           <>
@@ -251,6 +362,12 @@ export default function CustomerOverviewSidebar({ customerId }: Props) {
       <AssignContractsModal
         open={assignOpen}
         onClose={() => setAssignOpen(false)}
+        customerId={customer.id}
+        customerName={customer.name}
+      />
+      <PartyBankAccountsModal
+        open={bankOpen}
+        onClose={() => setBankOpen(false)}
         customerId={customer.id}
         customerName={customer.name}
       />

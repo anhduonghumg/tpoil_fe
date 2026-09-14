@@ -1,6 +1,8 @@
 // features/contracts/hooks.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ContractsApi } from "./api";
+import { notify } from "../../shared/lib/notification";
+import { extractApiError } from "../../shared/lib/httpError";
 import type {
   Contract,
   ContractAttachment,
@@ -9,6 +11,7 @@ import type {
   ContractImportRow,
   ContractListQuery,
   ContractUpsertPayload,
+  UpsertContractAppendixPayload,
 } from "./types";
 import type { Paged } from "../../shared/lib/types";
 import type {
@@ -200,5 +203,72 @@ export function useImportContracts() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CONTRACTS_LIST_QUERY_KEY });
     },
+  });
+}
+
+/* ===== Phụ lục hợp đồng ===== */
+
+const appendixKeys = {
+  list: (contractId?: string) => ["contracts", contractId, "appendices"] as const,
+  terms: (contractId?: string, at?: string) =>
+    ["contracts", contractId, "terms", at ?? "today"] as const,
+};
+
+export function useContractAppendices(contractId?: string) {
+  const qc = useQueryClient();
+  // Sửa phụ lục là đổi điều khoản, nên bảng "điều khoản tại ngày" phải tính lại theo.
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: appendixKeys.list(contractId) });
+    qc.invalidateQueries({ queryKey: ["contracts", contractId, "terms"] });
+  };
+
+  const list = useQuery({
+    queryKey: appendixKeys.list(contractId),
+    queryFn: () => ContractsApi.listAppendices(contractId!),
+    enabled: Boolean(contractId),
+  });
+
+  const create = useMutation({
+    mutationFn: (d: UpsertContractAppendixPayload) =>
+      ContractsApi.createAppendix(contractId!, d),
+    onSuccess: () => {
+      invalidate();
+      notify.success("Đã thêm phụ lục");
+    },
+    onError: (e) =>
+      notify.error(extractApiError(e).message || "Không thêm được phụ lục"),
+  });
+
+  const update = useMutation({
+    mutationFn: (args: { appendixId: string; data: UpsertContractAppendixPayload }) =>
+      ContractsApi.updateAppendix(contractId!, args.appendixId, args.data),
+    onSuccess: () => {
+      invalidate();
+      notify.success("Đã cập nhật phụ lục");
+    },
+    onError: (e) =>
+      notify.error(extractApiError(e).message || "Không cập nhật được phụ lục"),
+  });
+
+  const remove = useMutation({
+    mutationFn: (appendixId: string) =>
+      ContractsApi.deleteAppendix(contractId!, appendixId),
+    onSuccess: () => {
+      invalidate();
+      notify.success("Đã xóa phụ lục");
+    },
+    onError: (e) =>
+      notify.error(extractApiError(e).message || "Không xóa được phụ lục"),
+  });
+
+  return { list, create, update, remove };
+}
+
+/** Điều khoản đang áp tại một ngày cụ thể. */
+export function useContractTermsAt(contractId?: string, at?: string) {
+  return useQuery({
+    queryKey: appendixKeys.terms(contractId, at),
+    queryFn: () => ContractsApi.termsAt(contractId!, at),
+    enabled: Boolean(contractId),
   });
 }

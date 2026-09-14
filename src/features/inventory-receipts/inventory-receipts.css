@@ -5,20 +5,16 @@
   min-width: 0;
 }
 
-.inventory-receipts-page h3 {
-  margin: 0 !important;
-  font-size: 20px !important;
-}
-
-.inventory-receipts-toolbar {
+.inventory-receipts-heading {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.inventory-receipts-toolbar > .ant-input-search {
-  width: 425px;
+/* Ô tìm nằm trên thanh tab nên phải gọn lại; 425px như lúc nó chiếm trọn một dòng
+   riêng sẽ đẩy nút lọc và nút làm mới tràn ra ngoài. */
+.inventory-receipts-search {
+  width: 260px;
   max-width: 100%;
 }
 
@@ -30,15 +26,11 @@
   margin-bottom: 10px;
 }
 
-.inventory-stock-card-toolbar {
-  display: flex;
-  justify-content: flex-end;
-}
-
 .inventory-receipt-link {
   height: auto;
   padding: 0;
   font-weight: 600;
+  max-width: 100%;
 }
 
 .inventory-stock-card-summary {
@@ -93,12 +85,8 @@
     grid-template-columns: 1fr;
   }
 
-  .inventory-receipts-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .inventory-receipts-toolbar > .ant-space {
-    justify-content: flex-end;
+  /* Màn hẹp: ô tìm co lại để thanh tab không bị đẩy tràn. */
+  .inventory-receipts-search {
+    width: 160px;
   }
 }

@@ -1,21 +1,28 @@
 import React, { useMemo } from "react";
-import { Button, Table, Tag } from "antd";
+import { Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { PriceBulletinListItem, PriceBulletinStatus } from "../types";
 import {
   ActionKey,
   CommonActionMenu,
 } from "../../../shared/ui/CommonActionMenu";
-import { CheckOutlined, EditOutlined, StopOutlined } from "@ant-design/icons";
+import {
+  CheckOutlined,
+  CopyOutlined,
+  EditOutlined,
+  FileImageOutlined,
+  FilePdfOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 
 const statusTag = (s: PriceBulletinStatus) => {
-  if (s === "PUBLISHED") return <Tag color="green">Phát hành</Tag>;
+  if (s === "PUBLISHED") return <Tag color="green">Đã phát hành</Tag>;
   if (s === "VOID") return <Tag color="red">Hủy bỏ</Tag>;
-  return <Tag>Nháp</Tag>;
+  return <Tag color="gold">Nháp</Tag>;
 };
 
 const fmtDate = (iso?: string | null) => {
-  if (!iso) return "-";
+  if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return String(iso);
   const dd = String(d.getDate()).padStart(2, "0");
@@ -25,11 +32,12 @@ const fmtDate = (iso?: string | null) => {
 };
 
 const fmtMoney = (n?: number | null) => {
-  if (n === null || n === undefined) return "-";
-  return n.toLocaleString("vi-VN");
+  if (n === null || n === undefined) return "—";
+  return Number(n).toLocaleString("vi-VN");
 };
 
-type FlatRow = {
+/** Mỗi dòng là một mức giá (sản phẩm × vùng) của một bảng giá. */
+type PriceRow = {
   key: string;
   bulletinId: string;
   status: PriceBulletinStatus;
@@ -37,10 +45,7 @@ type FlatRow = {
   effectiveTo?: string | null;
   productName: string;
   regionName: string;
-  price: number;
-  _rowSpan: number;
-  _isFirst: boolean;
-  _raw: PriceBulletinListItem;
+  price: number | null;
 };
 
 export const PriceBulletinsTable: React.FC<{
@@ -48,43 +53,38 @@ export const PriceBulletinsTable: React.FC<{
   items: PriceBulletinListItem[];
   onAction: (id: string, action: ActionKey) => void;
 }> = ({ loading, items, onAction }) => {
-  const data = useMemo<FlatRow[]>(() => {
-    const rows: FlatRow[] = [];
+  // Dàn phẳng thành một dòng một mức giá — cùng nhịp với các lưới khác của bán hàng,
+  // không gộp ô nên không còn mảng trắng to giữa bảng.
+  const data = useMemo<PriceRow[]>(() => {
+    const rows: PriceRow[] = [];
 
     for (const b of items) {
       const lines = (b as any).items ?? [];
-      const count = Math.max(1, lines.length);
+      const base = {
+        bulletinId: b.id,
+        status: b.status,
+        effectiveFrom: b.effectiveFrom,
+        effectiveTo: b.effectiveTo ?? null,
+      };
 
       if (!lines.length) {
         rows.push({
+          ...base,
           key: `${b.id}__empty`,
-          bulletinId: b.id,
-          status: b.status,
-          effectiveFrom: b.effectiveFrom,
-          effectiveTo: b.effectiveTo ?? null,
-          productName: "-",
-          regionName: "-",
-          price: null as any,
-          _rowSpan: 1,
-          _isFirst: true,
-          _raw: b,
+          productName: "—",
+          regionName: "—",
+          price: null,
         });
         continue;
       }
 
       lines.forEach((it: any, idx: number) => {
         rows.push({
+          ...base,
           key: `${b.id}__${it.id ?? idx}`,
-          bulletinId: b.id,
-          status: b.status,
-          effectiveFrom: b.effectiveFrom,
-          effectiveTo: b.effectiveTo ?? null,
-          productName: it.product?.name ?? "-",
-          regionName: it.region?.name ?? "-",
-          price: it.price,
-          _rowSpan: idx === 0 ? count : 0,
-          _isFirst: idx === 0,
-          _raw: b,
+          productName: it.product?.name ?? "—",
+          regionName: it.region?.name ?? "—",
+          price: it.price == null ? null : Number(it.price),
         });
       });
     }
@@ -92,62 +92,49 @@ export const PriceBulletinsTable: React.FC<{
     return rows;
   }, [items]);
 
-  const cols: ColumnsType<FlatRow> = [
+  const cols: ColumnsType<PriceRow> = [
     {
-      title: "Trạng thái",
-      dataIndex: "status",
-      align: "center",
+      title: "Sản phẩm",
+      dataIndex: "productName",
+      width: 240,
+      fixed: "left",
+      ellipsis: true,
+    },
+    { title: "Vùng", dataIndex: "regionName", width: 100 },
+    {
+      title: "Giá",
+      dataIndex: "price",
       width: 120,
-      render: (v) => statusTag(v),
-      onCell: (r) => ({ rowSpan: r._rowSpan }),
+      align: "right",
+      render: (v) => <strong>{fmtMoney(v)}</strong>,
     },
     {
       title: "Áp dụng từ",
       dataIndex: "effectiveFrom",
+      width: 110,
       align: "center",
-      width: 140,
       render: (v) => fmtDate(v),
-      onCell: (r) => ({ rowSpan: r._rowSpan }),
     },
     {
       title: "Đến",
       dataIndex: "effectiveTo",
+      width: 110,
       align: "center",
-      width: 140,
       render: (v) => fmtDate(v),
-      onCell: (r) => ({ rowSpan: r._rowSpan }),
     },
     {
-      title: "Giá sản phẩm",
+      title: "Trạng thái",
+      dataIndex: "status",
+      width: 120,
       align: "center",
-      children: [
-        {
-          title: "Sản phẩm",
-          align: "left",
-          dataIndex: "productName",
-          width: 260,
-          render: (v) => <span>{v}</span>,
-        },
-        {
-          title: "Vùng",
-          align: "left",
-          dataIndex: "regionName",
-          width: 140,
-        },
-        {
-          title: "Giá",
-          dataIndex: "price",
-          width: 140,
-          align: "center",
-          render: (v) => <span>{fmtMoney(v)}</span>,
-        },
-      ],
+      render: (v) => statusTag(v),
     },
     {
       title: "Thao tác",
       key: "actions",
-      width: 120,
+      width: 100,
       align: "center",
+      fixed: "right",
       render: (_, row) => (
         <CommonActionMenu
           items={[
@@ -156,52 +143,66 @@ export const PriceBulletinsTable: React.FC<{
               label: "Sửa thông tin",
               icon: <EditOutlined />,
               disabled: row.status !== "DRAFT",
-              // need: PERMS.PRICE_BULLETINS_UPDATE,
             },
-            // {
-            //   key: "draft",
-            //   label: "Nháp",
-            //   icon: <CopyOutlined />,
-            //   disabled: row.status !== "DRAFT",
-            //   // need: PERMS.PRICE_BULLETINS_DRAFT,
-            // },
             {
               key: "public",
               label: "Phát hành",
               icon: <CheckOutlined />,
-              disabled: row.status === "VOID",
-              // need: PERMS.PRICE_BULLETINS_PUBLISHED,
+              disabled: row.status !== "DRAFT",
             },
             {
               key: "void",
-              label: "hủy bỏ",
+              label: "Hủy bỏ",
               icon: <StopOutlined />,
               disabled: row.status === "VOID",
-              // need: PERMS.USERS_ASSIGN_ROLES,
             },
-            // {
-            //   key: "delete",
-            //   label: "Xóa",
-            //   icon: <DeleteOutlined />,
-            //   danger: true,
-            //   need: PERMS.USERS_DELETE,
-            // },
+            // Hai mẫu chỉ dựng cho bảng đã phát hành: bản nháp còn sửa được, in ra rồi
+            // gửi khách mà giá còn đổi thì rất phiền.
+            //
+            // Sao chép đứng trước tải về: việc thật là dán thẳng ảnh vào Zalo gửi đại lý,
+            // tải file rồi mở thư mục kéo vào chỉ là đường vòng.
+            {
+              key: "copyNotice",
+              label: "Sao chép ảnh thông báo",
+              icon: <CopyOutlined />,
+              disabled: row.status !== "PUBLISHED",
+            },
+            {
+              key: "printNotice",
+              label: "Tải ảnh thông báo (PNG)",
+              icon: <FileImageOutlined />,
+              disabled: row.status !== "PUBLISHED",
+            },
+            {
+              key: "printDecision",
+              label: "Tải quyết định (PDF)",
+              icon: <FilePdfOutlined />,
+              disabled: row.status !== "PUBLISHED",
+            },
           ]}
-          onAction={(act) => onAction(row?.bulletinId, act)}
+          onAction={(act) => onAction(row.bulletinId, act)}
         />
       ),
     },
   ];
 
   return (
-    <Table
+    <Table<PriceRow>
+      className="sales-grid"
       rowKey="key"
+      size="small"
+      bordered
       loading={loading}
       columns={cols}
       dataSource={data}
-      pagination={false}
-      size="small"
-      scroll={{ x: 1100, y: 580}}
+      // Không đặt scroll.y: để cả trang chỉ có một thanh cuộn dọc duy nhất.
+      scroll={{ x: 900 }}
+      pagination={{
+        pageSize: 20,
+        showSizeChanger: true,
+        pageSizeOptions: [20, 50, 100],
+        showTotal: (total) => `${total} mức giá`,
+      }}
     />
   );
 };

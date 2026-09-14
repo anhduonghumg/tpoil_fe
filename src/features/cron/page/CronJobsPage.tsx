@@ -1,5 +1,6 @@
 // features/cron/page/CronJobsPage.tsx
 import { useState } from "react";
+import "../../../shared/ui/data-grid.css";
 import {  Table, Tag, Typography, Modal } from "antd";
 import dayjs from "dayjs";
 import { useCronJobsList, useCronJobRuns } from "../hooks";
@@ -128,12 +129,14 @@ export default function CronJobsPage() {
     <>
       {/* <Card title="Trạng thái Cron jobs"> */}
       <Table
+        className="data-grid"
+        bordered
         rowKey="id"
         loading={isLoading}
         dataSource={jobsRows?.data ?? []}
         columns={jobColumns as any}
         pagination={false}
-        size="middle"
+        size="small"
       />
       {/* </Card> */}
 

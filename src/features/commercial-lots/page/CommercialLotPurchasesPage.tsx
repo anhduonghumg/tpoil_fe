@@ -1,26 +1,23 @@
 import React, { useMemo, useState } from "react";
+import "../../../shared/ui/data-grid.css";
 import {
-  Badge,
   Button,
   DatePicker,
   Input,
-  Popover,
   Progress,
   Space,
   Table,
   Tabs,
-  Tooltip,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
-  FilterOutlined,
   PlusOutlined,
-  ReloadOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { FilterButton, RefreshButton } from "../../../shared/ui/TableFilter";
 import { PartySelect } from "../../../shared/ui/PartySelect";
 import { useCommercialLotList } from "../hooks";
 import type {
@@ -243,10 +240,13 @@ export default function CommercialLotPurchasesPage() {
           }}
         />
         <Space size={6}>
-          <Popover trigger="click" placement="bottomRight" open={filterOpen} onOpenChange={(open) => { setFilterOpen(open); if (open) { setDraftSupplierId(supplierId); setDraftDates(dates); } }} content={<div className="commercial-lot-filter-panel"><Typography.Text strong>Nhà cung cấp</Typography.Text><PartySelect partyRole="SUPPLIER" placeholder="Chọn nhà cung cấp" value={draftSupplierId} onChange={(value) => setDraftSupplierId(value ?? undefined)} /><Typography.Text strong>Ngày đặt</Typography.Text><DatePicker.RangePicker value={draftDates} format="DD/MM/YYYY" onChange={(value) => setDraftDates(value as [dayjs.Dayjs, dayjs.Dayjs] | null)} style={{ width: "100%" }} /><Space style={{ width: "100%", justifyContent: "flex-end" }}><Button size="small" onClick={() => { setSupplierId(undefined); setDates(null); setFilterOpen(false); setPage(1); }}>Đặt lại</Button><Button size="small" type="primary" onClick={() => { setSupplierId(draftSupplierId); setDates(draftDates); setFilterOpen(false); setPage(1); }}>Áp dụng</Button></Space></div>}>
-            <Badge count={Number(Boolean(supplierId)) + Number(Boolean(dates))} size="small" offset={[-3, 3]}><Button size="small" icon={<FilterOutlined />}>Bộ lọc</Button></Badge>
-          </Popover>
-          <Tooltip title="Làm mới"><Button size="small" icon={<ReloadOutlined spin={query.isFetching} />} onClick={() => query.refetch()} /></Tooltip>
+          <FilterButton
+            count={Number(Boolean(supplierId)) + Number(Boolean(dates))}
+            open={filterOpen}
+            onOpenChange={(open) => { setFilterOpen(open); if (open) { setDraftSupplierId(supplierId); setDraftDates(dates); } }}
+            content={<div className="commercial-lot-filter-panel"><Typography.Text strong>Nhà cung cấp</Typography.Text><PartySelect partyRole="SUPPLIER" placeholder="Chọn nhà cung cấp" value={draftSupplierId} onChange={(value) => setDraftSupplierId(value ?? undefined)} /><Typography.Text strong>Ngày đặt</Typography.Text><DatePicker.RangePicker value={draftDates} format="DD/MM/YYYY" onChange={(value) => setDraftDates(value as [dayjs.Dayjs, dayjs.Dayjs] | null)} style={{ width: "100%" }} /><Space style={{ width: "100%", justifyContent: "flex-end" }}><Button size="small" onClick={() => { setSupplierId(undefined); setDates(null); setFilterOpen(false); setPage(1); }}>Đặt lại</Button><Button size="small" type="primary" onClick={() => { setSupplierId(draftSupplierId); setDates(draftDates); setFilterOpen(false); setPage(1); }}>Áp dụng</Button></Space></div>}
+          />
+          <RefreshButton loading={query.isFetching} onClick={() => query.refetch()} />
         </Space>
       </div>
 
@@ -270,7 +270,8 @@ export default function CommercialLotPurchasesPage() {
       />
 
       <Table<CommercialLotPurchase>
-        className="commercial-lot-table"
+        bordered
+        className="data-grid"
         rowKey="id"
         size="small"
         loading={query.isLoading}

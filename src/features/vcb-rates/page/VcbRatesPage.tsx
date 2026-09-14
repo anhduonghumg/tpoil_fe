@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Card,
@@ -279,8 +279,47 @@ export default function VcbRatesPage() {
   ).length;
   const missingCount = Math.max(0, month.daysInMonth() - filledCount);
 
+  /*
+    Đo chiều cao khả dụng của khung bảng để chỉ THÂN bảng cuộn, không sinh thêm thanh
+    cuộn ở ngoài. Đo bằng ResizeObserver thay vì trừ một hằng số theo 100vh, vì con số
+    đó lệch mỗi khi đổi kích thước cửa sổ, thu gọn sidebar hay người dùng zoom.
+  */
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+  const [tableBodyHeight, setTableBodyHeight] = useState<number>(320);
+
+  useEffect(() => {
+    const el = tableWrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const head = el.querySelector<HTMLElement>(".ant-table-thead");
+      const headHeight = head?.offsetHeight ?? 39;
+      setTableBodyHeight(Math.max(160, el.clientHeight - headHeight));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div style={{ minHeight: "100vh", background: "#f6f8fb", padding: 12 }}>
+    /*
+      Trang nằm trong .app-content vốn đã tự cuộn. Trước đây khối này ép minHeight 100vh
+      nên luôn cao hơn vùng chứa → sinh thanh cuộn thứ hai ở ngoài, chồng lên thanh cuộn
+      của bảng. Giờ trang vừa đúng chiều cao khả dụng và chỉ thân bảng được cuộn.
+    */
+    <div
+      style={{
+        height: "100%",
+        // Khai rõ vì dự án không có reset box-sizing toàn cục: thiếu nó thì padding 12
+        // cộng thêm vào 100% và lại tràn ra ngoài đúng như lỗi đang sửa.
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        background: "#f6f8fb",
+        padding: 12,
+        overflow: "hidden",
+      }}
+    >
       <style>
         {`
           .master-rate-card {
@@ -299,6 +338,16 @@ export default function VcbRatesPage() {
           .master-rate-table .ant-table {
             border-radius: 14px;
             overflow: hidden;
+          }
+
+          /* Bảng phải lấp đầy khung đo được, nếu không phần thân sẽ ngắn hơn khung
+             và để hở một dải trống dưới đáy. */
+          .master-rate-table,
+          .master-rate-table .ant-table-wrapper,
+          .master-rate-table .ant-spin-nested-loading,
+          .master-rate-table .ant-spin-container,
+          .master-rate-table .ant-table-container {
+            height: 100%;
           }
 
           .master-rate-table .ant-table-thead > tr > th {
@@ -360,7 +409,17 @@ export default function VcbRatesPage() {
         `}
       </style>
 
-      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+      <div
+        style={{
+          maxWidth: 1280,
+          margin: "0 auto",
+          width: "100%",
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         <Card
           size="small"
           className="master-rate-card"
@@ -451,9 +510,18 @@ export default function VcbRatesPage() {
         <Card
           size="small"
           className="master-rate-card"
-          styles={{ body: { padding: 4 } }}
+          styles={{
+            body: {
+              padding: 4,
+              flex: 1,
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+            },
+          }}
+          style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
         >
-          <div className="master-rate-table">
+          <div ref={tableWrapRef} className="master-rate-table" style={{ flex: 1, minHeight: 0 }}>
             <Table
               size="small"
               bordered={false}
@@ -461,10 +529,9 @@ export default function VcbRatesPage() {
               dataSource={rows}
               pagination={false}
               loading={ratesQuery.isLoading}
-              scroll={{
-                x: 880,
-                y: "calc(100vh - 255px)",
-              }}
+              // Chiều cao thân bảng đo từ khung chứa thay vì trừ một con số cố định theo
+              // 100vh — con số đó sai mỗi khi header, thanh lọc hay zoom thay đổi.
+              scroll={{ x: 880, y: tableBodyHeight }}
             />
           </div>
         </Card>

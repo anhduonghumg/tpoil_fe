@@ -26,6 +26,14 @@ export type UpsertPlattsQuotePayload = {
   note?: string;
 };
 
+export type BulkUpsertPlattsQuotesPayload = {
+  items: UpsertPlattsQuotePayload[];
+};
+
+export type BulkUpsertPlattsQuotesResult = {
+  saved: number;
+};
+
 export type DeletePlattsQuoteResult = {
   id: string;
 };

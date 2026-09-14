@@ -12,6 +12,7 @@ import type {
   CustomerListQuery,
   MerchantRole,
   MerchantRolePeriod,
+  PartyBankAccount,
   CustomerOverview,
   CustomerPurchaseDefaults,
   UpdateCustomerPurchaseDefaultsPayload,
@@ -181,6 +182,41 @@ export const CustomersApi = {
         data: payload,
       },
     ).then((r) => r.data?.data ?? (r.data as any)),
+
+  // ---- Tài khoản ngân hàng ----
+  listBankAccounts: (customerId: string): Promise<PartyBankAccount[]> =>
+    apiCall<ApiResponse<PartyBankAccount[]>>("partyBankAccounts.list", {
+      params: { customerId },
+    }).then((r) => (r.data?.data ?? []) as PartyBankAccount[]),
+
+  createBankAccount: (
+    customerId: string,
+    data: PartyBankAccount,
+  ): Promise<PartyBankAccount> =>
+    apiCall<ApiResponse<PartyBankAccount>>("partyBankAccounts.create", {
+      params: { customerId },
+      data,
+    }).then((r) => r.data!.data as PartyBankAccount),
+
+  updateBankAccount: (
+    customerId: string,
+    accountId: string,
+    data: Partial<PartyBankAccount>,
+  ): Promise<PartyBankAccount> =>
+    apiCall<ApiResponse<PartyBankAccount>>("partyBankAccounts.update", {
+      params: { customerId, accountId },
+      data,
+    }).then((r) => r.data!.data as PartyBankAccount),
+
+  /** Tài khoản đã gắn đề nghị thanh toán chỉ được ngừng sử dụng, không xóa hẳn. */
+  deleteBankAccount: (
+    customerId: string,
+    accountId: string,
+  ): Promise<{ deleted: boolean; message: string }> =>
+    apiCall<ApiResponse<{ deleted: boolean; message: string }>>(
+      "partyBankAccounts.delete",
+      { params: { customerId, accountId } },
+    ).then((r) => r.data!.data as { deleted: boolean; message: string }),
 
   merchantRole: (id: string) =>
     apiCall<ApiResponse<MerchantRolePeriod[]>>("customer.merchantRole", {

@@ -1,11 +1,13 @@
 import React from "react";
 import {
+  Checkbox,
   Col,
   ConfigProvider,
   Form,
   Input,
   InputNumber,
   Row,
+  Space,
   Switch,
   Tooltip,
 } from "antd";
@@ -96,6 +98,35 @@ export default function ContractTypeFormCompact({ form }: { form: any }) {
             >
               <Switch checkedChildren="Đang dùng" unCheckedChildren="Ngừng" />
             </Form.Item>
+          </Col>
+        </Row>
+
+        {/*
+          Cờ này thay cho danh sách mã cứng trong backend: đơn mua / đơn bán đòi đối tác
+          phải có hợp đồng còn hiệu lực thuộc một loại đã bật. Bật nhầm cho hợp đồng dịch
+          vụ (thuê kho, vận tải) là mở đường đặt hàng bằng một tờ hợp đồng không liên quan.
+        */}
+        <Row gutter={[12, 8]}>
+          <Col span={24}>
+            <Form.Item
+              name="allowsTrading"
+              valuePropName="checked"
+              initialValue={false}
+              style={{ marginBottom: 0 }}
+            >
+              <Checkbox>
+                <Space size={6}>
+                  <span style={{ fontWeight: 500 }}>Cho phép giao dịch xăng dầu</span>
+                  <Tooltip title="Đối tác phải có hợp đồng còn hiệu lực thuộc loại đã bật cờ này thì mới đặt được đơn mua / đơn bán. Chiều mua hay bán do loại thương nhân của đối tác quyết định, không phải ở đây.">
+                    <InfoCircleOutlined style={{ color: "#8c8c8c" }} />
+                  </Tooltip>
+                </Space>
+              </Checkbox>
+            </Form.Item>
+            <div style={{ fontSize: 12, color: "#8c8c8c", marginLeft: 24 }}>
+              Bật cho hợp đồng mua bán xăng dầu, hợp đồng đại lý. Tắt cho hợp đồng dịch vụ
+              như thuê kho.
+            </div>
           </Col>
         </Row>
       </Form>

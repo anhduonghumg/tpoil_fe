@@ -31,6 +31,9 @@ import type {
   QuickConfirmDeliveriesResult,
   QuickEntryPreview,
   ReceivableAgingRow,
+  ReceivableAgingResult,
+  BankReceiptSuggestions,
+  AllocateBankReceiptPayload,
   ReceivableListResult,
   ReceivableOpenItem,
   ReceivableStatus,
@@ -46,8 +49,11 @@ import type {
   SalesOrder,
   SalesOrderAdjustment,
   SalesOrderCheckResult,
+  SalesOrderCreditPreview,
   SalesOrderProfitability,
   SalesDashboard,
+  SalesManagementReport,
+  SalesManagementReportQuery,
   SalesDelivery,
   SalesDeliveryStatus,
   SalesInvoice,
@@ -93,7 +99,7 @@ export const SalesOrdersApi = {
       data: payload,
     }).then(unwrap<SalesOrder>),
 
-  list: (query: { keyword?: string; page?: number; limit?: number }) =>
+  list: (query: { keyword?: string; kind?: SalesOrderKind; status?: string; page?: number; limit?: number }) =>
     apiCall<ApiResponse<{ items: SalesOrder[]; total: number; page: number; limit: number }>>(
       "salesOrders.list",
       { query },
@@ -162,6 +168,16 @@ export const InternalSalesApi = {
       "salesOrders.statusCounts",
       { query },
     ).then(unwrap<{ byStatus: Record<string, number>; total: number }>),
+
+  /** Công nợ của khách nếu lưu đơn này — màn nhập đơn gọi trước khi lưu để cảnh báo. */
+  creditPreview: (query: {
+    customerPartyId: string;
+    orderValue: number;
+    excludeOrderId?: string;
+  }) =>
+    apiCall<ApiResponse<SalesOrderCreditPreview>>("salesOrders.creditPreview", {
+      query,
+    }).then(unwrap<SalesOrderCreditPreview>),
 
   create: (payload: CreateInternalSalesOrderPayload) =>
     apiCall<ApiResponse<SalesOrder>>("salesOrders.create", { data: payload }).then(
@@ -285,6 +301,12 @@ export const SalesApprovalsApi = {
       data: { discountAdjustmentAmount },
     }).then(unwrap<AdjustDiscountResult>),
 
+  adjustLineTransportFee: (lineId: string, transportFeeUnitPrice: number) =>
+    apiCall<ApiResponse<AdjustDiscountResult>>("salesApprovals.adjustLineTransportFee", {
+      params: { lineId },
+      data: { transportFeeUnitPrice },
+    }).then(unwrap<AdjustDiscountResult>),
+
   /** Chọn Mã NCC cụ thể; null = để hệ thống tự phân bổ FIFO. */
   adjustLineSupplier: (
     lineId: string,
@@ -336,6 +358,76 @@ export const SalesWithdrawalsApi = {
     apiCall<ApiResponse<WithdrawalSourceResult>>("salesWithdrawals.sourceCandidates", {
       query,
     }).then(unwrap<WithdrawalSourceResult>),
+
+  /**
+   * Một phiếu có thể rút nhiều mặt hàng. Chỉ giữ các đơn lô phục vụ được toàn bộ dòng;
+   * thứ tự của kết quả đầu tiên đã là FIFO theo ngày đơn nên cũng là thứ tự đề xuất chung.
+   */
+  sourceCandidatesForLines: async (query: {
+    customerPartyId: string;
+    lines: Array<{ productId: string; warehouseId?: string; qty?: number }>;
+  }) => {
+    // Gộp dòng trùng mặt hàng + kho để FIFO xét theo tổng lượng thực sự cần rút.
+    const grouped = new Map<string, { productId: string; warehouseId?: string; qty: number }>();
+    for (const line of query.lines) {
+      const key = `${line.productId}|${line.warehouseId ?? ""}`;
+      const current = grouped.get(key);
+      grouped.set(key, {
+        productId: line.productId,
+        warehouseId: line.warehouseId,
+        qty: (current?.qty ?? 0) + Number(line.qty ?? 0),
+      });
+    }
+    const results = await Promise.all(
+      [...grouped.values()].map((line) =>
+        SalesWithdrawalsApi.sourceCandidates({
+          customerPartyId: query.customerPartyId,
+          productId: line.productId,
+          warehouseId: line.warehouseId,
+          qty: line.qty,
+        }),
+      ),
+    );
+    if (!results.length) {
+      return {
+        candidates: [],
+        mustChoose: false,
+        hasMultiple: false,
+        suggestedSalesOrderId: null,
+      } satisfies WithdrawalSourceResult;
+    }
+
+    const commonIds = results
+      .slice(1)
+      .map((result) => new Set(result.candidates.map((candidate) => candidate.salesOrderId)));
+    const candidates = results[0].candidates
+      .filter((candidate) => commonIds.every((ids) => ids.has(candidate.salesOrderId)))
+      .map((candidate) => {
+        const sameOrder = results.map((result) =>
+          result.candidates.find((item) => item.salesOrderId === candidate.salesOrderId),
+        );
+        const sum = (field: "totalQty" | "issuedQty" | "heldQty" | "remainingQty") =>
+          sameOrder.reduce((total, item) => total + Number(item?.[field] ?? 0), 0).toString();
+        const warehouseNames = new Set(
+          sameOrder.map((item) => item?.warehouse?.name).filter(Boolean),
+        );
+        return {
+          ...candidate,
+          warehouse: warehouseNames.size === 1 ? candidate.warehouse : null,
+          totalQty: sum("totalQty"),
+          issuedQty: sum("issuedQty"),
+          heldQty: sum("heldQty"),
+          remainingQty: sum("remainingQty"),
+        };
+      });
+
+    return {
+      candidates,
+      mustChoose: false,
+      hasMultiple: candidates.length > 1,
+      suggestedSalesOrderId: candidates[0]?.salesOrderId ?? null,
+    } satisfies WithdrawalSourceResult;
+  },
 
   create: (payload: CreateWithdrawalPayload) =>
     apiCall<ApiResponse<SalesWithdrawalRequest>>("salesWithdrawals.create", {
@@ -536,10 +628,21 @@ export const ReceivablesApi = {
       unwrap<ReceivableOpenItem>,
     ),
 
-  aging: (customerPartyId?: string) =>
-    apiCall<ApiResponse<ReceivableAgingRow[]>>("receivables.aging", {
-      query: { customerPartyId },
-    }).then(unwrap<ReceivableAgingRow[]>),
+  aging: (customerPartyId?: string, asOf?: string) =>
+    apiCall<ApiResponse<ReceivableAgingResult>>("receivables.aging", {
+      query: { customerPartyId, asOf },
+    }).then(unwrap<ReceivableAgingResult>),
+
+  receiptSuggestions: (bankTransactionId: string) =>
+    apiCall<ApiResponse<BankReceiptSuggestions>>("receivables.receiptSuggestions", {
+      params: { bankTransactionId },
+    }).then(unwrap<BankReceiptSuggestions>),
+
+  allocateBankReceipt: ({ bankTransactionId, allocations, note }: AllocateBankReceiptPayload) =>
+    apiCall<ApiResponse<{ bankTransactionId: string; allocatedAmount: string; remainingAmount: string }>>(
+      "receivables.allocateBankReceipt",
+      { params: { bankTransactionId }, data: { allocations, note } },
+    ).then(unwrap<{ bankTransactionId: string; allocatedAmount: string; remainingAmount: string }>),
 
   partyDebt: (partyId?: string) =>
     apiCall<ApiResponse<PartyDebtRow[]>>("receivables.partyDebt", { query: { partyId } }).then(
@@ -733,4 +836,11 @@ export const QuickEntryApi = {
 export const SalesDashboardApi = {
   get: () =>
     apiCall<ApiResponse<SalesDashboard>>("salesDashboard.get").then(unwrap<SalesDashboard>),
+};
+
+export const SalesManagementReportApi = {
+  get: (query: SalesManagementReportQuery) =>
+    apiCall<ApiResponse<SalesManagementReport>>("salesManagementReport.get", { query }).then(
+      unwrap<SalesManagementReport>,
+    ),
 };

@@ -132,6 +132,8 @@ export interface ContractListQuery {
   keyword?: string;
   customerId?: string;
   contractTypeId?: string;
+  /** Loại hợp đồng không muốn liệt kê, vd thuê kho vốn có màn quản lý riêng. */
+  excludeTypeCodes?: string[];
   kind?: ContractKind;
   status?: ContractStatus;
   riskLevel?: RiskLevel;
@@ -258,4 +260,72 @@ export interface ContractImportRow {
   sla?: string | null;
   deliveryScope?: string | null;
   renewalOfCode?: string | null;
+}
+
+/* ===== Phụ lục hợp đồng ===== */
+
+/** Giá sàn và điều kiện của một sản phẩm do phụ lục điều chỉnh. */
+export interface ContractAppendixItem {
+  id?: string;
+  productId: string;
+  uom: string;
+  price: number | string;
+  minQty?: number | string | null;
+  maxQty?: number | string | null;
+  discount?: number | string | null;
+  taxRate?: number | string | null;
+  note?: string | null;
+}
+
+/**
+ * Phụ lục là lớp phủ có ngày hiệu lực, không sửa đè hợp đồng gốc.
+ * Trường để trống = phụ lục không điều chỉnh điều khoản đó.
+ */
+export interface ContractAppendix {
+  id: string;
+  contractId: string;
+  code: string;
+  effectiveDate: string;
+  changeSummary?: string | null;
+  docUrl?: string | null;
+  paymentTermDays?: number | null;
+  creditLimitOverride?: string | number | null;
+  items: ContractAppendixItem[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpsertContractAppendixPayload {
+  code: string;
+  effectiveDate: string;
+  changeSummary?: string | null;
+  docUrl?: string | null;
+  paymentTermDays?: number | null;
+  creditLimitOverride?: number | null;
+  items?: ContractAppendixItem[];
+}
+
+/** Điều khoản đang áp tại một ngày, sau khi chồng phụ lục lên hợp đồng gốc. */
+export interface ResolvedContractTerms {
+  contractId: string;
+  at: string;
+  paymentTermDays: number | null;
+  creditLimitOverride: string | null;
+  appliedAppendices: Array<{
+    code: string;
+    effectiveDate: string;
+    changeSummary: string | null;
+  }>;
+  items: Array<{
+    productId: string;
+    uom: string;
+    price: string;
+    minQty: string | null;
+    maxQty: string | null;
+    discount: string | null;
+    taxRate: string | null;
+    note: string | null;
+    /** null = vẫn theo hợp đồng gốc; có mã = do phụ lục đó đặt ra. */
+    fromAppendixCode: string | null;
+  }>;
 }

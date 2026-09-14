@@ -203,8 +203,10 @@ const CustomerTableBase: React.FC<CustomerTableProps> = ({
   // console.log("Render CustomerTable", data);
   return (
     <Table<Customer>
+      className="data-grid"
+      bordered
       rowKey="id"
-      size="middle"
+      size="small"
       loading={loading}
       columns={columns}
       dataSource={data}

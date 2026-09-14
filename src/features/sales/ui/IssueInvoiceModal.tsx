@@ -29,6 +29,7 @@ export type IssueInvoiceView = {
     exceededBy: string;
     creditLimit: string | null;
   };
+  purchaseInvoiceWarning?: { message: string; costStatus?: string };
 };
 
 type IssueInvoiceViewLine = NonNullable<IssueInvoiceView["lines"]>[number];
@@ -70,6 +71,7 @@ export function IssueInvoiceModal({
   const missingTaxCode = !invoice.buyerTaxCode;
   const missingEmail = !invoice.buyerEmail;
   const creditWarning = invoice.creditWarning;
+  const purchaseInvoiceWarning = invoice.purchaseInvoiceWarning;
 
   const columns: ColumnsType<IssueInvoiceViewLine> = [
     { title: "STT", dataIndex: "lineNo", width: 48, align: "center" },
@@ -232,6 +234,16 @@ export function IssueInvoiceModal({
               : null,
             "Kế toán cần xác nhận lại trước khi phát hành.",
           ].filter(Boolean).join(" · ")}
+        />
+      ) : null}
+
+      {purchaseInvoiceWarning ? (
+        <Alert
+          showIcon
+          type="warning"
+          className="issue-alert"
+          message="Chưa có hóa đơn đầu vào"
+          description={`${purchaseInvoiceWarning.message} Bấm phát hành nghĩa là kế toán xác nhận tiếp tục với giá vốn tạm tính.`}
         />
       ) : null}
 

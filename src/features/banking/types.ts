@@ -7,7 +7,15 @@ export type BankTxnMatchStatus =
   | "UNMATCHED"
   | "AUTO_MATCHED"
   | "MANUAL_MATCHED"
-  | "PARTIAL_MATCHED";
+  | "PARTIAL_MATCHED"
+  | "IGNORED";
+
+export type BankTxnReconciliationStatus =
+  | "PENDING"
+  | "SUGGESTED"
+  | "PARTIALLY_ALLOCATED"
+  | "ALLOCATED"
+  | "IGNORED";
 
 export type BankImportStatus = "QUEUED" | "PROCESSING" | "DONE" | "FAILED";
 export type TermPaymentBatchStatus =
@@ -166,6 +174,9 @@ export type BankTransactionItem = {
   counterpartyAcc?: string | null;
   externalRef?: string | null;
   matchStatus: BankTxnMatchStatus;
+  reconciliationStatus?: BankTxnReconciliationStatus;
+  source?: "MANUAL" | "EXCEL" | "SEPAY" | "JETPAY";
+  valueDate?: string | null;
   isConfirmed?: boolean;
   confirmedAt?: string | null;
   confirmedBy?: UUID | null;
@@ -185,6 +196,7 @@ export type BankTransactionListQuery = {
   toDate?: string;
   keyword?: string;
   matchStatus?: BankTxnMatchStatus;
+  reconciliationStatus?: BankTxnReconciliationStatus;
   direction?: BankTxnDirection;
   confirmed?: "true" | "false" | "";
 };

@@ -74,6 +74,7 @@ const BREADCRUMB: Record<string, string> = {
   "/settings/inventory": "Kho hàng",
   "/settings/opening-balances": "Số dư đầu kỳ",
   "/settings/price-bulletins": "Giá sản phẩm",
+  "/operations/price-discounts": "Giá bán & chiết khấu",
 };
 
 function flattenMenu(items: WorkspaceMenuItem[]): WorkspaceMenuItem[] {

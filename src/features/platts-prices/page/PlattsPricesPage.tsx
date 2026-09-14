@@ -15,6 +15,7 @@ import {
   message,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import { SnippetsOutlined } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 
 import { useProductSelect } from "../../products/hooks";
@@ -24,6 +25,7 @@ import {
   useUpsertPlattsPrice,
 } from "../hooks";
 import type { PlattsQuote } from "../types";
+import { PlattsQuickPasteModal } from "../ui/PlattsQuickPasteModal";
 
 const { Title, Text } = Typography;
 
@@ -128,6 +130,7 @@ function PriceCell({
 export default function PlattsPricesPage() {
   const [month, setMonth] = useState(dayjs().startOf("month"));
   const [productFilter, setProductFilter] = useState<string[]>([]);
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [edit, setEdit] = useState<EditState>({ open: false });
   const [form] = Form.useForm();
 
@@ -278,7 +281,7 @@ export default function PlattsPricesPage() {
 
           .platts-toolbar {
             display: grid;
-            grid-template-columns: 220px minmax(280px, 1fr) 120px 120px;
+            grid-template-columns: 200px minmax(240px, 1fr) auto 110px 110px;
             gap: 10px;
             align-items: end;
           }
@@ -404,6 +407,17 @@ export default function PlattsPricesPage() {
               />
             </div>
 
+            {/* Nhập tay từng ô thì một tháng ba mặt hàng là gần trăm lần bấm; dữ liệu
+                vốn đã có sẵn trong bảng tính nên cho dán thẳng vào. */}
+            <Button
+              type="primary"
+              ghost
+              icon={<SnippetsOutlined />}
+              onClick={() => setPasteOpen(true)}
+            >
+              Dán nhanh từ Excel
+            </Button>
+
             <div
               style={{
                 background: "#ecfdf5",
@@ -448,6 +462,13 @@ export default function PlattsPricesPage() {
             />
           </div>
         </Card>
+
+        <PlattsQuickPasteModal
+          open={pasteOpen}
+          products={products}
+          month={month}
+          onClose={() => setPasteOpen(false)}
+        />
 
         <Modal
           open={edit.open}

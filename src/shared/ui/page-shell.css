@@ -1,0 +1,117 @@
+/* ===================================================================
+   .page-shell — khung màn danh sách dùng chung.
+
+   Đi kèm .data-grid (data-grid.css) và bộ FilterButton/FilterTags
+   (TableFilter.tsx) thành một bộ ba: khung trang, bảng, bộ lọc. Màn nào
+   dùng đủ bộ này thì nhìn giống nhau mà không phải chép lại CSS.
+
+   Lưu ý: .app-content đã lo phần nền và lề ngoài, nên khung này KHÔNG
+   được tự đặt background/min-height/max-width — làm vậy là dựng một
+   trang lồng trong trang, sinh ra hai thanh cuộn chồng nhau.
+   =================================================================== */
+
+.page-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.page-shell-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Vạch xanh trước tiêu đề: cùng tông #21418f với tiêu đề bảng .data-grid. */
+.page-shell-heading {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-left: 11px;
+}
+
+.page-shell-heading::before {
+  content: "";
+  position: absolute;
+  inset: 3px auto 3px 0;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #3b6fd4 0%, #6ea8f0 100%);
+}
+
+.page-shell-heading h4.ant-typography {
+  color: #16305f;
+}
+
+.page-shell-heading .ant-typography-secondary {
+  color: #6b7f9e;
+  font-size: 12px;
+}
+
+/* Thẻ mô tả tính chất của màn (vd. "TERM", "1 bộ BILL chung"): đứng trên tiêu đề,
+   cỡ nhỏ để không tranh chỗ với tiêu đề. */
+.page-shell-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 1px;
+}
+
+.page-shell-badges .ant-tag {
+  margin: 0;
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.page-shell-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.page-shell-search {
+  width: 260px;
+  max-width: 100%;
+}
+
+/* Dải trạng thái sát bảng: tab chỉ để lọc, không phải để chia nội dung. */
+.page-shell-tabs .ant-tabs-nav {
+  margin-bottom: 4px;
+}
+
+.page-shell-filter-panel {
+  width: 320px;
+}
+
+.page-shell-filter-panel .ant-form-item {
+  margin-bottom: 10px;
+}
+
+/* Nút link làm dòng chính của ô hai dòng: phải khớp đúng 15px của .data-grid-stack,
+   nếu để antd tự tính thì dòng phụ bị đẩy lệch khỏi hàng. */
+.data-grid-stack .ant-btn-link.page-cell-link {
+  height: 15px;
+  padding: 0;
+  border: 0;
+  font-size: 12px;
+  line-height: 15px;
+  text-align: left;
+}
+
+.data-grid-stack .ant-btn-link.page-cell-link > span {
+  display: block;
+  max-width: 100%;
+}
+
+@media (max-width: 720px) {
+  .page-shell-search {
+    width: 160px;
+  }
+}

@@ -24,7 +24,6 @@ import RetailPurchaseDetailPage from "../features/purchases/page/RetailPurchaseD
 import { ProductsPage } from "../features/products/page/ProductsPage";
 import { SupplierLocationsPage } from "../features/supplierLocations/page/SupplierLocationsPage";
 import { WarehouseRentalContractsPage } from "../features/supplierLocations/page/WarehouseRentalContractsPage";
-import { PriceBulletinsPage } from "../features/price-bulletins/page/PriceBulletinsPage";
 import PurchaseInvoiceUpsertPage from "../features/purchases/page/PurchaseInvoiceUpsertPage";
 import PurchaseInvoiceDetailPage from "../features/purchases/page/PurchaseInvoiceDetailPage";
 import CommercialLotPurchasesPage from "../features/commercial-lots/page/CommercialLotPurchasesPage";
@@ -39,10 +38,11 @@ import SalesDeliveriesPage from "../features/sales/page/SalesDeliveriesPage";
 import SalesInvoicesPage from "../features/sales/page/SalesInvoicesPage";
 import InvoiceSettingsPage from "../features/sales/page/InvoiceSettingsPage";
 import ReceivablesPage from "../features/sales/page/ReceivablesPage";
+import SalesReceiptsPage from "../features/sales/page/SalesReceiptsPage";
 import PurchaseSourceProfitPage from "../features/sales/page/PurchaseSourceProfitPage";
+import SalesManagementReportPage from "../features/sales/page/SalesManagementReportPage";
 import SalesAliasesPage from "../features/sales/page/SalesAliasesPage";
 import CreditConfigPage from "../features/sales/page/CreditConfigPage";
-import DiscountBoardPage from "../features/sales/page/DiscountBoardPage";
 import BankStatementPage from "../features/banking/page/BankStatementPage";
 import BankAccountsPage from "../features/bank-accounts/page/BankAccountsPage";
 import BankImportTemplatesPage from "../features/bank-import-templates/ui/page/BankImportTemplatesPage";
@@ -62,6 +62,13 @@ import {
   InventoryAvailabilityPage,
   InventoryMatrixReportPage,
   ShipOwnerListPage,
+  SalesTransportRequestDetailPage,
+  SalesTransportRequestListPage,
+  TransportVehicleSettingPage,
+  VehicleFuelLogPage,
+  VehicleMaintenanceExpensePage,
+  VehicleMonthlyFixedCostPage,
+  VehicleEfficiencyReportPage,
   VehicleDispatchOrderDetailPage,
   VehicleDispatchOrderFormPage,
   VehicleDispatchOrderListPage,
@@ -77,7 +84,9 @@ import {
 } from "../features/operations/pages";
 import OperationsDashboardPage from "../features/operations/OperationsDashboardPage";
 import WarehouseDashboardPage from "../features/operations/WarehouseDashboardPage";
+import PriceDiscountPage from "../features/operations/PriceDiscountPage";
 import InventoryReceiptsPage from "../features/inventory-receipts/page/InventoryReceiptsPage";
+import StockCardPage from "../features/inventory-receipts/page/StockCardPage";
 import {
   ShipCharterOrderDetailPage,
   ShipCharterOrderFormPage,
@@ -95,6 +104,7 @@ import {
   ShippingAgentRegistrationListPage,
 } from "../features/operations/ship-charter-master-pages";
 import OpeningBalancesPage from "../features/opening-balances/OpeningBalancesPage";
+import NotificationsCenterPage from "../features/notifications/page/NotificationsCenterPage";
 
 export const router = createBrowserRouter([
   {
@@ -114,6 +124,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Dashboard /> },
           { path: "dashboard", element: <Dashboard /> },
+          { path: "notifications", element: <NotificationsCenterPage /> },
           {
             path: "purchase-orders",
             children: [
@@ -210,6 +221,22 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: "/sales/receipts",
+            element: (
+              <RouteGuard need={PERMS.SALES_RECEIVABLE_VIEW}>
+                <SalesReceiptsPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/reports",
+            element: (
+              <RouteGuard need={PERMS.SALES_PROFITABILITY_VIEW}>
+                <SalesManagementReportPage />
+              </RouteGuard>
+            ),
+          },
+          {
             path: "/sales/profitability",
             element: (
               <RouteGuard need={PERMS.SALES_PROFITABILITY_VIEW}>
@@ -231,17 +258,10 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            // Đã gộp vào màn "Giá bán & chiết khấu" của vận hành — giữ link cũ cho khỏi gãy.
             path: "/sales/discounts",
             element: (
-              // Kinh doanh chỉ xem để biết chiết khấu; vận hành mới sửa được.
-              <RouteGuard
-                need={(ctx) =>
-                  ctx.permissions.has(PERMS.SALES_DISCOUNT_MANAGE) ||
-                  ctx.permissions.has(PERMS.SALES_VIEW)
-                }
-              >
-                <DiscountBoardPage />
-              </RouteGuard>
+              <Navigate to="/operations/price-discounts?tab=discount" replace />
             ),
           },
           {
@@ -358,8 +378,24 @@ export const router = createBrowserRouter([
           { path: "operations/shipping-agent-registrations", element: <ShippingAgentRegistrationListPage /> },
            { path: "operations/storage-contracts", element: <WarehouseRentalContractsPage /> },
           { path: "operations/warehouse-dashboard", element: <WarehouseDashboardPage /> },
+          {
+            // Gộp bảng giá bán + thông báo chiết khấu về một màn (2 tab) của vận hành.
+            path: "operations/price-discounts",
+            element: (
+              <RouteGuard
+                need={(ctx) =>
+                  ctx.permissions.has(PERMS.OPERATIONS_VIEW) ||
+                  ctx.permissions.has(PERMS.SALES_DISCOUNT_MANAGE) ||
+                  ctx.permissions.has(PERMS.SALES_VIEW)
+                }
+              >
+                <PriceDiscountPage />
+              </RouteGuard>
+            ),
+          },
           { path: "operations/inventory-availability", element: <InventoryAvailabilityPage /> },
           { path: "operations/inventory-receipts", element: <InventoryReceiptsPage /> },
+          { path: "operations/stock-card", element: <StockCardPage /> },
           { path: "operations/inventory-accounting", element: <InventoryAccountingPage /> },
           { path: "operations/inventory-matrix", element: <InventoryMatrixReportPage /> },
           { path: "operations/expected-inventory", element: <ExpectedInventoryPage /> },
@@ -371,9 +407,17 @@ export const router = createBrowserRouter([
           { path: "operations/vehicle-documents", element: <VehicleDocumentPage /> },
           { path: "operations/drivers", element: <DriverListPage /> },
           { path: "operations/driver-documents", element: <DriverDocumentPage /> },
+          { path: "operations/sales-transport-requests", element: <SalesTransportRequestListPage /> },
+          { path: "operations/sales-transport-requests/:id", element: <SalesTransportRequestDetailPage /> },
+          { path: "operations/transport-vehicle-settings", element: <TransportVehicleSettingPage /> },
+          { path: "operations/vehicle-fuel-logs", element: <VehicleFuelLogPage /> },
+          { path: "operations/vehicle-maintenance-expenses", element: <VehicleMaintenanceExpensePage /> },
+          { path: "operations/vehicle-monthly-fixed-costs", element: <VehicleMonthlyFixedCostPage /> },
+          { path: "operations/vehicle-efficiency-report", element: <VehicleEfficiencyReportPage /> },
           { path: "operations/vehicle-dispatches", element: <VehicleDispatchOrderListPage /> },
           { path: "operations/vehicle-dispatches/create", element: <VehicleDispatchOrderFormPage /> },
           { path: "operations/vehicle-dispatches/:id", element: <VehicleDispatchOrderDetailPage /> },
+          { path: "operations/vehicle-dispatches/:id/edit", element: <VehicleDispatchOrderFormPage /> },
           {
             path: "users",
             element: (
@@ -443,7 +487,13 @@ export const router = createBrowserRouter([
           { path: "settings/customer-groups", element: <CustomerGroupsPage /> },
           { path: "settings/products", element: <ProductsPage /> },
           { path: "settings/inventory", element: <SupplierLocationsPage /> },
-          { path: "settings/price-bulletins", element: <PriceBulletinsPage /> },
+          {
+            // Đã gộp vào màn "Giá bán & chiết khấu" của vận hành — giữ link cũ cho khỏi gãy.
+            path: "settings/price-bulletins",
+            element: (
+              <Navigate to="/operations/price-discounts?tab=price" replace />
+            ),
+          },
           {
             path: "settings/opening-balances",
             element: (

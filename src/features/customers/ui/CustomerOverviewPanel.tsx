@@ -67,20 +67,7 @@ export const CustomerOverviewPanel: React.FC<Props> = ({
         </Title>
         <div style={{ display: "flex", gap: 10 }}>
           <Text type="secondary">Mã KH: {customer.code}</Text>
-          <div>
-            {customer.roles?.map((r) => (
-              <Tag key={r}>
-                {r === "Agent"
-                  ? "Đại lý"
-                  : r === "Retail"
-                  ? "Bán lẻ"
-                  : r === "Wholesale"
-                  ? "Bán buôn"
-                  : "Khác"}
-              </Tag>
-            ))}
-            {statusTag(customer.status)}
-          </div>
+          <div>{statusTag(customer.status)}</div>
         </div>
       </div>
 

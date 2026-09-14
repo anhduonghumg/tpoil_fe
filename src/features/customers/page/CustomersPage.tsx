@@ -334,7 +334,10 @@ export const CustomerPage: React.FC<{
           overflowY: "auto",
         }}
       >
-        <CustomerOverviewSidebar customerId={selectedCustomerId} />
+        <CustomerOverviewSidebar
+          customerId={selectedCustomerId}
+          partyKind={partyTypeDefault === "SUPPLIER" ? "SUPPLIER" : "CUSTOMER"}
+        />
       </div>
 
       {upsertState.open && (

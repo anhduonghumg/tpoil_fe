@@ -89,6 +89,8 @@ export function RoleTable(props: {
 
   return (
     <Table<RoleSummary>
+      className="data-grid"
+      bordered
       rowKey="id"
       size="small"
       loading={loading}

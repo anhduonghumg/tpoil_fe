@@ -43,7 +43,18 @@ import {
 import { PurchasesApi } from "../../purchases/api";
 import { InternalSalesApi } from "../api";
 import { useConfirmQuickEntry, useCurrentDiscountBoard, useParseQuickEntry } from "../hooks";
-import type { QuickEntryKind, QuickEntryLine, QuickEntryPreview, SalesLotInvoiceMode } from "../types";
+import type {
+  QuickEntryKind,
+  QuickEntryLine,
+  QuickEntryPreview,
+  SalesLotInvoiceMode,
+  SalesOrderCreditPreview,
+} from "../types";
+import {
+  CreditLimitWarningModal,
+  muteCustomerToday,
+  readMutedCustomers,
+} from "./CreditLimitWarningModal";
 import { notify } from "../../../shared/lib/notification";
 import "../sales.css";
 
@@ -90,6 +101,7 @@ type DraftLine = {
   unitPrice?: number;
   discountBaseAmount?: number;
   discountAdjustmentAmount?: number;
+  transportFeeUnitPrice?: number;
   /** CK gốc tự lấy từ bảng chiết khấu công bố. */
 };
 
@@ -342,6 +354,14 @@ export function QuickEntryPanel({
     resolve: (approved: Set<string>) => void;
   } | null>(null);
   const [aliasChecked, setAliasChecked] = useState<Set<string>>(new Set());
+  /** Hộp cảnh báo vượt hạn mức; cùng kiểu "resolve" như hộp hỏi ghi nhớ cách viết. */
+  const [creditPrompt, setCreditPrompt] = useState<{
+    preview: SalesOrderCreditPreview;
+    customerPartyId: string;
+    customerName?: string;
+    resolve: (proceed: boolean) => void;
+  } | null>(null);
+  const [creditMuted, setCreditMuted] = useState(false);
 
   const productsQuery = useProductSelect(productKeyword);
   const warehousesQuery = useWarehouseSelect(warehouseKeyword);
@@ -598,6 +618,60 @@ export function QuickEntryPanel({
     setAliasPrompt(null);
   };
 
+  /** Tổng tiền một đơn — cùng công thức với `salesLineNetAmount` bên backend. */
+  const orderTotalOf = (order: DraftOrder) =>
+    order.lines.reduce(
+      (sum, line) =>
+        sum +
+        Number(line.quantity ?? 0) *
+          (Number(line.unitPrice ?? 0) -
+            Number(line.discountBaseAmount ?? 0) -
+            Number(line.discountAdjustmentAmount ?? 0) +
+            Number(line.transportFeeUnitPrice ?? 0)),
+      0,
+    );
+
+  /**
+   * Hỏi trước khi lưu nếu khách vượt hạn mức. Trả false = người dùng bấm "Quay lại sửa",
+   * huỷ cả lượt lưu.
+   *
+   * Gộp theo KHÁCH chứ không theo từng đơn: lưu cả lượt 5 đơn cho một khách thì hỏi một
+   * lần với tổng tiền của cả 5, đúng với thứ sẽ xảy ra trên công nợ.
+   */
+  const confirmCreditFor = async (batch: DraftOrder[]) => {
+    const muted = readMutedCustomers();
+    const byCustomer = new Map<string, number>();
+    for (const order of batch) {
+      const id = order.customerPartyId;
+      if (!id || muted.includes(id)) continue;
+      byCustomer.set(id, (byCustomer.get(id) ?? 0) + orderTotalOf(order));
+    }
+    for (const [customerPartyId, orderValue] of byCustomer) {
+      let preview: SalesOrderCreditPreview;
+      try {
+        preview = await InternalSalesApi.creditPreview({ customerPartyId, orderValue });
+      } catch {
+        // Không tra được thì vẫn cho lưu — đây là cảnh báo, không phải chốt chặn. Nhưng
+        // phải nói ra, im lặng là người dùng tưởng khách không vấn đề gì.
+        notify.warning("Chưa kiểm được công nợ khách hàng — đơn vẫn được lưu.");
+        continue;
+      }
+      if (!preview.exceeded) continue;
+      setCreditMuted(false);
+      const proceed = await new Promise<boolean>((resolve) =>
+        setCreditPrompt({
+          preview,
+          customerPartyId,
+          customerName: batch.find((order) => order.customerPartyId === customerPartyId)
+            ?.customerRawText ?? undefined,
+          resolve,
+        }),
+      );
+      if (!proceed) return false;
+    }
+    return true;
+  };
+
   const saveOrder = async (order: DraftOrder, approvedAliases: Set<string>) => {
     /** rawText chỉ được gửi khi Sale đã đồng ý nhớ — gửi rawText chính là đồng ý. */
     const learn = (entityType: string, rawText: string | null, targetId?: string) =>
@@ -647,6 +721,8 @@ export function QuickEntryPanel({
             line.discountBaseAmount == null ? undefined : Number(line.discountBaseAmount),
           discountAdjustmentAmount:
             line.discountAdjustmentAmount == null ? undefined : Number(line.discountAdjustmentAmount),
+          transportFeeUnitPrice:
+            line.transportFeeUnitPrice == null ? undefined : Number(line.transportFeeUnitPrice),
           supplySource: line.supplySource,
           productRawText: learn("PRODUCT", line.productRawText, line.productId),
           warehouseRawText: learn("WAREHOUSE", line.warehouseRawText, line.warehouseId),
@@ -689,6 +765,7 @@ export function QuickEntryPanel({
   /** Lưu một đơn: hỏi ghi nhớ cách viết trước, rồi mới ghi. */
   const saveOne = async (order: DraftOrder) => {
     if (paymentPlanError) return notify.error(paymentPlanError);
+    if (!(await confirmCreditFor([order]))) return;
     const approved = await askAliases([order]);
     await saveOrder(order, approved);
   };
@@ -699,6 +776,7 @@ export function QuickEntryPanel({
       (order) => order.save.kind !== "SAVED" && !blockingOf(order).length,
     );
     if (!pending.length) return notify.warning("Không có đơn nào đủ điều kiện lưu");
+    if (!(await confirmCreditFor(pending))) return;
     // Hỏi một lần cho cả lượt, không hỏi lại từng đơn.
     const approved = await askAliases(pending);
     for (const order of pending) {
@@ -861,6 +939,28 @@ export function QuickEntryPanel({
           onChange={(event) => patchOrder(row.order.key, { driver: event.target.value })}
         />
       ),
+    },
+    {
+      title: "CPVC/đv",
+      key: "transportFeeUnitPrice",
+      hidden: mode === "LOT",
+      width: 95,
+      align: "right",
+      render: (_, row) =>
+        row.line ? (
+          <InputNumber
+            size="small"
+            min={0}
+            controls={false}
+            style={{ width: "100%" }}
+            value={row.line.transportFeeUnitPrice}
+            disabled={locked(row) || row.order.orderKind === "WITHDRAWAL"}
+            placeholder="0"
+            onChange={(value) =>
+              patchLine(row.order.key, row.line!.key, { transportFeeUnitPrice: value ?? undefined })
+            }
+          />
+        ) : null,
     },
     {
       title: "Mặt hàng",
@@ -1135,7 +1235,8 @@ export function QuickEntryPanel({
           Number(line.quantity ?? 0) *
             (Number(line.unitPrice ?? 0) -
               Number(line.discountBaseAmount ?? 0) -
-              Number(line.discountAdjustmentAmount ?? 0)),
+              Number(line.discountAdjustmentAmount ?? 0) +
+              Number(line.transportFeeUnitPrice ?? 0)),
         0,
       ),
     0,
@@ -1691,6 +1792,22 @@ export function QuickEntryPanel({
           </div>
         </div>
       ) : null}
+
+      <CreditLimitWarningModal
+        preview={creditPrompt?.preview ?? null}
+        customerName={creditPrompt?.customerName}
+        muted={creditMuted}
+        onMutedChange={setCreditMuted}
+        onCancel={() => {
+          creditPrompt?.resolve(false);
+          setCreditPrompt(null);
+        }}
+        onConfirm={() => {
+          if (creditMuted && creditPrompt) muteCustomerToday(creditPrompt.customerPartyId);
+          creditPrompt?.resolve(true);
+          setCreditPrompt(null);
+        }}
+      />
 
       <Modal
         open={Boolean(aliasPrompt)}

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
-  Badge,
   Button,
   Checkbox,
   DatePicker,
@@ -10,7 +9,6 @@ import {
   Form,
   Input,
   Modal,
-  Popover,
   Select,
   Space,
   Spin,
@@ -27,15 +25,14 @@ import {
   EditOutlined,
   EyeOutlined,
   FileTextOutlined,
-  FilterOutlined,
   PlusOutlined,
-  ReloadOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { CustomerUpsertOverlay } from "../customers/ui/CustomerUpsertOverlay";
 import { notify } from "../../shared/lib/notification";
+import { FilterButton, RefreshButton } from "../../shared/ui/TableFilter";
 import { FileUploadField } from "./components";
 import { operationsApi } from "./api";
 import type {
@@ -108,27 +105,6 @@ const DocumentStatusTag: React.FC<{ status: VesselDocumentStatus }> = ({
   };
   return <Tag color={config[status].color}>{config[status].label}</Tag>;
 };
-
-const FilterTrigger: React.FC<{
-  count: number;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  content: React.ReactNode;
-}> = ({ count, open, onOpenChange, content }) => (
-  <Popover
-    trigger="click"
-    placement="bottomRight"
-    open={open}
-    onOpenChange={onOpenChange}
-    content={content}
-  >
-    <Badge dot={count > 0} offset={[-2, 2]}>
-      <Button size="small" icon={<FilterOutlined />}>
-        Bộ lọc
-      </Button>
-    </Badge>
-  </Popover>
-);
 
 const ShipOwnerDetailDrawer: React.FC<{
   ownerId?: string;
@@ -303,7 +279,7 @@ export const ShipOwnerListPage: React.FC = () => {
           onSearch={(value) => { setKeyword(value.trim()); setPage(1); }}
         />
         <Space size={6}>
-          <FilterTrigger
+          <FilterButton
             count={Number(Boolean(role)) + Number(isActive !== undefined)}
             open={filterOpen}
             onOpenChange={(open) => {
@@ -325,9 +301,7 @@ export const ShipOwnerListPage: React.FC = () => {
               </Form>
             }
           />
-          <Tooltip title="Làm mới">
-            <Button size="small" icon={<ReloadOutlined />} onClick={refresh} loading={query.isFetching} />
-          </Tooltip>
+          <RefreshButton loading={query.isFetching} onClick={refresh} />
         </Space>
       </div>
       <div className="ship-master-filter-tags">
@@ -498,7 +472,7 @@ const VesselCatalogPage: React.FC<{ documentMode?: boolean }> = ({ documentMode 
       <div className="ship-master-toolbar">
         <Input.Search size="small" allowClear placeholder="Tìm tên tàu hoặc IMO" style={{ width: 340 }} onSearch={(value) => { setKeyword(value.trim()); setPage(1); }} />
         <Space size={6}>
-          <FilterTrigger
+          <FilterButton
             count={Number(Boolean(ownerCustomerId)) + Number(isActive !== undefined)}
             open={filterOpen}
             onOpenChange={(open) => { setFilterOpen(open); if (open) filterForm.setFieldsValue({ ownerCustomerId, isActive }); }}
@@ -517,7 +491,7 @@ const VesselCatalogPage: React.FC<{ documentMode?: boolean }> = ({ documentMode 
               </Form>
             }
           />
-          <Tooltip title="Làm mới"><Button size="small" icon={<ReloadOutlined />} loading={query.isFetching} onClick={refresh} /></Tooltip>
+          <RefreshButton loading={query.isFetching} onClick={refresh} />
         </Space>
       </div>
       <div className="ship-master-filter-tags">

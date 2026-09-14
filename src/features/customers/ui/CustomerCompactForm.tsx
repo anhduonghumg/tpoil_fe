@@ -1,16 +1,17 @@
 import React from "react";
 import {
+  Alert,
   Button,
-  Checkbox,
   Col,
   ConfigProvider,
+  DatePicker,
   Divider,
   Form,
   Input,
-  InputNumber,
   Row,
   Select,
   Space,
+  Tag,
   Tooltip,
 } from "antd";
 import {
@@ -19,7 +20,13 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import type { FormInstance } from "antd";
-import type { CustomerType, MerchantRole, PartnerRole, PartyType } from "../types";
+import dayjs from "dayjs";
+import type {
+  MerchantRole,
+  MerchantRolePeriod,
+  PartnerRole,
+  PartyType,
+} from "../types";
 import { MERCHANT_ROLE_HINTS, MERCHANT_ROLE_LABELS } from "../types";
 import { notify } from "../../../shared/lib/notification";
 import { normalizeCode } from "../../../shared/lib/helper";
@@ -40,22 +47,22 @@ const MERCHANT_ROLE_OPTIONS = (Object.keys(MERCHANT_ROLE_LABELS) as MerchantRole
   }),
 );
 
-const TYPE_OPTIONS: { label: string; value: CustomerType }[] = [
-  { label: "B2B", value: "B2B" },
-  { label: "B2C", value: "B2C" },
-  { label: "Nhà phân phối", value: "Distributor" },
-  { label: "Khác", value: "Other" },
-];
-
-const PARTNER_ROLE_OPTIONS = [
-  { label: "Khách hàng", value: "CUSTOMER" },
-  { label: "Nhà cung cấp", value: "SUPPLIER" },
-  { label: "Nội bộ", value: "INTERNAL" },
+/**
+ * Khách hàng / Nhà cung cấp không nằm trong danh sách này: hai vai trò đó được suy ra từ
+ * loại thương nhân (TNPP mua và bán, TNDM chỉ bán cho ta, TNDL chỉ mua của ta). Chỉ đối
+ * tác dịch vụ — không mua bán xăng dầu — mới cần tick tay, nên chúng chỉ hiện khi bỏ
+ * trống ô loại thương nhân.
+ */
+const SERVICE_PARTNER_ROLE_OPTIONS = [
   { label: "Chủ tàu", value: "SHIP_OWNER" },
   { label: "Đơn vị vận tải biển", value: "SEA_CARRIER" },
 ] as const;
 
-type PartnerRoleValue = PartnerRole;
+const TRADE_PARTNER_ROLE_OPTIONS = [
+  { label: "Khách hàng", value: "CUSTOMER" },
+  { label: "Nhà cung cấp", value: "SUPPLIER" },
+  { label: "Nội bộ", value: "INTERNAL" },
+] as const;
 
 const VIETQR_TAX_ENDPOINT = "https://api.vietqr.io/v2/business/{taxCode}";
 
@@ -74,11 +81,15 @@ async function vietqrFetchByTax(taxCode: string) {
   }>;
 }
 
+const fmtDate = (d?: string | null) => (d ? dayjs(d).format("DD/MM/YYYY") : "");
+
 interface CustomerCompactFormProps {
   form: FormInstance;
   onFinish?: (values: any) => void;
   partyTypeDefault?: PartyType;
   partnerRoleDefault?: PartnerRole;
+  /** Các kỳ phân loại thương nhân đã có; chỉ hiện khi sửa hồ sơ. */
+  merchantHistory?: MerchantRolePeriod[];
 }
 
 export default function CustomerCompactForm({
@@ -86,15 +97,29 @@ export default function CustomerCompactForm({
   onFinish,
   partyTypeDefault = "CUSTOMER",
   partnerRoleDefault,
+  merchantHistory,
 }: CustomerCompactFormProps) {
   const gen = useGenerateCustomerCode();
 
-  const defaultPartnerRole: PartnerRoleValue =
-    partyTypeDefault === "SUPPLIER"
-      ? "SUPPLIER"
-      : partyTypeDefault === "INTERNAL"
-      ? "INTERNAL"
-      : "CUSTOMER";
+  const isSupplierScreen = partyTypeDefault === "SUPPLIER";
+  const partyNoun = isSupplierScreen ? "nhà cung cấp" : "khách hàng";
+
+  const defaultPartnerRole: PartnerRole = isSupplierScreen
+    ? "SUPPLIER"
+    : partyTypeDefault === "INTERNAL"
+    ? "INTERNAL"
+    : "CUSTOMER";
+
+  const merchantRole = Form.useWatch<MerchantRole | undefined>(
+    "merchantRole",
+    form,
+  );
+
+  const partnerRoleOptions = merchantRole
+    ? SERVICE_PARTNER_ROLE_OPTIONS
+    : [...TRADE_PARTNER_ROLE_OPTIONS, ...SERVICE_PARTNER_ROLE_OPTIONS];
+
+  const currentMerchant = merchantHistory?.find((p) => p.isCurrent);
 
   const handleGenerateCode = async () => {
     try {
@@ -147,32 +172,10 @@ export default function CustomerCompactForm({
         layout="vertical"
         className="form-compact"
         initialValues={{
-          roles:
-            partnerRoleDefault === "SHIP_OWNER" ||
-            partnerRoleDefault === "SEA_CARRIER"
-              ? ["Other"]
-              : ["Retail"],
-          type: "B2B",
           partnerRoles: [partnerRoleDefault ?? defaultPartnerRole],
         }}
         onFinish={onFinish}
       >
-        {/* CSS nhỏ để 3 nút cân đều + đẹp */}
-        <style>{`
-          .partner-role-group {
-            display: flex;
-            width: 100%;
-            gap: 8px;
-          }
-          .partner-role-group .ant-checkbox-button-wrapper {
-            flex: 1;
-            text-align: center;
-            justify-content: center;
-            padding-inline: 0;
-            border-radius: 10px;
-          }
-        `}</style>
-
         <Divider style={{ borderColor: "#ddedbb" }} orientation="center">
           Thông tin định danh
         </Divider>
@@ -181,10 +184,10 @@ export default function CustomerCompactForm({
           <Col xs={24} md={6} lg={6}>
             <Form.Item
               name="code"
-              rules={[{ required: true, message: "Nhập mã khách hàng" }]}
+              rules={[{ required: true, message: `Nhập mã ${partyNoun}` }]}
               label={
                 <Space>
-                  Mã khách hàng
+                  {`Mã ${partyNoun}`}
                   <Tooltip title="In hoa, viết liền, không dấu. Có thể để trống để hệ thống tạo.">
                     <InfoCircleOutlined />
                   </Tooltip>
@@ -193,7 +196,7 @@ export default function CustomerCompactForm({
             >
               <Input
                 size="small"
-                placeholder="VD: KH2025-0001-TPOIL"
+                placeholder={isSupplierScreen ? "VD: NCC2025-0001" : "VD: KH2025-0001-TPOIL"}
                 onBlur={(e) =>
                   form.setFieldsValue({ code: normalizeCode(e.target.value) })
                 }
@@ -235,15 +238,15 @@ export default function CustomerCompactForm({
           <Col xs={24} md={6} lg={6}>
             <Form.Item
               name="name"
-              label="Tên khách hàng"
-              rules={[{ required: true, message: "Nhập tên khách hàng" }]}
+              label={`Tên ${partyNoun}`}
+              rules={[{ required: true, message: `Nhập tên ${partyNoun}` }]}
             >
-              <Input size="small" placeholder="Tên đối tác/khách hàng" />
+              <Input size="small" placeholder="Tên đối tác trên giấy phép kinh doanh" />
             </Form.Item>
           </Col>
 
           <Col xs={24} md={6}>
-            <Form.Item name="groupId" label="Nhóm khách hàng">
+            <Form.Item name="groupId" label="Nhóm đối tác">
               <CustomerGroupSelect size="small" placeholder="Chọn nhóm" />
             </Form.Item>
           </Col>
@@ -261,7 +264,10 @@ export default function CustomerCompactForm({
           </Col>
 
           <Col xs={24} md={12}>
-            <Form.Item name="shippingAddress" label="Địa chỉ giao hàng">
+            <Form.Item
+              name="shippingAddress"
+              label={isSupplierScreen ? "Địa chỉ giao hàng" : "Địa chỉ nhận hàng"}
+            >
               <Input.TextArea
                 size="small"
                 placeholder="Nếu khác địa chỉ xuất HĐ"
@@ -276,7 +282,7 @@ export default function CustomerCompactForm({
         </Divider>
 
         <Row gutter={[12, 8]}>
-          <Col xs={24} md={8}>
+          <Col xs={24} md={12}>
             <Form.Item
               name="contactEmail"
               label="Email"
@@ -286,7 +292,7 @@ export default function CustomerCompactForm({
             </Form.Item>
           </Col>
 
-          <Col xs={24} md={8}>
+          <Col xs={24} md={12}>
             <Form.Item
               name="contactPhone"
               label="Điện thoại"
@@ -297,13 +303,13 @@ export default function CustomerCompactForm({
               <Input size="small" placeholder="0967699999" />
             </Form.Item>
           </Col>
+        </Row>
 
-          <Col xs={24} md={8}>
-            <Form.Item name="bankAccountNo" label="Tài khoản ngân hàng">
-              <Input size="small" placeholder="Số tài khoản nhận thanh toán" />
-            </Form.Item>
-          </Col>
+        <Divider style={{ borderColor: "#ddedbb" }} orientation="center">
+          Phân loại thương nhân
+        </Divider>
 
+        <Row gutter={[12, 8]}>
           <Col xs={24} md={8}>
             {/*
               Loại thương nhân quyết định chiều giao dịch, và hệ thống tự suy ra
@@ -323,23 +329,46 @@ export default function CustomerCompactForm({
               />
             </Form.Item>
           </Col>
-        </Row>
 
-        <Divider style={{ borderColor: "#ddedbb" }} orientation="center">
-          Phân loại & Tín dụng
-        </Divider>
+          <Col xs={24} md={8}>
+            {/*
+              Phân loại đổi theo từng năm và chứng từ cũ phải đọc theo loại tại thời điểm
+              của nó, nên kỳ mới cần ngày riêng chứ không mặc định là hôm nay.
+            */}
+            <Form.Item
+              name="merchantEffectiveFrom"
+              label={
+                <Space>
+                  Áp dụng từ ngày
+                  <Tooltip title="Kỳ phân loại cũ được đóng lại ngay trước ngày này. Chứng từ trước đó vẫn tra ra loại thương nhân cũ.">
+                    <InfoCircleOutlined />
+                  </Tooltip>
+                </Space>
+              }
+            >
+              <DatePicker
+                size="small"
+                style={{ width: "100%" }}
+                format="DD/MM/YYYY"
+                placeholder="Mặc định: hôm nay"
+              />
+            </Form.Item>
+          </Col>
 
-        <Row gutter={[12, 8]}>
-          <Col xs={24} md={6}>
+          <Col xs={24} md={8}>
             <Form.Item
               name="partnerRoles"
               label="Vai trò đối tác"
-              required
+              tooltip={
+                merchantRole
+                  ? "Khách hàng / Nhà cung cấp đã được suy ra từ loại thương nhân, chỉ chọn thêm vai trò dịch vụ nếu có."
+                  : undefined
+              }
               rules={[
                 {
                   validator: async (_, v) => {
+                    if (merchantRole) return;
                     if (Array.isArray(v) && v.length > 0) return;
-                    // notify.error("Chọn ít nhất 1 vai trò đối tác");
                     throw new Error("Chọn ít nhất 1 vai trò");
                   },
                 },
@@ -349,70 +378,51 @@ export default function CustomerCompactForm({
                 size="small"
                 mode="multiple"
                 allowClear
-                placeholder="Chọn vai trò (có thể chọn nhiều)"
-                options={PARTNER_ROLE_OPTIONS as any}
+                placeholder={
+                  merchantRole
+                    ? "Thêm vai trò dịch vụ (nếu có)"
+                    : "Chọn vai trò (có thể chọn nhiều)"
+                }
+                options={partnerRoleOptions as any}
                 maxTagCount="responsive"
                 optionFilterProp="label"
                 showSearch
-                onClear={() => {
-                  const fallback = partnerRoleDefault
-                    ? [partnerRoleDefault]
-                    : partyTypeDefault === "SUPPLIER"
-                      ? ["SUPPLIER"]
-                      : partyTypeDefault === "INTERNAL"
-                      ? ["INTERNAL"]
-                      : ["CUSTOMER"];
-                  form.setFieldsValue({ partnerRoles: fallback });
-                }}
-                // dropdownStyle={{ borderRadius: 10 }}
-              />
-            </Form.Item>
-          </Col>
-
-          <Col xs={24} md={6}>
-            <Form.Item name="type" label="Loại hình">
-              <Select
-                size="small"
-                options={TYPE_OPTIONS}
-                placeholder="B2B / B2C / Distributor"
-              />
-            </Form.Item>
-          </Col>
-
-
-          <Col xs={24} md={6}>
-            <Form.Item name="creditLimit" label="Hạn mức (VND)">
-              <InputNumber
-                size="small"
-                style={{ width: "100%" }}
-                min={0}
-                step={100000}
-                placeholder="VD: 500.000.000"
-              />
-            </Form.Item>
-          </Col>
-
-          <Col xs={24} md={6}>
-            <Form.Item
-              name="paymentTermDays"
-              label={
-                <Space>
-                  Điều khoản (ngày)
-                  <Tooltip title="Số ngày từ ngày xuất HĐ đến hạn thanh toán.">
-                    <InfoCircleOutlined />
-                  </Tooltip>
-                </Space>
-              }
-            >
-              <InputNumber
-                size="small"
-                style={{ width: "100%" }}
-                min={0}
-                placeholder="VD: 15 / 30 / 45"
               />
             </Form.Item>
           </Col>
         </Row>
+
+        {currentMerchant && (
+          <Row gutter={[12, 8]}>
+            <Col span={24}>
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 8 }}
+                message={
+                  <span>
+                    Đang áp dụng: <b>{currentMerchant.label}</b> từ{" "}
+                    {fmtDate(currentMerchant.validFrom)}
+                  </span>
+                }
+                description={
+                  merchantHistory && merchantHistory.length > 1 ? (
+                    <Space size={[6, 6]} wrap>
+                      {merchantHistory
+                        .filter((p) => !p.isCurrent)
+                        .map((p) => (
+                          <Tag key={p.id}>
+                            {p.role}: {fmtDate(p.validFrom)} –{" "}
+                            {p.validTo ? fmtDate(p.validTo) : "nay"}
+                          </Tag>
+                        ))}
+                    </Space>
+                  ) : undefined
+                }
+              />
+            </Col>
+          </Row>
+        )}
 
         <Row gutter={[12, 8]}>
           <Col span={24}>
@@ -430,11 +440,14 @@ export default function CustomerCompactForm({
         </Divider>
 
         <Row gutter={12}>
-          <Col span={6}>
-            <Form.Item label="Kinh doanh" name="salesOwnerEmpId">
-              <EmployeeSelect placeholder="Chọn nhân viên kinh doanh" />
-            </Form.Item>
-          </Col>
+          {/* Nhân viên kinh doanh dùng để định tuyến đơn bán — không áp dụng cho NCC. */}
+          {!isSupplierScreen && (
+            <Col span={6}>
+              <Form.Item label="Kinh doanh" name="salesOwnerEmpId">
+                <EmployeeSelect placeholder="Chọn nhân viên kinh doanh" />
+              </Form.Item>
+            </Col>
+          )}
 
           <Col span={6}>
             <Form.Item label="Kế toán" name="accountingOwnerEmpId">

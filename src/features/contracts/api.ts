@@ -9,6 +9,9 @@ import type {
   ContractExpiryListResult,
   ContractExpiryReportQuery,
   ContractImportRow,
+  ContractAppendix,
+  UpsertContractAppendixPayload,
+  ResolvedContractTerms,
 } from "./types";
 
 import type { Paged } from "../../shared/lib/types";
@@ -106,4 +109,42 @@ export const ContractsApi = {
         rows,
       },
     }).then((r) => r.data!.data!),
+
+  /* ===== Phụ lục hợp đồng ===== */
+
+  listAppendices: (contractId: string): Promise<ContractAppendix[]> =>
+    apiCall<ApiResponse<ContractAppendix[]>>("contractAppendices.list", {
+      params: { contractId },
+    }).then((r) => (r.data?.data ?? r.data ?? []) as ContractAppendix[]),
+
+  /** Điều khoản áp tại một ngày; bỏ trống `at` là hôm nay. */
+  termsAt: (contractId: string, at?: string): Promise<ResolvedContractTerms> =>
+    apiCall<ApiResponse<ResolvedContractTerms>>("contractAppendices.termsAt", {
+      params: { contractId },
+      query: at ? { at } : {},
+    }).then((r) => (r.data?.data ?? r.data) as ResolvedContractTerms),
+
+  createAppendix: (
+    contractId: string,
+    data: UpsertContractAppendixPayload,
+  ): Promise<ContractAppendix> =>
+    apiCall<ApiResponse<ContractAppendix>>("contractAppendices.create", {
+      params: { contractId },
+      data,
+    }).then((r) => (r.data?.data ?? r.data) as ContractAppendix),
+
+  updateAppendix: (
+    contractId: string,
+    appendixId: string,
+    data: UpsertContractAppendixPayload,
+  ): Promise<ContractAppendix> =>
+    apiCall<ApiResponse<ContractAppendix>>("contractAppendices.update", {
+      params: { contractId, appendixId },
+      data,
+    }).then((r) => (r.data?.data ?? r.data) as ContractAppendix),
+
+  deleteAppendix: (contractId: string, appendixId: string): Promise<void> =>
+    apiCall<ApiResponse<void>>("contractAppendices.delete", {
+      params: { contractId, appendixId },
+    }).then(() => undefined),
 };

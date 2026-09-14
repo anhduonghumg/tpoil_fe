@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -73,15 +73,28 @@ export function WithdrawalDetailDrawer({
 
   const detailQuery = useSalesWithdrawalDetail(open ? id : undefined);
   const request = detailQuery.data;
-  const firstLine = request?.lines?.[0];
-
-  const needsSource = request?.status === "NEED_SOURCE" || !request?.salesOrderId;
+  const canReselectSource =
+    request?.status === "NEED_SOURCE" || request?.status === "REJECTED" || !request?.salesOrderId;
   const candidatesQuery = useWithdrawalSourceCandidates({
-    customerPartyId: needsSource ? request?.customerPartyId : undefined,
-    productId: needsSource ? firstLine?.productId : undefined,
-    warehouseId: needsSource ? firstLine?.warehouseId : undefined,
-    qty: needsSource && firstLine ? Number(firstLine.requestedQty) : undefined,
+    customerPartyId: canReselectSource ? request?.customerPartyId : undefined,
+    lines: canReselectSource
+      ? (request?.lines ?? []).map((line) => ({
+          productId: line.productId,
+          warehouseId: line.warehouseId,
+          qty: Number(line.requestedQty),
+        }))
+      : [],
   });
+
+  useEffect(() => {
+    setPickedSource(undefined);
+  }, [id]);
+
+  useEffect(() => {
+    if (canReselectSource && !pickedSource && candidatesQuery.data?.suggestedSalesOrderId) {
+      setPickedSource(candidatesQuery.data.suggestedSalesOrderId);
+    }
+  }, [canReselectSource, candidatesQuery.data?.suggestedSalesOrderId, pickedSource]);
 
   const approvalsQuery = useSalesApprovals({ withdrawalRequestId: id, limit: 50 }, Boolean(open && id));
   const approvals = approvalsQuery.data?.items ?? [];

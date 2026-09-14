@@ -47,6 +47,22 @@
   border-bottom: 1px solid #eaecf0;
 }
 
+.notification-center-page-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.notification-center-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eaecf0;
+}
+
 .notification-center-list {
   margin-top: 4px;
 }
@@ -114,4 +130,3 @@
   border-color: #91caff;
   background: #f8fbff;
 }
-

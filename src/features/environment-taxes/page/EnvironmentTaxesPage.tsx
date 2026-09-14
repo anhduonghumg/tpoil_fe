@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import "../../../shared/ui/data-grid.css";
 import {
   Button,
   DatePicker,
@@ -325,6 +326,8 @@ export default function EnvironmentTaxesPage() {
       </div>
 
       <Table
+        className="data-grid"
+        bordered
         rowKey="id"
         size="small"
         columns={columns}

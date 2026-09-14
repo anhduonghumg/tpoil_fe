@@ -255,6 +255,17 @@ export default function SalesInvoicesPage() {
         </Tooltip>
       ) : null,
     },
+    {
+      title: "Giá vốn",
+      key: "purchaseInvoiceWarning",
+      width: 112,
+      align: "center",
+      render: (_, row) => row.purchaseInvoiceWarning ? (
+        <Tooltip title={row.purchaseInvoiceWarning.message}>
+          <Tag color="gold">Tạm tính</Tag>
+        </Tooltip>
+      ) : row.sourceType === "DAY_TRADE" ? <Tag color="success">Đã có HĐ vào</Tag> : null,
+    },
     { title: "Trạng thái HĐ", width: 104, render: () => <Tag color="default">Chưa xuất HĐ</Tag> },
     {
       title: "Thao tác",

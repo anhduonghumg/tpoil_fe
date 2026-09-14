@@ -17,7 +17,10 @@ export type ActionKey =
   | "draft"
   | "approve"
   | "reject"
-  | "cancel";
+  | "cancel"
+  | "copyNotice"
+  | "printNotice"
+  | "printDecision";
 
 export type ActionItem = {
   key: ActionKey;

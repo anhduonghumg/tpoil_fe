@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, Card, Select, Space, Statistic, Table, Tabs, Typography } from "antd";
+import { Button, Card, DatePicker, Select, Space, Statistic, Table, Tabs, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
@@ -34,6 +34,7 @@ export default function ReceivablesPage() {
   const [page, setPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
   const [detailId, setDetailId] = useState<string>();
+  const [agingAsOf, setAgingAsOf] = useState(() => dayjs().format("YYYY-MM-DD"));
 
   const listQuery = useReceivables({
     customerPartyId,
@@ -42,7 +43,7 @@ export default function ReceivablesPage() {
     page,
     limit: 20,
   });
-  const agingQuery = useReceivableAging(customerPartyId, tab === "aging");
+  const agingQuery = useReceivableAging(customerPartyId, tab === "aging", agingAsOf);
   const partyDebtQuery = usePartyDebt(customerPartyId, tab === "party");
 
   const filterTags = [
@@ -288,6 +289,9 @@ export default function ReceivablesPage() {
           Công nợ phải thu
         </Typography.Title>
         <Space>
+          <Button type="primary" onClick={() => navigate("/sales/receipts")}>
+            Thu tiền & đối soát
+          </Button>
           <FilterButton
             count={Number(Boolean(customerPartyId)) + Number(scope !== "OPEN")}
             open={filterOpen}
@@ -343,12 +347,21 @@ export default function ReceivablesPage() {
             label: "Tuổi nợ",
             children: (
               <Card size="small">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <Typography.Text type="secondary">Tuổi nợ được tính đúng theo số dư tại ngày chọn.</Typography.Text>
+                  <DatePicker
+                    size="small"
+                    value={agingAsOf ? dayjs(agingAsOf) : undefined}
+                    format="DD/MM/YYYY"
+                    onChange={(value) => setAgingAsOf((value || dayjs()).format("YYYY-MM-DD"))}
+                  />
+                </div>
                 <Table<ReceivableAgingRow>
                   rowKey={(row) => row.customer.id}
                   size="small"
                   loading={agingQuery.isLoading}
                   columns={agingColumns}
-                  dataSource={agingQuery.data ?? []}
+                  dataSource={agingQuery.data?.items ?? []}
                   scroll={{ x: 1000 }}
                   pagination={{ pageSize: 20, showSizeChanger: false }}
                 />

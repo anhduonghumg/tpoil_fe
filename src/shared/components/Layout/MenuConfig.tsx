@@ -18,6 +18,8 @@ export type NavItem = {
   icon?: JSX.Element;
   children?: NavItem[];
   need?: string | string[];
+  /** "group" dựng tiêu đề mục, không bấm được. */
+  type?: "group";
 };
 
 export const NAV_ITEMS: NavItem[] = [
@@ -49,11 +51,18 @@ export const NAV_ITEMS: NavItem[] = [
       {
         key: "/operations/vehicles",
         label: "Quản lý xe",
+        need: PERMS.OPERATIONS_ROAD_MANAGE,
         children: [
           { key: "/operations/vehicles", label: "Danh mục xe" },
           { key: "/operations/drivers", label: "Lái xe" },
           { key: "/operations/vehicle-documents", label: "Hồ sơ xe" },
           { key: "/operations/driver-documents", label: "Hồ sơ lái xe" },
+          { key: "/operations/sales-transport-requests", label: "Đơn có cước vận chuyển" },
+          { key: "/operations/transport-vehicle-settings", label: "Định mức xe và nhiên liệu" },
+          { key: "/operations/vehicle-fuel-logs", label: "Nhật ký đổ dầu xe" },
+          { key: "/operations/vehicle-maintenance-expenses", label: "Sửa chữa và thay thế xe" },
+          { key: "/operations/vehicle-monthly-fixed-costs", label: "Khấu hao và lương lái xe" },
+          { key: "/operations/vehicle-efficiency-report", label: "Hiệu quả xe theo tháng" },
           { key: "/operations/vehicle-dispatches", label: "Đơn điều xe / chuyến xe" },
         ],
       },

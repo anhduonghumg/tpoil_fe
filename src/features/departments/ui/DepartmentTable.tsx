@@ -93,8 +93,10 @@ export default function DepartmentTable({
 
   return (
     <Table
+      className="data-grid"
+      bordered
       rowKey="id"
-      size="middle"
+      size="small"
       loading={loading}
       columns={cols}
       dataSource={data}
@@ -107,7 +109,7 @@ export default function DepartmentTable({
         onChange: onPageChange,
         position: ["bottomLeft"],
       }}
-      scroll={{ y: 390 }}
+      scroll={{ x: 780, y: 390 }}
     />
   );
 }

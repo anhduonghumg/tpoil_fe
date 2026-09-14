@@ -55,6 +55,7 @@ export const PriceBulletinsFilters: React.FC<{
     >
       <Input
         size="small"
+        style={{ width: 280 }}
         placeholder="Tìm theo từ khóa....."
         value={draftKeyword}
         onChange={(e) => setDraftKeyword(e.target.value)}
@@ -84,6 +85,8 @@ export const PriceBulletinsFilters: React.FC<{
         Tìm kiếm
       </Button>
 
+      <span style={{ flex: 1 }} />
+
       <Dropdown
         menu={{ items: actionMenuItems, onClick: handleActionClick }}
         trigger={["click"]}
@@ -92,7 +95,6 @@ export const PriceBulletinsFilters: React.FC<{
           size="small"
           type="primary"
           icon={<PlusOutlined />}
-          style={{ marginTop: 5 }}
         >
           Thêm mới
         </Button>

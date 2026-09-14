@@ -4,7 +4,8 @@ import { operationsApi, type PageParams } from "./api";
 export const operationKeys = {
   all: ["operations"] as const,
   dashboard: ["operations", "dashboard"] as const,
-  warehouseDashboard: ["operations", "warehouse-dashboard"] as const,
+  warehouseDashboard: (warehouseId?: string) =>
+    ["operations", "warehouse-dashboard", warehouseId ?? "all"] as const,
   list: (resource: string, params?: PageParams) =>
     ["operations", resource, params] as const,
   detail: (resource: string, id?: string) =>
@@ -18,10 +19,12 @@ export function useOperationsDashboard() {
   });
 }
 
-export function useWarehouseDashboard() {
+export function useWarehouseDashboard(warehouseId?: string) {
   return useQuery({
-    queryKey: operationKeys.warehouseDashboard,
-    queryFn: operationsApi.warehouseDashboard,
+    queryKey: operationKeys.warehouseDashboard(warehouseId),
+    queryFn: () => operationsApi.warehouseDashboard(warehouseId),
+    // Đổi kho thì giữ số cũ trên màn cho tới khi có số mới, tránh nháy về rỗng.
+    placeholderData: (previous) => previous,
     // Kho là màn treo cả ca; tự làm mới để tồn không đứng yên sau mỗi phiếu.
     refetchInterval: 3 * 60 * 1000,
     refetchOnWindowFocus: true,
@@ -45,6 +48,11 @@ export function useOperationList(
     | "transfers"
     | "vehicles"
     | "drivers"
+    | "salesTransportRequests"
+    | "transportVehicleSettings"
+    | "vehicleFuelLogs"
+    | "vehicleMaintenanceExpenses"
+    | "vehicleMonthlyFixedCosts"
     | "dispatches",
   params?: PageParams
 ) {
@@ -64,6 +72,7 @@ export function useOperationDetail(
     | "transfer"
     | "vehicle"
     | "driver"
+    | "salesTransportRequest"
     | "dispatch",
   id?: string
 ) {

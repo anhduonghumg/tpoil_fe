@@ -81,6 +81,9 @@ export default function BankImportTemplateTable({
 
   return (
     <Table
+      className="data-grid"
+      size="small"
+      bordered
       rowKey="id"
       loading={loading}
       columns={columns}

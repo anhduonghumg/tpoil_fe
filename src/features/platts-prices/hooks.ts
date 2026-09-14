@@ -27,6 +27,20 @@ export function useUpsertPlattsPrice(q: PlattsPriceListQuery) {
   });
 }
 
+/** Lưu cả lô ô giá dán từ bảng tính; server chạy trong một transaction. */
+export function useBulkUpsertPlattsPrices() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (items: UpsertPlattsQuotePayload[]) =>
+      PlattsPricesApi.bulkUpsert({ items }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platts-prices"] });
+    },
+    onError: (e: any) => notify.error(e?.message || "Lưu giá Platts thất bại"),
+  });
+}
+
 export function useDeletePlattsPrice() {
   const qc = useQueryClient();
 
