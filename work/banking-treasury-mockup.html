@@ -1,0 +1,634 @@
+<div id="tpoil-treasury-preview">
+  <style>
+    #tpoil-treasury-preview {
+      color-scheme: light dark;
+      --tpoil-bg: light-dark(#f3f6fa, #0f141a);
+      --tpoil-surface: light-dark(#ffffff, #171d24);
+      --tpoil-surface-2: light-dark(#f8fafc, #1d252e);
+      --tpoil-text: light-dark(#172033, #edf2f7);
+      --tpoil-muted: light-dark(#667085, #9eabb9);
+      --tpoil-line: light-dark(#e5eaf0, #2e3945);
+      --tpoil-primary: light-dark(#1769e0, #62a0ff);
+      --tpoil-primary-soft: light-dark(#eaf2ff, #172c48);
+      --tpoil-green: light-dark(#178a55, #56c991);
+      --tpoil-green-soft: light-dark(#e9f7ef, #173529);
+      --tpoil-orange: light-dark(#b25c05, #ffb35d);
+      --tpoil-orange-soft: light-dark(#fff3e5, #3b2917);
+      --tpoil-red: light-dark(#c63637, #ff7778);
+      --tpoil-red-soft: light-dark(#fff0f0, #3b2021);
+      --tpoil-purple: light-dark(#7048b8, #b99af2);
+      --tpoil-purple-soft: light-dark(#f3edff, #2d2440);
+      --tpoil-shadow: light-dark(0 12px 32px rgba(28, 45, 73, .08), 0 12px 32px rgba(0, 0, 0, .24));
+      position: relative;
+      overflow: hidden;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: var(--tpoil-text);
+      background: var(--tpoil-bg);
+      border: 1px solid var(--tpoil-line);
+      border-radius: 14px;
+      min-height: 760px;
+    }
+    #tpoil-treasury-preview * { box-sizing: border-box; }
+    #tpoil-treasury-preview button,
+    #tpoil-treasury-preview input,
+    #tpoil-treasury-preview select { font: inherit; }
+    #tpoil-treasury-preview button { cursor: pointer; }
+    #tpoil-treasury-preview .tp-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 22px 12px;
+      background: var(--tpoil-surface);
+      border-bottom: 1px solid var(--tpoil-line);
+    }
+    #tpoil-treasury-preview .tp-title-row { display: flex; align-items: center; gap: 12px; }
+    #tpoil-treasury-preview .tp-mark {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      color: light-dark(#ffffff, #0b1522);
+      background: var(--tpoil-primary);
+    }
+    #tpoil-treasury-preview h1,
+    #tpoil-treasury-preview h2,
+    #tpoil-treasury-preview h3,
+    #tpoil-treasury-preview p { margin: 0; }
+    #tpoil-treasury-preview h1 { font-size: 19px; font-weight: 500; }
+    #tpoil-treasury-preview h2 { font-size: 18px; font-weight: 500; }
+    #tpoil-treasury-preview h3 { font-size: 14px; font-weight: 500; }
+    #tpoil-treasury-preview .tp-subtle { color: var(--tpoil-muted); font-size: 12px; margin-top: 3px; }
+    #tpoil-treasury-preview .tp-role {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid var(--tpoil-line);
+      border-radius: 8px;
+      color: var(--tpoil-muted);
+      background: var(--tpoil-surface-2);
+      font-size: 12px;
+    }
+    #tpoil-treasury-preview .tp-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+      padding: 0 18px;
+      background: var(--tpoil-surface);
+      border-bottom: 1px solid var(--tpoil-line);
+    }
+    #tpoil-treasury-preview .tp-tab {
+      min-height: 44px;
+      padding: 0 12px;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      color: var(--tpoil-muted);
+      background: transparent;
+      font-weight: 500;
+    }
+    #tpoil-treasury-preview .tp-tab[aria-selected="true"] {
+      color: var(--tpoil-primary);
+      border-bottom-color: var(--tpoil-primary);
+    }
+    #tpoil-treasury-preview .tp-main { padding: 18px; }
+    #tpoil-treasury-preview .tp-panel[hidden] { display: none; }
+    #tpoil-treasury-preview .tp-page-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    #tpoil-treasury-preview .tp-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    #tpoil-treasury-preview .tp-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 36px;
+      padding: 7px 12px;
+      border: 1px solid var(--tpoil-line);
+      border-radius: 8px;
+      color: var(--tpoil-text);
+      background: var(--tpoil-surface);
+      font-weight: 500;
+    }
+    #tpoil-treasury-preview .tp-button-primary {
+      color: light-dark(#ffffff, #0b1522);
+      background: var(--tpoil-primary);
+      border-color: var(--tpoil-primary);
+    }
+    #tpoil-treasury-preview .tp-button-ghost { background: transparent; }
+    #tpoil-treasury-preview .tp-button-small { min-height: 31px; padding: 5px 9px; font-size: 12px; }
+    #tpoil-treasury-preview .tp-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    #tpoil-treasury-preview .tp-stat {
+      padding: 14px;
+      border: 1px solid var(--tpoil-line);
+      border-radius: 10px;
+      background: var(--tpoil-surface);
+      box-shadow: var(--tpoil-shadow);
+    }
+    #tpoil-treasury-preview .tp-stat-label { color: var(--tpoil-muted); font-size: 12px; }
+    #tpoil-treasury-preview .tp-stat-value { margin-top: 6px; font-size: 20px; font-weight: 500; }
+    #tpoil-treasury-preview .tp-stat-note { margin-top: 4px; color: var(--tpoil-muted); font-size: 11px; }
+    #tpoil-treasury-preview .tp-toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(130px, .7fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    #tpoil-treasury-preview .tp-control {
+      width: 100%;
+      min-height: 38px;
+      padding: 7px 10px;
+      border: 1px solid var(--tpoil-line);
+      border-radius: 8px;
+      color: var(--tpoil-text);
+      background: var(--tpoil-surface);
+    }
+    #tpoil-treasury-preview .tp-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--tpoil-line);
+      border-radius: 10px;
+      background: var(--tpoil-surface);
+    }
+    #tpoil-treasury-preview table { width: 100%; border-collapse: collapse; min-width: 900px; }
+    #tpoil-treasury-preview th {
+      padding: 10px 12px;
+      color: var(--tpoil-muted);
+      background: var(--tpoil-surface-2);
+      border-bottom: 1px solid var(--tpoil-line);
+      font-size: 11px;
+      font-weight: 500;
+      text-align: left;
+      white-space: nowrap;
+    }
+    #tpoil-treasury-preview td {
+      padding: 12px;
+      border-bottom: 1px solid var(--tpoil-line);
+      vertical-align: top;
+      font-size: 12px;
+    }
+    #tpoil-treasury-preview tbody tr:last-child td { border-bottom: 0; }
+    #tpoil-treasury-preview tbody tr:hover { background: var(--tpoil-surface-2); }
+    #tpoil-treasury-preview .tp-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    #tpoil-treasury-preview .tp-main-text { font-weight: 500; }
+    #tpoil-treasury-preview .tp-meta { color: var(--tpoil-muted); margin-top: 4px; font-size: 11px; }
+    #tpoil-treasury-preview .tp-source { display: flex; gap: 8px; align-items: flex-start; }
+    #tpoil-treasury-preview .tp-source-icon {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      flex: 0 0 30px;
+      border-radius: 8px;
+      color: var(--tpoil-primary);
+      background: var(--tpoil-primary-soft);
+    }
+    #tpoil-treasury-preview .tp-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    #tpoil-treasury-preview .tp-badge-blue { color: var(--tpoil-primary); background: var(--tpoil-primary-soft); }
+    #tpoil-treasury-preview .tp-badge-green { color: var(--tpoil-green); background: var(--tpoil-green-soft); }
+    #tpoil-treasury-preview .tp-badge-orange { color: var(--tpoil-orange); background: var(--tpoil-orange-soft); }
+    #tpoil-treasury-preview .tp-badge-red { color: var(--tpoil-red); background: var(--tpoil-red-soft); }
+    #tpoil-treasury-preview .tp-badge-purple { color: var(--tpoil-purple); background: var(--tpoil-purple-soft); }
+    #tpoil-treasury-preview .tp-progress {
+      width: 100%;
+      height: 5px;
+      margin-top: 7px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: var(--tpoil-line);
+    }
+    #tpoil-treasury-preview .tp-progress > span { display: block; height: 100%; background: var(--tpoil-primary); }
+    #tpoil-treasury-preview .tp-split {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(260px, .7fr);
+      gap: 12px;
+    }
+    #tpoil-treasury-preview .tp-section {
+      border: 1px solid var(--tpoil-line);
+      border-radius: 10px;
+      background: var(--tpoil-surface);
+    }
+    #tpoil-treasury-preview .tp-section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--tpoil-line);
+    }
+    #tpoil-treasury-preview .tp-section-body { padding: 12px 14px; }
+    #tpoil-treasury-preview .tp-list { display: grid; gap: 10px; }
+    #tpoil-treasury-preview .tp-list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--tpoil-line);
+    }
+    #tpoil-treasury-preview .tp-list-item:last-child { padding-bottom: 0; border-bottom: 0; }
+    #tpoil-treasury-preview .tp-warning {
+      display: flex;
+      gap: 9px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      color: var(--tpoil-orange);
+      background: var(--tpoil-orange-soft);
+      font-size: 12px;
+    }
+    #tpoil-treasury-preview .tp-empty { padding: 36px 16px; text-align: center; color: var(--tpoil-muted); }
+    #tpoil-treasury-preview .tp-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      background: light-dark(rgba(19, 33, 54, .32), rgba(0, 0, 0, .56));
+    }
+    #tpoil-treasury-preview .tp-overlay[hidden],
+    #tpoil-treasury-preview .tp-drawer[hidden] { display: none; }
+    #tpoil-treasury-preview .tp-drawer {
+      position: absolute;
+      inset: 0 0 0 auto;
+      z-index: 21;
+      width: min(440px, 100%);
+      overflow-y: auto;
+      background: var(--tpoil-surface);
+      border-left: 1px solid var(--tpoil-line);
+      box-shadow: var(--tpoil-shadow);
+    }
+    #tpoil-treasury-preview .tp-drawer-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 18px;
+      border-bottom: 1px solid var(--tpoil-line);
+    }
+    #tpoil-treasury-preview .tp-icon-button {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--tpoil-line);
+      border-radius: 8px;
+      color: var(--tpoil-text);
+      background: var(--tpoil-surface);
+    }
+    #tpoil-treasury-preview .tp-drawer-body { padding: 16px 18px 84px; }
+    #tpoil-treasury-preview .tp-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin: 12px 0 18px;
+    }
+    #tpoil-treasury-preview .tp-detail-label { color: var(--tpoil-muted); font-size: 11px; }
+    #tpoil-treasury-preview .tp-detail-value { margin-top: 4px; font-size: 12px; font-weight: 500; }
+    #tpoil-treasury-preview .tp-step {
+      position: relative;
+      padding: 0 0 15px 23px;
+      color: var(--tpoil-muted);
+      font-size: 12px;
+    }
+    #tpoil-treasury-preview .tp-step::before {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 4px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--tpoil-green);
+    }
+    #tpoil-treasury-preview .tp-step::after {
+      content: "";
+      position: absolute;
+      left: 8px;
+      top: 15px;
+      bottom: 0;
+      width: 1px;
+      background: var(--tpoil-line);
+    }
+    #tpoil-treasury-preview .tp-step:last-child::after { display: none; }
+    #tpoil-treasury-preview .tp-drawer-foot {
+      position: absolute;
+      inset: auto 0 0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 18px;
+      border-top: 1px solid var(--tpoil-line);
+      background: var(--tpoil-surface);
+    }
+    #tpoil-treasury-preview .tp-search-result { color: var(--tpoil-muted); font-size: 11px; margin: 8px 2px 0; }
+    @media (max-width: 760px) {
+      #tpoil-treasury-preview .tp-topbar,
+      #tpoil-treasury-preview .tp-page-head { align-items: flex-start; flex-direction: column; }
+      #tpoil-treasury-preview .tp-role { width: 100%; justify-content: space-between; }
+      #tpoil-treasury-preview .tp-stats { grid-template-columns: 1fr; }
+      #tpoil-treasury-preview .tp-toolbar { grid-template-columns: 1fr; }
+      #tpoil-treasury-preview .tp-split { grid-template-columns: 1fr; }
+      #tpoil-treasury-preview .tp-tab { min-height: 42px; padding-inline: 9px; font-size: 12px; }
+    }
+  </style>
+
+  <div class="tp-topbar">
+    <div class="tp-title-row">
+      <div class="tp-mark"><i data-lucide="landmark" aria-hidden="true"></i></div>
+      <div>
+        <h1>Ngân hàng &amp; Dòng tiền</h1>
+        <p class="tp-subtle">Trung tâm thu, chi, giải ngân và đối soát</p>
+      </div>
+    </div>
+    <div class="tp-role">
+      <span><i data-lucide="shield-check" aria-hidden="true"></i> Kế toán ngân hàng</span>
+      <span>Tháng 09/2026</span>
+    </div>
+  </div>
+
+  <div class="tp-tabs" role="tablist" aria-label="Phân hệ ngân hàng">
+    <button class="tp-tab" type="button" role="tab" aria-selected="false" data-tab="dashboard">Tổng quan</button>
+    <button class="tp-tab" type="button" role="tab" aria-selected="false" data-tab="receipts">Thu tiền</button>
+    <button class="tp-tab" type="button" role="tab" aria-selected="true" data-tab="requests">Hồ sơ chi</button>
+    <button class="tp-tab" type="button" role="tab" aria-selected="false" data-tab="orders">Lệnh thanh toán</button>
+    <button class="tp-tab" type="button" role="tab" aria-selected="false" data-tab="loans">Giải ngân &amp; vay</button>
+    <button class="tp-tab" type="button" role="tab" aria-selected="false" data-tab="reconcile">Sao kê &amp; đối soát</button>
+  </div>
+
+  <main class="tp-main">
+    <section class="tp-panel" data-panel="requests">
+      <div class="tp-page-head">
+        <div>
+          <h2>Hồ sơ chi</h2>
+          <p class="tp-subtle">Một hàng đợi chung cho mua xăng dầu, chi nội bộ, tài sản, tạm ứng và các khoản phải chi khác.</p>
+        </div>
+        <div class="tp-actions">
+          <button class="tp-button" type="button"><i data-lucide="upload" aria-hidden="true"></i> Nhập chứng từ</button>
+          <button class="tp-button tp-button-primary" type="button"><i data-lucide="plus" aria-hidden="true"></i> Đề nghị chi nội bộ</button>
+        </div>
+      </div>
+
+      <div class="tp-stats">
+        <div class="tp-stat">
+          <div class="tp-stat-label">Chờ phê duyệt</div>
+          <div class="tp-stat-value">7 hồ sơ</div>
+          <div class="tp-stat-note">27,6 tỷ đồng</div>
+        </div>
+        <div class="tp-stat">
+          <div class="tp-stat-label">Sẵn sàng lập lệnh</div>
+          <div class="tp-stat-value">12 hồ sơ</div>
+          <div class="tp-stat-note">42,8 tỷ đồng</div>
+        </div>
+        <div class="tp-stat">
+          <div class="tp-stat-label">Cần kiểm tra</div>
+          <div class="tp-stat-value" style="color:var(--tpoil-orange)">2 cảnh báo</div>
+          <div class="tp-stat-note">Tài khoản mới hoặc thiếu chứng từ</div>
+        </div>
+      </div>
+
+      <div class="tp-toolbar" aria-label="Bộ lọc hồ sơ chi">
+        <input id="tp-search" class="tp-control" type="search" placeholder="Tìm số đề nghị, chứng từ, người thụ hưởng…" />
+        <select id="tp-type" class="tp-control" aria-label="Loại nghiệp vụ">
+          <option value="all">Tất cả nghiệp vụ</option>
+          <option value="trade">Mua xăng dầu</option>
+          <option value="internal">Chi nội bộ</option>
+          <option value="asset">Tài sản / CCDC</option>
+          <option value="advance">Tạm ứng</option>
+        </select>
+        <select id="tp-fund" class="tp-control" aria-label="Nguồn thanh toán">
+          <option value="all">Tất cả nguồn tiền</option>
+          <option value="own">Vốn tự có</option>
+          <option value="loan">Giải ngân</option>
+        </select>
+        <select id="tp-status" class="tp-control" aria-label="Trạng thái hồ sơ">
+          <option value="all">Tất cả trạng thái</option>
+          <option value="approved">Đã duyệt</option>
+          <option value="review">Cần kiểm tra</option>
+          <option value="waiting">Chờ duyệt</option>
+        </select>
+      </div>
+
+      <div class="tp-table-wrap">
+        <table aria-label="Danh sách hồ sơ chi">
+          <thead>
+            <tr>
+              <th>Hạn / Hồ sơ</th>
+              <th>Nguồn chi / đối tượng</th>
+              <th class="tp-num">Số tiền</th>
+              <th>Nguồn thanh toán</th>
+              <th>Tiến độ</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-payment-row data-search="TM26090001 TOANCAU xăng dầu" data-type="trade" data-fund="own" data-status="approved">
+              <td>
+                <div class="tp-main-text">18/09/2026</div>
+                <div class="tp-meta">TM26090001-DNTT-110</div>
+                <span class="tp-badge tp-badge-orange">Đến hạn hôm nay</span>
+              </td>
+              <td>
+                <div class="tp-source">
+                  <div class="tp-source-icon"><i data-lucide="fuel" aria-hidden="true"></i></div>
+                  <div><div class="tp-main-text">Mua xăng dầu · TOANCAU</div><div class="tp-meta">Đơn TM26090001 · HĐ 00000110</div></div>
+                </div>
+              </td>
+              <td class="tp-num"><div class="tp-main-text">474.350.000 đ</div><div class="tp-meta">Còn trả đủ</div></td>
+              <td><span class="tp-badge tp-badge-blue">Vốn tự có</span><div class="tp-meta">BIDV · 6128</div></td>
+              <td><span class="tp-badge tp-badge-green">Đã duyệt</span><div class="tp-progress"><span style="width:68%"></span></div><div class="tp-meta">Sẵn sàng lập lệnh</div></td>
+              <td><button class="tp-button tp-button-primary tp-button-small" type="button" data-open-detail="trade">Lập lệnh</button></td>
+            </tr>
+            <tr data-payment-row data-search="CP26090012 FPT máy tính laptop chi nội bộ tài sản" data-type="asset" data-fund="own" data-status="review">
+              <td><div class="tp-main-text">20/09/2026</div><div class="tp-meta">CP26090012</div></td>
+              <td>
+                <div class="tp-source">
+                  <div class="tp-source-icon"><i data-lucide="monitor" aria-hidden="true"></i></div>
+                  <div><div class="tp-main-text">Máy tính văn phòng · FPT Shop</div><div class="tp-meta">Tài sản/CCDC · Phòng Kinh doanh</div></div>
+                </div>
+              </td>
+              <td class="tp-num"><div class="tp-main-text">76.890.000 đ</div><div class="tp-meta">VAT 6.990.000 đ</div></td>
+              <td><span class="tp-badge tp-badge-blue">Vốn tự có</span><div class="tp-meta">Chưa chọn tài khoản</div></td>
+              <td><span class="tp-badge tp-badge-orange">Cần kiểm tra</span><div class="tp-progress"><span style="width:46%;background:var(--tpoil-orange)"></span></div><div class="tp-meta">Tài khoản thụ hưởng mới</div></td>
+              <td><button class="tp-button tp-button-small" type="button" data-open-detail="asset">Kiểm tra</button></td>
+            </tr>
+            <tr data-payment-row data-search="GN26090004 HAILINH xăng dầu giải ngân" data-type="trade" data-fund="loan" data-status="approved">
+              <td><div class="tp-main-text">22/09/2026</div><div class="tp-meta">GN26090004</div></td>
+              <td>
+                <div class="tp-source">
+                  <div class="tp-source-icon"><i data-lucide="fuel" aria-hidden="true"></i></div>
+                  <div><div class="tp-main-text">Mua xăng dầu · HAILINH</div><div class="tp-meta">2 hóa đơn · 3.300.000 lít</div></div>
+                </div>
+              </td>
+              <td class="tp-num"><div class="tp-main-text">80.658.000.000 đ</div><div class="tp-meta">Đề nghị giải ngân 65 tỷ</div></td>
+              <td><span class="tp-badge tp-badge-purple">Giải ngân</span><div class="tp-meta">Vietcombank · HM-2026-03</div></td>
+              <td><span class="tp-badge tp-badge-orange">Thiếu 1 chứng từ</span><div class="tp-progress"><span style="width:74%;background:var(--tpoil-purple)"></span></div><div class="tp-meta">Chờ biên bản nhận hàng</div></td>
+              <td><button class="tp-button tp-button-small" type="button" data-open-detail="loan">Mở hồ sơ</button></td>
+            </tr>
+            <tr data-payment-row data-search="TU26090007 Nguyễn Minh Anh tạm ứng công tác" data-type="advance" data-fund="own" data-status="waiting">
+              <td><div class="tp-main-text">25/09/2026</div><div class="tp-meta">TU26090007</div></td>
+              <td>
+                <div class="tp-source">
+                  <div class="tp-source-icon"><i data-lucide="briefcase-business" aria-hidden="true"></i></div>
+                  <div><div class="tp-main-text">Tạm ứng công tác · Nguyễn Minh Anh</div><div class="tp-meta">Phòng Khai thác · Đà Nẵng</div></div>
+                </div>
+              </td>
+              <td class="tp-num"><div class="tp-main-text">35.000.000 đ</div><div class="tp-meta">Không VAT</div></td>
+              <td><span class="tp-badge tp-badge-blue">Vốn tự có</span><div class="tp-meta">MB · 8686</div></td>
+              <td><span class="tp-badge tp-badge-orange">Chờ duyệt</span><div class="tp-progress"><span style="width:24%;background:var(--tpoil-orange)"></span></div><div class="tp-meta">Kế toán trưởng</div></td>
+              <td><button class="tp-button tp-button-small" type="button" data-open-detail="advance">Xem</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="tp-result" class="tp-search-result" aria-live="polite">Đang hiển thị 4 hồ sơ</div>
+    </section>
+
+    <section class="tp-panel" data-panel="dashboard" hidden>
+      <div class="tp-page-head"><div><h2>Tổng quan dòng tiền</h2><p class="tp-subtle">Số dư, nghĩa vụ đến hạn và các việc kế toán ngân hàng cần xử lý.</p></div><button class="tp-button"><i data-lucide="refresh-cw" aria-hidden="true"></i> Cập nhật số dư</button></div>
+      <div class="tp-stats">
+        <div class="tp-stat"><div class="tp-stat-label">Tiền khả dụng</div><div class="tp-stat-value">128,4 tỷ</div><div class="tp-stat-note">4 tài khoản ngân hàng hoạt động</div></div>
+        <div class="tp-stat"><div class="tp-stat-label">Phải chi 7 ngày tới</div><div class="tp-stat-value">96,2 tỷ</div><div class="tp-stat-note">18 hồ sơ đã duyệt</div></div>
+        <div class="tp-stat"><div class="tp-stat-label">Hạn mức vay còn lại</div><div class="tp-stat-value">145,0 tỷ</div><div class="tp-stat-note">2 hợp đồng tín dụng</div></div>
+      </div>
+      <div class="tp-split">
+        <div class="tp-section"><div class="tp-section-head"><h3>Công việc cần xử lý hôm nay</h3><span class="tp-badge tp-badge-orange">8 việc</span></div><div class="tp-section-body tp-list"><div class="tp-list-item"><div><div class="tp-main-text">3 hồ sơ đến hạn chưa lập lệnh</div><div class="tp-meta">Tổng giá trị 24,6 tỷ đồng</div></div><button class="tp-button tp-button-small">Xử lý</button></div><div class="tp-list-item"><div><div class="tp-main-text">2 lệnh đã gửi chưa thấy sao kê</div><div class="tp-meta">Quá 4 giờ kể từ lúc gửi ngân hàng</div></div><button class="tp-button tp-button-small">Đối soát</button></div><div class="tp-list-item"><div><div class="tp-main-text">1 tài khoản thụ hưởng vừa thay đổi</div><div class="tp-meta">Cần xác minh độc lập trước khi chi</div></div><button class="tp-button tp-button-small">Kiểm tra</button></div></div></div>
+        <div class="tp-section"><div class="tp-section-head"><h3>Tài khoản nguồn</h3></div><div class="tp-section-body tp-list"><div class="tp-list-item"><div><div class="tp-main-text">BIDV · 6128</div><div class="tp-meta">VND · đã đồng bộ 10:15</div></div><div class="tp-main-text">63,8 tỷ</div></div><div class="tp-list-item"><div><div class="tp-main-text">MB · 8686</div><div class="tp-meta">VND · đã đồng bộ 10:12</div></div><div class="tp-main-text">41,2 tỷ</div></div><div class="tp-list-item"><div><div class="tp-main-text">VCB · 7721</div><div class="tp-meta">VND · sao kê thủ công</div></div><div class="tp-main-text">23,4 tỷ</div></div></div></div>
+      </div>
+    </section>
+
+    <section class="tp-panel" data-panel="receipts" hidden>
+      <div class="tp-page-head"><div><h2>Thu tiền &amp; đối soát phải thu</h2><p class="tp-subtle">Tiền khách trả chỉ giảm công nợ sau khi kế toán xác nhận phân bổ.</p></div><div class="tp-actions"><button class="tp-button"><i data-lucide="upload" aria-hidden="true"></i> Import sao kê</button><button class="tp-button tp-button-primary"><i data-lucide="plus" aria-hidden="true"></i> Ghi nhận thủ công</button></div></div>
+      <div class="tp-stats"><div class="tp-stat"><div class="tp-stat-label">Tiền vào hôm nay</div><div class="tp-stat-value">19,3 tỷ</div><div class="tp-stat-note">28 giao dịch</div></div><div class="tp-stat"><div class="tp-stat-label">Chờ đối soát</div><div class="tp-stat-value">6 giao dịch</div><div class="tp-stat-note">1,45 tỷ đồng</div></div><div class="tp-stat"><div class="tp-stat-label">Chuyển nội bộ</div><div class="tp-stat-value">16 giao dịch</div><div class="tp-stat-note">Đã tự phân loại</div></div></div>
+      <div class="tp-table-wrap"><table><thead><tr><th>Ngày tiền về</th><th>Người chuyển / nội dung</th><th>Tài khoản nhận</th><th class="tp-num">Số tiền</th><th>Đối soát</th><th>Thao tác</th></tr></thead><tbody><tr><td>18/09 08:33</td><td><div class="tp-main-text">CÔNG TY ABC</div><div class="tp-meta">TT HD 00000124</div></td><td>BIDV · 6128</td><td class="tp-num tp-main-text">637.600.000 đ</td><td><span class="tp-badge tp-badge-green">Gợi ý 98%</span></td><td><button class="tp-button tp-button-small">Đối soát</button></td></tr><tr><td>18/09 10:41</td><td><div class="tp-main-text">HẢI LINH</div><div class="tp-meta">THANH TOAN DON 2609</div></td><td>Agribank · 2456</td><td class="tp-num tp-main-text">13.000.000.000 đ</td><td><span class="tp-badge tp-badge-orange">Cần kiểm tra</span></td><td><button class="tp-button tp-button-small">Đối soát</button></td></tr></tbody></table></div>
+    </section>
+
+    <section class="tp-panel" data-panel="orders" hidden>
+      <div class="tp-page-head"><div><h2>Lệnh thanh toán</h2><p class="tp-subtle">Tạo lệnh lẻ hoặc gom nhiều hồ sơ đã duyệt thành bảng kê gửi ngân hàng.</p></div><button class="tp-button tp-button-primary"><i data-lucide="layers-3" aria-hidden="true"></i> Tạo bảng kê thanh toán</button></div>
+      <div class="tp-warning"><i data-lucide="circle-alert" aria-hidden="true"></i><span>Hai lệnh đã gửi ngân hàng hơn 4 giờ nhưng chưa xuất hiện trên sao kê. Không tạo lại lệnh trước khi kiểm tra.</span></div>
+      <div class="tp-table-wrap"><table><thead><tr><th>Số lệnh / ngày</th><th>Loại</th><th>Tài khoản nguồn</th><th>Người nhận</th><th class="tp-num">Giá trị</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody><tr><td><div class="tp-main-text">LT260918-018</div><div class="tp-meta">18/09/2026</div></td><td><span class="tp-badge tp-badge-blue">Chuyển khoản lẻ</span></td><td>BIDV · 6128</td><td>TOANCAU</td><td class="tp-num tp-main-text">474.350.000 đ</td><td><span class="tp-badge tp-badge-orange">Chờ sao kê</span></td><td><button class="tp-button tp-button-small">Theo dõi</button></td></tr><tr><td><div class="tp-main-text">BK-TERM-260918-03</div><div class="tp-meta">18/09/2026 · 8 khoản</div></td><td><span class="tp-badge tp-badge-purple">Bảng kê TERM</span></td><td>MB · 8686</td><td>Nhiều nhà cung cấp</td><td class="tp-num tp-main-text">22.600.000.000 đ</td><td><span class="tp-badge tp-badge-green">Đã đối soát</span></td><td><button class="tp-button tp-button-small">Chi tiết</button></td></tr></tbody></table></div>
+    </section>
+
+    <section class="tp-panel" data-panel="loans" hidden>
+      <div class="tp-page-head"><div><h2>Giải ngân &amp; khoản vay</h2><p class="tp-subtle">Theo dõi hạn mức, hồ sơ giải ngân, khế ước, lãi và ngày đáo hạn.</p></div><button class="tp-button tp-button-primary"><i data-lucide="plus" aria-hidden="true"></i> Hồ sơ giải ngân</button></div>
+      <div class="tp-stats"><div class="tp-stat"><div class="tp-stat-label">Hạn mức được cấp</div><div class="tp-stat-value">300 tỷ</div><div class="tp-stat-note">BIDV + Vietcombank</div></div><div class="tp-stat"><div class="tp-stat-label">Dư nợ hiện tại</div><div class="tp-stat-value">155 tỷ</div><div class="tp-stat-note">8 khế ước đang mở</div></div><div class="tp-stat"><div class="tp-stat-label">Đáo hạn trong 30 ngày</div><div class="tp-stat-value">42 tỷ</div><div class="tp-stat-note">3 khế ước</div></div></div>
+      <div class="tp-table-wrap"><table><thead><tr><th>Hồ sơ</th><th>Ngân hàng / hạn mức</th><th>Mục đích</th><th class="tp-num">Đề nghị giải ngân</th><th>Bộ chứng từ</th><th>Trạng thái</th><th></th></tr></thead><tbody><tr><td><div class="tp-main-text">GN26090004</div><div class="tp-meta">Tạo 18/09/2026</div></td><td><div class="tp-main-text">Vietcombank</div><div class="tp-meta">HM-2026-03 · còn 85 tỷ</div></td><td>Thanh toán HAILINH</td><td class="tp-num tp-main-text">65.000.000.000 đ</td><td><span class="tp-badge tp-badge-orange">5/6 tài liệu</span></td><td><span class="tp-badge tp-badge-blue">Đang hoàn thiện</span></td><td><button class="tp-button tp-button-small" data-open-detail="loan">Mở hồ sơ</button></td></tr></tbody></table></div>
+    </section>
+
+    <section class="tp-panel" data-panel="reconcile" hidden>
+      <div class="tp-page-head"><div><h2>Sao kê &amp; đối soát</h2><p class="tp-subtle">Khớp tiền vào, tiền ra, bảng kê và xác nhận giải ngân tại cùng một nơi.</p></div><button class="tp-button tp-button-primary"><i data-lucide="upload" aria-hidden="true"></i> Import sao kê</button></div>
+      <div class="tp-split">
+        <div class="tp-section"><div class="tp-section-head"><h3>Giao dịch chưa đối soát</h3><span class="tp-badge tp-badge-orange">9 giao dịch</span></div><div class="tp-section-body tp-list"><div class="tp-list-item"><div><div class="tp-main-text">− 474.350.000 đ · BIDV</div><div class="tp-meta">TOANCAU · 18/09/2026 14:08</div></div><span class="tp-badge tp-badge-green">Khớp LT260918-018 · 100%</span></div><div class="tp-list-item"><div><div class="tp-main-text">− 11.300.007.700 đ · VCB</div><div class="tp-meta">Nội dung chưa nhận dạng đầy đủ</div></div><span class="tp-badge tp-badge-orange">3 gợi ý</span></div></div></div>
+        <div class="tp-section"><div class="tp-section-head"><h3>Kết quả đối soát</h3></div><div class="tp-section-body"><div class="tp-main-text">LT260918-018</div><div class="tp-meta">Lệnh thanh toán TOANCAU</div><div class="tp-detail-grid"><div><div class="tp-detail-label">Lệnh chi</div><div class="tp-detail-value">474.350.000 đ</div></div><div><div class="tp-detail-label">Sao kê</div><div class="tp-detail-value">474.350.000 đ</div></div><div><div class="tp-detail-label">Chênh lệch</div><div class="tp-detail-value" style="color:var(--tpoil-green)">0 đ</div></div><div><div class="tp-detail-label">Độ tin cậy</div><div class="tp-detail-value">100%</div></div></div><button class="tp-button tp-button-primary" style="width:100%">Xác nhận đối soát</button></div></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="tp-overlay" data-close-drawer hidden></div>
+  <aside class="tp-drawer" aria-label="Chi tiết hồ sơ chi" hidden>
+    <div class="tp-drawer-head">
+      <div><span id="tp-drawer-badge" class="tp-badge tp-badge-blue">Mua xăng dầu</span><h2 id="tp-drawer-title" style="margin-top:8px">TM26090001-DNTT-110</h2><p id="tp-drawer-subtitle" class="tp-subtle">TOANCAU · Đến hạn 18/09/2026</p></div>
+      <button class="tp-icon-button" type="button" aria-label="Đóng chi tiết" data-close-drawer><i data-lucide="x" aria-hidden="true"></i></button>
+    </div>
+    <div class="tp-drawer-body">
+      <div class="tp-warning" id="tp-drawer-warning"><i data-lucide="shield-alert" aria-hidden="true"></i><span>Tài khoản thụ hưởng đã được xác minh và không thay đổi so với hồ sơ đã duyệt.</span></div>
+      <h3>Thông tin thanh toán</h3>
+      <div class="tp-detail-grid">
+        <div><div class="tp-detail-label">Số tiền</div><div id="tp-drawer-amount" class="tp-detail-value">474.350.000 đ</div></div>
+        <div><div class="tp-detail-label">Nguồn tiền</div><div id="tp-drawer-fund" class="tp-detail-value">Vốn tự có</div></div>
+        <div><div class="tp-detail-label">Người thụ hưởng</div><div id="tp-drawer-beneficiary" class="tp-detail-value">CÔNG TY TOÀN CẦU</div></div>
+        <div><div class="tp-detail-label">Tài khoản nhận</div><div id="tp-drawer-account" class="tp-detail-value">VCB · 0011000042</div></div>
+      </div>
+      <h3 style="margin-bottom:12px">Tiến trình hồ sơ</h3>
+      <div id="tp-drawer-timeline">
+        <div class="tp-step"><div class="tp-main-text">Người đề nghị đã gửi hồ sơ</div><div class="tp-meta">08/09/2026 · Nguyễn Văn A</div></div>
+        <div class="tp-step"><div class="tp-main-text">Kế toán công nợ đã kiểm tra</div><div class="tp-meta">Đủ hóa đơn và biên bản giao nhận</div></div>
+        <div class="tp-step"><div class="tp-main-text">Giám đốc đã phê duyệt</div><div class="tp-meta">Hạn mức phê duyệt hợp lệ</div></div>
+        <div class="tp-step"><div class="tp-main-text">Chờ kế toán ngân hàng lập lệnh</div><div class="tp-meta">BIDV · tài khoản nguồn 6128</div></div>
+      </div>
+    </div>
+    <div class="tp-drawer-foot"><button class="tp-button" type="button" data-close-drawer>Đóng</button><button id="tp-drawer-action" class="tp-button tp-button-primary" type="button">Lập lệnh thanh toán</button></div>
+  </aside>
+
+  <script>
+    (() => {
+      const root = document.getElementById('tpoil-treasury-preview');
+      if (!root) return;
+
+      const tabs = [...root.querySelectorAll('[data-tab]')];
+      const panels = [...root.querySelectorAll('[data-panel]')];
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          const name = tab.dataset.tab;
+          tabs.forEach((item) => item.setAttribute('aria-selected', String(item === tab)));
+          panels.forEach((panel) => { panel.hidden = panel.dataset.panel !== name; });
+        });
+      });
+
+      const rows = [...root.querySelectorAll('[data-payment-row]')];
+      const search = root.querySelector('#tp-search');
+      const type = root.querySelector('#tp-type');
+      const fund = root.querySelector('#tp-fund');
+      const status = root.querySelector('#tp-status');
+      const result = root.querySelector('#tp-result');
+      const applyFilters = () => {
+        const keyword = search.value.trim().toLocaleLowerCase('vi');
+        let shown = 0;
+        rows.forEach((row) => {
+          const visible = (!keyword || row.dataset.search.toLocaleLowerCase('vi').includes(keyword))
+            && (type.value === 'all' || row.dataset.type === type.value)
+            && (fund.value === 'all' || row.dataset.fund === fund.value)
+            && (status.value === 'all' || row.dataset.status === status.value);
+          row.hidden = !visible;
+          if (visible) shown += 1;
+        });
+        result.textContent = `Đang hiển thị ${shown} hồ sơ`;
+      };
+      [search, type, fund, status].forEach((control) => control.addEventListener(control === search ? 'input' : 'change', applyFilters));
+
+      const detailMap = {
+        trade: { badge: 'Mua xăng dầu', title: 'TM26090001-DNTT-110', subtitle: 'TOANCAU · Đến hạn 18/09/2026', amount: '474.350.000 đ', fund: 'Vốn tự có', beneficiary: 'CÔNG TY TOÀN CẦU', account: 'VCB · 0011000042', warning: 'Tài khoản thụ hưởng đã được xác minh và không thay đổi so với hồ sơ đã duyệt.', action: 'Lập lệnh thanh toán' },
+        asset: { badge: 'Tài sản / CCDC', title: 'CP26090012', subtitle: 'FPT Shop · Phòng Kinh doanh', amount: '76.890.000 đ', fund: 'Vốn tự có', beneficiary: 'CÔNG TY FPT RETAIL', account: 'TPBank · 0200901188', warning: 'Tài khoản nhận mới được khai báo. Cần xác minh độc lập trước khi lập lệnh.', action: 'Xác minh tài khoản' },
+        loan: { badge: 'Giải ngân', title: 'GN26090004', subtitle: 'HAILINH · Hạn thanh toán 22/09/2026', amount: '65.000.000.000 đ', fund: 'Hạn mức Vietcombank HM-2026-03', beneficiary: 'CÔNG TY HẢI LINH', account: 'BIDV · 2111000410', warning: 'Hồ sơ còn thiếu biên bản nhận hàng. Chưa thể gửi đề nghị giải ngân cho ngân hàng.', action: 'Hoàn thiện hồ sơ' },
+        advance: { badge: 'Tạm ứng', title: 'TU26090007', subtitle: 'Nguyễn Minh Anh · Công tác Đà Nẵng', amount: '35.000.000 đ', fund: 'Vốn tự có', beneficiary: 'NGUYỄN MINH ANH', account: 'MB · 0608123456', warning: 'Hồ sơ đang chờ Kế toán trưởng phê duyệt.', action: 'Xem luồng duyệt' }
+      };
+      const overlay = root.querySelector('.tp-overlay');
+      const drawer = root.querySelector('.tp-drawer');
+      const setText = (selector, value) => { root.querySelector(selector).textContent = value; };
+      const openDrawer = (key) => {
+        const item = detailMap[key];
+        if (!item) return;
+        setText('#tp-drawer-badge', item.badge);
+        setText('#tp-drawer-title', item.title);
+        setText('#tp-drawer-subtitle', item.subtitle);
+        setText('#tp-drawer-amount', item.amount);
+        setText('#tp-drawer-fund', item.fund);
+        setText('#tp-drawer-beneficiary', item.beneficiary);
+        setText('#tp-drawer-account', item.account);
+        setText('#tp-drawer-warning span', item.warning);
+        setText('#tp-drawer-action', item.action);
+        overlay.hidden = false;
+        drawer.hidden = false;
+      };
+      const closeDrawer = () => { overlay.hidden = true; drawer.hidden = true; };
+      root.querySelectorAll('[data-open-detail]').forEach((button) => button.addEventListener('click', () => openDrawer(button.dataset.openDetail)));
+      root.querySelectorAll('[data-close-drawer]').forEach((button) => button.addEventListener('click', closeDrawer));
+    })();
+  </script>
+</div>

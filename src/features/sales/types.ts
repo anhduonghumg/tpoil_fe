@@ -877,6 +877,8 @@ export type ReceivableAllocation = {
   amountInBankCurrency: string;
   status: "ACTIVE" | "REVERSED";
   reversalOfId?: string | null;
+  /** Có khi bút thuộc một khoản thu FIFO: đảo bút này là đảo cả khoản thu. */
+  customerReceiptId?: string | null;
   allocatedAt: string;
   bankTransaction?: {
     id: string;
@@ -931,6 +933,50 @@ export type ReceivableAgingRow = {
 export type ReceivableAgingResult = {
   asOf: string;
   items: ReceivableAgingRow[];
+};
+
+/** Chỉ số công nợ tổng hợp theo khách trong kỳ, không yêu cầu kế toán chọn đơn hàng. */
+export type CreditManagementRow = {
+  customer: EntityRef;
+  openingDebt: string;
+  debtIncrease: string;
+  collectedAmount: string;
+  otherDecrease: string;
+  closingDebt: string;
+  peakClosingDebt: string;
+  averageClosingDebt: string;
+  /** Hạn mức có hiệu lực ngày đầu kỳ — khác creditLimit khi hạn mức đổi trong kỳ. */
+  creditLimitAtStart: string | null;
+  /** Hạn mức có hiệu lực ngày cuối kỳ. */
+  creditLimit: string | null;
+  overAmount: string | null;
+  overRate: string | null;
+  maxOverRate: string;
+  daysOverLimit: number;
+  plannedAmount: string;
+  plannedActualAmount: string;
+  plannedRemainingAmount: string;
+  planCompletionRate: string | null;
+  pendingReportedAmount: string;
+};
+
+export type CreditManagementResult = {
+  fromDate: string;
+  toDate: string;
+  items: CreditManagementRow[];
+};
+
+export type AnnualCreditIndicatorRow = CreditManagementRow & {
+  annualOverRate: string | null;
+  nextYearProposedLimit: string | null;
+  nextYearApprovedLimit: string | null;
+  nextYearProposalStatus: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | null;
+  nextYearProposalReason: string | null;
+};
+
+export type AnnualCreditIndicatorsResult = Omit<CreditManagementResult, "items"> & {
+  year: number;
+  items: AnnualCreditIndicatorRow[];
 };
 
 /** Hai chiều công nợ của cùng một đối tác: họ nợ mình và mình nợ họ. */
@@ -988,6 +1034,28 @@ export type AllocateBankReceiptPayload = {
   bankTransactionId: string;
   allocations: Array<{ openItemId: string; amount: number }>;
   note?: string;
+};
+
+/** Ghi nhận tiền về vào công nợ khách theo lũy kế: hệ thống tự trừ FIFO, không chọn đơn. */
+export type PostBankReceiptFifoItem = {
+  bankTransactionId: string;
+  customerPartyId: string;
+  /** Khoản thu sale đã báo cho đúng giao dịch này. */
+  customerReceiptId?: string;
+  /** Lưu STK người chuyển cho khách để lần sau tự nhận. */
+  rememberAccount?: boolean;
+};
+
+/**
+ * Đảo khoản thu. CORRECTION: ghi nhầm → bút đảo lấy ngày bút gốc (sổ như chưa ghi nhầm).
+ * BANK_REVERSAL: ngân hàng hoàn trả / hủy về sau → bút đảo lấy ngày hôm nay.
+ */
+export type ReverseReceiptPayload = { reason?: string; mode?: "CORRECTION" | "BANK_REVERSAL" };
+
+export type PostBankReceiptsFifoResult = {
+  results: Array<{ bankTransactionId: string; ok: boolean; appliedAmount?: string; unappliedAmount?: string; message?: string }>;
+  postedCount: number;
+  failedCount: number;
 };
 
 // ===== Lãi/lỗ theo nguồn hàng mua =====
@@ -1653,12 +1721,12 @@ export type MisaSettings = {
   environments: MisaEnvironmentConfig[];
 };
 
-/** Mật khẩu và appId để trống = giữ nguyên giá trị đang lưu. */
+/** User, mật khẩu và appId để trống = giữ nguyên giá trị đang lưu. */
 export type UpdateMisaSettingsPayload = {
   environment: InvoiceEnvironment;
   baseUrl: string;
   taxCode: string;
-  username: string;
+  username?: string;
   password?: string;
   appId?: string;
   templateNo: string;
@@ -1686,4 +1754,57 @@ export type SalesOrderCreditPreview = {
   overdueAmount: string;
   exceededBy: string;
   exceeded: boolean;
+};
+
+// =========================
+// LÃI BỊ MẤT DO KHÁCH NỢ
+// =========================
+
+export type DepositInterestRate = {
+  id: string;
+  /** Cột DATE, dạng ISO nửa đêm UTC. */
+  effectiveFrom: string;
+  /** %/năm, vd. "5.5". */
+  annualRate: string;
+  note?: string | null;
+};
+
+export type DepositInterestRatePayload = {
+  effectiveFrom: string;
+  annualRate: number;
+  note?: string;
+};
+
+export type ReceivableInterestItem = {
+  id: string;
+  documentNo: string;
+  issuedDate: string | null;
+  dueDate: string | null;
+  /** Số ngày còn nợ trong kỳ. */
+  daysOutstanding: number;
+  overdueDays: number;
+  averageBalance: string;
+  closingBalance: string;
+  lostInterest: string;
+  overdueLostInterest: string;
+};
+
+export type ReceivableInterestRow = {
+  customer: EntityRef;
+  averageDebt: string;
+  debtDays: string;
+  closingDebt: string;
+  lostInterest: string;
+  overdueLostInterest: string;
+  items: ReceivableInterestItem[];
+};
+
+export type ReceivableInterestReport = {
+  fromDate: string;
+  toDate: string;
+  dayCount: number;
+  ratesUsed: Array<{ effectiveFrom: string; annualRate: string }>;
+  missingRate: { days: number; fromDate: string; toDate: string } | null;
+  totals: { lostInterest: string; overdueLostInterest: string; averageDebt: string; closingDebt: string };
+  items: ReceivableInterestRow[];
 };

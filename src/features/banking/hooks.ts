@@ -6,8 +6,12 @@ import type {
   CommitBankImportPayload,
   ConfirmBankTransactionPayload,
   CreateManualBankTransactionPayload,
+  GeneralPaymentRequest,
+  GeneralPaymentReconciliationQueueItem,
+  GeneralPaymentReconciliation,
   Paged,
   PreviewBankImportPayload,
+  PaymentMatch,
 } from "./types";
 import { apiCall } from "../../shared/lib/api";
 import { notify } from "../../shared/lib/notification";
@@ -29,12 +33,144 @@ export const bankingKeys = {
     ["banking", "term-payment-batches", query || {}] as const,
   termPaymentBatchDetail: (id?: string) =>
     ["banking", "term-payment-batch-detail", id] as const,
+  generalPaymentRequests: () => ["banking", "general-payment-requests"] as const,
+  generalPaymentReconciliationQueue: () => ["banking", "general-payment-reconciliation-queue"] as const,
+  recentGeneralPaymentReconciliations: () => ["banking", "recent-general-payment-reconciliations"] as const,
 };
 
+export function useGeneralPaymentRequests() {
+  return useQuery<GeneralPaymentRequest[]>({
+    queryKey: bankingKeys.generalPaymentRequests(),
+    queryFn: () => BankingApi.listGeneralPaymentRequests(),
+  });
+}
+
+export function useCreateGeneralPaymentRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => BankingApi.createGeneralPaymentRequest(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: bankingKeys.generalPaymentRequests() }),
+  });
+}
+
+export function useGeneralPaymentRequestAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, action, data = {} }: { id: string; action: "approve" | "reject" | "bankVerify" | "bankReturn" | "resubmit"; data?: Record<string, unknown> }) =>
+      BankingApi.generalPaymentRequestAction(id, action, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: bankingKeys.generalPaymentRequests() }),
+  });
+}
+
+export function useRecordGeneralPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => BankingApi.recordGeneralPayment(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: bankingKeys.generalPaymentRequests() }),
+  });
+}
+
+export function useGeneralPaymentReconciliationQueue() {
+  return useQuery<GeneralPaymentReconciliationQueueItem[]>({
+    queryKey: bankingKeys.generalPaymentReconciliationQueue(),
+    queryFn: () => BankingApi.getGeneralPaymentReconciliationQueue(),
+  });
+}
+
+export function useReconcileGeneralPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ bankTransactionId, paymentId }: { bankTransactionId: string; paymentId: string }) =>
+      BankingApi.reconcileGeneralPayment(bankTransactionId, paymentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: bankingKeys.generalPaymentReconciliationQueue() });
+      qc.invalidateQueries({ queryKey: ["banking", "transactions"] });
+      qc.invalidateQueries({ queryKey: bankingKeys.generalPaymentRequests() });
+    },
+  });
+}
+
+export function useRecentGeneralPaymentReconciliations() {
+  return useQuery<GeneralPaymentReconciliation[]>({
+    queryKey: bankingKeys.recentGeneralPaymentReconciliations(),
+    queryFn: () => BankingApi.getRecentGeneralPaymentReconciliations(),
+  });
+}
+
+export function useReverseGeneralPaymentReconciliation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ reconciliationId, reason }: { reconciliationId: string; reason: string }) =>
+      BankingApi.reverseGeneralPaymentReconciliation(reconciliationId, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: bankingKeys.generalPaymentReconciliationQueue() });
+      qc.invalidateQueries({ queryKey: bankingKeys.recentGeneralPaymentReconciliations() });
+      qc.invalidateQueries({ queryKey: ["banking", "transactions"] });
+    },
+  });
+}
+
 export function useBankTransactions(query: BankTransactionListQuery) {
-  return useQuery<BankTransactionItem[]>({
+  return useQuery<Paged<BankTransactionItem>>({
     queryKey: bankingKeys.transactions(query),
     queryFn: () => BankingApi.listTransactions(query),
+  });
+}
+
+/** Đề xuất đối tượng cho các dòng sao kê đang hiện; khóa theo đúng danh sách id. */
+export function useRecognizeBankTransactions(ids: string[]) {
+  const sorted = [...ids].sort();
+  return useQuery({
+    queryKey: ["banking", "recognition", sorted],
+    queryFn: () => BankingApi.recognizeTransactions(sorted),
+    enabled: sorted.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+/** Bỏ qua nhiều dòng không phải công nợ: chuyển nội bộ, phí / lãi ngân hàng. */
+export function useIgnoreBankTransactions() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { ids: string[]; counterpartyType: "INTERNAL" | "OTHER"; reason?: string }) =>
+      BankingApi.ignoreTransactions(payload),
+    onSuccess: (result) => {
+      client.invalidateQueries({ queryKey: bankingKeys.all });
+      if (result.ignoredIds.length) notify.success(`Đã đánh dấu ${result.ignoredIds.length} giao dịch`);
+      if (result.skippedIds.length) notify.warning(`${result.skippedIds.length} giao dịch đã phân bổ nên giữ nguyên`);
+    },
+  });
+}
+
+/** Dòng bị bỏ qua nhầm (tưởng nội bộ / phí): đưa lại về hàng đợi. */
+export function useRestoreBankTransaction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => BankingApi.restoreTransaction(id),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: bankingKeys.all });
+      notify.success("Đã khôi phục giao dịch về hàng đợi");
+    },
+  });
+}
+
+/**
+ * Ghép một dòng tiền ra với hồ sơ chi đã tìm thấy theo mã đơn: lần chi Mua TM đã ghi nhận,
+ * đề nghị Mua TM chưa ghi nhận (ghi nhận luôn từ sao kê), hoặc dòng bảng kê TERM.
+ */
+export function useApplyPaymentMatch() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ bankTransactionId, match }: { bankTransactionId: string; match: PaymentMatch }) => {
+      if (match.type === "COMMERCIAL_PAYMENT") return BankingApi.reconcileCommercial(bankTransactionId, { paymentId: match.paymentId });
+      if (match.type === "COMMERCIAL_REQUEST") return BankingApi.recordCommercialFromStatement(bankTransactionId, { paymentRequestId: match.paymentRequestId });
+      return BankingApi.matchTermPaymentBatchItem(match.batchId, match.itemId, { bankTransactionId });
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: bankingKeys.all });
+      // Ghi nhận chi Mua TM đổi trạng thái đề nghị bên màn Chi tiền / Mua hàng.
+      client.invalidateQueries({ queryKey: ["commercial-lots"] });
+    },
   });
 }
 

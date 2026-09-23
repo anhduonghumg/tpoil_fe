@@ -338,6 +338,20 @@ export const ROUTES = {
     bankReturnPaymentRequest: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/bank-return"] as RouteTuple,
     recordPayment: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/payments"] as RouteTuple,
   },
+  generalPaymentRequests: {
+    list: ["GET", "/banking/general-payment-requests"] as RouteTuple,
+    create: ["POST", "/banking/general-payment-requests"] as RouteTuple,
+    approve: ["POST", "/banking/general-payment-requests/:id/approve"] as RouteTuple,
+    reject: ["POST", "/banking/general-payment-requests/:id/reject"] as RouteTuple,
+    bankVerify: ["POST", "/banking/general-payment-requests/:id/bank-verify"] as RouteTuple,
+    bankReturn: ["POST", "/banking/general-payment-requests/:id/bank-return"] as RouteTuple,
+    resubmit: ["POST", "/banking/general-payment-requests/:id/resubmit"] as RouteTuple,
+    recordPayment: ["POST", "/banking/general-payment-requests/:id/payments"] as RouteTuple,
+    reconciliationQueue: ["GET", "/banking/general-payment-requests/reconciliation-queue"] as RouteTuple,
+    reconcile: ["POST", "/banking/general-payment-requests/reconciliation/:bankTransactionId"] as RouteTuple,
+    recentReconciliations: ["GET", "/banking/general-payment-requests/reconciliations/recent"] as RouteTuple,
+    reverseReconciliation: ["POST", "/banking/general-payment-requests/reconciliation/:reconciliationId/reverse"] as RouteTuple,
+  },
   commercialRetail: {
     list: ["GET", "/commercial-retail-purchases"] as RouteTuple,
     detail: ["GET", "/commercial-retail-purchases/:id"] as RouteTuple,
@@ -475,6 +489,13 @@ export const ROUTES = {
   receivables: {
     list: ["GET", "/receivables"] as RouteTuple,
     aging: ["GET", "/receivables/aging"] as RouteTuple,
+    creditManagement: ["GET", "/receivables/credit-management"] as RouteTuple,
+    annualCreditIndicators: ["GET", "/receivables/credit-indicators/annual"] as RouteTuple,
+    collectionPlans: ["GET", "/receivables/collection-plans"] as RouteTuple,
+    createCollectionPlan: ["POST", "/receivables/collection-plans"] as RouteTuple,
+    customerReceipts: ["GET", "/receivables/customer-receipts"] as RouteTuple,
+    createCustomerReceipt: ["POST", "/receivables/customer-receipts"] as RouteTuple,
+    confirmCustomerReceipt: ["POST", "/receivables/customer-receipts/:id/confirm"] as RouteTuple,
     partyDebt: ["GET", "/receivables/party-debt"] as RouteTuple,
     customerBalance: [
       "GET",
@@ -484,7 +505,19 @@ export const ROUTES = {
     allocate: ["POST", "/receivables/allocations"] as RouteTuple,
     receiptSuggestions: ["GET", "/receivables/bank-transactions/:bankTransactionId/suggestions"] as RouteTuple,
     allocateBankReceipt: ["POST", "/receivables/bank-transactions/:bankTransactionId/allocate"] as RouteTuple,
+    postBankReceiptsFifo: ["POST", "/receivables/bank-transactions/post-fifo"] as RouteTuple,
+    reverseBankReceipt: ["POST", "/receivables/bank-transactions/:bankTransactionId/reverse"] as RouteTuple,
+    reverseCustomerReceipt: ["POST", "/receivables/customer-receipts/:id/reverse"] as RouteTuple,
     reverseAllocation: ["POST", "/receivables/allocations/:id/reverse"] as RouteTuple,
+  },
+
+  /** Báo cáo lãi bị mất do khách nợ + bảng lãi suất tiền gửi tham chiếu. */
+  receivableInterest: {
+    report: ["GET", "/receivable-interest/report"] as RouteTuple,
+    rates: ["GET", "/receivable-interest/rates"] as RouteTuple,
+    createRate: ["POST", "/receivable-interest/rates"] as RouteTuple,
+    updateRate: ["PUT", "/receivable-interest/rates/:id"] as RouteTuple,
+    deleteRate: ["DELETE", "/receivable-interest/rates/:id"] as RouteTuple,
   },
 
   salesCredit: {
@@ -572,6 +605,12 @@ export const ROUTES = {
   banking: {
     transactions: ["GET", "/banking/transactions"] as RouteTuple,
     createManualTransaction: ["POST", "/banking/transactions/manual"] as RouteTuple,
+    recognizeTransactions: ["POST", "/banking/transactions/recognize"] as RouteTuple,
+    ignoreTransactions: ["POST", "/banking/transactions/ignore-batch"] as RouteTuple,
+    restoreTransaction: ["POST", "/banking/transactions/:id/restore"] as RouteTuple,
+    reconcileCommercial: ["POST", "/banking/transactions/:id/commercial-reconcile"] as RouteTuple,
+    recordCommercialFromStatement: ["POST", "/banking/transactions/:id/commercial-record"] as RouteTuple,
+    reverseCommercialReconciliation: ["POST", "/banking/commercial-reconciliations/:id/reverse"] as RouteTuple,
     transactionDetail: ["GET", "/banking/transactions/:id"] as RouteTuple,
     transactionSuggestions: [
       "GET",

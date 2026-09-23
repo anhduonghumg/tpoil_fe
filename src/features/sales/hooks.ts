@@ -20,9 +20,12 @@ import {
   SalesProfitabilityApi,
   SalesReconciliationApi,
   SalesWithdrawalsApi,
+  ReceivableInterestApi,
 } from "./api";
 import type {
   AllocateBankReceiptPayload,
+  PostBankReceiptFifoItem,
+  ReverseReceiptPayload,
   AllocateReceivablePayload,
   ConfirmDeliveryPayload,
   ConfirmQuickEntryPayload,
@@ -51,6 +54,7 @@ import type {
   UpdateSalesOrderPayload,
   SalesManagementReportQuery,
   UpsertDiscountBoardPayload,
+  DepositInterestRatePayload,
 } from "./types";
 
 export function useSalesDashboard() {
@@ -985,15 +989,19 @@ export function useCancelInvoice(id?: string, { silent = false }: { silent?: boo
 
 export function useReceivables(query: {
   customerPartyId?: string;
+  accountingOwnerEmpId?: string;
   status?: ReceivableStatus;
   onlyOpen?: boolean;
   overdueOnly?: boolean;
   page?: number;
   limit?: number;
-} = {}) {
+} = {}, enabled = true) {
+  // `enabled`: ngăn kéo thu tiền chỉ tải công nợ khi đã chọn khách. Trước đây hook không nhận
+  // tham số này nên lời gọi bị bỏ qua âm thầm và nó tải công nợ của mọi khách.
   return useQuery({
     queryKey: ["receivables", "list", query],
     queryFn: () => ReceivablesApi.list(query),
+    enabled,
   });
 }
 
@@ -1021,10 +1029,48 @@ export function useBankReceiptSuggestions(bankTransactionId?: string, enabled = 
   });
 }
 
-export function usePartyDebt(partyId?: string, enabled = true) {
+export function useCreditManagement(
+  query: { customerPartyId?: string; accountingOwnerEmpId?: string; fromDate?: string; toDate?: string },
+  enabled = true,
+) {
   return useQuery({
-    queryKey: ["receivables", "partyDebt", partyId],
-    queryFn: () => ReceivablesApi.partyDebt(partyId),
+    queryKey: ["receivables", "creditManagement", query],
+    queryFn: () => ReceivablesApi.creditManagement(query),
+    enabled,
+  });
+}
+
+export function useAnnualCreditIndicators(
+  query: { year: number; customerPartyId?: string; accountingOwnerEmpId?: string },
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["receivables", "annualCreditIndicators", query],
+    queryFn: () => ReceivablesApi.annualCreditIndicators(query),
+    enabled,
+  });
+}
+
+export function useCreateCollectionPlan() {
+  const refresh = useRefreshReceivables();
+  return useMutation({
+    mutationFn: (payload: { customerPartyId: string; plannedDate: string; plannedAmount: number; note?: string }) =>
+      ReceivablesApi.createCollectionPlan(payload),
+    onSuccess: () => {
+      refresh();
+      notify.success("Đã thêm kế hoạch trả");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không thể thêm kế hoạch trả"),
+  });
+}
+
+export function usePartyDebt(
+  query: { partyId?: string; accountingOwnerEmpId?: string } = {},
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["receivables", "partyDebt", query],
+    queryFn: () => ReceivablesApi.partyDebt(query),
     enabled,
   });
 }
@@ -1070,13 +1116,52 @@ export function useAllocateBankReceipt() {
   });
 }
 
+/** Đảo ghi nhận của một dòng tiền vào: công nợ, khoản thu, dòng sao kê, kế hoạch thu cùng lúc. */
+export function useReverseBankReceipt() {
+  const refresh = useRefreshReceivables();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ bankTransactionId, ...payload }: ReverseReceiptPayload & { bankTransactionId: string }) =>
+      ReceivablesApi.reverseBankReceipt(bankTransactionId, payload),
+    onSuccess: () => {
+      refresh();
+      client.invalidateQueries({ queryKey: ["banking"] });
+      notify.success("Đã đảo ghi nhận — giao dịch quay lại hàng đợi để xử lý lại");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không đảo được ghi nhận"),
+  });
+}
+
+/** Ghi nhận hàng loạt tiền về vào công nợ khách (FIFO theo lũy kế). */
+export function usePostBankReceiptsFifo() {
+  const refresh = useRefreshReceivables();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (items: PostBankReceiptFifoItem[]) => ReceivablesApi.postBankReceiptsFifo(items),
+    onSuccess: (result) => {
+      refresh();
+      // Danh sách sao kê dùng khóa ["banking", …], không nằm trong nhóm "bankTransactions".
+      client.invalidateQueries({ queryKey: ["banking"] });
+      if (result.postedCount) notify.success(`Đã ghi nhận ${result.postedCount} giao dịch vào công nợ khách`);
+      if (result.failedCount) {
+        const first = result.results.find((row) => !row.ok);
+        notify.warning(`${result.failedCount} giao dịch chưa ghi nhận được${first?.message ? `: ${first.message}` : ""}`);
+      }
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không ghi nhận được công nợ"),
+  });
+}
+
 /** Đảo phân bổ bằng bút toán ngược — sổ công nợ chỉ ghi thêm, không sửa. */
 export function useReverseAllocation() {
   const refresh = useRefreshReceivables();
+  const client = useQueryClient();
   return useMutation({
-    mutationFn: (allocationId: string) => ReceivablesApi.reverseAllocation(allocationId),
+    mutationFn: ({ allocationId, ...payload }: ReverseReceiptPayload & { allocationId: string }) =>
+      ReceivablesApi.reverseAllocation(allocationId, payload),
     onSuccess: () => {
       refresh();
+      client.invalidateQueries({ queryKey: ["banking"] });
       notify.success("Đã đảo phân bổ");
     },
     onError: (error) => notify.error(extractApiError(error).message || "Không đảo được phân bổ"),
@@ -1532,5 +1617,56 @@ export function useAdjustLineSupplier() {
       notify.success("Đã cập nhật Mã NCC");
     },
     onError: (error) => notify.error(extractApiError(error).message || "Không đổi được Mã NCC"),
+  });
+}
+
+// ===== Lãi bị mất do khách nợ =====
+
+export function useReceivableInterestReport(query: {
+  customerPartyId?: string;
+  fromDate?: string;
+  toDate?: string;
+}) {
+  return useQuery({
+    queryKey: ["receivable-interest", "report", query],
+    queryFn: () => ReceivableInterestApi.report(query),
+  });
+}
+
+export function useDepositInterestRates() {
+  return useQuery({
+    queryKey: ["receivable-interest", "rates"],
+    queryFn: () => ReceivableInterestApi.rates(),
+  });
+}
+
+/** Đổi lãi suất là đổi toàn bộ số tiền lãi, nên làm mới cả bảng lãi suất lẫn báo cáo. */
+function useRefreshReceivableInterest() {
+  const client = useQueryClient();
+  return () => client.invalidateQueries({ queryKey: ["receivable-interest"] });
+}
+
+export function useSaveDepositInterestRate() {
+  const refresh = useRefreshReceivableInterest();
+  return useMutation({
+    mutationFn: ({ id, data }: { id?: string; data: DepositInterestRatePayload }) =>
+      id ? ReceivableInterestApi.updateRate(id, data) : ReceivableInterestApi.createRate(data),
+    onSuccess: () => {
+      refresh();
+      notify.success("Đã lưu lãi suất");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không lưu được lãi suất"),
+  });
+}
+
+export function useDeleteDepositInterestRate() {
+  const refresh = useRefreshReceivableInterest();
+  return useMutation({
+    mutationFn: (id: string) => ReceivableInterestApi.deleteRate(id),
+    onSuccess: () => {
+      refresh();
+      notify.success("Đã xóa lãi suất");
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không xóa được lãi suất"),
   });
 }

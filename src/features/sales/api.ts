@@ -33,7 +33,12 @@ import type {
   ReceivableAgingRow,
   ReceivableAgingResult,
   BankReceiptSuggestions,
+  AnnualCreditIndicatorsResult,
+  CreditManagementResult,
   AllocateBankReceiptPayload,
+  PostBankReceiptFifoItem,
+  PostBankReceiptsFifoResult,
+  ReverseReceiptPayload,
   ReceivableListResult,
   ReceivableOpenItem,
   ReceivableStatus,
@@ -75,6 +80,9 @@ import type {
   UpdateCustomerCreditPayload,
   UpdateSalesOrderPayload,
   WithdrawalSourceResult,
+  DepositInterestRate,
+  DepositInterestRatePayload,
+  ReceivableInterestReport,
 } from "./types";
 
 const unwrap = <T,>(response: any) => (response.data?.data ?? response.data) as T;
@@ -613,6 +621,8 @@ export const SalesInvoicesApi = {
 export const ReceivablesApi = {
   list: (query: {
     customerPartyId?: string;
+    /** Kế toán phụ trách khách hàng. */
+    accountingOwnerEmpId?: string;
     status?: ReceivableStatus;
     onlyOpen?: boolean;
     overdueOnly?: boolean;
@@ -633,6 +643,24 @@ export const ReceivablesApi = {
       query: { customerPartyId, asOf },
     }).then(unwrap<ReceivableAgingResult>),
 
+  creditManagement: (query: {
+    customerPartyId?: string;
+    accountingOwnerEmpId?: string;
+    fromDate?: string;
+    toDate?: string;
+  }) =>
+    apiCall<ApiResponse<CreditManagementResult>>("receivables.creditManagement", { query }).then(
+      unwrap<CreditManagementResult>,
+    ),
+
+  annualCreditIndicators: (query: { year: number; customerPartyId?: string; accountingOwnerEmpId?: string }) =>
+    apiCall<ApiResponse<AnnualCreditIndicatorsResult>>("receivables.annualCreditIndicators", { query }).then(
+      unwrap<AnnualCreditIndicatorsResult>,
+    ),
+
+  createCollectionPlan: (payload: { customerPartyId: string; plannedDate: string; plannedAmount: number; note?: string }) =>
+    apiCall<ApiResponse<unknown>>("receivables.createCollectionPlan", { data: payload }).then(unwrap<unknown>),
+
   receiptSuggestions: (bankTransactionId: string) =>
     apiCall<ApiResponse<BankReceiptSuggestions>>("receivables.receiptSuggestions", {
       params: { bankTransactionId },
@@ -644,8 +672,13 @@ export const ReceivablesApi = {
       { params: { bankTransactionId }, data: { allocations, note } },
     ).then(unwrap<{ bankTransactionId: string; allocatedAmount: string; remainingAmount: string }>),
 
-  partyDebt: (partyId?: string) =>
-    apiCall<ApiResponse<PartyDebtRow[]>>("receivables.partyDebt", { query: { partyId } }).then(
+  postBankReceiptsFifo: (items: PostBankReceiptFifoItem[]) =>
+    apiCall<ApiResponse<PostBankReceiptsFifoResult>>("receivables.postBankReceiptsFifo", {
+      data: { items },
+    }).then(unwrap<PostBankReceiptsFifoResult>),
+
+  partyDebt: (query: { partyId?: string; accountingOwnerEmpId?: string } = {}) =>
+    apiCall<ApiResponse<PartyDebtRow[]>>("receivables.partyDebt", { query }).then(
       unwrap<PartyDebtRow[]>,
     ),
 
@@ -659,11 +692,18 @@ export const ReceivablesApi = {
       unwrap<ReceivableOpenItem>,
     ),
 
-  reverseAllocation: (id: string) =>
+  reverseAllocation: (id: string, payload: ReverseReceiptPayload = {}) =>
     apiCall<ApiResponse<ReceivableOpenItem>>("receivables.reverseAllocation", {
       params: { id },
-      data: {},
+      data: payload,
     }).then(unwrap<ReceivableOpenItem>),
+
+  /** Đảo ghi nhận của một dòng tiền vào; dòng quay lại hàng đợi Thu tiền. */
+  reverseBankReceipt: (bankTransactionId: string, payload: ReverseReceiptPayload) =>
+    apiCall<ApiResponse<unknown>>("receivables.reverseBankReceipt", {
+      params: { bankTransactionId },
+      data: payload,
+    }).then(unwrap<unknown>),
 };
 
 export const SalesProfitabilityApi = {
@@ -842,5 +882,33 @@ export const SalesManagementReportApi = {
   get: (query: SalesManagementReportQuery) =>
     apiCall<ApiResponse<SalesManagementReport>>("salesManagementReport.get", { query }).then(
       unwrap<SalesManagementReport>,
+    ),
+};
+
+/** Báo cáo lãi bị mất do khách nợ + bảng lãi suất tiền gửi tham chiếu (nhập tay). */
+export const ReceivableInterestApi = {
+  report: (query: { customerPartyId?: string; fromDate?: string; toDate?: string }) =>
+    apiCall<ApiResponse<ReceivableInterestReport>>("receivableInterest.report", { query }).then(
+      unwrap<ReceivableInterestReport>,
+    ),
+
+  rates: () =>
+    apiCall<ApiResponse<DepositInterestRate[]>>("receivableInterest.rates", {}).then(
+      unwrap<DepositInterestRate[]>,
+    ),
+
+  createRate: (data: DepositInterestRatePayload) =>
+    apiCall<ApiResponse<DepositInterestRate>>("receivableInterest.createRate", { data }).then(
+      unwrap<DepositInterestRate>,
+    ),
+
+  updateRate: (id: string, data: DepositInterestRatePayload) =>
+    apiCall<ApiResponse<DepositInterestRate>>("receivableInterest.updateRate", { params: { id }, data }).then(
+      unwrap<DepositInterestRate>,
+    ),
+
+  deleteRate: (id: string) =>
+    apiCall<ApiResponse<{ id: string }>>("receivableInterest.deleteRate", { params: { id } }).then(
+      unwrap<{ id: string }>,
     ),
 };

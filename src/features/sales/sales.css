@@ -1079,3 +1079,94 @@
   text-transform: none;
   letter-spacing: 0;
 }
+
+/* ===================================================================
+   Màn Công nợ phải thu.
+   Bảng dùng .sales-grid như các màn Bán hàng khác; ở đây chỉ còn khung
+   trang và dải hai con số tổng của tab "Chi tiết công nợ".
+   =================================================================== */
+
+.receivables-page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.receivables-page .sales-status-tabs .ant-tabs-nav {
+  margin-bottom: 0;
+}
+
+/* Hai con số tổng gọn trên một dải thay cho hai khối Statistic chữ to. Còn phải thu
+   là con số người ta mở màn này để xem nên tô đỏ và đặt nổi hơn. */
+.receivables-summary {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fbfcfe;
+  overflow: hidden;
+}
+
+.receivables-summary > div {
+  display: grid;
+  gap: 1px;
+  padding: 6px 16px;
+  min-width: 170px;
+}
+
+.receivables-summary > div + div {
+  border-left: 1px solid #e5e7eb;
+}
+
+.receivables-summary span {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.receivables-summary strong {
+  color: #16305f;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.receivables-summary .is-outstanding {
+  background: #fff5f5;
+}
+
+.receivables-summary .is-outstanding strong {
+  color: #cf1322;
+}
+
+/* ===================================================================
+   Màn "Lãi bị mất do khách nợ". Dùng lại khung .receivables-page và dải
+   .receivables-summary của màn Công nợ phải thu.
+   =================================================================== */
+
+.receivable-interest-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+
+/* Dải tổng có 4 ô: cho phép xuống dòng trên màn hẹp. */
+.receivable-interest-header ~ .receivables-summary {
+  flex-wrap: wrap;
+}
+
+/* Bảng chi tiết từng khoản nợ lồng trong dòng khách hàng. */
+.receivable-interest-items {
+  margin: 4px 0;
+}
+
+.receivable-interest-rate-form .ant-form-item {
+  margin-bottom: 8px;
+}

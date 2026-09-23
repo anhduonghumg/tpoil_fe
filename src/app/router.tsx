@@ -38,12 +38,17 @@ import SalesDeliveriesPage from "../features/sales/page/SalesDeliveriesPage";
 import SalesInvoicesPage from "../features/sales/page/SalesInvoicesPage";
 import InvoiceSettingsPage from "../features/sales/page/InvoiceSettingsPage";
 import ReceivablesPage from "../features/sales/page/ReceivablesPage";
+import ReceivableInterestPage from "../features/sales/page/ReceivableInterestPage";
 import SalesReceiptsPage from "../features/sales/page/SalesReceiptsPage";
 import PurchaseSourceProfitPage from "../features/sales/page/PurchaseSourceProfitPage";
 import SalesManagementReportPage from "../features/sales/page/SalesManagementReportPage";
 import SalesAliasesPage from "../features/sales/page/SalesAliasesPage";
 import CreditConfigPage from "../features/sales/page/CreditConfigPage";
-import BankStatementPage from "../features/banking/page/BankStatementPage";
+import BankingDashboardPage from "../features/banking/page/BankingDashboardPage";
+import BankingPaymentsPage from "../features/banking/page/BankingPaymentsPage";
+import BankingReceiptsPage from "../features/banking/page/BankingReceiptsPage";
+import BankingStatementsPage from "../features/banking/page/BankingStatementsPage";
+import BankingReportsPage from "../features/banking/page/BankingReportsPage";
 import BankAccountsPage from "../features/bank-accounts/page/BankAccountsPage";
 import BankImportTemplatesPage from "../features/bank-import-templates/ui/page/BankImportTemplatesPage";
 import BankPurposesPage from "../features/bank-purposes/page/BankPurposesPage";
@@ -217,6 +222,14 @@ export const router = createBrowserRouter([
             element: (
               <RouteGuard need={PERMS.SALES_RECEIVABLE_VIEW}>
                 <ReceivablesPage />
+              </RouteGuard>
+            ),
+          },
+          {
+            path: "/sales/receivable-interest",
+            element: (
+              <RouteGuard need={PERMS.SALES_RECEIVABLE_VIEW}>
+                <ReceivableInterestPage />
               </RouteGuard>
             ),
           },
@@ -428,23 +441,31 @@ export const router = createBrowserRouter([
           },
           {
             path: "/banking",
-            element: <BankStatementPage />,
+            element: <BankingDashboardPage />,
           },
           {
             path: "/banking/payment-approvals",
-            element: <BankStatementPage />,
+            element: <BankingPaymentsPage />,
+          },
+          {
+            path: "/banking/receipts",
+            element: <BankingReceiptsPage />,
           },
           {
             path: "/banking/payments",
-            element: <BankStatementPage />,
+            element: <BankingPaymentsPage />,
           },
           {
             path: "/banking/statements",
-            element: <BankStatementPage />,
+            element: <BankingStatementsPage />,
           },
           {
             path: "/banking/term-batches",
-            element: <BankStatementPage />,
+            element: <BankingPaymentsPage />,
+          },
+          {
+            path: "/banking/reports",
+            element: <BankingReportsPage />,
           },
           {
             path: "/bank-accounts",

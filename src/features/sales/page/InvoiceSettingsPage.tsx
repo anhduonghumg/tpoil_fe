@@ -250,15 +250,24 @@ export default function InvoiceSettingsPage() {
                   label={
                     <>
                       User / Partner
-                      {configured?.username ? (
-                        <Hint>Đang lưu: {configured.username}</Hint>
-                      ) : null}
+                      <Hint>
+                        {configured?.username
+                          ? `Đang lưu: ${configured.username} — để trống nếu không đổi`
+                          : "Chưa có, lần lưu đầu tiên bắt buộc nhập"}
+                      </Hint>
                     </>
                   }
                   name="username"
-                  rules={[{ required: true, message: "Bắt buộc" }]}
+                  rules={[{ required: !configured?.username, message: "Bắt buộc" }]}
                 >
-                  <Input placeholder="Tên đăng nhập tích hợp" />
+                  <Input
+                    autoComplete="off"
+                    placeholder={
+                      configured?.username
+                        ? `Giữ nguyên (${configured.username})`
+                        : "Tên đăng nhập tích hợp"
+                    }
+                  />
                 </Form.Item>
               </div>
 

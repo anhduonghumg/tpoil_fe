@@ -63,6 +63,96 @@ export type BankImportTemplateOption = {
   isActive?: boolean;
 };
 
+export type GeneralPaymentRequestCategory =
+  | "INTERNAL_EXPENSE"
+  | "FIXED_ASSET"
+  | "TAX_AND_FEE"
+  | "ADVANCE"
+  | "OTHER";
+
+export type GeneralPaymentRequestStatus =
+  | "PENDING_APPROVAL"
+  | "REJECTED"
+  | "APPROVED"
+  | "BANK_VERIFIED"
+  | "BANK_RETURNED"
+  | "PARTIALLY_PAID"
+  | "PAID"
+  | "CANCELLED";
+
+export type GeneralPaymentRequestPayment = {
+  id: UUID;
+  fundingSource: "OWN_BANK" | "DIRECT_DISBURSEMENT";
+  sourceBankAccount?: BankAccountOption | null;
+  lenderBankName?: string | null;
+  creditFacilityRef?: string | null;
+  disbursementNo?: string | null;
+  amountVnd: number;
+  paidAt: string;
+  proofFileUrl?: string | null;
+  proofFileName?: string | null;
+  note?: string | null;
+};
+
+export type GeneralPaymentRequest = {
+  id: UUID;
+  requestNo: string;
+  requestDate: string;
+  category: GeneralPaymentRequestCategory;
+  beneficiaryName: string;
+  beneficiaryTaxCode?: string | null;
+  beneficiaryAccountNo?: string | null;
+  beneficiaryAccountName?: string | null;
+  beneficiaryBankName?: string | null;
+  content: string;
+  referenceNo?: string | null;
+  invoiceNo?: string | null;
+  amountVnd: number;
+  remainingAmount: number;
+  paidAmount: number;
+  currency: string;
+  paymentDeadline?: string | null;
+  status: GeneralPaymentRequestStatus;
+  note?: string | null;
+  approvalNote?: string | null;
+  returnedReason?: string | null;
+  payments: GeneralPaymentRequestPayment[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GeneralPaymentReconciliationCandidate = {
+  paymentId: UUID;
+  requestNo: string;
+  beneficiaryName: string;
+  content: string;
+  amountVnd: number;
+  paidAt: string;
+  score: number;
+};
+
+export type GeneralPaymentReconciliationQueueItem = {
+  id: UUID;
+  bankAccountId: UUID;
+  txnDate: string;
+  amount: number;
+  allocatedAmount: number;
+  remainingAmount: number;
+  description: string;
+  counterpartyName?: string | null;
+  counterpartyAcc?: string | null;
+  externalRef?: string | null;
+  bankAccount: { bankCode: string; accountNo: string };
+  candidates: GeneralPaymentReconciliationCandidate[];
+};
+
+export type GeneralPaymentReconciliation = {
+  id: UUID;
+  reconciledAt: string;
+  bankTransaction: { txnDate: string; amount: number; description: string };
+  payment: { amountVnd: number; paymentRequest: { requestNo: string; beneficiaryName: string } };
+};
+
 export type TermPaymentPendingRequest = {
   id: UUID;
   requestNo: string;
@@ -105,6 +195,10 @@ export type TermPaymentBatchItem = {
   beneficiaryBankName?: string | null;
   transferContent?: string | null;
   status: TermPaymentBatchItemStatus;
+  /** Có ở cả danh sách lẫn chi tiết bảng kê. */
+  purchaseOrder?: { orderNo: string } | null;
+  /** Chỉ có ở chi tiết bảng kê. */
+  paymentRequest?: { requestNo: string } | null;
   note?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -272,6 +366,7 @@ export type CommitBankImportPayload = {
 export type BankImportPreviewRow = {
   rowNo: number;
   txnDate: string;
+  valueDate?: string | null;
   direction: BankTxnDirection;
   amount: number;
   description: string;
@@ -281,6 +376,37 @@ export type BankImportPreviewRow = {
   fingerprint: string;
   isDuplicate: boolean;
   raw?: Record<string, any>;
+  recognition?: BankRecognition | null;
+};
+
+export type RecognitionKind = "CUSTOMER" | "SUPPLIER" | "INTERNAL" | "BANK_FEE" | "UNKNOWN";
+export type RecognitionConfidence = "HIGH" | "MEDIUM" | "LOW";
+export type RecognitionParty = { partyId: UUID; partyCode: string; partyName: string; reason: string };
+
+/** Đề xuất đối tượng của một dòng sao kê; chỉ là gợi ý, công nợ đổi khi kế toán ghi nhận. */
+export type BankRecognition = {
+  kind: RecognitionKind;
+  confidence: RecognitionConfidence;
+  reason: string;
+  party?: RecognitionParty;
+  candidates: RecognitionParty[];
+  payerName: string | null;
+  payerAccount: string | null;
+  undeclaredCompanyAccount?: string;
+  reportedReceipt?: { id: UUID; status: "REPORTED" | "CONFIRMED"; receivedAt: string };
+};
+
+/** Hồ sơ chi có thể ghép với một dòng tiền ra (tìm theo mã đơn trong nội dung chuyển khoản). */
+export type PaymentMatch =
+  | { type: "COMMERCIAL_PAYMENT"; paymentId: UUID; requestNo: string; orderNo: string; supplierName: string; remaining: number; paidAt: string }
+  | { type: "COMMERCIAL_REQUEST"; paymentRequestId: UUID; requestNo: string; orderNo: string; supplierName: string; remaining: number }
+  | { type: "TERM_BATCH_ITEM"; batchId: UUID; batchNo: string; itemId: UUID; orderNo: string; supplierName: string; remaining: number; hasUnc: boolean };
+
+export type BankTransactionRecognition = BankRecognition & {
+  id: UUID;
+  paymentMatches?: PaymentMatch[];
+  /** Dòng đối ứng của chuyển nội bộ ở tài khoản công ty kia. */
+  pairedTransaction?: { id: UUID; bankCode: string; accountNo: string; txnDate: string; reconciliationStatus: string } | null;
 };
 
 export type BankImportPreviewResponse = {
@@ -307,6 +433,13 @@ export type BankImportPreviewResponse = {
     previewCount: number;
     validCount: number;
     duplicatedCount: number;
+    inCount?: number;
+    outCount?: number;
+    customerRecognizedCount?: number;
+    customerHighCount?: number;
+    internalCount?: number;
+    bankFeeCount?: number;
+    undeclaredCompanyAccounts?: string[];
   };
   rows: BankImportPreviewRow[];
 };

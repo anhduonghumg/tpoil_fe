@@ -1,17 +1,27 @@
 import React, { useState } from "react";
 import {
+  Alert,
   Button,
   DatePicker,
+  Descriptions,
+  Drawer,
+  Dropdown,
+  Empty,
   Input,
   Modal,
   Space,
   Table,
   Tag,
-  Typography,
+  Tooltip,
   Upload,
   message,
 } from "antd";
+import { CheckOutlined, EyeOutlined, LinkOutlined, MoreOutlined, PlusOutlined, SendOutlined, UploadOutlined } from "@ant-design/icons";
+import type { MenuProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import "../../../shared/ui/data-grid.css";
+import "../../../shared/ui/page-shell.css";
+import { BankingSection } from "./BankingKpis";
 import type { UploadRequestOption } from "rc-upload/lib/interface";
 import dayjs from "dayjs";
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,6 +47,7 @@ import type {
   TermPaymentBatchItem,
   TermPaymentPendingRequest,
 } from "../types";
+import "../banking.css";
 
 function money(value?: number | null) {
   return new Intl.NumberFormat("vi-VN").format(Math.round(Number(value || 0)));
@@ -95,7 +106,24 @@ function openFile(url?: string | null) {
   window.open(absoluteUrl, "_blank", "noopener,noreferrer");
 }
 
-export function TermPaymentBatchesPanel() {
+const isItemOpen = (item: TermPaymentBatchItem) => item.status !== "PAID" && item.status !== "CANCELLED";
+
+export type BatchStep = "SEND" | "UPLOAD_UNC" | "CONFIRM" | "MATCH" | "DONE";
+
+/** Việc cần làm tiếp theo của một bảng kê, theo đúng thứ tự backend yêu cầu:
+    gửi ngân hàng → có UNC → khớp sao kê từng dòng → xác nhận đã chi. */
+export function batchNextStep(batch: TermPaymentBatch): { step: BatchStep; count: number } {
+  if (batch.status === "PAID" || batch.status === "CANCELLED") return { step: "DONE", count: 0 };
+  if (batch.status === "DRAFT") return { step: "SEND", count: 0 };
+  if (!batch.files?.some((file) => file.fileType === "UNC")) return { step: "UPLOAD_UNC", count: 0 };
+  const open = (batch.items ?? []).filter(isItemOpen);
+  const matched = open.filter((item) => item.bankTransactionId).length;
+  if (matched) return { step: "CONFIRM", count: matched };
+  if (open.length) return { step: "MATCH", count: open.length };
+  return { step: "DONE", count: 0 };
+}
+
+export function TermPaymentBatchesPanel({ toolbarLeft }: { toolbarLeft?: React.ReactNode }) {
   const queryClient = useQueryClient();
   const [selectedRequestIds, setSelectedRequestIds] = useState<React.Key[]>([]);
   const [batchDate, setBatchDate] = useState(dayjs());
@@ -245,102 +273,166 @@ export function TermPaymentBatchesPanel() {
     );
   };
 
+  const selectedTotal = pendingRows
+    .filter((row) => selectedRequestIds.includes(row.id))
+    .reduce((sum, row) => sum + Number(row.amountVnd || 0), 0);
+
   const pendingColumns: ColumnsType<TermPaymentPendingRequest> = [
-    { title: "Số đề nghị", dataIndex: "requestNo", width: 150 },
-    { title: "Ngày", dataIndex: "requestDate", width: 110, render: dateText },
-    { title: "Hồ sơ TERM", dataIndex: "orderNo", width: 150 },
-    { title: "Nhà cung cấp", dataIndex: "supplierName" },
+    {
+      title: "Mã đơn",
+      dataIndex: "orderNo",
+      width: 150,
+      fixed: "left",
+      render: (v, row) => (
+        <div className="data-grid-stack">
+          <span className="data-grid-clip data-grid-strong">{v}</span>
+          <span className="data-grid-clip data-grid-sub">{row.requestNo} · {dateText(row.requestDate)}</span>
+        </div>
+      ),
+    },
+    { title: "Nhà cung cấp", dataIndex: "supplierName", width: 230, render: (v) => <span className="data-grid-clip data-grid-strong">{v || "—"}</span> },
     {
       title: "Số tiền",
       dataIndex: "amountVnd",
       align: "right",
-      width: 150,
-      render: (v) => `${money(v)} đ`,
+      width: 140,
+      render: (v) => <span className="data-grid-num data-grid-strong">{money(v)}</span>,
     },
-    { title: "Nội dung", dataIndex: "content", ellipsis: true },
+    { title: "Hạn TT", dataIndex: "paymentDeadline", width: 95, render: dateText },
+    {
+      title: "Nội dung",
+      dataIndex: "content",
+      render: (v) => (
+        <Tooltip title={v}>
+          <span className="data-grid-clip">{v || "—"}</span>
+        </Tooltip>
+      ),
+    },
   ];
 
   const batchColumns: ColumnsType<TermPaymentBatch> = [
     {
-      title: "Số bảng kê",
+      /* Một bảng kê gom nhiều đơn: hiện mã đơn trước để ngân hàng tra theo đơn hàng. */
+      title: "Mã đơn",
+      render: (_, row) => {
+        const orders = [...new Set((row.items ?? []).map((item) => item.purchaseOrder?.orderNo).filter(Boolean))] as string[];
+        const shown = orders.slice(0, 2).join(", ");
+        return (
+          <Tooltip title={orders.length > 2 ? orders.join(", ") : undefined}>
+            <span className="data-grid-clip data-grid-strong">
+              {shown || "—"}
+              {orders.length > 2 ? <span className="data-grid-sub-inline"> +{orders.length - 2}</span> : null}
+            </span>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: "Bảng kê / ngày",
       dataIndex: "batchNo",
-      width: 160,
+      width: 140,
       render: (v, row) => (
-        <Button type="link" onClick={() => setActiveBatchId(row.id)}>
-          {v}
-        </Button>
+        <div className="data-grid-stack">
+          <a className="data-grid-clip data-grid-strong" onClick={() => setActiveBatchId(row.id)}>{v}</a>
+          <span className="data-grid-clip data-grid-sub">{dateText(row.batchDate)}</span>
+        </div>
       ),
     },
-    { title: "Ngày", dataIndex: "batchDate", width: 110, render: dateText },
-    { title: "Số dòng", dataIndex: "itemCount", align: "right", width: 90 },
     {
       title: "Tổng tiền",
       dataIndex: "totalAmountVnd",
       align: "right",
-      width: 160,
-      render: (v) => `${money(v)} đ`,
+      width: 150,
+      render: (v, row) => (
+        <div className="data-grid-stack">
+          <span className="data-grid-num data-grid-strong">{money(v)}</span>
+          <span className="data-grid-sub">{row.itemCount} dòng</span>
+        </div>
+      ),
     },
     {
       title: "Trạng thái",
       dataIndex: "status",
-      width: 170,
+      width: 150,
       render: batchStatus,
     },
     {
-      title: "",
-      width: 420,
+      /* Cho thấy ngay bảng kê còn thiếu giấy tờ gì, thay vì phải mở từng bảng. */
+      title: "Chứng từ",
+      width: 190,
       render: (_, row) => {
+        const hasList = row.files?.some((file) => file.fileType === "EXPORTED_LIST");
         const uncCount = row.files?.filter((file) => file.fileType === "UNC").length ?? 0;
-        const confirmableCount =
-          row.items?.filter(
-            (item) =>
-              item.bankTransactionId &&
-              item.status !== "PAID" &&
-              item.status !== "CANCELLED",
-          ).length ?? 0;
         return (
-          <Space size={6}>
-            <Button
-              size="small"
-              disabled={row.status !== "DRAFT"}
-              loading={sendBatch.isPending}
-              onClick={() =>
-                sendBatch.mutate(row.id, {
-                  onSuccess: () => batchesQuery.refetch(),
-                })
-              }
-            >
+          <div className="data-grid-tags">
+            <Tag color={hasList ? "green" : "default"}>{hasList ? "✓ Bảng kê" : "Thiếu bảng kê"}</Tag>
+            <Tag color={uncCount ? "green" : "orange"}>UNC {uncCount}/3</Tag>
+          </div>
+        );
+      },
+    },
+    {
+      /* Mỗi bảng kê chỉ có một nút chính: đúng việc phải làm tiếp theo. Các thao tác
+         còn lại (tải lại file, xem chi tiết) nằm trong menu "⋯". */
+      title: "Bước tiếp theo",
+      width: 250,
+      render: (_, row) => {
+        const next = batchNextStep(row);
+        const uncCount = row.files?.filter((file) => file.fileType === "UNC").length ?? 0;
+        const openMatch = () => {
+          setActiveBatchId(row.id);
+          const open = (row.items ?? []).filter(isItemOpen).filter((item) => !item.bankTransactionId);
+          if (open.length === 1) setMatchingItem(open[0]);
+        };
+        const primary =
+          next.step === "SEND" ? (
+            <Button size="small" type="primary" icon={<SendOutlined />} loading={sendBatch.isPending} onClick={() => sendBatch.mutate(row.id, { onSuccess: () => batchesQuery.refetch() })}>
               Xác nhận đã gửi NH
             </Button>
-            <Upload
-              showUploadList={false}
-              customRequest={uploadBatchFile(row, "EXPORTED_LIST")}
-            >
-              <Button size="small">Bảng kê</Button>
+          ) : next.step === "UPLOAD_UNC" ? (
+            <Upload showUploadList={false} customRequest={uploadBatchFile(row, "UNC")} multiple maxCount={3}>
+              <Button size="small" type="primary" icon={<UploadOutlined />}>Tải UNC</Button>
             </Upload>
-            <Upload
-              showUploadList={false}
-              customRequest={uploadBatchFile(row, "UNC")}
-              multiple
-              maxCount={3}
-            >
-              <Button
-                size="small"
-                type={uncCount > 0 ? "default" : "primary"}
-                disabled={uncCount >= 3}
-              >
-                UNC ({uncCount}/3)
-              </Button>
-            </Upload>
-            <Button
-              size="small"
-              type="primary"
-              disabled={!confirmableCount}
-              loading={confirmingBatchId === row.id}
-              onClick={() => confirmMatchedItems(row.id, row.items || [])}
-            >
-              Xác nhận TT ({confirmableCount})
+          ) : next.step === "CONFIRM" ? (
+            <Button size="small" type="primary" icon={<CheckOutlined />} loading={confirmingBatchId === row.id} onClick={() => confirmMatchedItems(row.id, row.items || [])}>
+              Xác nhận đã chi ({next.count})
             </Button>
+          ) : next.step === "MATCH" ? (
+            <Button size="small" type="primary" icon={<LinkOutlined />} onClick={openMatch}>
+              Khớp sao kê ({next.count} dòng)
+            </Button>
+          ) : (
+            <Tag color="green" icon={<CheckOutlined />}>Hoàn tất</Tag>
+          );
+        const menuItems: MenuProps["items"] = [
+          { key: "detail", icon: <EyeOutlined />, label: "Xem chi tiết", onClick: () => setActiveBatchId(row.id) },
+          {
+            key: "list",
+            icon: <UploadOutlined />,
+            label: (
+              <Upload showUploadList={false} customRequest={uploadBatchFile(row, "EXPORTED_LIST")}>
+                <span>Tải file bảng kê</span>
+              </Upload>
+            ),
+          },
+          ...(next.step !== "UPLOAD_UNC" && uncCount < 3
+            ? [{
+              key: "unc",
+              icon: <UploadOutlined />,
+              label: (
+                <Upload showUploadList={false} customRequest={uploadBatchFile(row, "UNC")} multiple maxCount={3 - uncCount}>
+                  <span>Tải thêm UNC ({uncCount}/3)</span>
+                </Upload>
+              ),
+            }]
+            : []),
+        ];
+        return (
+          <Space size={2}>
+            {primary}
+            <Dropdown trigger={["click"]} placement="bottomRight" menu={{ items: menuItems }}>
+              <Button size="small" type="text" icon={<MoreOutlined />} aria-label="Thêm thao tác" />
+            </Dropdown>
           </Space>
         );
       },
@@ -348,22 +440,51 @@ export function TermPaymentBatchesPanel() {
   ];
 
   const itemColumns: ColumnsType<TermPaymentBatchItem> = [
-    { title: "Nhà cung cấp", dataIndex: "supplierName", width: 220 },
+    {
+      title: "Mã đơn",
+      width: 150,
+      render: (_, row) => (
+        <div className="data-grid-stack">
+          <span className="data-grid-clip data-grid-strong">{row.purchaseOrder?.orderNo || "—"}</span>
+          <span className="data-grid-clip data-grid-sub">{row.paymentRequest?.requestNo || "—"}</span>
+        </div>
+      ),
+    },
+    {
+      title: "Thụ hưởng / tài khoản",
+      width: 240,
+      render: (_, row) => (
+        <div className="data-grid-stack">
+          <span className="data-grid-clip data-grid-strong">{row.beneficiaryName || row.supplierName}</span>
+          {row.beneficiaryBankAccount ? (
+            <span className="data-grid-clip data-grid-sub">{row.beneficiaryBankName ?? ""} · {row.beneficiaryBankAccount}</span>
+          ) : (
+            <span className="data-grid-clip data-grid-sub" style={{ color: "#c0392b" }}>Chưa có tài khoản thụ hưởng</span>
+          )}
+        </div>
+      ),
+    },
     {
       title: "Số tiền",
       dataIndex: "amountVnd",
       align: "right",
-      width: 150,
-      render: (v) => `${money(v)} đ`,
+      width: 140,
+      render: (v, row) => (
+        <div className="data-grid-stack">
+          <span className="data-grid-num data-grid-strong">{money(v)}</span>
+          <span className="data-grid-sub">Đã TT {money(row.paidAmountVnd)}</span>
+        </div>
+      ),
     },
     {
-      title: "Đã thanh toán",
-      dataIndex: "paidAmountVnd",
-      align: "right",
-      width: 150,
-      render: (v) => `${money(v)} đ`,
+      title: "Nội dung CK",
+      dataIndex: "transferContent",
+      render: (v) => (
+        <Tooltip title={v}>
+          <span className="data-grid-clip">{v || "—"}</span>
+        </Tooltip>
+      ),
     },
-    { title: "Nội dung", dataIndex: "transferContent", ellipsis: true },
     {
       title: "Trạng thái",
       dataIndex: "status",
@@ -482,114 +603,151 @@ export function TermPaymentBatchesPanel() {
     },
   ];
 
+
+  const activeBatch = batchDetailQuery.data;
+  const hasConfirmable = batchItems.some(
+    (item) =>
+      item.bankTransactionId &&
+      item.status !== "PAID" &&
+      item.status !== "CANCELLED",
+  );
+
   return (
     <Space direction="vertical" size={12} style={{ width: "100%" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 8,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        <b>Đề nghị thanh toán chờ lập bảng kê</b>
-        <Space>
-          <DatePicker
-            value={batchDate}
-            onChange={(v) => setBatchDate(v || dayjs())}
-            format="DD/MM/YYYY"
-          />
-          <Button
-            type="primary"
-            loading={createBatch.isPending}
-            onClick={createSelectedBatch}
-          >
-            Tạo bảng kê ({selectedRequestIds.length})
-          </Button>
-        </Space>
-      </div>
-
-      <Table
-        size="small"
-        rowKey="id"
-        bordered
-        loading={pendingQuery.isLoading}
-        columns={pendingColumns}
-        dataSource={pendingRows}
-        pagination={false}
-        rowSelection={{
-          selectedRowKeys: selectedRequestIds,
-          onChange: setSelectedRequestIds,
-        }}
-        scroll={{ x: 950 }}
-      />
-
-      <b>Bảng kê thanh toán TERM</b>
-      <Table
-        size="small"
-        rowKey="id"
-        bordered
-        loading={batchesQuery.isLoading}
-        columns={batchColumns}
-        dataSource={batches}
-        pagination={false}
-        scroll={{ x: 1050 }}
-      />
-
-      <Modal
-        open={!!activeBatchId}
-        title={`Chi tiết bảng kê ${batchDetailQuery.data?.batchNo || ""}`}
-        width={1100}
-        footer={<Button onClick={() => setActiveBatchId(undefined)}>Đóng</Button>}
-        onCancel={() => setActiveBatchId(undefined)}
-      >
-        <Space direction="vertical" size={8} style={{ width: "100%", marginBottom: 12 }}>
-          <Space style={{ width: "100%", justifyContent: "space-between" }}>
-            <Typography.Text strong>
-              Dòng thanh toán: {batchItems.length}
-            </Typography.Text>
+      {toolbarLeft ? (
+        <div className="table-filter-toolbar" style={{ marginBottom: 0 }}>
+          <div className="table-filter-toolbar-left">{toolbarLeft}</div>
+        </div>
+      ) : null}
+      {!pendingQuery.isLoading && !pendingRows.length ? (
+        <div className="banking-section banking-hint">
+          Không có đề nghị mua TERM nào chờ lập bảng kê. Đề nghị thanh toán mới từ phân hệ Mua TERM sẽ hiện ở đây để gộp vào bảng kê gửi ngân hàng.
+        </div>
+      ) : (
+      <BankingSection
+        title="Đề nghị chờ lập bảng kê"
+        hint={
+          selectedRequestIds.length
+            ? `Đã chọn ${selectedRequestIds.length} đề nghị · ${money(selectedTotal)} đ`
+            : `${pendingRows.length} đề nghị — tick chọn rồi bấm Tạo bảng kê`
+        }
+        extra={
+          <Space size={6}>
+            <DatePicker
+              size="small"
+              value={batchDate}
+              onChange={(v) => setBatchDate(v || dayjs())}
+              format="DD/MM/YYYY"
+              allowClear={false}
+            />
             <Button
               size="small"
               type="primary"
-              loading={confirmingBatchId === activeBatchId}
-              disabled={
-                !batchItems.some(
-                  (item) =>
-                    item.bankTransactionId &&
-                    item.status !== "PAID" &&
-                    item.status !== "CANCELLED",
-                )
-              }
-              onClick={() => activeBatchId && confirmMatchedItems(activeBatchId, batchItems)}
+              icon={<PlusOutlined />}
+              disabled={!selectedRequestIds.length}
+              loading={createBatch.isPending}
+              onClick={createSelectedBatch}
             >
-              Xác nhận thanh toán các dòng đã khớp
+              Tạo bảng kê{selectedRequestIds.length ? ` (${selectedRequestIds.length})` : ""}
             </Button>
           </Space>
-          <Typography.Text strong>File đã lưu</Typography.Text>
-          <Table
-            size="small"
-            rowKey="id"
-            bordered
-            columns={fileColumns}
-            dataSource={batchFiles}
-            pagination={false}
-            locale={{ emptyText: "Chưa lưu file bảng kê/UNC." }}
-          />
-        </Space>
+        }
+      >
         <Table
+          className="data-grid"
           size="small"
           rowKey="id"
-          bordered
-          loading={batchDetailQuery.isLoading}
-          columns={itemColumns}
-          dataSource={batchItems}
+          loading={pendingQuery.isLoading}
+          columns={pendingColumns}
+          dataSource={pendingRows}
           pagination={false}
-          scroll={{ x: 980 }}
+          rowSelection={{
+            selectedRowKeys: selectedRequestIds,
+            onChange: setSelectedRequestIds,
+          }}
+          scroll={{ x: 950, y: 320 }}
         />
-      </Modal>
+      </BankingSection>
+      )}
+
+      <BankingSection
+        title="Bảng kê đã lập"
+        hint="Gửi ngân hàng → tải UNC → khớp sao kê từng dòng → xác nhận đã chi"
+      >
+        <Table
+          className="data-grid"
+          size="small"
+          rowKey="id"
+          loading={batchesQuery.isLoading}
+          columns={batchColumns}
+          dataSource={batches}
+          pagination={false}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có bảng kê" /> }}
+        />
+      </BankingSection>
+
+      <Drawer
+        open={!!activeBatchId}
+        title={
+          <Space size={8}>
+            <span>Bảng kê {activeBatch?.batchNo || ""}</span>
+            {activeBatch ? batchStatus(activeBatch.status) : null}
+          </Space>
+        }
+        width={1040}
+        onClose={() => setActiveBatchId(undefined)}
+        extra={
+          <Button
+            size="small"
+            type="primary"
+            icon={<CheckOutlined />}
+            loading={confirmingBatchId === activeBatchId}
+            disabled={!hasConfirmable}
+            onClick={() => activeBatchId && confirmMatchedItems(activeBatchId, batchItems)}
+          >
+            Xác nhận các dòng đã khớp
+          </Button>
+        }
+      >
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          {activeBatch ? (
+            <Descriptions size="small" column={4} bordered>
+              <Descriptions.Item label="Ngày">{dateText(activeBatch.batchDate)}</Descriptions.Item>
+              <Descriptions.Item label="Số dòng">{activeBatch.itemCount}</Descriptions.Item>
+              <Descriptions.Item label="Tổng tiền">{money(activeBatch.totalAmountVnd)} đ</Descriptions.Item>
+              <Descriptions.Item label="Đã thanh toán">
+                {batchItems.filter((item) => item.status === "PAID").length}/{batchItems.length} dòng
+              </Descriptions.Item>
+            </Descriptions>
+          ) : null}
+          <BankingSection title="Dòng thanh toán" hint="Khớp từng dòng với giao dịch tiền ra trên sao kê, sau đó xác nhận">
+            <Table
+              className="data-grid"
+              size="small"
+              rowKey="id"
+              loading={batchDetailQuery.isLoading}
+              columns={itemColumns}
+              dataSource={batchItems}
+              pagination={false}
+              scroll={{ x: 1080 }}
+            />
+          </BankingSection>
+          <BankingSection title="File đã lưu">
+            <Table
+              className="data-grid"
+              size="small"
+              rowKey="id"
+              columns={fileColumns}
+              dataSource={batchFiles}
+              pagination={false}
+              locale={{ emptyText: "Chưa lưu file bảng kê/UNC." }}
+            />
+          </BankingSection>
+        </Space>
+      </Drawer>
 
       <Modal
+        className="banking-modal"
         open={!!matchingItem}
         title="Khớp sao kê thanh toán TERM"
         width={1050}
@@ -598,33 +756,31 @@ export function TermPaymentBatchesPanel() {
         destroyOnHidden
       >
         <Space direction="vertical" size={10} style={{ width: "100%" }}>
-          <Typography.Text type="secondary">
-            Cần upload file UNC trước khi khớp thanh toán. Có thể khớp nhiều
-            giao dịch nếu ngân hàng chuyển tiền nhiều lần.
-          </Typography.Text>
-          <Space style={{ width: "100%", justifyContent: "space-between" }}>
-            <Typography.Text strong>
-              Cần thanh toán: {money(matchingItem?.amountVnd)} đ
-            </Typography.Text>
-            <Input.Search
-              allowClear
-              placeholder="Tìm nội dung sao kê, đối tượng, mã tham chiếu"
-              style={{ width: 360 }}
-              onSearch={setTransactionKeyword}
-              onChange={(event) => {
-                if (!event.target.value) setTransactionKeyword("");
-              }}
-            />
-          </Space>
+          <Alert
+            type="info"
+            showIcon
+            message={`Cần thanh toán: ${money(matchingItem?.amountVnd)} đ — ${matchingItem?.supplierName ?? ""}`}
+            description="Cần upload file UNC trước khi khớp. Có thể khớp nhiều giao dịch nếu ngân hàng chuyển tiền nhiều lần."
+          />
+          <Input.Search
+            allowClear
+            size="small"
+            placeholder="Tìm nội dung sao kê, đối tượng, mã tham chiếu"
+            style={{ width: 360 }}
+            onSearch={setTransactionKeyword}
+            onChange={(event) => {
+              if (!event.target.value) setTransactionKeyword("");
+            }}
+          />
           <Table
+            className="data-grid"
             size="small"
             rowKey="id"
-            bordered
             loading={bankTransactionsQuery.isLoading || matchItem.isPending}
             columns={transactionColumns}
             dataSource={transactionRows}
             pagination={false}
-            scroll={{ x: 980 }}
+            scroll={{ x: 980, y: 420 }}
           />
         </Space>
       </Modal>

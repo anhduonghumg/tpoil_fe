@@ -17,7 +17,6 @@ import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { useCan } from "../../../shared/authz/useCan";
 import { PERMS } from "../../../shared/authz/perms";
-import { confirmDialog } from "../../../shared/lib/confirm";
 import { useBankTransactions } from "../../banking/hooks";
 import {
   useAllocateReceivable,
@@ -26,6 +25,7 @@ import {
 } from "../hooks";
 import type { ReceivableAllocation, ReceivableLedgerEntry } from "../types";
 import { formatMoney, ReceivableStatusTag } from "./labels";
+import { ReverseReceiptModal } from "./ReverseReceiptModal";
 
 const ENTRY_TYPE_LABELS: Record<string, string> = {
   OPEN: "Ghi nợ",
@@ -53,6 +53,7 @@ export function ReceivableDrawer({
   const item = detailQuery.data;
   const allocateMutation = useAllocateReceivable();
   const reverseMutation = useReverseAllocation();
+  const [reversing, setReversing] = useState<ReceivableAllocation | null>(null);
 
   // Chỉ tiền VỀ mới đối trừ được công nợ phải thu (backend cũng chặn).
   const bankQuery = useBankTransactions({ direction: "IN", pageSize: 50 });
@@ -137,13 +138,7 @@ export function ReceivableDrawer({
             danger
             size="small"
             loading={reverseMutation.isPending}
-            onClick={() =>
-              confirmDialog.confirm(
-                "Đảo phân bổ",
-                "Hệ thống ghi một bút toán ngược, số dư công nợ tăng lại tương ứng. Tiếp tục?",
-                () => reverseMutation.mutate(allocation.id),
-              )
-            }
+            onClick={() => setReversing(allocation)}
           >
             Đảo
           </Button>
@@ -289,6 +284,21 @@ export function ReceivableDrawer({
           </div>
         </Space>
       </Modal>
+      <ReverseReceiptModal
+        open={Boolean(reversing)}
+        title="Đảo phân bổ"
+        summary={reversing ? `${formatMoney(reversing.amountInItemCurrency)} đ · phân bổ ngày ${dayjs(reversing.allocatedAt).format("DD/MM/YYYY")}` : undefined}
+        warning={
+          reversing?.customerReceiptId
+            ? "Phân bổ này thuộc một khoản thu ghi nhận theo FIFO — hệ thống sẽ đảo CẢ khoản thu (mọi khoản phải thu mà khoản thu đó đã trừ)."
+            : undefined
+        }
+        loading={reverseMutation.isPending}
+        onCancel={() => setReversing(null)}
+        onConfirm={(payload) =>
+          reversing && reverseMutation.mutate({ allocationId: reversing.id, ...payload }, { onSuccess: () => setReversing(null) })
+        }
+      />
     </Drawer>
   );
 }

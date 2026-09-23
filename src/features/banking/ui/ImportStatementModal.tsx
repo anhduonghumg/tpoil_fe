@@ -7,6 +7,7 @@ import { notify } from "../../../shared/lib/notification";
 import { BankingApi } from "../api";
 import type { BankImportPreviewResponse } from "../types";
 import { ImportPreviewModal } from "./ImportPreviewModal";
+import "../banking.css";
 
 type Props = {
   open: boolean;
@@ -106,11 +107,19 @@ export default function ImportStatementModal({
         formData.append("templateId", templateId);
       }
 
-      await apiCall("banking.importCommit", {
+      const response = await apiCall("banking.importCommit", {
         data: formData,
       });
+      const result = ((response.data as any)?.data ?? response.data) as { importedCount?: number; duplicatedCount?: number } | undefined;
+      const summary = previewData?.summary;
 
-      notify.success("Import sao kê thành công");
+      // Nói rõ dòng nào đi đâu: tiền vào sang Thu tiền, tiền ra sang Sao kê & đối soát.
+      notify.success(
+        `Đã import ${result?.importedCount ?? summary?.validCount ?? 0} dòng` +
+          (summary?.inCount !== undefined ? ` · ${summary.inCount} thu (xử lý ở Thu tiền) · ${summary.outCount ?? 0} chi (xử lý ở Sao kê)` : "") +
+          (result?.duplicatedCount ? ` · bỏ qua ${result.duplicatedCount} dòng trùng` : ""),
+      );
+      setPreviewOpen(false);
       resetForm();
       onSuccess();
       onCancel();
@@ -126,6 +135,7 @@ export default function ImportStatementModal({
   return (
     <>
       <Modal
+        className="banking-modal"
         open={open}
         title="Import sao kê ngân hàng"
         onCancel={handleClose}
@@ -133,14 +143,13 @@ export default function ImportStatementModal({
         okText="Xem trước"
         cancelText="Hủy"
         confirmLoading={loading}
-        width={600}
+        width={560}
         destroyOnHidden
       >
-        <div className="space-y-4">
+        <div className="banking-form" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
-            <div className="mb-1 font-medium">Tài khoản ngân hàng</div>
+            <div className="banking-field-label">Tài khoản ngân hàng</div>
             <Select
-              size="small"
               style={{ width: "100%" }}
               placeholder="Chọn tài khoản"
               value={bankAccountId}
@@ -157,9 +166,8 @@ export default function ImportStatementModal({
           </div>
 
           <div>
-            <div className="mb-1 font-medium">Template import</div>
+            <div className="banking-field-label">Template import</div>
             <Select
-              size="small"
               style={{ width: "100%" }}
               placeholder="Tự chọn template active mới nhất nếu bỏ trống"
               value={templateId}
@@ -175,7 +183,7 @@ export default function ImportStatementModal({
           </div>
 
           <div>
-            <div className="mb-1 font-medium">File sao kê (.xlsx)</div>
+            <div className="banking-field-label">File sao kê (.xlsx, .xls — kể cả Excel 97-2003)</div>
             <Upload
               beforeUpload={(f) => {
                 setFile(f);
@@ -185,7 +193,7 @@ export default function ImportStatementModal({
                 setFile(null);
               }}
               maxCount={1}
-              accept=".xlsx"
+              accept=".xlsx,.xls"
               fileList={
                 file
                   ? [
@@ -198,7 +206,7 @@ export default function ImportStatementModal({
                   : []
               }
             >
-              <Button size="small" icon={<UploadOutlined />}>
+              <Button icon={<UploadOutlined />}>
                 Chọn file
               </Button>
             </Upload>

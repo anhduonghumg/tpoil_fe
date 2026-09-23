@@ -90,7 +90,7 @@ export function StatementImportCard({ bankAccounts }: Props) {
   };
 
   const uploadProps = {
-    accept: ".xlsx",
+    accept: ".xlsx,.xls",
     maxCount: 1,
     beforeUpload: (f: File) => {
       setFile(f);
@@ -158,7 +158,7 @@ export function StatementImportCard({ bankAccounts }: Props) {
                   <InboxOutlined />
                 </p>
                 <p className="ant-upload-text" style={{ marginBottom: 0 }}>
-                  Kéo thả hoặc bấm để chọn file .xlsx
+                  Kéo thả hoặc bấm để chọn file .xlsx hoặc .xls
                 </p>
               </Upload.Dragger>
             </div>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Card, Spin } from "antd";
+import { Button, Card, Col, Row, Space, Spin, Tag, Typography } from "antd";
 import {
   BankImportTemplate,
   BankImportTemplateListQuery,
@@ -15,12 +15,18 @@ import {
 import BankImportTemplateFilter from "../BankImportTemplateFilter";
 import BankImportTemplateTable from "../BankImportTemplateTable";
 import BankImportTemplateUpsertModal from "../BankImportTemplateUpsertModal";
+import {
+  BANK_IMPORT_TEMPLATE_PRESETS,
+  type BankImportPresetKey,
+} from "../../presets";
 
 export default function BankImportTemplatesPage() {
   const [query, setQuery] = useState<BankImportTemplateListQuery>({});
   const [draftKeyword, setDraftKeyword] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<BankImportTemplate | null>(null);
+  const [defaultPresetKey, setDefaultPresetKey] =
+    useState<BankImportPresetKey>();
 
   const listQuery = useMemo(
     () => ({
@@ -46,11 +52,19 @@ export default function BankImportTemplatesPage() {
 
   const handleCreate = () => {
     setEditing(null);
+    setDefaultPresetKey(undefined);
+    setOpen(true);
+  };
+
+  const handleCreateFromPreset = (key: BankImportPresetKey) => {
+    setEditing(null);
+    setDefaultPresetKey(key);
     setOpen(true);
   };
 
   const handleEdit = (row: BankImportTemplate) => {
     setEditing(row);
+    setDefaultPresetKey(undefined);
     setOpen(true);
   };
 
@@ -80,6 +94,42 @@ export default function BankImportTemplatesPage() {
 
   return (
     <div className="space-y-4">
+      <Card
+        size="small"
+        title="Mẫu chuẩn theo file ngân hàng"
+        extra={
+          <Typography.Text type="secondary">
+            Đã đối chiếu với các file sao kê thực tế
+          </Typography.Text>
+        }
+      >
+        <Row gutter={[12, 12]}>
+          {BANK_IMPORT_TEMPLATE_PRESETS.map((preset) => (
+            <Col xs={24} md={12} xl={6} key={preset.key}>
+              <Card size="small" styles={{ body: { minHeight: 142 } }}>
+                <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                  <Space style={{ justifyContent: "space-between", width: "100%" }}>
+                    <Typography.Text strong>{preset.bankName}</Typography.Text>
+                    <Tag color={preset.normalizeRule.fileFormat === "HTML_XLS" ? "orange" : "blue"}>
+                      {preset.normalizeRule.fileFormat === "HTML_XLS" ? ".xls HTML" : ".xlsx"}
+                    </Tag>
+                  </Space>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {preset.fileLabel}
+                  </Typography.Text>
+                  <Typography.Text ellipsis={{ tooltip: preset.note }}>
+                    {preset.note}
+                  </Typography.Text>
+                  <Button size="small" onClick={() => handleCreateFromPreset(preset.key)}>
+                    Dùng mẫu này
+                  </Button>
+                </Space>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </Card>
+
       <BankImportTemplateFilter
         value={query}
         draftKeyword={draftKeyword}
@@ -106,10 +156,12 @@ export default function BankImportTemplatesPage() {
       <BankImportTemplateUpsertModal
         open={open}
         initialValue={editing}
+        defaultPresetKey={defaultPresetKey}
         loading={submitting}
         onCancel={() => {
           setOpen(false);
           setEditing(null);
+          setDefaultPresetKey(undefined);
         }}
         onSubmit={handleSubmit}
       />

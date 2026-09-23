@@ -163,8 +163,12 @@ export type CommercialLotPurchase = {
 
 export type CommercialPayment = {
   id: string;
+  fundingSource?: "OWN_BANK" | "DIRECT_DISBURSEMENT";
   amountVnd: string;
   paidAt: string;
+  lenderBankName?: string | null;
+  creditFacilityRef?: string | null;
+  disbursementNo?: string | null;
   proofFileUrl?: string | null;
   proofFileName?: string | null;
   note?: string | null;

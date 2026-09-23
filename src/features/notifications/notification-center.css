@@ -47,22 +47,6 @@
   border-bottom: 1px solid #eaecf0;
 }
 
-.notification-center-page-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.notification-center-tabs {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #eaecf0;
-}
-
 .notification-center-list {
   margin-top: 4px;
 }
@@ -129,4 +113,139 @@
 .notification-legacy-card:hover {
   border-color: #91caff;
   background: #f8fbff;
+}
+
+/* ===================================================================
+   Trang Trung tâm thông báo — bố cục hộp thư, mỗi thông báo một dòng.
+   Mọi luật đều khoanh trong .notification-center-page: popup của chuông trên
+   header dùng chung các class -list/-title/-body/-dot, không được ảnh hưởng.
+   =================================================================== */
+
+.notification-center-page {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.notification-center-page .notification-center-tabs .ant-tabs-nav {
+  margin-bottom: 6px;
+}
+
+.notification-center-page .notification-center-list {
+  margin-top: 0;
+  border: 1px solid #eaecf0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* Một dòng: chấm chưa đọc | thẻ phân hệ | tiêu đề + nội dung rút gọn | thời gian. */
+.notification-center-page .notification-center-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 7px 12px 7px 10px;
+  border-bottom: 1px solid #f2f4f7;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.notification-center-page .notification-center-row:last-child {
+  border-bottom: 0;
+}
+
+.notification-center-page .notification-center-row:hover,
+.notification-center-page .notification-center-row:focus-visible {
+  background: #f5f9ff;
+  outline: none;
+}
+
+.notification-center-page .notification-center-row.is-unread {
+  background: #f0f6ff;
+}
+
+.notification-center-page .notification-center-row.is-unread:hover {
+  background: #e6f0ff;
+}
+
+/* Chấm luôn giữ chỗ để các dòng thẳng cột; chỉ hiện màu khi chưa đọc. */
+.notification-center-page .notification-center-dot {
+  position: static;
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.notification-center-page .notification-center-row.is-unread .notification-center-dot {
+  background: #1677ff;
+}
+
+.notification-center-page .notification-center-tag {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.notification-center-page .notification-center-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.notification-center-page .notification-center-title {
+  display: inline;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #475467;
+  font-size: 13px;
+}
+
+.notification-center-page .notification-center-row.is-unread .notification-center-title {
+  color: #101828;
+  font-weight: 600;
+}
+
+.notification-center-page .notification-center-body {
+  display: inline;
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.notification-center-page .notification-center-time {
+  flex: 0 0 auto;
+  color: #98a2b3;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.notification-center-page .notification-center-row.is-unread .notification-center-time {
+  color: #1677ff;
+}
+
+.notification-center-page .notification-center-empty {
+  margin: 28px 0;
+}
+
+/* Màn hẹp: nội dung rút gọn xuống dòng dưới tiêu đề thay vì bị cắt mất hẳn. */
+@media (max-width: 720px) {
+  .notification-center-page .notification-center-text {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
 }

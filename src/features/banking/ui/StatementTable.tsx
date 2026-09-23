@@ -1,10 +1,11 @@
 import React from "react";
-import { Button, Popconfirm, Space, Table, Tag, Typography } from "antd";
+import { Button, Dropdown, Space, Table, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import dayjs from "dayjs";
+import type { TableRowSelection } from "antd/es/table/interface";
+import { DeleteOutlined, MoreOutlined } from "@ant-design/icons";
 import type { BankTransactionItem } from "../types";
-import { TableRowSelection } from "antd/es/table/interface";
-import { DeleteOutlined } from "@ant-design/icons";
+import { MATCH_STATUS, SignedAmount, accountText, dateText, formatMoney, stack, statusTag } from "../lib/format";
+import "../../../shared/ui/data-grid.css";
 
 type Props = {
   data: BankTransactionItem[];
@@ -14,32 +15,12 @@ type Props = {
   total: number;
   onChangePage: (page: number, pageSize: number) => void;
   onOpenMatch: (row: BankTransactionItem) => void;
-
   selectedRowKeys?: React.Key[];
   onChangeSelectedRowKeys?: (keys: React.Key[]) => void;
-
   onDeleteOne: (row: BankTransactionItem) => void;
-  onDeleteMany: (ids: React.Key[]) => void;
-  deleting?: boolean;
 };
 
-function money(n?: number) {
-  return new Intl.NumberFormat("vi-VN").format(Number(n || 0));
-}
-
-function matchStatusTag(status?: string) {
-  switch (status) {
-    case "MANUAL_MATCHED":
-    case "AUTO_MATCHED":
-      return <Tag color="green">Đã khớp</Tag>;
-    case "PARTIAL_MATCHED":
-      return <Tag color="blue">Khớp một phần</Tag>;
-    default:
-      return <Tag>Chưa khớp</Tag>;
-  }
-}
-
-function canDeleteRow(row: BankTransactionItem) {
+export function canDeleteBankTransaction(row: BankTransactionItem) {
   return row.matchStatus === "UNMATCHED" && row.isConfirmed !== true;
 }
 
@@ -54,91 +35,80 @@ export function StatementTable({
   selectedRowKeys = [],
   onChangeSelectedRowKeys,
   onDeleteOne,
-  onDeleteMany,
-  deleting,
 }: Props) {
   const columns: ColumnsType<BankTransactionItem> = [
     {
-      title: "Ngày",
+      title: "Ngày / tài khoản",
       dataIndex: "txnDate",
-      width: 110,
-      render: (v) => (v ? dayjs(v).format("DD/MM/YYYY") : "-"),
-    },
-    {
-      title: "Loại",
-      dataIndex: "direction",
-      width: 80,
-      render: (v) => (v === "OUT" ? "Chi" : "Thu"),
+      width: 135,
+      render: (value, row) => stack(dateText(value), accountText(row.bankAccount)),
     },
     {
       title: "Số tiền",
       dataIndex: "amount",
       width: 140,
       align: "right",
-      render: (v) => <Typography.Text strong>{money(v)}</Typography.Text>,
+      render: (value, row) => <SignedAmount direction={row.direction} value={value} />,
     },
     {
-      title: "Nội dung",
+      title: "Nội dung / đối tác",
       dataIndex: "description",
       render: (_, row) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{row.description || "-"}</div>
-          <div style={{ color: "#8c8c8c" }}>
-            {row.counterpartyName || "-"}
-            {row.counterpartyAcc ? ` • ${row.counterpartyAcc}` : ""}
-          </div>
-        </div>
+        <Tooltip title={row.description} placement="topLeft">
+          {stack(row.description, `${row.counterpartyName || "Chưa rõ đối tác"}${row.counterpartyAcc ? ` · ${row.counterpartyAcc}` : ""}`)}
+        </Tooltip>
       ),
-    },
-    {
-      title: "Đã phân bổ",
-      dataIndex: "allocatedAmount",
-      width: 140,
-      align: "right",
-      render: (v) => money(v),
     },
     {
       title: "Còn lại",
       dataIndex: "remainingAmount",
-      width: 140,
+      width: 130,
       align: "right",
-      render: (v) => money(v),
+      render: (value, row) =>
+        stack(<span className="data-grid-num">{formatMoney(value)}</span>, `Đã phân bổ ${formatMoney(row.allocatedAmount)}`),
     },
     {
       title: "Trạng thái",
       dataIndex: "matchStatus",
-      width: 130,
-      render: (v) => matchStatusTag(v),
+      width: 125,
+      render: (value, row) => (
+        <div className="data-grid-stack">
+          <span>{statusTag(MATCH_STATUS, value)}</span>
+          <span className="data-grid-sub">{row.isConfirmed ? "Đã xác nhận" : "Chưa xác nhận"}</span>
+        </div>
+      ),
     },
     {
-      title: "Thao tác",
+      title: "",
       key: "actions",
-      width: "10%",
-      // fixed: "right",
+      width: 104,
+      fixed: "right",
+      align: "right",
       render: (_, row) => {
-        const canDelete = canDeleteRow(row);
-
+        const done = row.matchStatus === "MANUAL_MATCHED" || row.matchStatus === "AUTO_MATCHED";
         return (
-          <Space>
-            <Button size="small" onClick={() => onOpenMatch(row)}>
-              Xử lý
+          <Space size={2}>
+            <Button size="small" type={done ? "default" : "primary"} onClick={() => onOpenMatch(row)}>
+              {done ? "Xem" : "Đối soát"}
             </Button>
-
-            <Popconfirm
-              title="Xóa giao dịch này?"
-              description="Chỉ có thể xóa giao dịch chưa khớp và chưa xác nhận."
-              okText="Xóa"
-              cancelText="Hủy"
-              disabled={!canDelete}
-              onConfirm={() => onDeleteOne(row)}
+            <Dropdown
+              trigger={["click"]}
+              placement="bottomRight"
+              menu={{
+                items: [
+                  {
+                    key: "delete",
+                    danger: true,
+                    icon: <DeleteOutlined />,
+                    disabled: !canDeleteBankTransaction(row),
+                    label: canDeleteBankTransaction(row) ? "Xóa giao dịch" : "Chỉ xóa được dòng chưa khớp",
+                    onClick: () => onDeleteOne(row),
+                  },
+                ],
+              }}
             >
-              <Button
-                icon={<DeleteOutlined />}
-                size="small"
-                danger
-                disabled={!canDelete}
-              ></Button>
-            </Popconfirm>
+              <Button size="small" type="text" icon={<MoreOutlined />} aria-label="Thêm thao tác" />
+            </Dropdown>
           </Space>
         );
       },
@@ -148,58 +118,27 @@ export function StatementTable({
   const rowSelection: TableRowSelection<BankTransactionItem> = {
     selectedRowKeys,
     onChange: (keys) => onChangeSelectedRowKeys?.(keys),
-    getCheckboxProps: (record) => ({
-      disabled: !canDeleteRow(record),
-    }),
+    getCheckboxProps: (record) => ({ disabled: !canDeleteBankTransaction(record) }),
   };
 
   return (
-    <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginBottom: 12,
-        }}
-      >
-        <Popconfirm
-          title={`Xóa ${selectedRowKeys.length} giao dịch đã chọn?`}
-          description="Chỉ các giao dịch chưa khớp và chưa xác nhận mới được xóa."
-          okText="Xóa"
-          cancelText="Hủy"
-          disabled={!selectedRowKeys.length}
-          onConfirm={() => onDeleteMany(selectedRowKeys)}
-        >
-          <Button
-            icon={<DeleteOutlined />}
-            size="small"
-            danger
-            disabled={!selectedRowKeys.length}
-            loading={deleting}
-          >
-            Xóa đã chọn
-          </Button>
-        </Popconfirm>
-      </div>
-
-      <Table
-        className="data-grid"
-        size="small"
-        bordered
-        rowKey="id"
-        rowSelection={rowSelection}
-        loading={loading}
-        columns={columns}
-        dataSource={data}
-        scroll={{ x: 1100, y: 350 }}
-        pagination={{
-          current: page,
-          pageSize,
-          total,
-          showSizeChanger: true,
-          onChange: onChangePage,
-        }}
-      />
-    </div>
+    <Table
+      className="data-grid"
+      size="small"
+      rowKey="id"
+      rowSelection={rowSelection}
+      loading={loading}
+      columns={columns}
+      dataSource={data}
+      scroll={{ x: 1000 }}
+      pagination={{
+        current: page,
+        pageSize,
+        total,
+        showSizeChanger: true,
+        showTotal: (count) => `${count} giao dịch`,
+        onChange: onChangePage,
+      }}
+    />
   );
 }

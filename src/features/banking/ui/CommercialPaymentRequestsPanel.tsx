@@ -1,377 +1,203 @@
-import { useMemo, useState } from "react";
-import {
-  Button,
-  DatePicker,
-  Empty,
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-  Upload,
-} from "antd";
+import React, { useMemo, useState } from "react";
+import { Alert, Button, Col, DatePicker, Dropdown, Empty, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Upload } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { CheckOutlined, CloseOutlined, PrinterOutlined, UploadOutlined } from "@ant-design/icons";
+import { CloseOutlined, MoreOutlined, PrinterOutlined, UploadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useBankAccountsOptions } from "../hooks";
-import {
-  useCommercialLotPaymentAction,
-  useCommercialLotPaymentRequests,
-  useRecordCommercialLotPayment,
-} from "../../commercial-lots/hooks";
+import { useCommercialLotPaymentAction, useCommercialLotPaymentRequests, useRecordCommercialLotPayment } from "../../commercial-lots/hooks";
 import type { CommercialPaymentRequest } from "../../commercial-lots/types";
 import { uploadFile } from "../../../shared/api/uploads";
 import { notify } from "../../../shared/lib/notification";
+import "../../../shared/ui/data-grid.css";
+import { COMMERCIAL_REQUEST_STATUS, dateText, formatMoney, stack, statusTag } from "../lib/format";
+import "../banking.css";
 
-const STATUS_META: Record<string, { label: string; color: string }> = {
-  PENDING_DIRECTOR_APPROVAL: { label: "Chờ giám đốc duyệt", color: "gold" },
-  DIRECTOR_REJECTED: { label: "Giám đốc từ chối", color: "red" },
-  SUBMITTED: { label: "Chờ ngân hàng kiểm tra", color: "blue" },
-  BANK_VERIFIED: { label: "Sẵn sàng thanh toán", color: "cyan" },
-  BANK_RETURNED: { label: "Trả lại mua hàng", color: "orange" },
-  PARTIALLY_PAID: { label: "Thanh toán một phần", color: "geekblue" },
-  PAID: { label: "Đã thanh toán", color: "green" },
-  CANCELLED: { label: "Đã hủy", color: "default" },
-};
+export const COMMERCIAL_APPROVAL_STATUSES = ["PENDING_DIRECTOR_APPROVAL"];
+export const COMMERCIAL_PAYMENT_STATUSES = ["SUBMITTED", "BANK_VERIFIED", "PARTIALLY_PAID", "PAID"];
+type DecisionAction = "approve" | "reject" | "bank-verify" | "bank-return";
 
-const formatMoney = (value?: string | number | null) =>
-  new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Number(value ?? 0));
-
-const formatQty = (value?: string | number | null) =>
-  new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 3 }).format(Number(value ?? 0));
-
-export function CommercialPaymentRequestsPanel({ view = "payment" }: { view?: "approval" | "payment" }) {
+export function CommercialPaymentRequestsPanel({ view = "payment", toolbarLeft }: { view?: "approval" | "payment"; toolbarLeft?: React.ReactNode }) {
   const requestsQuery = useCommercialLotPaymentRequests();
   const bankAccountsQuery = useBankAccountsOptions();
   const [paymentForm] = Form.useForm();
   const [decisionForm] = Form.useForm();
+  const [keyword, setKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>();
   const [paymentRequest, setPaymentRequest] = useState<CommercialPaymentRequest | null>(null);
-  const [decision, setDecision] = useState<{
-    request: CommercialPaymentRequest;
-    action: "approve" | "reject" | "bank-verify" | "bank-return";
-  } | null>(null);
-  const paymentAction = useCommercialLotPaymentAction(paymentRequest?.purchaseOrderId);
+  const [decision, setDecision] = useState<{ request: CommercialPaymentRequest; action: DecisionAction } | null>(null);
   const decisionAction = useCommercialLotPaymentAction(decision?.request.purchaseOrderId);
   const recordPayment = useRecordCommercialLotPayment(paymentRequest?.purchaseOrderId);
+  const fundingSource = Form.useWatch("fundingSource", paymentForm) ?? "OWN_BANK";
+  const isDirectDisbursement = fundingSource === "DIRECT_DISBURSEMENT";
 
-  const bankAccounts = useMemo(
-    () => (bankAccountsQuery.data ?? []).filter((account: any) => account.isActive !== false),
-    [bankAccountsQuery.data],
+  const bankAccounts = useMemo(() => (bankAccountsQuery.data ?? []).filter((account: any) => account.isActive !== false), [bankAccountsQuery.data]);
+  const viewStatuses = view === "approval" ? COMMERCIAL_APPROVAL_STATUSES : COMMERCIAL_PAYMENT_STATUSES;
+  const allRows = useMemo(
+    () => (requestsQuery.data ?? []).filter((request) => viewStatuses.includes(request.status)),
+    [requestsQuery.data, viewStatuses],
   );
-
-  const openPayment = (request: CommercialPaymentRequest) => {
-    paymentForm.resetFields();
-    paymentForm.setFieldsValue({
-      amountVnd: Number(request.remainingAmount),
-      paidAt: dayjs(),
-    });
-    setPaymentRequest(request);
-  };
-
-  const submitDecision = async (values: { note?: string }) => {
-    if (!decision) return;
-    await decisionAction.mutateAsync({
-      requestId: decision.request.id,
-      action: decision.action,
-      note: values.note,
-    });
-    setDecision(null);
-  };
-
-  const submitPayment = async (values: any) => {
-    if (!paymentRequest) return;
-    await recordPayment.mutateAsync({
-      requestId: paymentRequest.id,
-      data: {
-        ...values,
-        paidAt: values.paidAt.format("YYYY-MM-DD"),
-      },
-    });
-    setPaymentRequest(null);
-  };
-
-  const columns = useMemo<ColumnsType<CommercialPaymentRequest>>(
-    () => [
-      {
-        title: "Số đề nghị",
-        dataIndex: "requestNo",
-        width: 220,
-        render: (value, record) => (
-          <Space size={4} direction="vertical">
-            <Typography.Text strong>{value}</Typography.Text>
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {dayjs(record.requestDate).format("DD/MM/YYYY")}
-            </Typography.Text>
-          </Space>
-        ),
-      },
-      {
-        title: "Đơn hàng",
-        width: 170,
-        render: (_, record) => record.purchaseOrder.orderNo,
-      },
-      {
-        title: "NCC / hóa đơn",
-        width: 190,
-        render: (_, record) => (
-          <Space size={2} direction="vertical">
-            <Typography.Text>{record.purchaseOrder.supplier.code}</Typography.Text>
-            <Typography.Text type="secondary">{record.supplierInvoice?.invoiceNo ?? "-"}</Typography.Text>
-          </Space>
-        ),
-      },
-      {
-        title: "Số lượng",
-        dataIndex: "quantity",
-        align: "right",
-        width: 115,
-        render: formatQty,
-      },
-      {
-        title: "Phải thanh toán",
-        dataIndex: "amountVnd",
-        align: "right",
-        width: 145,
-        render: (value) => `${formatMoney(value)} đ`,
-      },
-      {
-        title: "Đã thanh toán",
-        dataIndex: "paidAmount",
-        align: "right",
-        width: 145,
-        render: (value) => `${formatMoney(value)} đ`,
-      },
-      {
-        title: "Còn lại",
-        dataIndex: "remainingAmount",
-        align: "right",
-        width: 135,
-        render: (value) => `${formatMoney(value)} đ`,
-      },
-      {
-        title: "Trạng thái",
-        dataIndex: "status",
-        width: 170,
-        render: (status) => {
-          const meta = STATUS_META[status] ?? { label: status, color: "default" };
-          return <Tag color={meta.color}>{meta.label}</Tag>;
-        },
-      },
-      {
-        title: "Xử lý",
-        width: 170,
-        fixed: "right",
-        render: (_, record) => {
-          if (view === "approval" && record.status === "PENDING_DIRECTOR_APPROVAL") {
-            return (
-              <Space size={4}>
-                <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => {
-                  decisionForm.resetFields();
-                  setDecision({ request: record, action: "approve" });
-                }}>
-                  Duyệt
-                </Button>
-                <Button size="small" danger icon={<CloseOutlined />} onClick={() => {
-                  decisionForm.resetFields();
-                  setDecision({ request: record, action: "reject" });
-                }}>
-                  Từ chối
-                </Button>
-              </Space>
-            );
-          }
-          if (view === "payment" && record.status === "SUBMITTED") {
-            return (
-              <Space size={4}>
-                <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => {
-                  decisionForm.resetFields();
-                  setDecision({ request: record, action: "bank-verify" });
-                }}>
-                  Đúng
-                </Button>
-                <Button size="small" danger icon={<CloseOutlined />} onClick={() => {
-                  decisionForm.resetFields();
-                  setDecision({ request: record, action: "bank-return" });
-                }}>
-                  Trả lại
-                </Button>
-              </Space>
-            );
-          }
-          if (view === "payment" && (record.status === "BANK_VERIFIED" || record.status === "PARTIALLY_PAID")) {
-            return <Button size="small" type="primary" onClick={() => openPayment(record)}>Thanh toán</Button>;
-          }
-          return "-";
-        },
-      },
-      {
-        title: "In",
-        width: 56,
-        fixed: "right",
-        align: "center",
-        render: (_, record) => (
-          <Button
-            size="small"
-            type="text"
-            icon={<PrinterOutlined />}
-            title="In đề nghị thanh toán"
-            onClick={() => window.open(`/api/purchase-orders/payment-requests/${record.id}/print`, "_blank")}
-          />
-        ),
-      },
-    ],
-    [decisionForm, view],
-  );
-
   const rows = useMemo(() => {
-    const requests = requestsQuery.data ?? [];
-    return view === "approval"
-      ? requests.filter((request) => request.status === "PENDING_DIRECTOR_APPROVAL")
-      : requests.filter((request) =>
-          ["SUBMITTED", "BANK_VERIFIED", "PARTIALLY_PAID", "PAID"].includes(request.status),
+    const query = keyword.trim().toLocaleLowerCase("vi");
+    return allRows.filter((request) => {
+      const haystack = [request.requestNo, request.purchaseOrder.orderNo, request.purchaseOrder.supplier.code, request.purchaseOrder.supplier.name, request.supplierInvoice?.invoiceNo].filter(Boolean).join(" ").toLocaleLowerCase("vi");
+      return (!query || haystack.includes(query)) && (!statusFilter || request.status === statusFilter);
+    });
+  }, [allRows, keyword, statusFilter]);
+
+  const openDecision = (request: CommercialPaymentRequest, action: DecisionAction) => { decisionForm.resetFields(); setDecision({ request, action }); };
+  const openPayment = (request: CommercialPaymentRequest) => { paymentForm.resetFields(); paymentForm.setFieldsValue({ fundingSource: "OWN_BANK", amountVnd: Number(request.remainingAmount), paidAt: dayjs() }); setPaymentRequest(request); };
+  const submitDecision = async (values: { note?: string }) => { if (!decision) return; await decisionAction.mutateAsync({ requestId: decision.request.id, action: decision.action, note: values.note }); setDecision(null); };
+  const submitPayment = async (values: any) => { if (!paymentRequest) return; await recordPayment.mutateAsync({ requestId: paymentRequest.id, data: { ...values, paidAt: values.paidAt.format("YYYY-MM-DD") } }); setPaymentRequest(null); };
+
+  const columns: ColumnsType<CommercialPaymentRequest> = [
+    /* Thứ tự cột theo đúng thứ tự ngân hàng cần khi lập lệnh: đơn nào → trả cho ai,
+       vào tài khoản nào → bao nhiêu → căn cứ hóa đơn nào. Nguồn tiền chỉ có sau khi
+       đã chi nên xem ở dòng mở rộng. */
+    {
+      title: "Mã đơn", key: "order", width: 150, fixed: "left",
+      render: (_, record) => stack(record.purchaseOrder.orderNo, `${record.requestNo} · ${dateText(record.requestDate)}`, true),
+    },
+    {
+      title: "Thụ hưởng / tài khoản", key: "beneficiary", width: 250,
+      render: (_, record) => stack(
+        record.beneficiaryAccountName || record.purchaseOrder.supplier.name,
+        record.beneficiaryAccountNo ? `${record.beneficiaryBankName ?? ""} · ${record.beneficiaryAccountNo}` : <span style={{ color: "#c0392b" }}>Chưa có tài khoản thụ hưởng</span>,
+        true,
+      ),
+    },
+    {
+      title: "Còn phải trả", key: "amount", width: 135, align: "right",
+      render: (_, record) => stack(<span className="data-grid-num">{formatMoney(record.remainingAmount)}</span>, `Đã trả ${formatMoney(record.paidAmount)}`, true),
+    },
+    {
+      title: "Hóa đơn", key: "invoice", width: 130,
+      render: (_, record) => record.supplierInvoice
+        ? stack(record.supplierInvoice.invoiceNo, dateText(record.supplierInvoice.invoiceDate))
+        : <span style={{ color: "#c77700" }}>Chưa gắn</span>,
+    },
+    { title: "Trạng thái", dataIndex: "status", width: 135, render: (status) => statusTag(COMMERCIAL_REQUEST_STATUS, status) },
+    {
+      title: "", key: "actions", width: 112, fixed: "right", align: "right",
+      render: (_, record) => {
+        const canApprove = view === "approval" && record.status === "PENDING_DIRECTOR_APPROVAL";
+        const canVerify = view === "payment" && record.status === "SUBMITTED";
+        const canPay = view === "payment" && ["BANK_VERIFIED", "PARTIALLY_PAID"].includes(record.status);
+        const primaryAction = canApprove ? { label: "Duyệt", onClick: () => openDecision(record, "approve") } : canVerify ? { label: "Kiểm tra", onClick: () => openDecision(record, "bank-verify") } : canPay ? { label: "Ghi nhận chi", onClick: () => openPayment(record) } : null;
+        const items = [
+          ...(canApprove ? [{ key: "reject", icon: <CloseOutlined />, danger: true, label: "Từ chối", onClick: () => openDecision(record, "reject") }] : []),
+          ...(canVerify ? [{ key: "return", icon: <CloseOutlined />, danger: true, label: "Trả lại hồ sơ", onClick: () => openDecision(record, "bank-return") }] : []),
+          { key: "print", icon: <PrinterOutlined />, label: "In đề nghị", onClick: () => window.open(`/api/purchase-orders/payment-requests/${record.id}/print`, "_blank") },
+        ];
+        return (
+          <Space size={2}>
+            {primaryAction ? <Button size="small" type="primary" onClick={primaryAction.onClick}>{primaryAction.label}</Button> : null}
+            <Dropdown trigger={["click"]} menu={{ items }} placement="bottomRight">
+              <Button size="small" type="text" icon={<MoreOutlined />} aria-label="Thêm thao tác" />
+            </Dropdown>
+          </Space>
         );
-  }, [requestsQuery.data, view]);
+      },
+    },
+  ];
 
   const decisionIsReject = decision?.action === "reject" || decision?.action === "bank-return";
-  const decisionTitle = decision?.action === "approve"
-    ? "Duyệt đề nghị chi"
-    : decision?.action === "reject"
-      ? "Từ chối đề nghị chi"
-      : decision?.action === "bank-return"
-        ? "Yêu cầu mua hàng kiểm tra lại"
-        : "Xác nhận đề nghị thanh toán";
-  const decisionOkText = decision?.action === "approve"
-    ? "Duyệt"
-    : decision?.action === "reject"
-      ? "Từ chối"
-      : decision?.action === "bank-return"
-        ? "Trả lại mua hàng"
-        : "Xác nhận đúng";
+  const decisionTitle = decision?.action === "approve" ? "Phê duyệt hồ sơ chi" : decision?.action === "reject" ? "Từ chối hồ sơ chi" : decision?.action === "bank-return" ? "Trả lại hồ sơ" : "Kiểm tra hồ sơ trước khi lập lệnh";
+  const decisionOkText = decision?.action === "approve" ? "Phê duyệt" : decision?.action === "reject" ? "Từ chối" : decision?.action === "bank-return" ? "Trả lại" : "Xác nhận đủ điều kiện";
+  const statusOptions = viewStatuses.map((value) => ({ value, label: COMMERCIAL_REQUEST_STATUS[value]?.label ?? value }));
 
   return (
-    <Space direction="vertical" size={12} style={{ width: "100%" }}>
-      <Typography.Text type="secondary">
-        {view === "approval"
-          ? "Đề nghị chi do mua hàng lập, chờ giám đốc hoặc người có quyền phê duyệt."
-          : "Đề nghị đã duyệt được ngân hàng kiểm tra trước khi ghi nhận từng lần thanh toán."}
-      </Typography.Text>
+    <>
+      <div className="table-filter-toolbar">
+        <div className="table-filter-toolbar-left">
+          {toolbarLeft}
+          <Input.Search size="small" allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="Số đề nghị, đơn hàng, NCC, hóa đơn" className="page-shell-search" />
+          {statusOptions.length > 1 ? <Select size="small" allowClear value={statusFilter} onChange={setStatusFilter} placeholder="Trạng thái" style={{ width: 150 }} options={statusOptions} /> : null}
+        </div>
+      </div>
       <Table<CommercialPaymentRequest>
-        rowKey="id"
-        size="small"
-        loading={requestsQuery.isLoading}
-        columns={columns}
-        dataSource={rows}
-        scroll={{ x: 1460 }}
+        className="data-grid"
+        rowKey="id" size="small" loading={requestsQuery.isLoading} columns={columns} dataSource={rows} scroll={{ x: 1000 }}
         expandable={{
           rowExpandable: (record) => record.payments.length > 0,
           expandedRowRender: (record) => (
             <Table
-              rowKey="id"
-              size="small"
-              pagination={false}
-              dataSource={record.payments}
+              rowKey="id" size="small" pagination={false} dataSource={record.payments}
               columns={[
-                { title: "Ngày thanh toán", dataIndex: "paidAt", render: (value) => dayjs(value).format("DD/MM/YYYY") },
-                { title: "Tài khoản nguồn", render: (_, payment: any) => payment.sourceBankAccount ? `${payment.sourceBankAccount.bankCode} - ${payment.sourceBankAccount.accountNo}` : "-" },
-                { title: "Số tiền", dataIndex: "amountVnd", align: "right", render: (value) => `${formatMoney(value)} đ` },
-                { title: "Chứng từ", render: (_, payment: any) => payment.proofFileUrl ? <a href={payment.proofFileUrl} target="_blank" rel="noreferrer">{payment.proofFileName ?? "Mở file"}</a> : "-" },
-                { title: "Ghi chú", dataIndex: "note", render: (value) => value || "-" },
+                { title: "Ngày", dataIndex: "paidAt", width: 110, render: (value) => dateText(value) },
+                { title: "Tài khoản nguồn", render: (_: unknown, payment: any) => payment.fundingSource === "DIRECT_DISBURSEMENT" ? `Giải ngân · ${payment.lenderBankName ?? ""}` : payment.sourceBankAccount ? `${payment.sourceBankAccount.bankCode} · ${payment.sourceBankAccount.accountNo}` : "—" },
+                { title: "Số tiền", dataIndex: "amountVnd", align: "right", width: 160, render: (value) => `${formatMoney(value)} đ` },
+                { title: "Chứng từ", width: 150, render: (_: unknown, payment: any) => payment.proofFileUrl ? <a href={payment.proofFileUrl} target="_blank" rel="noreferrer">{payment.proofFileName ?? "Mở chứng từ"}</a> : "Chưa đính kèm" },
+                { title: "Ghi chú", dataIndex: "note", render: (value) => value || "—" },
               ]}
             />
           ),
         }}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={view === "approval" ? "Không có đề nghị chi chờ duyệt" : "Không có đề nghị cần thanh toán"} /> }}
-        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={view === "approval" ? "Không có đề nghị mua hàng chờ phê duyệt" : "Không có đề nghị mua hàng cần thanh toán"} /> }}
+        pagination={{ pageSize: 20, hideOnSinglePage: true, showSizeChanger: false }}
       />
 
-      <Modal
-        open={Boolean(decision)}
-        title={decisionTitle}
-        okText={decisionOkText}
-        okButtonProps={decisionIsReject ? { danger: true } : undefined}
-        cancelText="Đóng"
-        onCancel={() => setDecision(null)}
-        confirmLoading={decisionAction.isPending}
-        onOk={() => decisionForm.submit()}
-        destroyOnHidden
-        width={480}
-      >
-        <Form form={decisionForm} layout="vertical" size="small" onFinish={submitDecision}>
-          <Form.Item
-            name="note"
-            label="Ghi chú"
-            rules={decisionIsReject ? [{ required: true, message: "Nhập lý do từ chối hoặc trả lại" }] : []}
-          >
-            <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} placeholder="Nội dung kiểm tra hoặc lý do trả lại" />
+      <Modal className="banking-modal" open={Boolean(decision)} title={decisionTitle} okText={decisionOkText} okButtonProps={decisionIsReject ? { danger: true } : undefined} cancelText="Đóng" onCancel={() => setDecision(null)} confirmLoading={decisionAction.isPending} onOk={() => decisionForm.submit()} destroyOnHidden width={480}>
+        {decision ? (
+          <Alert
+            type="info"
+            style={{ marginBottom: 12 }}
+            message={`${decision.request.requestNo} · ${decision.request.purchaseOrder.supplier.name}`}
+            description={`Đơn ${decision.request.purchaseOrder.orderNo} — còn phải trả ${formatMoney(decision.request.remainingAmount)} đ`}
+          />
+        ) : null}
+        <Form className="banking-form" form={decisionForm} layout="vertical" onFinish={submitDecision}>
+          <Form.Item name="note" label={decisionIsReject ? "Lý do" : "Ghi chú kiểm tra"} rules={decisionIsReject ? [{ required: true, message: "Nhập lý do từ chối hoặc trả lại" }] : []}>
+            <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} placeholder="Nêu nội dung kiểm tra hoặc lý do trả lại" />
           </Form.Item>
         </Form>
       </Modal>
 
-      <Modal
-        open={Boolean(paymentRequest)}
-        title="Ghi nhận thanh toán"
-        okText="Lưu thanh toán"
-        cancelText="Đóng"
-        onCancel={() => setPaymentRequest(null)}
-        confirmLoading={recordPayment.isPending}
-        onOk={() => paymentForm.submit()}
-        destroyOnHidden
-        width={560}
-      >
+      <Modal className="banking-modal" open={Boolean(paymentRequest)} title="Ghi nhận đã chi" okText="Ghi nhận đã thực hiện" cancelText="Đóng" onCancel={() => setPaymentRequest(null)} confirmLoading={recordPayment.isPending} onOk={() => paymentForm.submit()} destroyOnHidden width={560}>
         {paymentRequest ? (
-          <Space direction="vertical" size={4} style={{ marginBottom: 12 }}>
-            <Typography.Text>Phải thanh toán: <b>{formatMoney(paymentRequest.amountVnd)} đ</b></Typography.Text>
-            <Typography.Text>Đã thanh toán: <b>{formatMoney(paymentRequest.paidAmount)} đ</b></Typography.Text>
-            <Typography.Text>Còn lại: <b>{formatMoney(paymentRequest.remainingAmount)} đ</b></Typography.Text>
-            <Typography.Text type="secondary">Tài khoản NCC: {paymentRequest.beneficiaryAccountNo || "-"}</Typography.Text>
-          </Space>
+          <Alert
+            type="success"
+            style={{ marginBottom: 12 }}
+            message={<Space size={16} wrap><span>Còn phải trả: <b>{formatMoney(paymentRequest.remainingAmount)} đ</b></span><span>Thụ hưởng: <b>{paymentRequest.purchaseOrder.supplier.name}</b></span></Space>}
+            description={isDirectDisbursement ? "Ngân hàng giải ngân trực tiếp cho NCC: bắt buộc lưu giấy báo giải ngân, không ghi nhận tiền ra từ tài khoản công ty." : "Chỉ ghi nhận khi lệnh đã được ngân hàng thực hiện. Bước tiếp theo là đối soát với sao kê ngân hàng."}
+          />
         ) : null}
-        <Form form={paymentForm} layout="vertical" size="small" onFinish={submitPayment}>
-          <Form.Item name="sourceBankAccountId" label="Tài khoản nguồn của công ty" rules={[{ required: true, message: "Chọn tài khoản nguồn" }]}>
-            <Select
-              showSearch
-              optionFilterProp="label"
-              placeholder="Chọn tài khoản nguồn"
-              options={bankAccounts.map((account: any) => ({
-                value: account.id,
-                label: `${account.bankCode} - ${account.bankName || "Ngân hàng"} - ${account.accountNo}`,
-              }))}
-            />
+        <Form className="banking-form" form={paymentForm} layout="vertical" onFinish={submitPayment}>
+          <Form.Item name="fundingSource" label="Nguồn thanh toán" rules={[{ required: true }]}>
+            <Select options={[{ value: "OWN_BANK", label: "Vốn tự có — công ty chuyển khoản" }, { value: "DIRECT_DISBURSEMENT", label: "Giải ngân — ngân hàng trả thẳng NCC" }]} />
           </Form.Item>
-          <Space size={12} style={{ width: "100%", alignItems: "flex-start" }}>
-            <Form.Item name="amountVnd" label="Số tiền thanh toán" rules={[{ required: true, message: "Nhập số tiền thanh toán" }]} style={{ flex: 1 }}>
-              <InputNumber min={0.01} max={Number(paymentRequest?.remainingAmount ?? 0)} precision={0} style={{ width: "100%" }} formatter={(value) => formatMoney(value)} parser={(value) => Number(String(value || "").replace(/[^\d.-]/g, ""))} />
+          {isDirectDisbursement ? (
+            <Row gutter={10}>
+              <Col span={12}><Form.Item name="lenderBankName" label="Ngân hàng giải ngân" rules={[{ required: true, message: "Nhập ngân hàng giải ngân" }]}><Input placeholder="Ví dụ: Vietcombank" /></Form.Item></Col>
+              <Col span={12}><Form.Item name="disbursementNo" label="Số giấy báo giải ngân" rules={[{ required: true, message: "Nhập số giấy báo" }]}><Input placeholder="Số chứng từ ngân hàng" /></Form.Item></Col>
+              <Col span={24}><Form.Item name="creditFacilityRef" label="Khế ước / hợp đồng tín dụng"><Input placeholder="Ví dụ: HM-2026-03" /></Form.Item></Col>
+            </Row>
+          ) : (
+            <Form.Item name="sourceBankAccountId" label="Tài khoản nguồn" rules={[{ required: true, message: "Chọn tài khoản nguồn" }]}>
+              <Select showSearch optionFilterProp="label" placeholder="Chọn tài khoản vốn tự có" options={bankAccounts.map((account: any) => ({ value: account.id, label: `${account.bankCode} · ${account.accountNo}${account.accountName ? ` — ${account.accountName}` : ""}` }))} />
             </Form.Item>
-            <Form.Item name="paidAt" label="Ngày thanh toán" rules={[{ required: true, message: "Chọn ngày" }]} style={{ width: 170 }}>
-              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
-            </Form.Item>
-          </Space>
-          <Form.Item label="Ảnh hoặc sao kê thanh toán">
-            <Upload
-              maxCount={1}
-              beforeUpload={async (file) => {
-                try {
-                  const url = await uploadFile(file, `commercial-lot-payments/${paymentRequest?.requestNo ?? "payment"}`, file.name);
-                  paymentForm.setFieldsValue({ proofFileUrl: url, proofFileName: file.name });
-                  notify.success("Đã tải chứng từ thanh toán");
-                } catch (error: any) {
-                  notify.error(error?.message || "Không tải được chứng từ");
-                }
-                return false;
-              }}
-            >
+          )}
+          <Row gutter={10}>
+            <Col span={14}>
+              <Form.Item name="amountVnd" label="Số tiền" rules={[{ required: true, message: "Nhập số tiền" }]}>
+                <InputNumber min={0.01} max={Number(paymentRequest?.remainingAmount ?? 0)} precision={0} style={{ width: "100%" }} formatter={(value) => formatMoney(value)} parser={(value) => Number(String(value || "").replace(/[^\d.-]/g, ""))} />
+              </Form.Item>
+            </Col>
+            <Col span={10}>
+              <Form.Item name="paidAt" label={isDirectDisbursement ? "Ngày giải ngân" : "Ngày thực hiện"} rules={[{ required: true, message: "Chọn ngày" }]}>
+                <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="proofFileUrl" hidden rules={isDirectDisbursement ? [{ required: true, message: "Tải giấy báo giải ngân" }] : []}><Input /></Form.Item>
+          <Form.Item name="proofFileName" hidden><Input /></Form.Item>
+          <Form.Item label={isDirectDisbursement ? "Giấy báo giải ngân *" : "UNC hoặc giấy báo nợ"}>
+            <Upload maxCount={1} beforeUpload={async (file) => { try { const url = await uploadFile(file, `commercial-lot-payments/${paymentRequest?.requestNo ?? "payment"}`, file.name); paymentForm.setFieldsValue({ proofFileUrl: url, proofFileName: file.name }); notify.success(isDirectDisbursement ? "Đã tải giấy báo giải ngân" : "Đã tải chứng từ thanh toán"); } catch (error: any) { notify.error(error?.message || "Không tải được chứng từ"); } return false; }}>
               <Button size="small" icon={<UploadOutlined />}>Tải chứng từ</Button>
             </Upload>
           </Form.Item>
-          <Form.Item name="note" label="Ghi chú">
-            <Input.TextArea autoSize={{ minRows: 2, maxRows: 3 }} />
-          </Form.Item>
+          <Form.Item name="note" label="Ghi chú"><Input.TextArea autoSize={{ minRows: 2, maxRows: 3 }} /></Form.Item>
         </Form>
       </Modal>
-    </Space>
+    </>
   );
 }

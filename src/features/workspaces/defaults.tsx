@@ -131,11 +131,11 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
     },
   ],
   banking: [
-    { key: "/banking", label: "Dashboard cảnh báo", icon: <DashboardOutlined /> },
-    { key: "/banking/payment-approvals", label: "Đề nghị duyệt chi", icon: <CheckCircleOutlined /> },
-    { key: "/banking/payments", label: "Thanh toán", icon: <BankOutlined /> },
-    { key: "/banking/statements", label: "Sao kê", icon: <FileTextOutlined /> },
-    { key: "/banking/term-batches", label: "Bảng kê TERM", icon: <ReconciliationOutlined /> },
+    { key: "/banking", label: "Tổng quan", icon: <DashboardOutlined /> },
+    { key: "/banking/receipts", label: "Thu tiền", icon: <DollarOutlined /> },
+    { key: "/banking/payments", label: "Chi tiền", icon: <BankOutlined /> },
+    { key: "/banking/statements", label: "Sao kê & đối soát", icon: <ReconciliationOutlined /> },
+    { key: "/banking/reports", label: "Báo cáo", icon: <FileTextOutlined /> },
     { key: "/bank-accounts", label: "Tài khoản công ty", icon: <BankOutlined /> },
     { key: "/bank-import-templates", label: "Mẫu import sao kê", icon: <SettingOutlined /> },
   ],
@@ -173,6 +173,11 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
         {
           key: "/sales/receivables",
           label: "Công nợ phải thu",
+          need: PERMS.SALES_RECEIVABLE_VIEW,
+        },
+        {
+          key: "/sales/receivable-interest",
+          label: "Lãi bị mất do khách nợ",
           need: PERMS.SALES_RECEIVABLE_VIEW,
         },
         {
@@ -536,7 +541,7 @@ const WORKSPACE_DASHBOARDS: Record<string, WorkspaceDefaultConfig> = {
       { label: "Kiểm tra thông tin chi", href: "/banking/payments", icon: <FileSearchOutlined /> },
       { label: "Thanh toán nhiều lần", href: "/banking/payments", icon: <BankOutlined /> },
       { label: "Import và đối chiếu sao kê", href: "/banking/statements", icon: <ReconciliationOutlined /> },
-      { label: "Bảng kê TERM", href: "/banking/term-batches", icon: <FileDoneOutlined /> },
+      { label: "Chi Mua TERM theo bảng kê", href: "/banking/payments?source=term", icon: <FileDoneOutlined /> },
     ],
     reports: [
       { label: "Danh sách đề nghị chi", href: "/banking/payment-approvals" },

@@ -14,13 +14,65 @@ import type {
   PreviewBankImportPayload,
   TermPaymentBatch,
   TermPaymentPendingRequest,
+  GeneralPaymentRequest,
+  GeneralPaymentReconciliationQueueItem,
+  GeneralPaymentReconciliation,
+  BankTransactionRecognition,
 } from "./types";
 
 export const BankingApi = {
+  listGeneralPaymentRequests: () =>
+    apiCall<GeneralPaymentRequest[]>("generalPaymentRequests.list").then(
+      (r) => (r.data as any)?.data ?? r.data ?? [],
+    ),
+
+  createGeneralPaymentRequest: (data: Record<string, unknown>) =>
+    apiCall<GeneralPaymentRequest>("generalPaymentRequests.create", { data }).then(
+      (r) => (r.data as any)?.data ?? r.data,
+    ),
+
+  generalPaymentRequestAction: (
+    id: string,
+    action: "approve" | "reject" | "bankVerify" | "bankReturn" | "resubmit",
+    data: Record<string, unknown> = {},
+  ) =>
+    apiCall<GeneralPaymentRequest>(`generalPaymentRequests.${action}`, {
+      params: { id },
+      data,
+    }).then((r) => (r.data as any)?.data ?? r.data),
+
+  recordGeneralPayment: (id: string, data: Record<string, unknown>) =>
+    apiCall<GeneralPaymentRequest>("generalPaymentRequests.recordPayment", {
+      params: { id },
+      data,
+    }).then((r) => (r.data as any)?.data ?? r.data),
+
+  getGeneralPaymentReconciliationQueue: () =>
+    apiCall<GeneralPaymentReconciliationQueueItem[]>("generalPaymentRequests.reconciliationQueue").then(
+      (r) => (r.data as any)?.data ?? r.data ?? [],
+    ),
+
+  reconcileGeneralPayment: (bankTransactionId: string, paymentId: string) =>
+    apiCall("generalPaymentRequests.reconcile", {
+      params: { bankTransactionId },
+      data: { paymentId },
+    }).then((r) => (r.data as any)?.data ?? r.data),
+
+  getRecentGeneralPaymentReconciliations: () =>
+    apiCall<GeneralPaymentReconciliation[]>("generalPaymentRequests.recentReconciliations").then(
+      (r) => (r.data as any)?.data ?? r.data ?? [],
+    ),
+
+  reverseGeneralPaymentReconciliation: (reconciliationId: string, reason: string) =>
+    apiCall("generalPaymentRequests.reverseReconciliation", {
+      params: { reconciliationId },
+      data: { reason },
+    }).then((r) => (r.data as any)?.data ?? r.data),
+
   listTransactions: (query: BankTransactionListQuery) =>
-    apiCall<Paged<BankTransactionItem>>("banking.transactions", {
+    apiCall<ApiResponse<Paged<BankTransactionItem>>>("banking.transactions", {
       query,
-    }).then((r) => r.data!.data ?? (r.data as any)),
+    }).then((r) => (r.data?.data ?? r.data) as Paged<BankTransactionItem>),
 
   createManualTransaction: (data: CreateManualBankTransactionPayload) =>
     apiCall<BankTransactionItem>("banking.createManualTransaction", {
@@ -38,7 +90,7 @@ export const BankingApi = {
     }).then((r) => r.data! ?? (r.data as any)),
 
   confirmTransaction: (id: string, body: any) =>
-    apiCall("banking.confirmTransaction", {
+    apiCall<any>("banking.confirmTransaction", {
       params: { id },
       data: body,
     }).then((r) => r.data?.data ?? r.data),
@@ -67,6 +119,29 @@ export const BankingApi = {
     );
     return (res.data as any)?.data ?? res.data!;
   },
+
+  recognizeTransactions: (ids: string[]) => {
+    // `refetch()` can still execute a disabled TanStack Query. Keep the API
+    // boundary safe so an empty work queue never sends an invalid batch.
+    if (!ids.length) return Promise.resolve([] as BankTransactionRecognition[]);
+    return apiCall<BankTransactionRecognition[]>("banking.recognizeTransactions", {
+      data: { ids },
+    }).then((r) => ((r.data as any)?.data ?? r.data ?? []) as BankTransactionRecognition[]);
+  },
+
+  ignoreTransactions: (payload: { ids: string[]; counterpartyType: "INTERNAL" | "OTHER"; reason?: string }) =>
+    apiCall<{ ignoredIds: string[]; skippedIds: string[] }>("banking.ignoreTransactions", {
+      data: payload,
+    }).then((r) => ((r.data as any)?.data ?? r.data) as { ignoredIds: string[]; skippedIds: string[] }),
+
+  restoreTransaction: (id: string) =>
+    apiCall("banking.restoreTransaction", { params: { id }, data: {} }).then((r) => (r.data as any)?.data ?? r.data),
+
+  reconcileCommercial: (id: string, data: { paymentId: string; amountVnd?: number; note?: string }) =>
+    apiCall("banking.reconcileCommercial", { params: { id }, data }).then((r) => (r.data as any)?.data ?? r.data),
+
+  recordCommercialFromStatement: (id: string, data: { paymentRequestId: string; note?: string }) =>
+    apiCall("banking.recordCommercialFromStatement", { params: { id }, data }).then((r) => (r.data as any)?.data ?? r.data),
 
   commitImport: (body: CommitBankImportPayload) =>
     apiCall<BankImportDetail>("banking.importCommit", {
@@ -118,7 +193,7 @@ export const BankingApi = {
     }).then((r) => (r.data as any)?.data ?? r.data),
 
   uploadTermPaymentBatchFile: (id: string, data: FormData) =>
-    apiCall("banking.uploadTermPaymentBatchFile", {
+    apiCall<any>("banking.uploadTermPaymentBatchFile", {
       params: { id },
       data,
     }).then((r) => r.data?.data ?? r.data),
@@ -128,13 +203,13 @@ export const BankingApi = {
     itemId: string,
     data: { bankTransactionId: string; paidAmountVnd?: number; status?: string; note?: string },
   ) =>
-    apiCall("banking.matchTermPaymentBatchItem", {
+    apiCall<any>("banking.matchTermPaymentBatchItem", {
       params: { id, itemId },
       data,
     }).then((r) => r.data?.data ?? r.data),
 
   confirmTermPaymentBatchItemPaid: (id: string, itemId: string) =>
-    apiCall("banking.confirmTermPaymentBatchItemPaid", {
+    apiCall<any>("banking.confirmTermPaymentBatchItemPaid", {
       params: { id, itemId },
     }).then((r) => r.data?.data ?? r.data),
 };
