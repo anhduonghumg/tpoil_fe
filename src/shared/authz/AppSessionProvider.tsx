@@ -1,9 +1,10 @@
 // shared/authz/AppSessionProvider.tsx
-import React, { createContext, useContext, useMemo } from "react";
+import React, { createContext, useContext, useEffect, useMemo } from "react";
 
 import type { PermCode } from "./perms";
 import { useMe } from "../../features/auth/hooks";
 import { useAppBootstrap } from "../../features/app/hooks";
+import { markSessionConfirmed } from "../lib/sessionExpired";
 
 type CtxValue = {
   loading: boolean;
@@ -49,6 +50,11 @@ export function AppSessionProvider({
   const permissions = useMemo(() => new Set(permList), [permList]);
 
   const ready = !!me && !!bootstrap && !loading;
+
+  // Từ đây mới coi là "đang trong phiên": 401 về sau mới đáng báo "Phiên đã hết hạn".
+  useEffect(() => {
+    if (ready) markSessionConfirmed();
+  }, [ready]);
 
   const value = useMemo(
     () => ({ loading, ready, me, bootstrap, permissions, permList }),

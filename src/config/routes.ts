@@ -23,6 +23,8 @@ export const ROUTES = {
     login: ["POST", "/auth/login"] as const,
     logout: ["POST", "/auth/logout"] as const,
     me: ["GET", "/auth/me"] as const,
+    updateProfile: ["PATCH", "/auth/me"] as const,
+    changePassword: ["PATCH", "/auth/me/password"] as const,
   },
   me: {
     workspaces: ["GET", "/me/workspaces"] as RouteTuple,
@@ -337,6 +339,27 @@ export const ROUTES = {
     bankVerifyPaymentRequest: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/bank-verify"] as RouteTuple,
     bankReturnPaymentRequest: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/bank-return"] as RouteTuple,
     recordPayment: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/payments"] as RouteTuple,
+    removePayment: ["POST", "/commercial-purchases/:id/payment-requests/:requestId/payments/:paymentId/remove"] as RouteTuple,
+  },
+  // Báo cáo "Tiền tại ngân hàng": số dư từng tài khoản và sổ chi tiết tài khoản.
+  bankCashPosition: {
+    overview: ["GET", "/banking/cash-position"] as RouteTuple,
+    ledger: ["GET", "/banking/cash-position/:bankAccountId/ledger"] as RouteTuple,
+  },
+  // Kế hoạch thanh toán cho đề nghị thanh toán đơn TE/TM.
+  paymentPlans: {
+    list: ["GET", "/banking/payment-plans"] as RouteTuple,
+    detail: ["GET", "/banking/payment-plans/:requestId"] as RouteTuple,
+    save: ["PUT", "/banking/payment-plans/:requestId"] as RouteTuple,
+    submit: ["POST", "/banking/payment-plans/:requestId/submit"] as RouteTuple,
+    approve: ["POST", "/banking/payment-plans/:requestId/approve"] as RouteTuple,
+    reject: ["POST", "/banking/payment-plans/:requestId/reject"] as RouteTuple,
+    revise: ["POST", "/banking/payment-plans/:requestId/revise"] as RouteTuple,
+    return: ["POST", "/banking/payment-plans/:requestId/return"] as RouteTuple,
+    resubmit: ["POST", "/banking/payment-plans/:requestId/resubmit"] as RouteTuple,
+    cancel: ["POST", "/banking/payment-plans/:requestId/cancel"] as RouteTuple,
+    linkDisbursement: ["POST", "/banking/payment-plans/lines/:lineId/disbursement"] as RouteTuple,
+    unlinkDisbursement: ["DELETE", "/banking/payment-plans/lines/:lineId/disbursement"] as RouteTuple,
   },
   generalPaymentRequests: {
     list: ["GET", "/banking/general-payment-requests"] as RouteTuple,
@@ -347,6 +370,8 @@ export const ROUTES = {
     bankReturn: ["POST", "/banking/general-payment-requests/:id/bank-return"] as RouteTuple,
     resubmit: ["POST", "/banking/general-payment-requests/:id/resubmit"] as RouteTuple,
     recordPayment: ["POST", "/banking/general-payment-requests/:id/payments"] as RouteTuple,
+    cancel: ["POST", "/banking/general-payment-requests/:id/cancel"] as RouteTuple,
+    removePayment: ["POST", "/banking/general-payment-requests/:id/payments/:paymentId/remove"] as RouteTuple,
     reconciliationQueue: ["GET", "/banking/general-payment-requests/reconciliation-queue"] as RouteTuple,
     reconcile: ["POST", "/banking/general-payment-requests/reconciliation/:bankTransactionId"] as RouteTuple,
     recentReconciliations: ["GET", "/banking/general-payment-requests/reconciliations/recent"] as RouteTuple,
@@ -407,6 +432,9 @@ export const ROUTES = {
     reserve: ["POST", "/sales-orders/:id/reserve"] as RouteTuple,
     recall: ["POST", "/sales-orders/:id/recall"] as RouteTuple,
     cancel: ["POST", "/sales-orders/:id/cancel"] as RouteTuple,
+    merge: ["POST", "/sales-orders/merge"] as RouteTuple,
+    split: ["POST", "/sales-orders/:id/split"] as RouteTuple,
+    submitBatch: ["POST", "/sales-orders/submit-batch"] as RouteTuple,
   },
 
   salesOrderAdjustments: {
@@ -429,6 +457,16 @@ export const ROUTES = {
     adjustLineSupplier: ["PATCH", "/sales-approvals/lines/:lineId/supplier"] as RouteTuple,
   },
 
+  // Phân bổ lại hàng giữ: bán hàng đang giữ cho đơn khác khi chưa xuất kho, chưa hóa đơn.
+  salesHoldReallocations: {
+    list: ["GET", "/sales-hold-reallocations"] as RouteTuple,
+    summary: ["GET", "/sales-hold-reallocations/summary"] as RouteTuple,
+    donors: ["GET", "/sales-hold-reallocations/donors"] as RouteTuple,
+    setPlans: ["PUT", "/sales-hold-reallocations/lines/:lineId/plans"] as RouteTuple,
+    detail: ["GET", "/sales-hold-reallocations/:id"] as RouteTuple,
+    backfill: ["POST", "/sales-hold-reallocations/:id/backfill"] as RouteTuple,
+  },
+
   salesDeliveries: {
     list: ["GET", "/sales-deliveries"] as RouteTuple,
     detail: ["GET", "/sales-deliveries/:id"] as RouteTuple,
@@ -438,6 +476,13 @@ export const ROUTES = {
     returnToSales: ["POST", "/sales-deliveries/:id/return"] as RouteTuple,
     resend: ["POST", "/sales-deliveries/:id/resend"] as RouteTuple,
     voidPosted: ["POST", "/sales-deliveries/:id/void"] as RouteTuple,
+  },
+
+  salesReturns: {
+    list: ["GET", "/sales-returns"] as RouteTuple,
+    detail: ["GET", "/sales-returns/:id"] as RouteTuple,
+    confirm: ["POST", "/sales-returns/:id/confirm"] as RouteTuple,
+    cancel: ["POST", "/sales-returns/:id/cancel"] as RouteTuple,
   },
 
   salesReconciliations: {
@@ -472,10 +517,20 @@ export const ROUTES = {
   },
 
   salesInvoices: {
+    batchCreate: ["POST", "/sales-invoice-batches"] as RouteTuple,
+    batches: ["GET", "/sales-invoice-batches"] as RouteTuple,
+    batch: ["GET", "/sales-invoice-batches/:id"] as RouteTuple,
+    batchStop: ["POST", "/sales-invoice-batches/:id/stop"] as RouteTuple,
+    batchRetry: ["POST", "/sales-invoice-batches/:id/retry"] as RouteTuple,
+    accountingChange: ["GET", "/sales-invoices/:id/accounting-change"] as RouteTuple,
+    reviewAccountingChange: ["POST", "/sales-invoices/:id/accounting-change/review"] as RouteTuple,
     list: ["GET", "/sales-invoices"] as RouteTuple,
     unissued: ["GET", "/sales-invoices/unissued"] as RouteTuple,
+    misaPreview: ["POST", "/sales-invoices/misa-preview"] as RouteTuple,
+    draftMisaPreview: ["POST", "/sales-invoices/:id/misa-preview"] as RouteTuple,
     preview: ["POST", "/sales-invoices/preview"] as RouteTuple,
     createDraft: ["POST", "/sales-invoices/drafts"] as RouteTuple,
+    createAdjustments: ["POST", "/sales-invoices/adjustments"] as RouteTuple,
     detail: ["GET", "/sales-invoices/:id"] as RouteTuple,
     document: ["GET", "/sales-invoices/:id/document"] as RouteTuple,
     issue: ["POST", "/sales-invoices/:id/issue"] as RouteTuple,
@@ -647,6 +702,8 @@ export const ROUTES = {
       "POST",
       "/banking/term-payment-batches/:id/items/:itemId/confirm-paid",
     ] as RouteTuple,
+    unmatchTermPaymentBatchItem: ["POST", "/banking/term-payment-batches/:id/items/:itemId/unmatch"] as RouteTuple,
+    cancelTermPaymentBatch: ["POST", "/banking/term-payment-batches/:id/cancel"] as RouteTuple,
   },
 
   bankPurposes: {
@@ -696,6 +753,8 @@ export const ROUTES = {
     createArea: ["POST", "/supplier-locations/areas"] as RouteTuple,
     updateArea: ["PATCH", "/supplier-locations/areas/:id"] as RouteTuple,
     select: ["GET", "/supplier-locations/select"] as RouteTuple,
+    lossRates: ["GET", "/supplier-locations/loss-rates"] as RouteTuple,
+    saveLossRates: ["PUT", "/supplier-locations/loss-rates"] as RouteTuple,
     list: ["GET", "/supplier-locations"] as RouteTuple,
     detail: ["GET", "/supplier-locations/:id"] as RouteTuple,
     create: ["POST", "/supplier-locations"] as RouteTuple,

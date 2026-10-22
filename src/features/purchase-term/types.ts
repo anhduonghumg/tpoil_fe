@@ -109,6 +109,8 @@ export type TermOrderDocumentLine = {
   note?: string | null;
 };
 
+export type TermDeliveryMode = "FACTORY" | "WAREHOUSE";
+
 export type TermOrderDocument = {
   id: UUID;
   purchaseOrderId: UUID;
@@ -127,6 +129,7 @@ export type TermOrderDocument = {
   appendixNo?: string | null;
   deliveryTimeText?: string | null;
   deliveryLocation?: string | null;
+  deliveryMode?: TermDeliveryMode | null;
   paymentMethodText?: string | null;
   priceBasisNote?: string | null;
   officialPriceNote?: string | null;
@@ -163,6 +166,8 @@ export type TermPaymentRequest = {
   paymentDeadline?: string | null;
   status: string;
   note?: string | null;
+  returnedReason?: string | null;
+  approvalNote?: string | null;
   batchItems?: Array<{
     id: UUID;
     batchId: UUID;
@@ -226,6 +231,8 @@ export type TermPurchaseOrderListItem = {
   supplierCustomerId: UUID;
 
   supplierName?: string | null;
+
+  supplierCode?: string | null;
 
   productSummary: string;
 
@@ -311,6 +318,18 @@ export type TermGoodsReceipt = {
   temporaryWithdrawQty?: number | null;
 
   billToTankLossQty?: number | null;
+
+  billQtyV15?: number | null;
+
+  tankQtyV15?: number | null;
+
+  billToTankLossQtyV15?: number | null;
+
+  billDate?: string | null;
+
+  tankDate?: string | null;
+
+  factoryBarrelQty?: number | null;
 
   receiptDocumentTemplate?: "TEMPLATE_1" | "TEMPLATE_2" | string | null;
 
@@ -633,6 +652,9 @@ export type TermPricingStage = {
 
   note?: string | null;
 
+  /** Bảng sếp: ô nhập đã lưu (tỷ giá, đơn giá phí, giá bán lẻ...). */
+  inputSnapshot?: Partial<TermBossSheetPayload> | null;
+
   priceDays: TermPricingPriceDay[];
 
   costs: TermPricingStageCost[];
@@ -678,6 +700,61 @@ export type TermPricingRun = {
   createdAt?: string;
 
   updatedAt?: string;
+};
+
+// =========================
+// CHARTER (THUÊ TÀU)
+// =========================
+
+export type TermCharterVoyage = {
+  id: UUID;
+  charterOrderNo: string;
+  status: string;
+  ownerName?: string | null;
+  vesselName?: string | null;
+  laycanFrom?: string | null;
+  laycanTo?: string | null;
+  freightRateVndPerLiter?: number | null;
+  insuranceCount: number;
+  insuranceVnd: number;
+  inspectionCount: number;
+  inspectionVnd: number;
+};
+
+export type TermCharterSummary = {
+  voyages: TermCharterVoyage[];
+  insuranceCount: number;
+  insuranceVnd: number;
+  inspectionCount: number;
+  inspectionVnd: number;
+};
+
+// =========================
+// BOSS SHEET
+// =========================
+
+/** Ô nhập của Bảng sếp; số lượng lấy từ phiếu giao nhận nên không gửi lên. */
+export type TermBossSheetPayload = {
+  billDate?: string;
+  priceDays?: Array<{ quoteDate: string; priceUsdPerBbl: number }>;
+  premiumUsdPerBbl?: number;
+  specialConsumptionTaxUsdPerBbl?: number;
+  fxRateDate?: string;
+  fxRate?: number;
+  envFeeVnd?: number;
+  /** Quỹ bình ổn đ/lít: dương là trích, âm là chi. */
+  inspectionInsuranceVnd?: number;
+  fundVndPerLiter?: number;
+  marginFeeVndPerLiter?: number;
+  vatRate?: number;
+  transportFeeVndPerLiter?: number;
+  storageFeeVndPerLiter?: number;
+  withdrawLossRatePercent?: number;
+  retailPriceDate?: string;
+  retailPriceVndPerLiter?: number;
+  retailPrice2VndPerLiter?: number;
+  retailPriceV15VndPerLiter?: number;
+  note?: string;
 };
 
 // =========================
@@ -859,6 +936,9 @@ export type TermPurchaseOrderDetail = {
 
   termOrderDocuments?: TermOrderDocument[];
 
+  /** Thuê tàu theo chuyến (vận hành nhập); mua hàng dùng tiền bảo hiểm và giám định cho bảng giá. */
+  charter?: TermCharterSummary;
+
   termPaymentRequests?: TermPaymentRequest[];
 
   termBankInstructions?: TermBankInstruction[];
@@ -888,6 +968,12 @@ export type CreateTermGoodsReceiptPayload = {
   tankQty?: number;
   temporaryWithdrawQty?: number;
   billToTankLossQty?: number;
+  billQtyV15?: number;
+  tankQtyV15?: number;
+  billToTankLossQtyV15?: number;
+  billDate?: string;
+  tankDate?: string;
+  factoryBarrelQty?: number;
   receiptDocumentTemplate?: "TEMPLATE_1" | "TEMPLATE_2";
   sourceFile?: File;
   tempC?: number;

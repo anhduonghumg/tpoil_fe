@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Alert,
@@ -7,6 +7,7 @@ import {
   Dropdown,
   Input,
   Modal,
+  Progress,
   Select,
   Space,
   Table,
@@ -20,30 +21,44 @@ import {
   DeleteOutlined,
   EditOutlined,
   EyeOutlined,
+  MergeCellsOutlined,
   MoreOutlined,
   PlusOutlined,
   PrinterOutlined,
   SearchOutlined,
+  SendOutlined,
+  SplitCellsOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useBlocker, useNavigate, useSearchParams } from "react-router-dom";
 import { PartySelect } from "../../../shared/ui/PartySelect";
 import { FilterButton, FilterTags, RefreshButton } from "../../../shared/ui/TableFilter";
 import type { ActiveFilterTag } from "../../../shared/ui/TableFilter";
 import { PermissionGate } from "../../../shared/authz/PermissionGate";
 import { PERMS } from "../../../shared/authz/perms";
+import { useCan } from "../../../shared/authz/useCan";
 import {
   useCancelSalesOrder,
   useDeleteSalesOrder,
   useInternalSalesOrders,
+  useMergeSalesOrders,
   usePrintSalesOrders,
   useSalesOrderStatusCounts,
   useSalesWithdrawals,
+  useSplitSalesOrder,
 } from "../hooks";
+import { InternalSalesApi } from "../api";
+import { extractApiError } from "../../../shared/lib/httpError";
+import { useQueryClient } from "@tanstack/react-query";
 import type { SalesOrder, SalesOrderKind, SalesOrderLine, SalesOrderStatus } from "../types";
 import { InternalSalesOrderModal } from "../ui/InternalSalesOrderModal";
 import { QuickEntryPanel } from "../ui/QuickEntryPanel";
+import type { QuickEntryDraftCache, QuickEntryMode } from "../ui/QuickEntryPanel";
+import { useIsMobile } from "../../../shared/ui/mobile";
+import { notify } from "../../../shared/lib/notification";
 import { ApprovalQueue } from "../ui/ApprovalQueue";
+import { HoldReallocationsPanel } from "../ui/HoldReallocationsPanel";
+import { useHoldReallocations } from "../holdReallocation";
 import {
   formatMoney,
   formatQty,
@@ -58,6 +73,26 @@ const ALL_TAB = "ALL";
 const RETAIL_ENTRY_TAB = "QUICK_ENTRY_RETAIL";
 const LOT_ENTRY_TAB = "QUICK_ENTRY_LOT";
 const ENTRY_TABS = [RETAIL_ENTRY_TAB, LOT_ENTRY_TAB];
+/** Đơn đang chờ bù hàng vì hàng giữ của nó đã được phân bổ lại cho đơn khác. */
+const HOLD_BACKFILL_TAB = "HOLD_BACKFILL";
+/**
+ * Đơn lẻ lưu xong nằm ở nháp (số tạm N…) cho Sale gom/gộp các "Đơn 1, 2, 3…" của khách,
+ * rồi mới gửi duyệt. Chỉ người nhập/gửi đơn thấy tab này.
+ */
+const DRAFT_TAB = "DRAFT";
+/** Gửi duyệt hàng loạt theo từng lượt nhỏ để có tiến độ và không giữ request quá lâu. */
+const SUBMIT_CHUNK = 20;
+
+/** Số thứ tự trong số nháp "N123" — để gửi duyệt đúng thứ tự Sale nhập. */
+const draftSeq = (order: SalesOrder) => Number((order.draftNo ?? "").replace(/\D/g, "")) || 0;
+
+type SubmitProgress = {
+  done: number;
+  total: number;
+  submitted: number;
+  failures: Array<{ orderNo: string; message: string }>;
+  running: boolean;
+};
 
 /**
  * Nút "Tạo đơn bán" mở form modal — trùng vai trò với "Thêm đơn" ngay trên bảng nhập,
@@ -90,9 +125,11 @@ const APPROVED_STATUSES: SalesOrderStatus[] = [
 const TAB_DEFS: Array<{ key: string; label: string; statuses?: SalesOrderStatus[] }> = [
   { key: RETAIL_ENTRY_TAB, label: "Đơn lẻ" },
   { key: LOT_ENTRY_TAB, label: "Đơn lô" },
+  { key: DRAFT_TAB, label: "Nháp", statuses: ["DRAFT"] },
   { key: "PENDING_REVIEW", label: "Chờ duyệt", statuses: ["PENDING_REVIEW"] },
   { key: "APPROVED", label: "Đơn đã duyệt", statuses: APPROVED_STATUSES },
   { key: "REJECTED", label: "Đơn từ chối", statuses: ["REJECTED"] },
+  { key: HOLD_BACKFILL_TAB, label: "Bán vượt" },
   { key: ALL_TAB, label: "Tất cả" },
 ];
 
@@ -165,6 +202,21 @@ const EXPAND_COL_WIDTH = 34;
 
 /** Danh sách đơn bán nội bộ — màn hình Sale dùng hằng ngày. */
 export default function SalesOrdersPage() {
+  const isMobile = useIsMobile();
+  const draftCache = useRef<QuickEntryDraftCache>({});
+  const [draftStatus, setDraftStatus] = useState<Record<QuickEntryMode, { dirty: boolean; busy: boolean }>>({ RETAIL: { dirty: false, busy: false }, LOT: { dirty: false, busy: false } });
+  const onDraftChange = useCallback((mode: QuickEntryMode, dirty: boolean, busy: boolean) => {
+    setDraftStatus((previous) => previous[mode].dirty === dirty && previous[mode].busy === busy ? previous : { ...previous, [mode]: { dirty, busy } });
+  }, []);
+  const draftDirty = draftStatus.RETAIL.dirty || draftStatus.LOT.dirty;
+  const draftBusy = draftStatus.RETAIL.busy || draftStatus.LOT.busy;
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => (draftDirty || draftBusy) && currentLocation.pathname !== nextLocation.pathname);
+  useEffect(() => {
+    if (!draftDirty && !draftBusy) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [draftDirty, draftBusy]);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState(searchParams.get("tab") ?? RETAIL_ENTRY_TAB);
@@ -193,6 +245,25 @@ export default function SalesOrdersPage() {
   const cancelMutation = useCancelSalesOrder();
   const removingId =
     deleteMutation.isPending || cancelMutation.isPending ? removeTarget?.id : undefined;
+
+  const { can } = useCan();
+  /** Tab Nháp chỉ dành cho người nhập/gửi đơn — tài khoản có quyền nào thì thấy. */
+  const canSeeDrafts = can(PERMS.SALES_CREATE) || can(PERMS.SALES_SUBMIT);
+  const canRegroup = can(PERMS.SALES_UPDATE);
+  const canSubmit = can(PERMS.SALES_SUBMIT);
+  const queryClient = useQueryClient();
+  const mergeMutation = useMergeSalesOrders();
+  const splitMutation = useSplitSalesOrder();
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [splitTarget, setSplitTarget] = useState<SalesOrder>();
+  const [splitLineIds, setSplitLineIds] = useState<string[]>([]);
+  const [submitProgress, setSubmitProgress] = useState<SubmitProgress>();
+  const submitLock = useRef(false);
+  /**
+   * Đơn đã chọn có thể nằm ở trang khác (bảng giữ lựa chọn khi chuyển trang), nên nhớ
+   * lại mọi đơn đã thấy để gộp/gửi duyệt vẫn có đủ dữ liệu của chúng.
+   */
+  const seenOrders = useRef(new Map<string, SalesOrder>());
 
   const closeRemove = () => {
     setRemoveTarget(undefined);
@@ -229,12 +300,18 @@ export default function SalesOrdersPage() {
     limit: 1,
   });
 
+  const holdBackfillQuery = useHoldReallocations({});
+  const holdBackfillCount = holdBackfillQuery.data?.items.length ?? 0;
+
   /** Tab đếm theo trạng thái nó gom, riêng "Tất cả" lấy tổng. */
   const tabItems = useMemo(() => {
     const byStatus = countsQuery.data?.byStatus ?? {};
     const total = countsQuery.data?.total ?? 0;
-    return TAB_DEFS.map((item) => {
+    return TAB_DEFS.filter((item) => item.key !== DRAFT_TAB || canSeeDrafts).map((item) => {
       if (ENTRY_TABS.includes(item.key)) return { key: item.key, label: item.label };
+      if (item.key === HOLD_BACKFILL_TAB) {
+        return { key: item.key, label: `${item.label} (${holdBackfillCount})` };
+      }
       let count = item.statuses
         ? item.statuses.reduce((sum, status) => sum + (byStatus[status] ?? 0), 0)
         : total;
@@ -243,7 +320,7 @@ export default function SalesOrdersPage() {
       }
       return { key: item.key, label: `${item.label} (${count})` };
     });
-  }, [countsQuery.data, pendingWithdrawalsQuery.data?.total]);
+  }, [countsQuery.data, pendingWithdrawalsQuery.data?.total, holdBackfillCount, canSeeDrafts]);
 
   const query = useInternalSalesOrders({
     keyword: keyword.trim() || undefined,
@@ -257,6 +334,100 @@ export default function SalesOrdersPage() {
   });
 
   const items = query.data?.items ?? [];
+  for (const order of items) seenOrders.current.set(order.id, order);
+  const selectedOrders = selectedIds
+    .map((id) => seenOrders.current.get(id))
+    .filter((order): order is SalesOrder => Boolean(order));
+  const selectedDrafts = selectedOrders.filter((order) => order.status === "DRAFT");
+
+  /** Lý do chưa gộp được — kiểm tra sớm ở màn hình; backend vẫn kiểm tra lại đầy đủ. */
+  const mergeProblem = (() => {
+    if (selectedDrafts.length < 2) return "Chọn ít nhất 2 đơn nháp để gộp.";
+    if (selectedDrafts.length !== selectedOrders.length)
+      return "Chỉ gộp được đơn nháp — bỏ chọn các đơn không phải nháp.";
+    if (selectedDrafts.some((order) => order.kind === "LOT")) return "Đơn lô không gộp.";
+    if (new Set(selectedDrafts.map((order) => order.customer.id)).size > 1)
+      return "Các đơn khác khách hàng — không gộp được.";
+    if (new Set(selectedDrafts.map((order) => order.orderDate.slice(0, 10))).size > 1)
+      return "Các đơn khác ngày — không gộp được.";
+    if (new Set(selectedDrafts.map((order) => order.kind)).size > 1)
+      return "Các đơn khác loại (lấy 1 lần / đối ứng) — không gộp được.";
+    return null;
+  })();
+  /** Đơn giữ lại sau gộp: đơn đã có số BH (kéo về nháp) trước, rồi đơn tạo sớm nhất. */
+  const mergeTarget = [...selectedDrafts].sort((a, b) => {
+    const stillDraftNumbered = (order: SalesOrder) =>
+      order.draftNo && order.orderNo === order.draftNo ? 1 : 0;
+    return stillDraftNumbered(a) - stillDraftNumbered(b) || draftSeq(a) - draftSeq(b);
+  })[0];
+
+  const refreshOrders = () => {
+    queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+    queryClient.invalidateQueries({ queryKey: ["salesApprovals"] });
+  };
+
+  /**
+   * Gửi duyệt theo từng lượt nhỏ, đúng thứ tự ngày đơn rồi số nháp để số BH cấp ra theo
+   * thứ tự Sale nhập. Đơn vướng thì nằm lại nháp — gom lý do để báo một lần cuối lượt.
+   */
+  const submitDrafts = async (orders: SalesOrder[]) => {
+    if (submitLock.current || !orders.length) return;
+    submitLock.current = true;
+    const sorted = [...orders].sort(
+      (a, b) => a.orderDate.localeCompare(b.orderDate) || draftSeq(a) - draftSeq(b),
+    );
+    const failures: SubmitProgress["failures"] = [];
+    let submitted = 0;
+    setSubmitProgress({ done: 0, total: sorted.length, submitted, failures, running: true });
+    try {
+      for (let start = 0; start < sorted.length; start += SUBMIT_CHUNK) {
+        const chunk = sorted.slice(start, start + SUBMIT_CHUNK);
+        try {
+          const result = await InternalSalesApi.submitBatch(chunk.map((order) => order.id));
+          submitted += result.submitted;
+          for (const row of result.results) {
+            if (!row.ok) failures.push({ orderNo: row.draftNo, message: row.message ?? "Chưa gửi duyệt được" });
+          }
+        } catch (error) {
+          const message = extractApiError(error).message || "Không gửi được lượt này";
+          for (const order of chunk) failures.push({ orderNo: order.orderNo, message });
+        }
+        setSubmitProgress({
+          done: Math.min(start + SUBMIT_CHUNK, sorted.length),
+          total: sorted.length,
+          submitted,
+          failures: [...failures],
+          running: true,
+        });
+      }
+    } finally {
+      setSubmitProgress((previous) => previous && { ...previous, running: false });
+      submitLock.current = false;
+      setSelectedIds([]);
+      refreshOrders();
+      countsQuery.refetch();
+    }
+  };
+
+  const confirmMerge = async () => {
+    await mergeMutation.mutateAsync(selectedDrafts.map((order) => order.id));
+    setMergeOpen(false);
+    setSelectedIds([]);
+    countsQuery.refetch();
+  };
+
+  const openSplit = (order: SalesOrder) => {
+    setSplitTarget(order);
+    setSplitLineIds([]);
+  };
+
+  const confirmSplit = async () => {
+    if (!splitTarget) return;
+    await splitMutation.mutateAsync({ id: splitTarget.id, lineIds: splitLineIds });
+    setSplitTarget(undefined);
+    setSplitLineIds([]);
+    countsQuery.refetch();
+  };
 
   /**
    * Ô neo nằm cuối thanh tab. Tab đang mở nhả cụm tìm kiếm + bộ lọc của mình vào đây
@@ -265,6 +436,7 @@ export default function SalesOrdersPage() {
   const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
 
   const changeTab = (next: string) => {
+    if (draftBusy) { notify.warning("Chờ xử lý đơn hiện tại xong rồi chuyển tab."); return; }
     setTab(next);
     setStatus(undefined);
     setPage(1);
@@ -417,14 +589,35 @@ export default function SalesOrdersPage() {
       fixed: "left",
       // Số đơn gắn kèm mã khách nên có thể rất dài; cắt gọn để không tràn sang cột bên.
       render: (value: string, order) => (
-        <Tooltip title={value}>
-          <Button
-            type="link"
-            className="sales-grid-link sales-grid-clip"
-            onClick={() => navigate(`/sales/orders/${order.id}`)}
-          >
-            {value}
-          </Button>
+        <Tooltip
+          title={
+            order.mergedInto
+              ? `${value} — đã gộp vào ${order.mergedInto.orderNo}`
+              : order.draftNo && order.draftNo !== value
+                ? `${value} (nháp ${order.draftNo})`
+                : value
+          }
+        >
+          {order.mergedInto ? (
+            <div className="sales-grid-stack">
+              <Button
+                type="link"
+                className="sales-grid-link sales-grid-clip"
+                onClick={() => navigate(`/sales/orders/${order.id}`)}
+              >
+                {value}
+              </Button>
+              <div className="sales-grid-clip sales-grid-sub">→ {order.mergedInto.orderNo}</div>
+            </div>
+          ) : (
+            <Button
+              type="link"
+              className="sales-grid-link sales-grid-clip"
+              onClick={() => navigate(`/sales/orders/${order.id}`)}
+            >
+              {value}
+            </Button>
+          )}
         </Tooltip>
       ),
     },
@@ -555,8 +748,16 @@ export default function SalesOrdersPage() {
       render: (_, order) => {
         const removal = removalOf(order);
         const editable = EDITABLE_STATUSES.includes(order.status);
+        const isDraft = order.status === "DRAFT";
+        const splittable = isDraft && canRegroup && order.kind !== "LOT" && order.lines.length > 1;
         const items: MenuProps["items"] = [
           { key: "detail", icon: <EyeOutlined />, label: "Xem chi tiết" },
+          ...(isDraft && canSubmit
+            ? [{ key: "submit", icon: <SendOutlined />, label: "Gửi duyệt" }]
+            : []),
+          ...(splittable
+            ? [{ key: "split", icon: <SplitCellsOutlined />, label: "Tách đơn" }]
+            : []),
           ...(editable
             ? [
                 { type: "divider" as const },
@@ -580,6 +781,8 @@ export default function SalesOrdersPage() {
                 onClick: ({ key, domEvent }) => {
                   domEvent.stopPropagation();
                   if (key === "detail") navigate(`/sales/orders/${order.id}`);
+                  if (key === "submit") void submitDrafts([order]);
+                  if (key === "split") openSplit(order);
                   if (key === "edit") setEditOrder(order);
                   if (key === "remove") setRemoveTarget(order);
                 },
@@ -628,6 +831,27 @@ export default function SalesOrdersPage() {
       key: "warehouse",
       width: 170,
       render: (_, line) => warehouseScopeName(line) ?? <span className="sales-grid-empty">—</span>,
+    },
+    {
+      // Đơn gộp từ "Đơn 1, 2, 3…" của khách: mỗi dòng là một xe, kho xuất theo từng xe.
+      title: "Xe / lái xe",
+      key: "truck",
+      width: 150,
+      render: (_, line) =>
+        line.vehiclePlate || line.driverName ? (
+          <div className="sales-grid-stack">
+            <div className="sales-grid-clip">{line.vehiclePlate ?? "—"}</div>
+            {line.driverName ? <div className="sales-grid-clip sales-grid-sub">{line.driverName}</div> : null}
+          </div>
+        ) : (
+          <span className="sales-grid-empty">—</span>
+        ),
+    },
+    {
+      title: "Đơn KH",
+      dataIndex: "customerOrderRef",
+      width: 70,
+      render: (value?: string | null) => value ?? <span className="sales-grid-empty">—</span>,
     },
     {
       title: "Số lượng",
@@ -680,7 +904,7 @@ export default function SalesOrdersPage() {
 
   return (
     <div className="sales-orders-page" style={{ padding: 10 }}>
-      <div
+      {!isMobile && <div
         className="sales-orders-page-header"
         style={{
           display: "flex",
@@ -709,21 +933,28 @@ export default function SalesOrdersPage() {
             </PermissionGate>
           </Space>
         ) : null}
-      </div>
+      </div>}
 
       <div className="sales-orders-tabs">
-        <Tabs
+        {isMobile ? <>
+          <Select size="small" aria-label="Chọn chức năng đơn bán" style={{ width: "100%", marginBottom: 8 }} value={tab} onChange={changeTab}
+            options={[
+              { label: "Nhập đơn", options: tabItems.filter((item) => ENTRY_TABS.includes(item.key)).map((item) => ({ value: item.key, label: item.label })) },
+              { label: "Theo dõi đơn", options: tabItems.filter((item) => !ENTRY_TABS.includes(item.key)).map((item) => ({ value: item.key, label: item.label })) },
+            ]} />
+          {!ENTRY_TABS.includes(tab) ? <div className="sales-orders-tabs-extra" ref={setToolbarSlot} style={{ flexWrap: "wrap" }} /> : null}
+        </> : <Tabs
           activeKey={tab}
           items={tabItems}
           onChange={changeTab}
           tabBarExtraContent={{
             right: <div className="sales-orders-tabs-extra" ref={setToolbarSlot} />,
           }}
-        />
+        />}
       </div>
 
       {/* Tab nhập nhanh không có gì để lọc; tab chờ duyệt tự nhả thanh lọc của nó. */}
-      {toolbarSlot && !ENTRY_TABS.includes(tab) && tab !== "PENDING_REVIEW"
+      {toolbarSlot && !ENTRY_TABS.includes(tab) && tab !== "PENDING_REVIEW" && tab !== HOLD_BACKFILL_TAB
         ? createPortal(listToolbar, toolbarSlot)
         : null}
 
@@ -731,16 +962,22 @@ export default function SalesOrdersPage() {
         <QuickEntryPanel
           key={tab}
           mode={tab === LOT_ENTRY_TAB ? "LOT" : "RETAIL"}
+          draftCache={draftCache}
+          onDraftChange={onDraftChange}
           onSaved={() => query.refetch()}
         />
       ) : null}
 
       {tab === "PENDING_REVIEW" ? <ApprovalQueue embedded toolbarSlot={toolbarSlot} /> : null}
 
+      {tab === HOLD_BACKFILL_TAB ? <HoldReallocationsPanel /> : null}
+
       <div
         style={{
           display:
-            ENTRY_TABS.includes(tab) || tab === "PENDING_REVIEW" ? "none" : undefined,
+            ENTRY_TABS.includes(tab) || tab === "PENDING_REVIEW" || tab === HOLD_BACKFILL_TAB
+              ? "none"
+              : undefined,
         }}
       >
       <FilterTags items={filterTags} />
@@ -753,9 +990,32 @@ export default function SalesOrdersPage() {
           message={
             <Space>
               <span>Đã chọn {selectedIds.length} đơn</span>
+              {tab === DRAFT_TAB && canRegroup ? (
+                <Tooltip title={mergeProblem ?? "Gộp các đơn nháp cùng khách, cùng ngày thành một đơn"}>
+                  <Button
+                    size="small"
+                    icon={<MergeCellsOutlined />}
+                    disabled={Boolean(mergeProblem) || Boolean(submitProgress?.running)}
+                    onClick={() => setMergeOpen(true)}
+                  >
+                    Gộp {selectedDrafts.length} đơn
+                  </Button>
+                </Tooltip>
+              ) : null}
+              {tab === DRAFT_TAB && canSubmit ? (
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<SendOutlined />}
+                  disabled={!selectedDrafts.length || Boolean(submitProgress?.running)}
+                  onClick={() => void submitDrafts(selectedDrafts)}
+                >
+                  Gửi duyệt {selectedDrafts.length} đơn
+                </Button>
+              ) : null}
               <Button
                 size="small"
-                type="primary"
+                type={tab === DRAFT_TAB ? "default" : "primary"}
                 icon={<PrinterOutlined />}
                 loading={printMutation.isPending}
                 onClick={() => printMutation.mutate({ ids: selectedIds })}
@@ -809,6 +1069,13 @@ export default function SalesOrdersPage() {
       />
       </div>
 
+      <Modal open={blocker.state === "blocked"} title={draftBusy ? "Đơn đang được xử lý" : "Rời màn nhập đơn?"}
+        okText="Rời màn" cancelText="Ở lại" maskClosable={false}
+        okButtonProps={{ size: "small", danger: true, disabled: draftBusy }} cancelButtonProps={{ size: "small" }}
+        onOk={() => blocker.state === "blocked" && blocker.proceed()}
+        onCancel={() => blocker.state === "blocked" && blocker.reset()}>
+        {draftBusy ? "Chờ đọc hoặc lưu đơn hoàn tất trước khi rời màn." : "Nội dung chưa lưu sẽ mất khi rời màn. Chuyển tab trong Đơn bán vẫn giữ bản nhập."}
+      </Modal>
       <Modal
         open={printPeriodOpen}
         title="In đơn đặt hàng theo kỳ"
@@ -894,6 +1161,201 @@ export default function SalesOrdersPage() {
             placeholder="Lý do hủy (không bắt buộc)"
           />
         )}
+      </Modal>
+
+      <Modal
+        open={mergeOpen}
+        title="Gộp đơn nháp"
+        width={860}
+        okText="Gộp đơn"
+        cancelText="Đóng"
+        okButtonProps={{ size: "small", disabled: Boolean(mergeProblem) }}
+        cancelButtonProps={{ size: "small" }}
+        confirmLoading={mergeMutation.isPending}
+        onCancel={() => setMergeOpen(false)}
+        onOk={confirmMerge}
+      >
+        {mergeProblem ? (
+          <Alert type="error" showIcon message={mergeProblem} style={{ marginBottom: 8 }} />
+        ) : (
+          <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+            {selectedDrafts.length} đơn của{" "}
+            <Typography.Text strong>{mergeTarget?.customer.name}</Typography.Text> sẽ thành một đơn
+            giữ số <Typography.Text strong>{mergeTarget?.orderNo}</Typography.Text>. Các đơn còn lại
+            chuyển "Đã gộp" (không xóa). Mỗi xe vẫn giữ BKS/lái xe riêng nên kho vẫn ra lệnh xuất
+            theo từng xe; cả đơn đi một lần duyệt và một hóa đơn.
+          </Typography.Paragraph>
+        )}
+        <Table<SalesOrderLine & { fromOrderNo: string }>
+          className="sales-grid"
+          rowKey="id"
+          size="small"
+          bordered
+          pagination={false}
+          scroll={{ y: 360 }}
+          dataSource={selectedDrafts.flatMap((order) =>
+            order.lines.map((line) => ({ ...line, fromOrderNo: order.orderNo })),
+          )}
+          columns={[
+            { title: "Từ đơn", dataIndex: "fromOrderNo", width: 90 },
+            {
+              title: "Mặt hàng",
+              key: "product",
+              width: 110,
+              render: (_, line) => line.product.code ?? line.product.name,
+            },
+            {
+              title: "Số lượng",
+              key: "qty",
+              width: 100,
+              align: "right",
+              render: (_, line) => <span className="sales-grid-num">{formatQty(line.orderedActualQty)}</span>,
+            },
+            {
+              title: "Kho rút",
+              key: "warehouse",
+              width: 130,
+              render: (_, line) => warehouseScopeName(line) ?? "—",
+            },
+            {
+              title: "Xe / lái xe",
+              key: "truck",
+              width: 170,
+              render: (_, line) => [line.vehiclePlate, line.driverName].filter(Boolean).join(" · ") || "—",
+            },
+            {
+              title: "Đơn KH",
+              dataIndex: "customerOrderRef",
+              width: 70,
+              render: (value?: string | null) => value ?? "—",
+            },
+          ]}
+          summary={(rows) => (
+            <Table.Summary.Row>
+              <Table.Summary.Cell index={0} colSpan={2}>
+                <strong>Tổng</strong>
+              </Table.Summary.Cell>
+              <Table.Summary.Cell index={2} align="right">
+                <strong className="sales-grid-num">
+                  {formatQty(rows.reduce((sum, line) => sum + Number(line.orderedActualQty ?? 0), 0))}
+                </strong>
+              </Table.Summary.Cell>
+              <Table.Summary.Cell index={3} colSpan={3} />
+            </Table.Summary.Row>
+          )}
+        />
+      </Modal>
+
+      <Modal
+        open={Boolean(splitTarget)}
+        title={`Tách đơn ${splitTarget?.orderNo ?? ""}`}
+        width={760}
+        okText={`Tách ${splitLineIds.length} dòng sang đơn mới`}
+        cancelText="Đóng"
+        okButtonProps={{
+          size: "small",
+          disabled:
+            !splitLineIds.length || splitLineIds.length >= (splitTarget?.lines.length ?? 0),
+        }}
+        cancelButtonProps={{ size: "small" }}
+        confirmLoading={splitMutation.isPending}
+        onCancel={() => setSplitTarget(undefined)}
+        onOk={confirmSplit}
+      >
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+          Chọn các dòng cần tách. Các dòng này chuyển sang một đơn nháp mới (số N mới) với cùng
+          khách, ngày và điều khoản; đơn gốc phải còn ít nhất một dòng.
+        </Typography.Paragraph>
+        <Table<SalesOrderLine>
+          className="sales-grid"
+          rowKey="id"
+          size="small"
+          bordered
+          pagination={false}
+          scroll={{ y: 360 }}
+          rowSelection={{
+            selectedRowKeys: splitLineIds,
+            onChange: (keys) => setSplitLineIds(keys as string[]),
+          }}
+          dataSource={splitTarget?.lines ?? []}
+          columns={[
+            { title: "#", dataIndex: "lineNo", width: 44 },
+            {
+              title: "Mặt hàng",
+              key: "product",
+              width: 110,
+              render: (_, line) => line.product.code ?? line.product.name,
+            },
+            {
+              title: "Số lượng",
+              key: "qty",
+              width: 100,
+              align: "right",
+              render: (_, line) => <span className="sales-grid-num">{formatQty(line.orderedActualQty)}</span>,
+            },
+            {
+              title: "Kho rút",
+              key: "warehouse",
+              width: 130,
+              render: (_, line) => warehouseScopeName(line) ?? "—",
+            },
+            {
+              title: "Xe / lái xe",
+              key: "truck",
+              width: 170,
+              render: (_, line) => [line.vehiclePlate, line.driverName].filter(Boolean).join(" · ") || "—",
+            },
+            {
+              title: "Đơn KH",
+              dataIndex: "customerOrderRef",
+              width: 70,
+              render: (value?: string | null) => value ?? "—",
+            },
+          ]}
+        />
+      </Modal>
+
+      <Modal
+        open={Boolean(submitProgress)}
+        title="Gửi duyệt đơn nháp"
+        closable={!submitProgress?.running}
+        maskClosable={false}
+        footer={
+          <Button size="small" disabled={submitProgress?.running} onClick={() => setSubmitProgress(undefined)}>
+            Đóng
+          </Button>
+        }
+        onCancel={() => !submitProgress?.running && setSubmitProgress(undefined)}
+      >
+        {submitProgress ? (
+          <>
+            <Progress
+              percent={Math.round((submitProgress.done / Math.max(submitProgress.total, 1)) * 100)}
+              status={submitProgress.running ? "active" : submitProgress.failures.length ? "exception" : "success"}
+            />
+            <Typography.Paragraph style={{ marginTop: 8 }}>
+              {submitProgress.running
+                ? `Đang gửi ${submitProgress.done}/${submitProgress.total} đơn…`
+                : `Đã gửi duyệt ${submitProgress.submitted}/${submitProgress.total} đơn.`}
+            </Typography.Paragraph>
+            {submitProgress.failures.length > 0 && (
+              <Alert
+                type="warning"
+                showIcon
+                message={`${submitProgress.failures.length} đơn còn nằm ở nháp`}
+                description={
+                  <div style={{ maxHeight: 220, overflow: "auto" }}>
+                    {submitProgress.failures.map((row) => (
+                      <div key={`${row.orderNo}-${row.message}`}>
+                        <strong>{row.orderNo}</strong>: {row.message}
+                      </div>
+                    ))}
+                  </div>
+                }
+              />
+            )}
+          </>
+        ) : null}
       </Modal>
 
       <InternalSalesOrderModal

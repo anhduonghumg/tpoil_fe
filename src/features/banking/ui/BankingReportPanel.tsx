@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Alert, Button, DatePicker, Select, Table, Tag } from "antd";
 import { ArrowDownOutlined, ArrowUpOutlined, ClockCircleOutlined, DownloadOutlined, SwapOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -16,7 +16,8 @@ const REPORT_LIMIT = 1000;
 
 type AccountRow = { key: string; account: string; incoming: number; outgoing: number; count: number; pending: number };
 
-export function BankingReportPanel() {
+/* embedded: nằm trong một tab của trang báo cáo, nên bỏ khung trang và tiêu đề riêng. */
+export function BankingReportPanel({ embedded = false }: { embedded?: boolean }) {
   const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf("month"), dayjs().endOf("day")]);
   const [bankAccountId, setBankAccountId] = useState<string>();
   const accountsQuery = useBankAccountsOptions();
@@ -72,13 +73,18 @@ export function BankingReportPanel() {
   );
   const num = (value: number) => <span className="data-grid-num">{formatMoney(value)}</span>;
 
+  const exportButton = <Button size="small" icon={<DownloadOutlined />} onClick={exportCsv} disabled={!rows.length}>Xuất Excel</Button>;
+  const Shell = embedded ? React.Fragment : PageShell;
+
   return (
-    <div className="page-shell">
-      <PageHeader
-        title="Báo cáo dòng tiền"
-        subtitle="Tổng hợp tiền vào, tiền ra theo tài khoản và tình trạng đối soát trong kỳ."
-        actions={<Button size="small" icon={<DownloadOutlined />} onClick={exportCsv} disabled={!rows.length}>Xuất Excel</Button>}
-      />
+    <Shell>
+      {embedded ? null : (
+        <PageHeader
+          title="Báo cáo dòng tiền"
+          subtitle="Tổng hợp tiền vào, tiền ra theo tài khoản và tình trạng đối soát trong kỳ."
+          actions={exportButton}
+        />
+      )}
       <div className="table-filter-toolbar" style={{ marginBottom: 0 }}>
         <div className="table-filter-toolbar-left">
           <RangePicker
@@ -104,6 +110,7 @@ export function BankingReportPanel() {
             options={((accountsQuery.data ?? []) as any[]).map((item) => ({ value: item.id, label: `${accountText(item)}${item.accountName ? ` — ${item.accountName}` : ""}` }))}
           />
         </div>
+        {embedded ? <div className="table-filter-toolbar-right">{exportButton}</div> : null}
       </div>
       {total > rows.length ? (
         <Alert type="warning" showIcon message={`Kỳ này có ${total} giao dịch, báo cáo đang tính trên ${rows.length} giao dịch mới nhất. Thu hẹp khoảng ngày để số liệu đầy đủ.`} />
@@ -144,6 +151,10 @@ export function BankingReportPanel() {
           ) : null
         }
       />
-    </div>
+    </Shell>
   );
+}
+
+function PageShell({ children }: { children: React.ReactNode }) {
+  return <div className="page-shell">{children}</div>;
 }

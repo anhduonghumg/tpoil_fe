@@ -1,5 +1,6 @@
 import React from "react";
 import { Tag, Tooltip } from "antd";
+import { CheckCircleFilled, CloseCircleFilled, EditOutlined, StopOutlined, SyncOutlined } from "@ant-design/icons";
 import type {
   ReceivableStatus,
   SalesApprovalStatus,
@@ -240,6 +241,24 @@ export function InvoiceStatusTag({ status }: { status: SalesInvoiceStatus }) {
     <Tag color={INVOICE_STATUS_COLORS[status] ?? "default"} style={{ marginInlineEnd: 0 }}>
       {INVOICE_STATUS_LABELS[status] ?? status}
     </Tag>
+  );
+}
+
+const INVOICE_STATUS_ICONS: Record<SalesInvoiceStatus, React.ReactNode> = {
+  DRAFT: <EditOutlined style={{ color: "#8c8c8c" }} />,
+  PENDING_ISSUE: <SyncOutlined spin style={{ color: "#d48806" }} />,
+  ISSUED: <CheckCircleFilled style={{ color: "#52c41a" }} />,
+  ISSUE_FAILED: <CloseCircleFilled style={{ color: "#ff4d4f" }} />,
+  CANCELLED: <StopOutlined style={{ color: "#bfbfbf" }} />,
+};
+
+/** Bản gọn của InvoiceStatusTag cho cột hẹp trong bảng; tên trạng thái nằm ở tooltip. */
+export function InvoiceStatusIcon({ status }: { status: SalesInvoiceStatus }) {
+  const label = INVOICE_STATUS_LABELS[status] ?? status;
+  return (
+    <Tooltip title={label}>
+      <span role="img" aria-label={label} style={{ fontSize: 15 }}>{INVOICE_STATUS_ICONS[status] ?? label}</span>
+    </Tooltip>
   );
 }
 

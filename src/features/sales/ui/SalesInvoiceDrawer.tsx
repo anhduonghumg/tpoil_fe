@@ -1,3 +1,4 @@
+import { SalesInvoicesApi } from "../api";
 import React, { useState } from "react";
 import {
   Alert,
@@ -252,11 +253,17 @@ export function SalesInvoiceDrawer({
             />
           )}
 
+          {invoice.accountingChange ? <Alert type={invoice.accountingChange.status === "REJECTED" ? "warning" : "info"} showIcon message={invoice.accountingChange.status === "PENDING" ? "Có thay đổi chờ sale/quản lý xác nhận lại" : invoice.accountingChange.status === "CONFIRMED" ? "Thay đổi đã được xác nhận lại" : "Quản lý từ chối xác nhận thay đổi"} action={<Button size="small" onClick={() => navigate(`/sales/invoice-changes/${invoice.id}`)}>Xem trước / sau</Button>} style={{ marginBottom: 12 }} /> : null}
           <Descriptions size="small" column={2} style={{ marginBottom: 12 }}>
             <Descriptions.Item label="Trạng thái">
               <Space size={4} wrap>
                 <InvoiceStatusTag status={invoice.status} />
                 <Tag>{INVOICE_DOC_TYPE_LABELS[invoice.documentType] ?? invoice.documentType}</Tag>
+                {invoice.adjustmentDirection && (
+                  <Tag color={invoice.adjustmentDirection === "DECREASE" ? "volcano" : "blue"}>
+                    {invoice.adjustmentDirection === "DECREASE" ? "Điều chỉnh giảm" : "Điều chỉnh tăng"}
+                  </Tag>
+                )}
               </Space>
             </Descriptions.Item>
             <Descriptions.Item label="Số MISA">
@@ -278,6 +285,13 @@ export function SalesInvoiceDrawer({
                 (invoice.withdrawalRequest?.requestNo ?? "—")
               )}
             </Descriptions.Item>
+            {invoice.originalInvoice && (
+              <Descriptions.Item label="Điều chỉnh cho HĐ">
+                {invoice.originalInvoice.misaInvoiceNo ?? invoice.originalInvoice.invoiceNoInternal} —{" "}
+                {dayjs(invoice.originalInvoice.invoiceDate).format("DD/MM/YYYY")}
+                {invoice.salesOrderAdjustment ? ` · phiếu ${invoice.salesOrderAdjustment.adjustmentNo}` : ""}
+              </Descriptions.Item>
+            )}
             <Descriptions.Item label="Ngày hóa đơn">
               {dayjs(invoice.invoiceDate).format("DD/MM/YYYY")}
             </Descriptions.Item>
@@ -332,8 +346,14 @@ export function SalesInvoiceDrawer({
               <ul style={{ margin: "8px 0 0", paddingInlineStart: 18 }}>
                 {(invoice.corrections ?? []).map((correction) => (
                   <li key={correction.id}>
-                    {correction.invoiceNoInternal} —{" "}
-                    {INVOICE_DOC_TYPE_LABELS[correction.documentType] ?? correction.documentType} (
+                    {correction.misaInvoiceNo ?? correction.invoiceNoInternal} —{" "}
+                    {INVOICE_DOC_TYPE_LABELS[correction.documentType] ?? correction.documentType}
+                    {correction.adjustmentDirection === "DECREASE"
+                      ? " giảm"
+                      : correction.adjustmentDirection === "INCREASE"
+                        ? " tăng"
+                        : ""}
+                    {correction.grandTotal ? ` ${formatMoney(correction.grandTotal)}` : ""} (
                     {correction.status})
                   </li>
                 ))}
@@ -359,6 +379,7 @@ export function SalesInvoiceDrawer({
       )}
 
       <IssueInvoiceModal
+        loadMisaPreview={invoice ? () => SalesInvoicesApi.draftMisaPreview(invoice.id) : undefined}
         open={Boolean(confirmIssue)}
         invoice={invoice}
         loading={issueMutation.isPending}

@@ -56,7 +56,8 @@ export type StockCardSource = {
     | "SALES_DELIVERY"
     | "WAREHOUSE_TRANSFER"
     | "STOCK_ADJUSTMENT"
-    | "OWNERSHIP_TRANSFER";
+    | "OWNERSHIP_TRANSFER"
+    | "SALES_RETURN";
   id: string;
   no: string;
 };

@@ -1,0 +1,32 @@
+.mobile-list { background: #fff; }
+.mobile-list-row { padding: 10px 0; border-bottom: 1px solid #e5e7eb; min-width: 0; }
+.mobile-list-row:first-child { border-top: 1px solid #e5e7eb; }
+.mobile-list-row-heading { display: flex; align-items: flex-start; gap: 6px; }
+.mobile-list-row-heading strong { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; line-height: 22px; }
+.mobile-list-row-heading .ant-tag { flex-shrink: 0; margin: 2px 0 0; padding-inline: 5px; font-size: 11px; line-height: 18px; }
+.mobile-list-row-heading .ant-btn { flex-shrink: 0; color: #596579; }
+.mobile-list-row-description { display: flex; flex-wrap: wrap; gap: 0 8px; color: #6b7280; font-size: 13px; line-height: 21px; overflow-wrap: anywhere; }
+.mobile-list-row-description > span + span::before { content: "·"; margin-right: 8px; }
+.mobile-list-row-values { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 2px 0 0; font-size: 13px; line-height: 21px; }
+.mobile-list-row-values > div { display: flex; flex-wrap: wrap; gap: 0 4px; min-width: 0; }
+.mobile-list-row-values dt { color: #6b7280; }
+.mobile-list-row-values dd { margin: 0; font-weight: 600; min-width: 0; }
+.mobile-list-row .data-grid-num { white-space: normal; overflow-wrap: anywhere; }
+.mobile-list-details { max-width: min(280px, calc(100vw - 64px)); font-size: 13px; }
+.mobile-list-details dl { margin: 0; }
+.mobile-list-details dl > div + div { margin-top: 8px; }
+.mobile-list-details dt { color: #6b7280; font-size: 12px; }
+.mobile-list-details dd { margin: 0; overflow-wrap: anywhere; }
+.mobile-list-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mobile-list-footer .ant-btn { color: var(--green-dark, #059669); }
+/* Shared bordered buttons (e.g. RefreshButton) look like the text tools in the footer. */
+.mobile-list-footer .ant-btn-default { border-color: transparent; background: transparent; box-shadow: none; }
+.mobile-list-footer-total { color: var(--green-dark, #059669); font-size: 12px; white-space: nowrap; }
+.mobile-list-tool-panel { width: min(280px, calc(100vw - 56px)); }
+.mobile-list-tool-panel .ant-input-search, .mobile-list-tool-panel .ant-select { width: 100%; }
+/* iOS Safari zooms the page when a focused input is below 16px. */
+.mobile-list-tool-panel :is(input, textarea) { font-size: 16px; }
+.mobile-list-footer-pagination { display: flex; justify-content: center; margin-top: 6px; }
+.mobile-list-footer-pagination .ant-pagination { margin: 0; }
+.mobile-list-active-filters { display: flex; flex-wrap: wrap; gap: 4px; }
+.mobile-list-active-filters .ant-tag { max-width: 100%; margin: 0; white-space: normal; overflow-wrap: anywhere; }

@@ -14,6 +14,7 @@ import { uploadFile } from "../../../shared/api/uploads";
 import { notify } from "../../../shared/lib/notification";
 import "../../../shared/ui/data-grid.css";
 import { GENERAL_CATEGORY_META, GENERAL_CATEGORY_OPTIONS } from "./GeneralPaymentCreateModal";
+import { UndoReasonModal, type UndoRequest } from "./UndoReasonModal";
 import { GENERAL_REQUEST_STATUS, dateText, downloadCsv, formatMoney, stack, statusTag } from "../lib/format";
 import "../banking.css";
 
@@ -41,6 +42,7 @@ export function GeneralPaymentRequestsPanel({ view, toolbarLeft }: { view: "appr
   const [statusFilter, setStatusFilter] = useState<string>();
   const [decision, setDecision] = useState<{ row: GeneralPaymentRequest; action: DecisionAction } | null>(null);
   const [paymentRequest, setPaymentRequest] = useState<GeneralPaymentRequest | null>(null);
+  const [undo, setUndo] = useState<UndoRequest | null>(null);
   const fundingSource = Form.useWatch("fundingSource", paymentForm) ?? "OWN_BANK";
   const isDirectDisbursement = fundingSource === "DIRECT_DISBURSEMENT";
   const bankAccounts = useMemo(
@@ -190,6 +192,20 @@ export function GeneralPaymentRequestsPanel({ view, toolbarLeft }: { view: "appr
         const items = [
           ...(canApprove ? [{ key: "reject", label: "Từ chối", danger: true, icon: <CloseOutlined />, onClick: () => openDecision(row, "reject") }] : []),
           ...(canVerify ? [{ key: "return", label: "Trả lại hồ sơ", danger: true, icon: <CloseOutlined />, onClick: () => openDecision(row, "bankReturn") }] : []),
+          /* Chỉ hủy được hồ sơ chưa có lần chi nào. */
+          ...(!["PAID", "PARTIALLY_PAID", "CANCELLED"].includes(row.status) && !row.payments.length
+            ? [{
+                key: "cancel", label: "Hủy hồ sơ", danger: true, icon: <CloseOutlined />,
+                onClick: () => setUndo({
+                  title: "Hủy hồ sơ chi",
+                  description: `Hủy hồ sơ ${row.requestNo} (${formatMoney(row.amountVnd)} đ) — ${row.beneficiaryName}.`,
+                  okText: "Hủy hồ sơ",
+                  successText: "Đã hủy hồ sơ chi",
+                  route: "generalPaymentRequests.cancel",
+                  params: { id: row.id },
+                }),
+              }]
+            : []),
         ];
         return (
           <Space size={2}>
@@ -255,11 +271,33 @@ export function GeneralPaymentRequestsPanel({ view, toolbarLeft }: { view: "appr
                 { title: "Số tiền", dataIndex: "amountVnd", align: "right", width: 145, render: (value) => `${formatMoney(value)} đ` },
                 { title: "Chứng từ", width: 150, render: (_, payment: any) => payment.proofFileUrl ? <a href={payment.proofFileUrl} target="_blank" rel="noreferrer">{payment.proofFileName ?? "Mở chứng từ"}</a> : "Chưa đính kèm" },
                 { title: "Ghi chú", dataIndex: "note", render: (value) => value || "—" },
+                ...(view === "payment"
+                  ? [{
+                      title: "", key: "remove", width: 70, align: "right" as const,
+                      render: (_: unknown, payment: any) => (
+                        <Button
+                          size="small" type="link" danger style={{ padding: 0 }}
+                          onClick={() => setUndo({
+                            title: "Xóa lần chi ghi nhận sai",
+                            description: `Xóa lần chi ${formatMoney(payment.amountVnd)} đ ngày ${dateText(payment.paidAt)} của hồ sơ ${row.requestNo}. Lần chi đang ghép sao kê thì phải hủy ghép trước.`,
+                            okText: "Xóa lần chi",
+                            successText: "Đã xóa lần chi",
+                            route: "generalPaymentRequests.removePayment",
+                            params: { id: row.id, paymentId: payment.id },
+                          })}
+                        >
+                          Xóa
+                        </Button>
+                      ),
+                    }]
+                  : []),
               ]}
             />
           ),
         }}
       />
+
+      <UndoReasonModal request={undo} onClose={() => setUndo(null)} />
 
       <Modal
         className="banking-modal"

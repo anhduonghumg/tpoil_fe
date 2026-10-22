@@ -87,10 +87,13 @@ type FormValues = {
   envTaxVndPerLiter?: number;
   extraCostVndPerLiter?: number;
   fundAdjustmentVndPerLiter?: number;
+  fundAdjustmentMode?: FundAdjustmentMode;
   contractPaymentRate?: number;
   bankGuaranteeRate?: number;
   pricingNote?: string;
 };
+
+type FundAdjustmentMode = "TRICH" | "CHI";
 
 type ImportedPricingFields = Partial<
   Omit<
@@ -129,6 +132,14 @@ function cleanNumber(value?: number | string | null) {
       : raw;
   const n = Number(normalized);
   return Number.isFinite(n) ? n : undefined;
+}
+
+// Trích quỹ cộng vào đơn giá, chi quỹ trừ bớt; backend lưu giá trị có dấu.
+function signedFundAdjustment(values?: FormValues) {
+  const raw = cleanNumber(values?.fundAdjustmentVndPerLiter);
+  if (raw === undefined) return undefined;
+  const abs = Math.abs(raw);
+  return values?.fundAdjustmentMode === "CHI" ? -abs : abs;
 }
 
 function fmt(value?: number | null, digits = 0) {
@@ -216,7 +227,7 @@ function calculatePreview(values?: FormValues) {
   const fxRate = cleanNumber(values?.fxRate) ?? 0;
   const envTax = cleanNumber(values?.envTaxVndPerLiter) ?? 0;
   const extraCostAmount = cleanNumber(values?.extraCostVndPerLiter) ?? 0;
-  const fundAdjustment = cleanNumber(values?.fundAdjustmentVndPerLiter) ?? 0;
+  const fundAdjustment = signedFundAdjustment(values) ?? 0;
   const insuranceAmount = cleanNumber(values?.insuranceAmountVnd) ?? 0;
   const lossAmount = cleanNumber(values?.transportLossAmountVnd) ?? 0;
   const inspectionFeeVnd = cleanNumber(values?.inspectionFeeVnd) ?? 0;
@@ -339,7 +350,7 @@ function buildEstimatePayload(
         ? cleanNumber(values.extraCostVndPerLiter)! /
           cleanNumber(values.tankQtyLiter)!
         : undefined,
-    fundAdjustmentVndPerLiter: cleanNumber(values.fundAdjustmentVndPerLiter),
+    fundAdjustmentVndPerLiter: signedFundAdjustment(values),
     contractPaymentRate: cleanNumber(values.contractPaymentRate),
     bankGuaranteeRate: cleanNumber(values.bankGuaranteeRate),
     note: values.pricingNote?.trim() || undefined,
@@ -406,8 +417,11 @@ function buildImportedValues(
     next.envTaxVndPerLiter = fields.envTaxVndPerLiter;
   if (fields.extraCostVndPerLiter !== undefined)
     next.extraCostVndPerLiter = fields.extraCostVndPerLiter;
-  if (fields.fundAdjustmentVndPerLiter !== undefined)
-    next.fundAdjustmentVndPerLiter = fields.fundAdjustmentVndPerLiter;
+  if (fields.fundAdjustmentVndPerLiter !== undefined) {
+    next.fundAdjustmentVndPerLiter = Math.abs(fields.fundAdjustmentVndPerLiter);
+    next.fundAdjustmentMode =
+      fields.fundAdjustmentVndPerLiter < 0 ? "CHI" : "TRICH";
+  }
   if (fields.contractPaymentRate !== undefined)
     next.contractPaymentRate = fields.contractPaymentRate;
   if (fields.bankGuaranteeRate !== undefined)
@@ -770,6 +784,7 @@ export default function TermPurchaseOrderCreatePage() {
     storageFeeVnd: 0,
     transportDeductionVnd: 0,
     fundAdjustmentVndPerLiter: 0,
+    fundAdjustmentMode: "TRICH",
     contractPaymentRate: 100,
     bankGuaranteeRate: 0,
     transportMode: "PIPELINE",
@@ -784,7 +799,10 @@ export default function TermPurchaseOrderCreatePage() {
     ],
   };
 
-  const onFinish = async (values: FormValues) => {
+  const onFinish = async (submitted: FormValues) => {
+    // onFinish chỉ trả các ô đang hiển thị; gộp cả giá trị của ô đang thu gọn (chi phí BILL, bảo hiểm/giám
+    // định nhập ở phần thuê tàu) để bảng tạm không bị mất số.
+    const values: FormValues = { ...(form.getFieldsValue(true) as FormValues), ...submitted };
     if (contractValidation?.valid === false) {
       notify.error(
         contractValidation.message ||
@@ -1049,6 +1067,29 @@ export default function TermPurchaseOrderCreatePage() {
                       ) : null}
                     </Space.Compact>
                   </SheetRow>
+
+                  {/* Thuê tàu: mua hàng dự tính tiền bảo hiểm và giám định ngay khi tạo đơn. Hai ô này dùng chung
+                      số với dòng tương ứng của bảng tạm và được báo cho vận hành khi lưu. */}
+                  {transportMode === "SEA" && watched?.charterVessel ? (
+                    <>
+                      <SheetRow label="Tiền bảo hiểm hàng hóa" unit="VND">
+                        <InputNumber
+                          min={0}
+                          style={{ width: "100%" }}
+                          value={watched?.insuranceAmountVnd}
+                          onChange={(value) => form.setFieldValue("insuranceAmountVnd", value ?? 0)}
+                        />
+                      </SheetRow>
+                      <SheetRow label="Tiền giám định" unit="VND">
+                        <InputNumber
+                          min={0}
+                          style={{ width: "100%" }}
+                          value={watched?.inspectionFeeVnd}
+                          onChange={(value) => form.setFieldValue("inspectionFeeVnd", value ?? 0)}
+                        />
+                      </SheetRow>
+                    </>
+                  ) : null}
 
                   <SheetRow label="Kho đến">
                     <Form.Item name="supplierLocationId" noStyle>
@@ -1409,7 +1450,31 @@ export default function TermPurchaseOrderCreatePage() {
                     </Form.Item>
                   </SheetRow>
 
-                  <SheetRow label="Trích/chi quỹ" unit="VND/lít">
+                  <SheetRow
+                    label={
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                        }}
+                      >
+                        <span>Trích/chi quỹ</span>
+                        <Form.Item name="fundAdjustmentMode" noStyle>
+                          <Select
+                            size="small"
+                            style={{ width: 90 }}
+                            options={[
+                              { value: "TRICH", label: "Trích (+)" },
+                              { value: "CHI", label: "Chi (−)" },
+                            ]}
+                          />
+                        </Form.Item>
+                      </div>
+                    }
+                    unit="VND/lít"
+                  >
                     <div
                       style={{
                         display: "grid",

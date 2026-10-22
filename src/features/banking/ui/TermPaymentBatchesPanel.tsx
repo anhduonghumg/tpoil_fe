@@ -16,7 +16,7 @@ import {
   Upload,
   message,
 } from "antd";
-import { CheckOutlined, EyeOutlined, LinkOutlined, MoreOutlined, PlusOutlined, SendOutlined, UploadOutlined } from "@ant-design/icons";
+import { CheckOutlined, EyeOutlined, LinkOutlined, MoreOutlined, PlusOutlined, SendOutlined, StopOutlined, UploadOutlined } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import "../../../shared/ui/data-grid.css";
@@ -31,6 +31,7 @@ import { BankingApi } from "../api";
 import {
   bankingKeys,
   useBankTransactions,
+  useBankingUndo,
   useConfirmTermPaymentBatchItemPaid,
   useCreateTermPaymentBatch,
   useMatchTermPaymentBatchItem,
@@ -148,6 +149,7 @@ export function TermPaymentBatchesPanel({ toolbarLeft }: { toolbarLeft?: React.R
   const sendBatch = useSendTermPaymentBatch();
   const matchItem = useMatchTermPaymentBatchItem(activeBatchId);
   const confirmPaid = useConfirmTermPaymentBatchItemPaid(activeBatchId);
+  const undo = useBankingUndo();
 
   const pendingRows = Array.isArray(pendingQuery.data)
     ? pendingQuery.data
@@ -168,14 +170,21 @@ export function TermPaymentBatchesPanel({ toolbarLeft }: { toolbarLeft?: React.R
       : [];
 
   const createSelectedBatch = () => {
-    const ids = selectedRequestIds.map(String);
-    if (!ids.length) {
-      message.warning("Chọn ít nhất một đề nghị thanh toán.");
+    const selected = pendingRows.filter((row) => selectedRequestIds.includes(row.id));
+    if (!selected.length) {
+      message.warning("Chọn ít nhất một khoản cần chi.");
+      return;
+    }
+    /* Một bảng kê gửi một ngân hàng: các đợt trong đó phải chi từ cùng một tài khoản công ty. */
+    const accounts = new Set(selected.map((row) => row.bankAccount?.id).filter(Boolean));
+    if (accounts.size > 1) {
+      message.warning("Các đợt đã chọn chi từ nhiều tài khoản khác nhau. Mỗi bảng kê chỉ gồm các đợt cùng một tài khoản chuyển.");
       return;
     }
     createBatch.mutate(
       {
-        paymentRequestIds: ids,
+        planLineIds: selected.filter((row) => row.kind === "LINE").map((row) => row.id),
+        paymentRequestIds: selected.filter((row) => row.kind !== "LINE").map((row) => row.id),
         batchDate: batchDate.format("YYYY-MM-DD"),
       },
       {
@@ -290,13 +299,40 @@ export function TermPaymentBatchesPanel({ toolbarLeft }: { toolbarLeft?: React.R
         </div>
       ),
     },
-    { title: "Nhà cung cấp", dataIndex: "supplierName", width: 230, render: (v) => <span className="data-grid-clip data-grid-strong">{v || "—"}</span> },
+    { title: "Nhà cung cấp", dataIndex: "supplierName", width: 210, render: (v) => <span className="data-grid-clip data-grid-strong">{v || "—"}</span> },
+    {
+      /* Đề nghị có kế hoạch thanh toán hiện theo từng đợt; đề nghị kiểu cũ là cả đề nghị. */
+      title: "Đợt",
+      width: 120,
+      render: (_, row) =>
+        row.kind === "LINE" ? (
+          <div className="data-grid-stack">
+            <span className="data-grid-clip data-grid-strong">Đợt {row.lineNo}/{row.lineCount}</span>
+            <span className="data-grid-clip data-grid-sub">{dateText(row.plannedDate)} · {row.method === "DISBURSEMENT" ? "Giải ngân" : "Chuyển khoản"}</span>
+          </div>
+        ) : (
+          <span className="data-grid-sub">Cả đề nghị</span>
+        ),
+    },
     {
       title: "Số tiền",
       dataIndex: "amountVnd",
       align: "right",
       width: 140,
       render: (v) => <span className="data-grid-num data-grid-strong">{money(v)}</span>,
+    },
+    {
+      title: "Chuyển từ → đến",
+      width: 250,
+      render: (_, row) =>
+        row.kind === "LINE" ? (
+          <div className="data-grid-stack">
+            <span className="data-grid-clip">{row.bankAccount ? `${row.bankAccount.bankCode} · ${row.bankAccount.accountNo}` : "—"}</span>
+            <span className="data-grid-clip data-grid-sub">→ {row.beneficiaryBankName ?? ""} · {row.beneficiaryAccountNo ?? ""}</span>
+          </div>
+        ) : (
+          "—"
+        ),
     },
     { title: "Hạn TT", dataIndex: "paymentDeadline", width: 95, render: dateText },
     {
@@ -426,7 +462,29 @@ export function TermPaymentBatchesPanel({ toolbarLeft }: { toolbarLeft?: React.R
               ),
             }]
             : []),
+          /* Hủy được khi chưa dòng nào ghép sao kê / đã chi; các đợt quay lại danh sách chờ lập bảng kê. */
+          ...(row.status !== "CANCELLED" && !(row.items ?? []).some((item) => item.bankTransactionId || item.status === "PAID" || item.status === "PARTIALLY_PAID")
+            ? [{
+              key: "cancel",
+              icon: <StopOutlined />,
+              danger: true,
+              label: "Hủy bảng kê",
+              onClick: () =>
+                Modal.confirm({
+                  title: `Hủy bảng kê ${row.batchNo}?`,
+                  content: "Các đợt trong bảng kê quay lại danh sách chờ lập bảng kê.",
+                  okText: "Hủy bảng kê",
+                  okButtonProps: { danger: true },
+                  cancelText: "Đóng",
+                  onOk: async () => {
+                    await undo.mutateAsync({ route: "banking.cancelTermPaymentBatch", params: { id: row.id } });
+                    message.success("Đã hủy bảng kê");
+                  },
+                }),
+            }]
+            : []),
         ];
+        if (row.status === "CANCELLED") return <Tag>Đã hủy</Tag>;
         return (
           <Space size={2}>
             {primary}
@@ -523,6 +581,30 @@ export function TermPaymentBatchesPanel({ toolbarLeft }: { toolbarLeft?: React.R
             >
               Xác nhận đã thanh toán
             </Button>
+            {/* Ghép nhầm dòng sao kê hoặc xác nhận nhầm: trả dòng sao kê về hàng đợi, dòng bảng kê về chưa chi. */}
+            {row.status !== "CANCELLED" && (row.bankTransactionId || row.status === "PAID" || row.status === "PARTIALLY_PAID") ? (
+              <Button
+                size="small"
+                type="link"
+                danger
+                style={{ padding: 0 }}
+                onClick={() =>
+                  Modal.confirm({
+                    title: "Gỡ ghép sao kê của dòng này?",
+                    content: "Dòng sao kê quay lại hàng đợi chưa ghép; dòng bảng kê và đợt thanh toán quay về chưa chi.",
+                    okText: "Gỡ ghép",
+                    okButtonProps: { danger: true },
+                    cancelText: "Đóng",
+                    onOk: async () => {
+                      await undo.mutateAsync({ route: "banking.unmatchTermPaymentBatchItem", params: { id: row.batchId, itemId: row.id } });
+                      message.success("Đã gỡ ghép sao kê");
+                    },
+                  })
+                }
+              >
+                Gỡ ghép
+              </Button>
+            ) : null}
           </Space>
         );
       },
@@ -621,15 +703,15 @@ export function TermPaymentBatchesPanel({ toolbarLeft }: { toolbarLeft?: React.R
       ) : null}
       {!pendingQuery.isLoading && !pendingRows.length ? (
         <div className="banking-section banking-hint">
-          Không có đề nghị mua TERM nào chờ lập bảng kê. Đề nghị thanh toán mới từ phân hệ Mua TERM sẽ hiện ở đây để gộp vào bảng kê gửi ngân hàng.
+          Không có khoản mua TERM nào chờ lập bảng kê. Sau khi giám đốc duyệt đề nghị kèm kế hoạch thanh toán, từng đợt của kế hoạch sẽ hiện ở đây để gộp vào bảng kê gửi ngân hàng.
         </div>
       ) : (
       <BankingSection
-        title="Đề nghị chờ lập bảng kê"
+        title="Các đợt chờ lập bảng kê"
         hint={
           selectedRequestIds.length
-            ? `Đã chọn ${selectedRequestIds.length} đề nghị · ${money(selectedTotal)} đ`
-            : `${pendingRows.length} đề nghị — tick chọn rồi bấm Tạo bảng kê`
+            ? `Đã chọn ${selectedRequestIds.length} khoản · ${money(selectedTotal)} đ`
+            : `${pendingRows.length} khoản — tick chọn các đợt cùng tài khoản chuyển rồi bấm Tạo bảng kê`
         }
         extra={
           <Space size={6}>
@@ -665,7 +747,7 @@ export function TermPaymentBatchesPanel({ toolbarLeft }: { toolbarLeft?: React.R
             selectedRowKeys: selectedRequestIds,
             onChange: setSelectedRequestIds,
           }}
-          scroll={{ x: 950, y: 320 }}
+          scroll={{ x: 1250, y: 320 }}
         />
       </BankingSection>
       )}

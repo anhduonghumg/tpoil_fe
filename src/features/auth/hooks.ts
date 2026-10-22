@@ -37,3 +37,32 @@ export const useLogin = () =>
 
 export const useLogout = () =>
   useMutation({ mutationFn: AuthApi.logout, retry: 0 });
+
+
+const PROFILE_KEY = ["auth", "profile"] as const;
+
+export function useProfile() {
+  return useQuery({
+    queryKey: PROFILE_KEY,
+    queryFn: AuthApi.me,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+export function useUpdateOwnProfile() {
+  const client = useQueryClient();
+  const primeUser = usePrimeUser();
+  return useMutation({
+    mutationFn: AuthApi.updateProfile,
+    onSuccess: (user) => {
+      primeUser(user);
+      client.setQueryData(PROFILE_KEY, user);
+    },
+  });
+}
+
+export function useChangeOwnPassword() {
+  return useMutation({ mutationFn: AuthApi.changePassword, retry: false, gcTime: 0 });
+}

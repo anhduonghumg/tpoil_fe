@@ -1,0 +1,7 @@
+.term-orders-grid .ant-table table { width: 100%; table-layout: fixed; }
+.term-orders-grid .ant-table-thead > tr > th { white-space: normal; overflow-wrap: anywhere; }
+.term-orders-grid .ant-tag { max-width: 100%; margin-inline-end: 0; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.term-orders-grid .page-cell-link { max-width: 100%; padding-inline: 0; }
+.term-orders-grid .ant-table-selection-column { padding-inline: 2px !important; }
+.term-orders-grid .ant-table-cell:last-child { padding-inline: 2px !important; }
+.term-orders-grid .ant-table-pagination { flex-wrap: wrap; row-gap: 8px; }

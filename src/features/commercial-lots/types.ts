@@ -149,7 +149,7 @@ export type CommercialLotPurchase = {
     requestNo: string;
     requestDate: string;
     amountVnd: string;
-    status: "DRAFT" | "PENDING_DIRECTOR_APPROVAL" | "DIRECTOR_REJECTED" | "SUBMITTED" | "BANK_VERIFIED" | "BANK_RETURNED" | "IN_BATCH" | "SENT_TO_BANK" | "PAID" | "PARTIALLY_PAID" | "CANCELLED";
+    status: "DRAFT" | "PENDING_BANK_PLAN" | "PENDING_DIRECTOR_APPROVAL" | "APPROVED" | "DIRECTOR_REJECTED" | "SUBMITTED" | "BANK_VERIFIED" | "BANK_RETURNED" | "IN_BATCH" | "SENT_TO_BANK" | "PAID" | "PARTIALLY_PAID" | "CANCELLED";
     beneficiaryAccountNo?: string | null;
     beneficiaryAccountName?: string | null;
     approvalNote?: string | null;

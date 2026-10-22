@@ -15,6 +15,7 @@ export type WorkspaceMenuItem = {
   label: string;
   icon?: ReactNode | string | null;
   need?: string | string[] | null;
+  needAny?: string[];
   /** "group" dựng tiêu đề mục (I. TỔNG QUAN, II. KHAI BÁO...), không bấm được. */
   type?: "group";
   children?: WorkspaceMenuItem[];

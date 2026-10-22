@@ -2,7 +2,7 @@ import type { AxiosError, AxiosInstance } from "axios";
 import { Modal } from "antd";
 import { QueryClient } from "@tanstack/react-query";
 import { AuthApi } from "../../features/auth/api";
-import { saveUserToCache } from "../../features/auth/session";
+import { clearUserCache, saveUserToCache } from "../../features/auth/session";
 
 let handled = false;
 
@@ -14,6 +14,15 @@ let handled = false;
  */
 let loggingOut = false;
 
+/**
+ * Tab này đã thực sự vào được hệ thống chưa (auth.me + bootstrap đều OK).
+ * Chưa vào được mà gặp 401 thì chỉ là "chưa đăng nhập" / cookie cũ đã chết từ trước —
+ * đưa thẳng về màn login, không bật hộp thoại "hết phiên" gây khó chịu.
+ */
+let sessionConfirmed = false;
+
+const AUTH_ERROR_CODES = new Set(["SESSION_EXPIRED", "NOT_AUTHENTICATED"]);
+
 const BC =
   typeof BroadcastChannel !== "undefined"
     ? new BroadcastChannel("erp-auth")
@@ -21,10 +30,15 @@ const BC =
 
 export function beginIntentionalLogout() {
   loggingOut = true;
+  sessionConfirmed = false;
 }
 
 export function endIntentionalLogout() {
   loggingOut = false;
+}
+
+export function markSessionConfirmed() {
+  sessionConfirmed = true;
 }
 
 /** Đang ở màn đăng nhập thì báo "hết phiên" là thừa — người dùng đã ở đúng chỗ rồi. */
@@ -36,16 +50,32 @@ function shouldStaySilent() {
   return loggingOut || onLoginScreen();
 }
 
+let redirecting = false;
+
+/** Về màn login ngay, nhớ trang đang mở để đăng nhập xong quay lại đúng chỗ. */
+function redirectToLogin() {
+  if (redirecting) return;
+  redirecting = true;
+  clearUserCache();
+  const { pathname, search } = window.location;
+  const current = `${pathname}${search}`;
+  const qs =
+    current && current !== "/"
+      ? `?redirectTo=${encodeURIComponent(current)}`
+      : "";
+  window.location.replace(`/login${qs}`);
+}
+
 async function hardLogout() {
   // Bản thân lời gọi logout này cũng trả 401 vì phiên đã chết — đừng để nó bật lại hộp thoại.
   loggingOut = true;
   try {
     await AuthApi.logout();
-    const qc = new QueryClient();
-    qc.clear();
-    saveUserToCache(null as any);
-    window.location.href = "/login";
   } catch {}
+  const qc = new QueryClient();
+  qc.clear();
+  saveUserToCache(null as any);
+  window.location.href = "/login";
 }
 
 function showExpiredModal() {
@@ -69,9 +99,13 @@ export function installSessionExpiredInterceptor(http: AxiosInstance) {
     (error: AxiosError<any>) => {
       const status = error?.response?.status;
       const code = error?.response?.data?.error?.code;
-      if (status === 401 && code === "SESSION_EXPIRED" && !shouldStaySilent()) {
-        BC?.postMessage({ type: "SESSION_EXPIRED" });
-        showExpiredModal();
+      if (status === 401 && AUTH_ERROR_CODES.has(code) && !shouldStaySilent()) {
+        if (sessionConfirmed) {
+          BC?.postMessage({ type: "SESSION_EXPIRED" });
+          showExpiredModal();
+        } else {
+          redirectToLogin();
+        }
       }
       return Promise.reject(error);
     }
@@ -79,7 +113,9 @@ export function installSessionExpiredInterceptor(http: AxiosInstance) {
 
   if (BC) {
     BC.onmessage = (ev) => {
-      if (ev.data?.type === "SESSION_EXPIRED") showExpiredModal();
+      // Tab chưa vào được hệ thống thì không cần hộp thoại — nó sẽ tự về login khi gọi API.
+      if (ev.data?.type === "SESSION_EXPIRED" && sessionConfirmed)
+        showExpiredModal();
     };
   }
 }

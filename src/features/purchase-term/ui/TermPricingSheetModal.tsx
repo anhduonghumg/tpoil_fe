@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Button, DatePicker, Form, Input, InputNumber, message, Modal, Space, Tag, Typography, Upload } from "antd";
+import { Button, DatePicker, Form, Input, InputNumber, message, Modal, Select, Space, Tag, Typography, Upload } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import dayjs, { Dayjs } from "dayjs";
 import type { CreateTermPricingPayload, TermPricingStage, TermPurchaseOrderDetail, TermPricingStageType } from "../types";
@@ -35,10 +35,13 @@ type FormValues = {
   envTaxVndPerLiter?: number;
   extraCostVndPerLiter?: number;
   fundAdjustmentVndPerLiter?: number;
+  fundAdjustmentMode?: FundAdjustmentMode;
   contractPaymentRate?: number;
   bankGuaranteeRate?: number;
   note?: string;
 };
+
+type FundAdjustmentMode = "TRICH" | "CHI";
 
 type ImportedPricingFields = Partial<
   Omit<FormValues, "billDate" | "plattsBaseDate" | "fxRateDate" | "priceDays">
@@ -74,6 +77,14 @@ function cleanNumber(value?: number | string | null) {
       : raw;
   const n = Number(normalized);
   return Number.isFinite(n) ? n : undefined;
+}
+
+// Trích quỹ cộng vào đơn giá, chi quỹ trừ bớt; backend lưu giá trị có dấu.
+function signedFundAdjustment(values?: FormValues) {
+  const raw = cleanNumber(values?.fundAdjustmentVndPerLiter);
+  if (raw === undefined) return undefined;
+  const abs = Math.abs(raw);
+  return values?.fundAdjustmentMode === "CHI" ? -abs : abs;
 }
 
 function toDate(value?: Dayjs) {
@@ -172,7 +183,7 @@ function calculatePreview(values: FormValues | undefined, data: TermPurchaseOrde
   const fxRate = cleanNumber(values?.fxRate) ?? 0;
   const envTax = cleanNumber(values?.envTaxVndPerLiter) ?? 0;
   const extraCostAmount = cleanNumber(values?.extraCostVndPerLiter) ?? 0;
-  const fundAdjustment = cleanNumber(values?.fundAdjustmentVndPerLiter) ?? 0;
+  const fundAdjustment = signedFundAdjustment(values) ?? 0;
   const insuranceAmount = cleanNumber(values?.insuranceAmountVnd) ?? 0;
   const lossAmount = cleanNumber(values?.transportLossAmountVnd) ?? 0;
   const inspectionFeeVnd = cleanNumber(values?.inspectionFeeVnd) ?? 0;
@@ -245,34 +256,67 @@ function padPriceDays(stage?: TermPricingStage | null) {
   ];
 }
 
-function buildInitialValues(data: TermPurchaseOrderDetail, initialStage?: TermPricingStage | null): FormValues {
+/** Tổng hợp từ các phiếu giao nhận đã xác nhận: số thùng nhận tại nhà máy, lượng trên bill nhà máy thực tế (L), ngày bill sớm nhất. */
+function receiptTotals(data: TermPurchaseOrderDetail) {
+  const receipts = (data.receipts || []).filter((item) => item.status === "CONFIRMED");
+  const billActual = receipts.reduce((sum, item) => sum + Number(item.billQty ?? item.qty ?? 0), 0);
+  const barrelReceipts = receipts.filter((item) => item.factoryBarrelQty != null);
+  const barrels = barrelReceipts.reduce((sum, item) => sum + Number(item.factoryBarrelQty || 0), 0);
+  const billDates = receipts.map((item) => item.billDate).filter((value): value is string => !!value).sort();
+  return {
+    billActual: billActual || undefined,
+    barrels: barrelReceipts.length ? barrels : undefined,
+    billDate: billDates[0],
+  };
+}
+
+function findStage(data: TermPurchaseOrderDetail, stageType: TermPricingStageType) {
+  return (data.pricingRuns || []).flatMap((run) => run.stages || []).find((item) => item.stageType === stageType) ?? null;
+}
+
+function buildInitialValues(data: TermPurchaseOrderDetail, kind: SheetPricingKind, initialStage?: TermPricingStage | null): FormValues {
   const qtyInfo = confirmedQty(data);
-  const lastPriceDay = initialStage?.priceDays?.[initialStage.priceDays.length - 1];
-  const fxDate = initialStage?.fxRateDate ? dayjs(initialStage.fxRateDate) : dayjs(data.orderDate);
+  const isBill = kind === "BILL_NORMALIZE";
+  // Bảng xuất HĐ lập lần đầu: kế thừa giá, tỷ giá, phí từ bảng tạm tính.
+  const source = initialStage ?? (isBill ? findStage(data, "ESTIMATE") : null);
+  // Bảng xuất HĐ luôn tính theo phiếu giao nhận: số thùng tại nhà máy và số lượng mua = bill nhà máy thực tế (L).
+  const received = isBill ? receiptTotals(data) : null;
+
+  const lastPriceDay = source?.priceDays?.[source.priceDays.length - 1];
+  const fxDate = source?.fxRateDate ? dayjs(source.fxRateDate) : dayjs(data.orderDate);
+  const billBarrelQty = received?.barrels ?? source?.billBarrelQty;
+  const sourceQty = source?.tankQtyLiter ?? qtyInfo.v15;
+  const tankQtyLiter = received?.billActual ?? (isBill ? qtyInfo.actual : sourceQty);
+  // Bảng lập mới: bảo hiểm/giám định lấy theo đăng ký của vận hành trên các chuyến tàu (nếu đã có).
+  const charter = !initialStage ? data.charter : undefined;
+  const insuranceAmountVnd = charter?.insuranceCount ? charter.insuranceVnd : (source?.insuranceAmountVnd ?? 0);
+  const inspectionFeeVnd = charter?.inspectionCount ? charter.inspectionVnd : (source?.inspectionFeeVnd ?? 0);
 
   return {
-    billDate: fxDate,
+    billDate: received?.billDate ? dayjs(received.billDate) : fxDate,
     plattsBaseDate: lastPriceDay?.quoteDate ? dayjs(lastPriceDay.quoteDate) : dayjs(data.orderDate),
-    qtyBasisSelected: "V15",
-    priceDays: padPriceDays(initialStage),
-    mopsAvgUsdPerBbl: initialStage?.mopsAvgUsdPerBbl ?? undefined,
-    premiumUsdPerBbl: initialStage?.premiumUsdPerBbl ?? data.premium ?? data.termPremiumUsdPerBbl ?? undefined,
-    specialConsumptionTaxUsdPerBbl: initialStage?.specialConsumptionTaxUsdPerBbl ?? 0,
+    qtyBasisSelected: isBill ? "ACTUAL" : "V15",
+    priceDays: padPriceDays(source),
+    mopsAvgUsdPerBbl: source?.mopsAvgUsdPerBbl ?? undefined,
+    premiumUsdPerBbl: source?.premiumUsdPerBbl ?? data.premium ?? data.termPremiumUsdPerBbl ?? undefined,
+    specialConsumptionTaxUsdPerBbl: source?.specialConsumptionTaxUsdPerBbl ?? 0,
     fxRateDate: fxDate,
-    fxRate: initialStage?.fxRate ?? undefined,
-    billBarrelQty: initialStage?.billBarrelQty == null ? undefined : formatPlainDecimalComma(initialStage.billBarrelQty, 6),
-    tankQtyLiter: initialStage?.tankQtyLiter ?? qtyInfo.v15,
-    insuranceAmountVnd: initialStage?.insuranceAmountVnd ?? 0,
-    inspectionFeeVnd: initialStage?.inspectionFeeVnd ?? 0,
-    transportFeeVnd: initialStage?.transportFeeVnd ?? 0,
-    storageFeeVnd: initialStage?.storageFeeVnd ?? 0,
-    transportLossAmountVnd: initialStage?.transportLossAmountVnd ?? 0,
-    transportDeductionVnd: initialStage?.transportDeductionVnd ?? 0,
-    envTaxVndPerLiter: initialStage?.envTaxVndPerLiter ?? 0,
-    extraCostVndPerLiter: (initialStage?.extraCostVndPerLiter ?? 0) * (initialStage?.tankQtyLiter ?? qtyInfo.v15),
-    fundAdjustmentVndPerLiter: initialStage?.fundAdjustmentVndPerLiter ?? 0,
-    contractPaymentRate: initialStage?.contractPaymentRate ?? 100,
-    bankGuaranteeRate: initialStage?.bankGuaranteeRate ?? 0,
+    fxRate: source?.fxRate ?? undefined,
+    billBarrelQty: billBarrelQty == null ? undefined : formatPlainDecimalComma(billBarrelQty, 6),
+    tankQtyLiter,
+    insuranceAmountVnd,
+    inspectionFeeVnd,
+    transportFeeVnd: source?.transportFeeVnd ?? 0,
+    storageFeeVnd: source?.storageFeeVnd ?? 0,
+    transportLossAmountVnd: source?.transportLossAmountVnd ?? 0,
+    transportDeductionVnd: source?.transportDeductionVnd ?? 0,
+    envTaxVndPerLiter: source?.envTaxVndPerLiter ?? 0,
+    // Chi phí khác lưu theo lít: quy về tổng tiền theo số lượng của bảng nguồn.
+    extraCostVndPerLiter: (source?.extraCostVndPerLiter ?? 0) * sourceQty,
+    fundAdjustmentVndPerLiter: Math.abs(source?.fundAdjustmentVndPerLiter ?? 0),
+    fundAdjustmentMode: (source?.fundAdjustmentVndPerLiter ?? 0) < 0 ? "CHI" : "TRICH",
+    contractPaymentRate: source?.contractPaymentRate ?? 100,
+    bankGuaranteeRate: source?.bankGuaranteeRate ?? 0,
     note: initialStage?.note ?? undefined,
   };
 }
@@ -306,7 +350,10 @@ function buildImportedValues(fields?: ImportedPricingFields | null): Partial<For
   if (fields.transportDeductionVnd !== undefined) next.transportDeductionVnd = fields.transportDeductionVnd;
   if (fields.envTaxVndPerLiter !== undefined) next.envTaxVndPerLiter = fields.envTaxVndPerLiter;
   if (fields.extraCostVndPerLiter !== undefined) next.extraCostVndPerLiter = fields.extraCostVndPerLiter;
-  if (fields.fundAdjustmentVndPerLiter !== undefined) next.fundAdjustmentVndPerLiter = fields.fundAdjustmentVndPerLiter;
+  if (fields.fundAdjustmentVndPerLiter !== undefined) {
+    next.fundAdjustmentVndPerLiter = Math.abs(fields.fundAdjustmentVndPerLiter);
+    next.fundAdjustmentMode = fields.fundAdjustmentVndPerLiter < 0 ? "CHI" : "TRICH";
+  }
   if (fields.contractPaymentRate !== undefined) next.contractPaymentRate = fields.contractPaymentRate;
   if (fields.bankGuaranteeRate !== undefined) next.bankGuaranteeRate = fields.bankGuaranteeRate;
   if (fields.note) next.note = fields.note;
@@ -319,7 +366,11 @@ function buildLines(data: TermPurchaseOrderDetail, kind: SheetPricingKind) {
 
   return data.lines.map((line) => {
     const receiptsOfLine = confirmedReceipts.filter((receipt) => receipt.purchaseOrderLineId === line.id);
-    const receiptActual = receiptsOfLine.reduce((sum, receipt) => sum + Number(receipt.qty || 0), 0);
+    // Bảng xuất HĐ: lượng thực tế của dòng là số lượng mua theo bill nhà máy.
+    const receiptActual = receiptsOfLine.reduce(
+      (sum, receipt) => sum + Number((kind === "BILL_NORMALIZE" ? receipt.billQty ?? receipt.qty : receipt.qty) || 0),
+      0,
+    );
     const receiptV15 = receiptsOfLine.reduce((sum, receipt) => sum + Number(receipt.standardQtyV15 || receipt.qty || 0), 0);
     const ordered = Number(line.orderedQty || 0);
 
@@ -373,12 +424,38 @@ function buildPayload(values: FormValues, data: TermPurchaseOrderDetail, kind: S
     extraCostVndPerLiter: cleanNumber(values.extraCostVndPerLiter) && cleanNumber(values.tankQtyLiter)
       ? cleanNumber(values.extraCostVndPerLiter)! / cleanNumber(values.tankQtyLiter)!
       : undefined,
-    fundAdjustmentVndPerLiter: cleanNumber(values.fundAdjustmentVndPerLiter),
+    fundAdjustmentVndPerLiter: signedFundAdjustment(values),
     contractPaymentRate: cleanNumber(values.contractPaymentRate),
     bankGuaranteeRate: cleanNumber(values.bankGuaranteeRate),
     note: values.note?.trim() || undefined,
     lines: buildLines(data, kind),
   };
+}
+
+/** Ghi chú số tiền vận hành đã đăng ký trên các chuyến tàu; khác số đang nhập thì cho bấm dùng. */
+function CharterAmountNote({
+  count,
+  amount,
+  current,
+  onApply,
+}: {
+  count?: number;
+  amount?: number;
+  current?: number | string | null;
+  onApply: (value: number) => void;
+}) {
+  if (!count || amount === undefined) return null;
+  const same = Math.abs(Number(cleanNumber(current) ?? 0) - amount) < 1;
+  return (
+    <span>
+      Vận hành: {fmt(amount)}
+      {same ? null : (
+        <Button size="small" type="link" style={{ padding: "0 4px", height: "auto" }} onClick={() => onApply(amount)}>
+          Dùng số này
+        </Button>
+      )}
+    </span>
+  );
 }
 
 function SheetRow({
@@ -439,10 +516,10 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
 
   useEffect(() => {
     if (!open) return;
-    form.setFieldsValue(buildInitialValues(data, initialStage));
+    form.setFieldsValue(buildInitialValues(data, kind, initialStage));
     setShowPlattsRows(false);
     setShowCostRows(false);
-  }, [open, data, initialStage, form]);
+  }, [open, kind, data, initialStage, form]);
 
   const fetchLast11Platts = async () => {
     const productId = data.lines?.[0]?.productId;
@@ -759,7 +836,7 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
               <SheetText>{fmt(preview.fobUsdPerBbl, 3)}</SheetText>
             </SheetRow>
 
-            <SheetRow label="Số thùng BILL" unit="thùng">
+            <SheetRow label="Số thùng BILL" unit="thùng" note={kind === "BILL_NORMALIZE" ? "Theo giao nhận (thùng tại nhà máy)" : undefined}>
               <Form.Item name="billBarrelQty" noStyle>
                 <Input
                   inputMode="decimal"
@@ -808,19 +885,42 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
               }
               unit="VND"
               strong
+              note={data.charter?.insuranceCount || data.charter?.inspectionCount ? "Có bảo hiểm/giám định từ vận hành" : undefined}
             >
               <SheetText>{fmt(preview.billTotal - preview.amountVnd)}</SheetText>
             </SheetRow>
 
             {showCostRows ? (
               <>
-                <SheetRow label="Bảo hiểm hàng hóa" unit="VND">
+                <SheetRow
+                  label="Bảo hiểm hàng hóa"
+                  unit="VND"
+                  note={
+                    <CharterAmountNote
+                      count={data.charter?.insuranceCount}
+                      amount={data.charter?.insuranceVnd}
+                      current={watched?.insuranceAmountVnd}
+                      onApply={(value) => form.setFieldValue("insuranceAmountVnd", value)}
+                    />
+                  }
+                >
                   <Form.Item name="insuranceAmountVnd" noStyle>
                     <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
                   </Form.Item>
                 </SheetRow>
 
-                <SheetRow label="Phí giám định" unit="VND">
+                <SheetRow
+                  label="Phí giám định"
+                  unit="VND"
+                  note={
+                    <CharterAmountNote
+                      count={data.charter?.inspectionCount}
+                      amount={data.charter?.inspectionVnd}
+                      current={watched?.inspectionFeeVnd}
+                      onApply={(value) => form.setFieldValue("inspectionFeeVnd", value)}
+                    />
+                  }
+                >
                   <Form.Item name="inspectionFeeVnd" noStyle>
                     <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
                   </Form.Item>
@@ -885,7 +985,24 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
               </Form.Item>
             </SheetRow>
 
-            <SheetRow label="Trích/chi quỹ" unit="VND/lít">
+            <SheetRow
+              label={
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span>Trích/chi quỹ</span>
+                  <Form.Item name="fundAdjustmentMode" noStyle>
+                    <Select
+                      size="small"
+                      style={{ width: 90 }}
+                      options={[
+                        { value: "TRICH", label: "Trích (+)" },
+                        { value: "CHI", label: "Chi (−)" },
+                      ]}
+                    />
+                  </Form.Item>
+                </div>
+              }
+              unit="VND/lít"
+            >
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 120px", gap: 6, alignItems: "center" }}>
                 <Form.Item name="fundAdjustmentVndPerLiter" noStyle>
                   <InputNumber min={0} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
@@ -902,8 +1019,17 @@ export function TermPricingSheetModal({ open, kind, data, initialStage, loading,
               <SheetText>{fmt(preview.amountBeforeVat)}</SheetText>
             </SheetRow>
 
-            <SheetRow label="Số lượng nhập" unit="Lít" strong>
-              <Form.Item name="tankQtyLiter" rules={[{ required: true, message: "Nhập số lượng nhập" }]} noStyle>
+            <SheetRow
+              label={kind === "BILL_NORMALIZE" ? "Số lượng mua" : "Số lượng nhập"}
+              unit="Lít"
+              strong
+              note={kind === "BILL_NORMALIZE" ? "Theo giao nhận (bill nhà máy thực tế)" : undefined}
+            >
+              <Form.Item
+                name="tankQtyLiter"
+                rules={[{ required: true, message: kind === "BILL_NORMALIZE" ? "Nhập số lượng mua" : "Nhập số lượng nhập" }]}
+                noStyle
+              >
                 <InputNumber min={0.001} style={{ width: "100%" }} parser={parseVietnameseNumber} formatter={formatVietnameseNumber} />
               </Form.Item>
             </SheetRow>

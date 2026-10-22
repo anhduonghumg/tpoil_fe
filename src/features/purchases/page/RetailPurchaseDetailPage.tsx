@@ -30,7 +30,7 @@ import {
   useCancelPurchaseOrder,
   useRetailPurchaseDetail,
 } from "../hooks";
-import { useCreateCommercialLotPaymentRequest } from "../../commercial-lots/hooks";
+import { useCreateCommercialLotPaymentRequest, useResubmitCommercialLotPaymentRequest } from "../../commercial-lots/hooks";
 import { RetailReceiptRequestModal } from "../ui/RetailReceiptRequestModal";
 import type {
   RetailLifecycle,
@@ -66,7 +66,9 @@ const RECEIPT_STATUS: Record<string, { label: string; color: string }> = {
 };
 
 const PAYMENT_REQUEST_STATUS: Record<string, { label: string; color: string }> = {
+  PENDING_BANK_PLAN: { label: "Chờ ngân hàng lập kế hoạch", color: "purple" },
   PENDING_DIRECTOR_APPROVAL: { label: "Chờ giám đốc duyệt", color: "gold" },
+  APPROVED: { label: "Đã duyệt · chờ thanh toán", color: "cyan" },
   DIRECTOR_REJECTED: { label: "Giám đốc từ chối", color: "red" },
   SUBMITTED: { label: "Chờ ngân hàng kiểm tra", color: "blue" },
   BANK_VERIFIED: { label: "Chờ thanh toán", color: "cyan" },
@@ -109,6 +111,7 @@ export default function RetailPurchaseDetailPage() {
   const approveMutation = useApprovePurchaseOrder();
   const cancelMutation = useCancelPurchaseOrder();
   const createPaymentRequest = useCreateCommercialLotPaymentRequest(id);
+  const resubmitPaymentRequest = useResubmitCommercialLotPaymentRequest(id);
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [paymentRequestOpen, setPaymentRequestOpen] = useState(false);
   const [paymentRequestForm] = Form.useForm<{
@@ -364,6 +367,28 @@ export default function RetailPurchaseDetailPage() {
               render: (value: string) => {
                 const meta = PAYMENT_REQUEST_STATUS[value] ?? { label: value, color: "default" };
                 return <Tag color={meta.color}>{meta.label}</Tag>;
+              },
+            },
+            {
+              /* Đề nghị bị ngân hàng trả lại hoặc giám đốc từ chối: xem lý do và gửi lại cho ngân hàng. */
+              title: "",
+              key: "actions",
+              width: 260,
+              render: (_, row: any) => {
+                if (row.status !== "BANK_RETURNED" && row.status !== "DIRECTOR_REJECTED") return null;
+                const reason = row.status === "BANK_RETURNED" ? row.returnedReason : row.approvalNote;
+                return (
+                  <Space size={8}>
+                    {reason ? <span style={{ color: "#c0392b", fontSize: 12 }}>{reason}</span> : null}
+                    <Button
+                      size="small"
+                      loading={resubmitPaymentRequest.isPending}
+                      onClick={() => resubmitPaymentRequest.mutate({ requestId: row.id, data: {} })}
+                    >
+                      Gửi lại
+                    </Button>
+                  </Space>
+                );
               },
             },
           ]}

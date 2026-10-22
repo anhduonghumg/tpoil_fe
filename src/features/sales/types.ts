@@ -32,6 +32,9 @@ export type SalesOrderLine = {
   lineNo: number;
   productId: string;
   orderedActualQty: string;
+  /** Đã xuất thật (lệnh xuất đã ghi nhận) và phần khách đã trả lại. */
+  issuedQty?: string;
+  returnedQty?: string;
   orderedV15Qty?: string | null;
   unitPrice: string;
   discountBaseAmount?: string | null;
@@ -40,6 +43,8 @@ export type SalesOrderLine = {
   supplySource?: "TP" | "NCC";
   vehiclePlate?: string | null;
   driverName?: string | null;
+  /** Số "Đơn 1/2/3…" khách ghi trong tin nhắn — chỉ để đối chiếu với khách. */
+  customerOrderRef?: string | null;
   isTransportFeeApplicable?: boolean;
   transportFeeUnitPrice?: string | null;
   taxRate?: string | null;
@@ -64,7 +69,13 @@ export type SalesOrderComparisonRow = {
 
 export type SalesOrder = {
   id: string;
+  /** Nháp đơn lẻ: bằng draftNo (N<stt>); gửi duyệt xong là số BH chính thức. */
   orderNo: string;
+  draftNo?: string | null;
+  /** Đơn nháp đã được gộp vào đơn khác (trạng thái CANCELLED). */
+  mergedIntoOrderId?: string | null;
+  mergedInto?: { id: string; orderNo: string; draftNo?: string | null } | null;
+  mergedOrders?: Array<{ id: string; orderNo: string; draftNo?: string | null }>;
   orderDate: string;
   kind: SalesOrderKind;
   status: SalesOrderStatus;
@@ -152,6 +163,30 @@ export type SalesOrderAdjustment = {
   decidedAt?: string | null;
   decisionNote?: string | null;
   appliedAt?: string | null;
+  /** Lúc hóa đơn điều chỉnh của phiếu đã phát hành xong. */
+  invoiceCorrectedAt?: string | null;
+  /** Lúc kho xong phần xuất bổ sung / nhập trả của phiếu. */
+  warehouseCorrectedAt?: string | null;
+  supplementaryVehiclePlate?: string | null;
+  supplementaryDriverName?: string | null;
+  /** Lệnh xuất bổ sung (khách tăng sau khi đã xuất). */
+  deliveries?: Array<{ id: string; deliveryNo: string; status: SalesDeliveryStatus; warehouse: { name: string } }>;
+  /** Phiếu nhập trả (khách giảm sau khi đã xuất). */
+  returns?: Array<{
+    id: string;
+    returnNo: string;
+    status: SalesReturnStatus;
+    warehouse: { name: string };
+    lines: Array<{ requestedActualQty: string; actualQty?: string | null }>;
+  }>;
+  invoices?: Array<{
+    id: string;
+    invoiceNoInternal: string;
+    misaInvoiceNo?: string | null;
+    status: SalesInvoiceStatus;
+    adjustmentDirection?: SalesInvoiceAdjustmentDirection | null;
+    grandTotal: string;
+  }>;
   createdAt: string;
   salesOrder: {
     id: string;
@@ -185,6 +220,64 @@ export type CreateSalesOrderAdjustmentPayload = {
     adjustedQty?: number;
     adjustedUnitPrice?: number;
   }>;
+  /** Xe / lái xe cho lần xuất bổ sung (tăng lượng sau khi đã xuất); trống = theo lệnh gốc. */
+  supplementaryVehiclePlate?: string;
+  supplementaryDriverName?: string;
+};
+
+export type SalesReturnStatus = "PENDING" | "POSTED" | "CANCELLED";
+
+/** Phiếu nhập hàng bán bị trả lại — sinh từ phiếu điều chỉnh khi khách giảm lượng sau xuất. */
+export type SalesReturn = {
+  id: string;
+  returnNo: string;
+  status: SalesReturnStatus;
+  reason: string;
+  note?: string | null;
+  receiptDocNo?: string | null;
+  receivedAt?: string | null;
+  confirmedAt?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  createdAt: string;
+  warehouseId: string;
+  warehouse: { id: string; code?: string | null; name: string };
+  delivery: {
+    id: string;
+    deliveryNo: string;
+    deliveredAt?: string | null;
+    vehiclePlate?: string | null;
+    driverName?: string | null;
+  };
+  salesOrderAdjustment?: { id: string; adjustmentNo: string; reason: string } | null;
+  salesOrder: {
+    id: string;
+    orderNo: string;
+    kind: SalesOrderKind;
+    customer: { id: string; code?: string | null; name: string };
+  };
+  lines: Array<{
+    id: string;
+    lineNo: number;
+    requestedActualQty: string;
+    actualQty?: string | null;
+    v15Qty?: string | null;
+    temperatureC?: string | null;
+    orderLine: {
+      id: string;
+      lineNo: number;
+      product: { id: string; code?: string | null; name: string; uom: string };
+    };
+    deliveryLine: { id: string; actualQty?: string | null; v15Qty?: string | null };
+    lotAllocations: Array<{ id: string; actualQty: string; lot: { id: string; lotNo: string } }>;
+  }>;
+};
+
+export type ConfirmSalesReturnPayload = {
+  lines: Array<{ salesReturnLineId: string; actualQty: number; v15Qty?: number; temperatureC?: number }>;
+  receiptDocNo?: string;
+  receivedAt?: string;
+  note?: string;
 };
 
 export type CreateSalesOrderPayload = {
@@ -295,7 +388,18 @@ export type ApprovalOrderLine = {
     }>;
     availableQty: string;
     shortageQty: string;
+    /** Tồn tự do tại đây đang được ưu tiên bù cho các đơn chờ bù; đã trừ khỏi availableQty. */
+    owedQty?: string;
   } | null;
+  /** Nguồn hàng đang giữ của đơn khác mà người duyệt đã chọn cho dòng này (chưa thực hiện). */
+  holdPlans?: Array<{
+    id: string;
+    reallocationNo: string;
+    donorSalesOrderLineId: string;
+    donorOrderNo: string;
+    donorCustomerName: string;
+    plannedQty: string;
+  }>;
 };
 
 
@@ -312,6 +416,8 @@ export type SalesApprovalRequest = {
   decidedAt?: string | null;
   createdAt: string;
   canDecide?: boolean;
+  /** Có giá trị khi yêu cầu đã duyệt nhưng đơn không trả về chờ duyệt được nữa. */
+  returnToPendingBlockedReason?: string | null;
   salesOrder?: {
     id: string;
     orderNo: string;
@@ -370,6 +476,8 @@ export type CreateInternalSalesOrderPayload = {
     taxRate?: number;
     vehiclePlate?: string;
     driverName?: string;
+    /** Số "Đơn 1/2/3…" khách ghi trong tin nhắn. */
+    customerOrderRef?: string;
     transportFeeUnitPrice?: number;
     isTransportFeeApplicable?: boolean;
     note?: string;
@@ -397,6 +505,13 @@ export type UpdateSalesOrderPayload = Partial<
 export type SubmitSalesOrderResult = SalesOrder & {
   submitResult?: SalesOrderCheckResult;
   autoApproved?: boolean;
+};
+
+/** Kết quả một lượt gửi duyệt nhiều đơn nháp. */
+export type SubmitSalesOrdersBatchResult = {
+  results: Array<{ id: string; draftNo: string; ok: boolean; orderNo?: string; message?: string }>;
+  submitted: number;
+  failed: number;
 };
 
 // ===== Rút lô =====
@@ -435,6 +550,10 @@ export type SalesLotBalance = {
   adjustedQty?: string;
   heldQty: string;
   remainingQty: string;
+  /** Phần còn lại đang chờ bù vì hàng giữ đã được phân bổ lại cho đơn khác. */
+  awaitingBackfillQty?: string;
+  /** Rút được ngay = còn lại − đang chờ bù. */
+  withdrawableQty?: string;
 };
 
 export type SalesWithdrawalRequest = {
@@ -461,6 +580,15 @@ export type SalesWithdrawalRequest = {
   submitBlockedReason?: string;
 };
 
+/** Trang danh sách phiếu rút, kèm số phiếu theo từng trạng thái (cùng bộ lọc, bỏ lọc trạng thái). */
+export type SalesWithdrawalPage = {
+  items: SalesWithdrawalRequest[];
+  total: number;
+  page: number;
+  limit: number;
+  byStatus?: Partial<Record<SalesWithdrawalStatus, number>>;
+};
+
 /** Một đơn lô có thể phục vụ lần rút này; mặc định hệ thống lấy lô cũ nhất, Sale đè được. */
 export type WithdrawalSourceCandidate = {
   salesOrderId: string;
@@ -473,6 +601,10 @@ export type WithdrawalSourceCandidate = {
   issuedQty: string;
   heldQty: string;
   remainingQty: string;
+  /** Phần còn lại đang chờ bù vì hàng giữ đã được phân bổ lại cho đơn khác. */
+  awaitingBackfillQty?: string;
+  /** Rút được ngay = còn lại − đang chờ bù. */
+  withdrawableQty?: string;
 };
 
 export type WithdrawalSourceResult = {
@@ -534,6 +666,8 @@ export type SalesDelivery = {
   status: SalesDeliveryStatus;
   salesOrderId: string;
   withdrawalRequestId?: string | null;
+  /** Có giá trị = lệnh xuất bổ sung sinh từ phiếu điều chỉnh. */
+  salesOrderAdjustmentId?: string | null;
   warehouseId: string;
   plannedAt?: string | null;
   deliveredAt?: string | null;
@@ -685,6 +819,15 @@ export type SalesInvoiceStatus =
 
 export type SalesInvoiceDocumentType = "ORIGINAL" | "ADJUSTMENT" | "REPLACEMENT";
 
+/** Hóa đơn điều chỉnh: số tiền luôn dương, chiều nói nó cộng hay trừ vào hóa đơn gốc. */
+export type SalesInvoiceAdjustmentDirection = "INCREASE" | "DECREASE";
+
+export type AdjustmentInvoiceDraftResult = {
+  /** true = không còn chênh lệch, phiếu được đánh dấu đã điều chỉnh HĐ mà không cần hóa đơn mới. */
+  corrected: boolean;
+  invoices: SalesInvoice[];
+};
+
 export type IssueSalesInvoicePayload = {
   overrideMissingPurchaseInvoice?: boolean;
 };
@@ -705,6 +848,8 @@ export type SalesInvoiceLine = {
   netAmount: string;
   taxAmount: string;
   lineTotal: string;
+  /** Dòng hóa đơn điều chỉnh: true = chỉnh số lượng, false = chỉnh đơn giá. */
+  adjustsQty?: boolean;
   product?: ProductRef;
 };
 
@@ -722,12 +867,22 @@ export type SalesInvoiceIssuance = {
 };
 
 export type SalesInvoice = {
+  accountingChange?: InvoiceAccountingChange | null;
   id: string;
   invoiceNoInternal: string;
   salesOrderId?: string | null;
   withdrawalRequestId?: string | null;
   documentType: SalesInvoiceDocumentType;
   originalInvoiceId?: string | null;
+  adjustmentDirection?: SalesInvoiceAdjustmentDirection | null;
+  originalInvoice?: {
+    id: string;
+    invoiceNoInternal: string;
+    misaInvoiceNo?: string | null;
+    invoiceDate: string;
+    grandTotal: string;
+  } | null;
+  salesOrderAdjustment?: { id: string; adjustmentNo: string; reason: string } | null;
   status: SalesInvoiceStatus;
   buyerName: string;
   buyerTaxCode?: string | null;
@@ -781,9 +936,23 @@ export type SalesInvoice = {
   corrections?: Array<{
     id: string;
     invoiceNoInternal: string;
+    misaInvoiceNo?: string | null;
     documentType: SalesInvoiceDocumentType;
+    adjustmentDirection?: SalesInvoiceAdjustmentDirection | null;
     status: SalesInvoiceStatus;
+    grandTotal?: string;
   }>;
+};
+
+export type UnissuedInvoiceLine = {
+  productCode: string | null;
+  qty: string;
+  /** Source order discount is per unit, unlike SalesInvoiceLine.discountAmount. */
+  discountUnitPrice: string;
+  netUnitPrice: string;
+  paymentUnitPrice: string;
+  taxRateName: string;
+  lineTotal: string;
 };
 
 export type UnissuedInvoiceSource = {
@@ -805,6 +974,7 @@ export type UnissuedInvoiceSource = {
   /** Các mức thuế áp dụng từ dòng đơn hoặc cấu hình hóa đơn đang active. */
   estimatedTaxRateNames?: string[];
   estimatedGrandTotal: string;
+  estimatedLines?: UnissuedInvoiceLine[];
   /** Cảnh báo công nợ tính tại thời điểm tải danh sách; phát hành vẫn kiểm tra lại. */
   creditWarning?: {
     riskCodes: string[];
@@ -822,6 +992,8 @@ export type UnissuedInvoiceSource = {
 
 /** Xem trước nội dung hóa đơn — đọc từ những gì đã thực xuất, không ghi gì. */
 export type SalesInvoicePreview = {
+  sourceFingerprint: string;
+  changed: boolean;
   buyer: {
     name: string;
     taxCode?: string | null;
@@ -849,7 +1021,11 @@ export type SalesInvoicePreview = {
 };
 
 /** Đúng một nguồn: cả đơn lấy 1 lần, hoặc một lần rút lô. */
-export type InvoiceSource = { salesOrderId?: string; withdrawalRequestId?: string };
+export type InvoiceLineEdit = { sourceLineNo?: number; salesOrderLineId: string; salesDeliveryLineId?: string | null; qty: string; discountUnitPrice: string; omitted?: boolean };
+export type InvoiceSource = { salesOrderId?: string; withdrawalRequestId?: string; expectedFingerprint?: string; requestId?: string; changeReason?: string; lineEdits?: InvoiceLineEdit[] };
+export type InvoiceChangeLine = { key: string; description: string; uom?: string; qty: string; discountUnitPrice: string; lineTotal: string };
+export type InvoiceAccountingChange = { id: string; reason: string; actorId: string; occurredAt: string; before: InvoiceChangeLine[]; after: InvoiceChangeLine[]; status: "PENDING" | "CONFIRMED" | "REJECTED"; decisionId: string | null; decisionReason?: string; history: Array<{ id: string; eventType: string; actorId: string; reason?: string; occurredAt: string }> };
+export type InvoiceChangeReview = { invoiceId: string; invoiceNo: string; invoiceStatus: SalesInvoiceStatus; sourceNo?: string; canConfirm: boolean; canReject: boolean; change: InvoiceAccountingChange | null };
 
 // ===== Công nợ phải thu =====
 
@@ -1136,6 +1312,17 @@ export type SalesOrderSourceRow = {
   profit: string;
   /** Phần lô khách chưa rút: giá vốn mới là ước tính, chưa gắn lô mua nào. */
   isEstimated?: boolean;
+  /**
+   * Dòng xuất dính tới phân bổ lại hàng giữ. BACKFILL: lô bù cho đơn này sau khi hàng giữ ban
+   * đầu bị lấy cho đơn khác (kèm chênh lệch giá vốn so với lô ban đầu, âm là bù đắt hơn).
+   * REALLOCATED_IN: lô đơn này lấy từ hàng đang giữ của đơn khác.
+   */
+  holdSource?: {
+    type: "BACKFILL" | "REALLOCATED_IN";
+    reallocationNos: string[];
+    qty: string;
+    costVariance: string | null;
+  } | null;
 };
 
 export type SalesOrderProfitability = {
@@ -1497,6 +1684,8 @@ export type ConfirmQuickEntryPayload = {
     supplySource?: "TP" | "NCC";
     productRawText?: string;
     warehouseRawText?: string;
+    /** Số "Đơn 1/2/3…" khách ghi trong tin nhắn. */
+    customerOrderRef?: string;
   }>;
 };
 
@@ -1808,3 +1997,6 @@ export type ReceivableInterestReport = {
   totals: { lostInterest: string; overdueLostInterest: string; averageDebt: string; closingDebt: string };
   items: ReceivableInterestRow[];
 };
+
+export type InvoiceBatchItemState = { index: number; sourceNo: string; customerCode: string; status: "PENDING" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED"; invoiceId?: string; invoiceNo?: string; attempts: number; error?: string };
+export type InvoiceBatchRun = { id: string; status: "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED"; generation: number; stopRequested: boolean; counts: { total: number; done: number; failed: number; pending: number; running: number; cancelled: number }; queuedAt: string; startedAt?: string; finishedAt?: string; error?: string; items?: InvoiceBatchItemState[] };

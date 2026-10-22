@@ -6,6 +6,8 @@
 .app-root {
   height: 100vh;
   min-height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
   overflow: hidden;
 }
 
@@ -129,6 +131,7 @@
 
 /* Header */
 .app-header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -191,6 +194,7 @@
 
 /* Content */
 .app-content {
+  flex: 1 1 0;
   min-height: 0;
   margin: 16px;
   overflow-x: hidden;
@@ -198,6 +202,7 @@
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
+.app-mobile-footer { display: none; }
 .app-card {
   background: #fff;
   border-radius: 12px;
@@ -231,4 +236,35 @@
   + .ant-menu-item-group
   > .ant-menu-item-group-title {
   margin-top: 10px;
+}
+
+
+/* Long labels and pending counts share the available width without clipping. */
+.app-menu-scroll { min-height: 0; }
+.app-brand { border: 0; background: transparent; }
+.app-workspace-compact { border: 0; cursor: pointer; }
+.app-workspace-compact:disabled { cursor: default; }
+.app-header .trigger { display: grid; place-items: center; border: 0; background: transparent; width: 36px; height: 36px; flex: 0 0 auto; padding: 0; }
+.app-brand:focus-visible, .app-workspace-compact:focus-visible, .app-header .trigger:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+.app-header-left { min-width: 0; flex: 1; }
+.app-header-left .ant-breadcrumb { min-width: 0; }
+.app-header-right { flex-shrink: 0; }
+.app-menu-task-label { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.app-menu-task-text { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 20px; }
+.app-menu-task-count { flex: 0 0 auto; line-height: 1; }
+.app-menu-task-count .ant-badge-count { background: #b45309; box-shadow: none; }
+.app-menu-scroll .ant-menu:not(.ant-menu-inline-collapsed) .ant-menu-item,
+.app-menu-scroll .ant-menu:not(.ant-menu-inline-collapsed) .ant-menu-submenu-title { height: auto; min-height: 44px; padding-top: 8px; padding-bottom: 8px; line-height: 20px; }
+.app-menu-task-dot { line-height: 1; }
+@media (max-width: 991px) {
+  .app-header { height: calc(48px + env(safe-area-inset-top, 0px)); padding-top: env(safe-area-inset-top, 0px); line-height: 48px; }
+  .app-mobile-footer:not(:empty) { display: block; flex: 0 0 auto; padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid #e5e7eb; z-index: 100; }
+  .app-content { scroll-padding-bottom: 12px; }
+  .app-user-name { display: none; }
+  .app-header-left .ant-breadcrumb ol { flex-wrap: nowrap; }
+  .app-header-left .ant-breadcrumb li { min-width: 0; }
+  .app-header-left .ant-breadcrumb li:not(:last-child) { display: none; }
+  .app-header-left .ant-breadcrumb li:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-header-right { gap: 4px; }
+  .app-content { margin: 8px; }
 }

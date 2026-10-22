@@ -11,9 +11,19 @@ import type {
   BatchUpdateSupplierLocationPayload,
   CreateWarehouseAreaPayload,
   WarehouseArea,
+  WarehouseLossRateRow,
+  SaveWarehouseLossRateItem,
 } from "./types";
 
 export const SupplierLocationsApi = {
+  lossRates: () =>
+    apiCall<ApiResponse<WarehouseLossRateRow[]>>("supplierLocations.lossRates").then((r) => r.data!.data),
+
+  saveLossRates: (items: SaveWarehouseLossRateItem[]) =>
+    apiCall<ApiResponse<WarehouseLossRateRow[]>>("supplierLocations.saveLossRates", { data: { items } }).then(
+      (r) => r.data!.data,
+    ),
+
   areas: (isActive?: boolean) =>
     apiCall<ApiResponse<WarehouseArea[]>>("supplierLocations.areas", {
       query: isActive === undefined ? undefined : { isActive: String(isActive) },

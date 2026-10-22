@@ -19,6 +19,7 @@ import {
   SalesManagementReportApi,
   SalesProfitabilityApi,
   SalesReconciliationApi,
+  SalesReturnsApi,
   SalesWithdrawalsApi,
   ReceivableInterestApi,
 } from "./api";
@@ -271,6 +272,33 @@ export function useDeleteSalesOrder() {
   });
 }
 
+/** Gộp các đơn nháp ("Đơn 1, 2, 3…" của khách) thành một đơn. */
+export function useMergeSalesOrders() {
+  const refresh = useRefreshSalesOrder();
+  return useMutation({
+    mutationFn: (ids: string[]) => InternalSalesApi.merge(ids),
+    onSuccess: (order) => {
+      refresh();
+      notify.success(`Đã gộp thành đơn ${order.orderNo}`);
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không gộp được đơn"),
+  });
+}
+
+/** Tách một số dòng của đơn nháp sang đơn nháp mới. */
+export function useSplitSalesOrder() {
+  const refresh = useRefreshSalesOrder();
+  return useMutation({
+    mutationFn: ({ id, lineIds }: { id: string; lineIds: string[] }) =>
+      InternalSalesApi.split(id, lineIds),
+    onSuccess: (order) => {
+      refresh();
+      notify.success(`Đã tách ra đơn ${order.orderNo}`);
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không tách được đơn"),
+  });
+}
+
 /**
  * Gửi kiểm duyệt. Đơn sạch thì tự duyệt luôn, còn vướng chính sách thì chuyển
  * sang chờ duyệt — thông báo phải nói rõ để Sale biết chuyện gì đã xảy ra.
@@ -443,6 +471,7 @@ export function useSalesWithdrawals(query: {
   status?: SalesWithdrawalStatus;
   customerPartyId?: string;
   salesOrderId?: string;
+  keyword?: string;
   page?: number;
   limit?: number;
 } = {}) {
@@ -559,6 +588,8 @@ function useRefreshDeliveries(id?: string) {
     client.invalidateQueries({ queryKey: ["salesOrders"] });
     client.invalidateQueries({ queryKey: ["salesWithdrawals"] });
     client.invalidateQueries({ queryKey: ["salesCustomerStock"] });
+    // Xuất bổ sung xong / hủy lệnh đổi tiến độ phần kho của phiếu điều chỉnh.
+    client.invalidateQueries({ queryKey: ["salesOrderAdjustments"] });
     if (id) client.invalidateQueries({ queryKey: ["salesDeliveries", "detail", id] });
   };
 }
@@ -619,6 +650,57 @@ export function useConfirmDelivery(id?: string) {
  * Xác nhận nhanh một hoặc nhiều lệnh xuất. Backend chạy từng lệnh và báo riêng, nên ở
  * đây phải đọc kết quả từng dòng thay vì coi cả lượt là thành công.
  */
+// ===== Phiếu nhập hàng bán bị trả lại =====
+
+export function useSalesReturns(query: {
+  status?: import("./types").SalesReturnStatus;
+  warehouseId?: string;
+  salesOrderId?: string;
+  page?: number;
+  limit?: number;
+} = {}, enabled = true) {
+  return useQuery({
+    queryKey: ["salesReturns", "list", query],
+    queryFn: () => SalesReturnsApi.list(query),
+    enabled,
+  });
+}
+
+function useRefreshReturns() {
+  const client = useQueryClient();
+  return () => {
+    client.invalidateQueries({ queryKey: ["salesReturns"] });
+    client.invalidateQueries({ queryKey: ["salesOrderAdjustments"] });
+    client.invalidateQueries({ queryKey: ["salesOrders"] });
+    client.invalidateQueries({ queryKey: ["salesInvoices"] });
+  };
+}
+
+export function useConfirmSalesReturn() {
+  const refresh = useRefreshReturns();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: import("./types").ConfirmSalesReturnPayload }) =>
+      SalesReturnsApi.confirm(id, payload),
+    onSuccess: (result) => {
+      refresh();
+      notify.success(`Đã nhận hàng trả theo phiếu ${result.returnNo}`);
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không xác nhận nhận hàng trả được"),
+  });
+}
+
+export function useCancelSalesReturn() {
+  const refresh = useRefreshReturns();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => SalesReturnsApi.cancel(id, reason),
+    onSuccess: (result) => {
+      refresh();
+      notify.success(`Đã hủy phiếu nhập trả ${result.returnNo}`);
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không hủy được phiếu nhập trả"),
+  });
+}
+
 export function useQuickConfirmDeliveries() {
   const refresh = useRefreshDeliveries();
   return useMutation({
@@ -772,11 +854,37 @@ function useRefreshInvoices(id?: string) {
     client.invalidateQueries({ queryKey: ["salesInvoices"] });
     client.invalidateQueries({ queryKey: ["salesOrders"] });
     client.invalidateQueries({ queryKey: ["receivables"] });
+    // Phát hành/hủy hóa đơn điều chỉnh đổi trạng thái "Điều chỉnh HĐ" của phiếu DCBH.
+    client.invalidateQueries({ queryKey: ["salesOrderAdjustments"] });
     if (id) client.invalidateQueries({ queryKey: ["salesInvoices", "detail", id] });
   };
 }
 
-export function useSalesInvoices(query: {
+/** Lập hóa đơn điều chỉnh nháp (tăng và/hoặc giảm) từ một phiếu DCBH đã duyệt. */
+export function useCreateAdjustmentInvoices() {
+  const refresh = useRefreshInvoices();
+  return useMutation({
+    mutationFn: (salesOrderAdjustmentId: string) =>
+      SalesInvoicesApi.createAdjustments(salesOrderAdjustmentId),
+    onSuccess: (result) => {
+      refresh();
+      if (!result.invoices.length) {
+        notify.info("Không còn chênh lệch so với hóa đơn đã phát hành — phiếu được đánh dấu đã điều chỉnh HĐ");
+        return;
+      }
+      notify.success(
+        `Đã dựng hóa đơn điều chỉnh nháp ${result.invoices
+          .map((invoice) => invoice.invoiceNoInternal)
+          .join(", ")} — kiểm tra rồi bấm Phát hành`,
+      );
+    },
+    onError: (error) =>
+      notify.error(extractApiError(error).message || "Không lập được hóa đơn điều chỉnh"),
+  });
+}
+
+export function useSalesInvoices(query: import("./api").SalesInvoiceColumnQuery & {
+    invoiceNo?: string;
     status?: SalesInvoiceStatus;
     customerPartyId?: string;
     accountantEmployeeId?: string;
@@ -792,7 +900,7 @@ export function useSalesInvoices(query: {
   });
 }
 
-export function useUnissuedSalesInvoices(query: {
+export function useUnissuedSalesInvoices(query: import("./api").SalesInvoiceColumnQuery & {
   customerPartyId?: string;
   accountantEmployeeId?: string;
   page?: number;

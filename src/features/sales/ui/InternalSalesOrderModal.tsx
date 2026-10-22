@@ -338,7 +338,10 @@ export function InternalSalesOrderModal({
       });
       return;
     }
-    const lines = values.lines.map((line) => {
+    // Form không có ô "Đơn KH"; sửa đơn đã gộp thì giữ nguyên số đơn của khách trên dòng
+    // cũ (lineKeys của dòng cũ chính là id dòng), dòng thêm mới thì không có.
+    const refByLineId = new Map((order?.lines ?? []).map((row) => [row.id, row.customerOrderRef]));
+    const lines = values.lines.map((line, index) => {
       const receiving = decodeWarehouseSource(
         line.receivingScope!,
         (warehousesQuery.data ?? []) as any,
@@ -360,6 +363,8 @@ export function InternalSalesOrderModal({
         supplySource: line.supplySource ?? "TP",
         vehiclePlate: values.kind === "LOT" ? undefined : line.vehiclePlate?.trim() || undefined,
         driverName: values.kind === "LOT" ? undefined : line.driverName?.trim() || undefined,
+        customerOrderRef:
+          values.kind === "LOT" ? undefined : refByLineId.get(lineKeys[index]) ?? undefined,
         note: line.note?.trim() || undefined,
       };
     });

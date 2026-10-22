@@ -33,6 +33,7 @@ export interface NotificationListResult {
 export interface NotificationSummary {
   unread: number;
   openWorkItems: number;
+  menuCounts?: Record<string, number>;
   tabs: Record<string, { unread: number; actionRequired: number; total: number }>;
 }
 

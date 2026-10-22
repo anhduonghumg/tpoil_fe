@@ -6,6 +6,7 @@ import { SupplierLocationsTable } from "../ui/SupplierLocationsTable";
 import { SupplierLocationUpsertModal } from "../ui/SupplierLocationUpsertModal";
 import { WarehouseRentalContractModal } from "../ui/WarehouseRentalContractModal";
 import { WarehouseRentalContractHistoryModal } from "../ui/WarehouseRentalContractHistoryModal";
+import { WarehouseLossRatesModal } from "../ui/WarehouseLossRatesModal";
 import { getWarehouseRentalContractStatus } from "../warehouseRentalContract";
 import {
   FilterButton,
@@ -43,6 +44,7 @@ export const SupplierLocationsPage: React.FC = () => {
   const [draftKeyword, setDraftKeyword] = useState("");
   const [filters, setFilters] = useState<{ areaId?: string; supplierCustomerId?: string }>({});
   const [filterOpen, setFilterOpen] = useState(false);
+  const [lossRatesOpen, setLossRatesOpen] = useState(false);
 
   const applied: SupplierLocationListQuery = {
     ...filters,
@@ -167,18 +169,23 @@ export const SupplierLocationsPage: React.FC = () => {
         <Typography.Title level={4} style={{ margin: 0 }}>
           Danh mục kho
         </Typography.Title>
-        <Button
-          size="small"
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => {
-            setModalMode("create");
-            setEditing(null);
-            setModalOpen(true);
-          }}
-        >
-          Thêm kho
-        </Button>
+        <Space size={6}>
+          <Button size="small" onClick={() => setLossRatesOpen(true)}>
+            Tỷ lệ hao hụt kho
+          </Button>
+          <Button
+            size="small"
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setModalMode("create");
+              setEditing(null);
+              setModalOpen(true);
+            }}
+          >
+            Thêm kho
+          </Button>
+        </Space>
       </div>
 
       {/* Ô tìm và nút lọc nằm cùng hàng với tab, dồn phải — đỡ một dòng chiều cao và
@@ -277,6 +284,7 @@ export const SupplierLocationsPage: React.FC = () => {
         onClose={() => setRentalContractTarget(null)}
         onSaved={() => listQuery.refetch()}
       />
+      <WarehouseLossRatesModal open={lossRatesOpen} onClose={() => setLossRatesOpen(false)} />
       <WarehouseRentalContractHistoryModal
         open={!!rentalHistoryWarehouse}
         warehouse={rentalHistoryWarehouse}

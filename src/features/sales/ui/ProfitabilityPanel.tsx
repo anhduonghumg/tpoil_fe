@@ -1,10 +1,11 @@
 import React from "react";
-import { Alert, Card, Skeleton, Space, Statistic, Table, Tag, Typography } from "antd";
+import { Alert, Card, Skeleton, Space, Statistic, Table, Tag, Tooltip, Typography } from "antd";
 import "../sales.css";
 import type { ColumnsType } from "antd/es/table";
 import { useSalesOrderProfit } from "../hooks";
 import type { CostStatus, SalesOrderSourceRow } from "../types";
 import { formatMoney, formatQty } from "./labels";
+import { HoldReallocationsPanel } from "./HoldReallocationsPanel";
 
 export function CostStatusTag({ status }: { status: CostStatus }) {
   if (status === "FINAL") return <Tag color="green">Giá vốn chính thức</Tag>;
@@ -27,7 +28,10 @@ function sourceLabel(row: SalesOrderSourceRow) {
 export function ProfitabilityPanel({ salesOrderId }: { salesOrderId: string }) {
   const query = useSalesOrderProfit(salesOrderId);
 
-  if (query.isError) return null;
+  // Phiếu phân bổ lại hàng giữ hiện cả khi đơn chưa xuất lít nào (chưa có dòng lãi/lỗ).
+  const reallocations = <HoldReallocationsPanel salesOrderId={salesOrderId} />;
+
+  if (query.isError) return reallocations;
   if (query.isLoading) {
     return (
       <Card size="small" title="Lãi/lỗ theo nguồn hàng" style={{ marginTop: 12 }}>
@@ -37,7 +41,7 @@ export function ProfitabilityPanel({ salesOrderId }: { salesOrderId: string }) {
   }
 
   const report = query.data;
-  if (!report || report.sources.length === 0) return null;
+  if (!report || report.sources.length === 0) return reallocations;
 
   const columns: ColumnsType<SalesOrderSourceRow> = [
     {
@@ -48,6 +52,16 @@ export function ProfitabilityPanel({ salesOrderId }: { salesOrderId: string }) {
           <Space size={6}>
             <span>{sourceLabel(row)}</span>
             {row.isEstimated && <Tag color="orange">giá vốn ước tính</Tag>}
+            {row.holdSource?.type === "BACKFILL" && (
+              <Tooltip title={`Lô bù theo ${row.holdSource.reallocationNos.join(", ")}: ${formatQty(row.holdSource.qty)}`}>
+                <Tag color="cyan">Hàng bù</Tag>
+              </Tooltip>
+            )}
+            {row.holdSource?.type === "REALLOCATED_IN" && (
+              <Tooltip title={`Lấy từ hàng đang giữ của đơn khác theo ${row.holdSource.reallocationNos.join(", ")}: ${formatQty(row.holdSource.qty)}`}>
+                <Tag color="geekblue">Lấy từ hàng giữ</Tag>
+              </Tooltip>
+            )}
           </Space>
           {!row.isEstimated && (
             <Typography.Text type="secondary" style={{ fontSize: 12, display: "block" }}>
@@ -94,6 +108,25 @@ export function ProfitabilityPanel({ salesOrderId }: { salesOrderId: string }) {
           {formatMoney(value)}
         </Typography.Text>
       ),
+    },
+    {
+      title: (
+        <Tooltip title="Chỉ có ở hàng bù: (giá vốn lô ban đầu đã bị lấy − giá vốn lô bù) × lượng bù. Âm là bù đắt hơn.">
+          Chênh giá vốn
+        </Tooltip>
+      ),
+      key: "costVariance",
+      width: 130,
+      align: "right",
+      render: (_, row) =>
+        row.holdSource?.costVariance == null ? (
+          "—"
+        ) : (
+          <Typography.Text type={Number(row.holdSource.costVariance) < 0 ? "danger" : "success"}>
+            {Number(row.holdSource.costVariance) > 0 ? "+" : ""}
+            {formatMoney(row.holdSource.costVariance)}
+          </Typography.Text>
+        ),
     },
   ];
 
@@ -146,8 +179,9 @@ export function ProfitabilityPanel({ salesOrderId }: { salesOrderId: string }) {
         pagination={false}
         columns={columns}
         dataSource={report.sources}
-        scroll={{ x: 1050 }}
+        scroll={{ x: 1180 }}
       />
+      {reallocations}
     </Card>
   );
 }

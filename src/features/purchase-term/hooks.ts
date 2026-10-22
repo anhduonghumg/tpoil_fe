@@ -1,16 +1,19 @@
 ﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notify } from "../../shared/lib/notification";
 import { extractApiError } from "../../shared/lib/httpError";
+import { apiCall } from "../../shared/lib/api";
 import { APP_BOOTSTRAP_QUERY_KEY } from "../app/hooks";
 import { TermPurchaseOrdersApi } from "./api";
 import type {
   CreateTermGoodsReceiptPayload,
   CreateTermLogisticsCostPayload,
   CreateTermPricingPayload,
+  TermBossSheetPayload,
   CreateTermPurchaseOrderPayload,
   CreateTermShipmentPayload,
   GenerateTermOrderDocumentPayload,
   TermPurchaseOrderListQuery,
+  UpdateTermGoodsReceiptPayload,
   UpdateTermLogisticsCostPayload,
   UpdateTermShipmentPayload,
 } from "./types";
@@ -112,6 +115,33 @@ export function useCreateTermReceipt(orderId?: string) {
   });
 }
 
+export function useUpdateTermReceipt(orderId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateTermGoodsReceiptPayload }) =>
+      TermPurchaseOrdersApi.updateReceipt(id, data),
+    onSuccess: () => {
+      invalidateTerm(qc, orderId);
+      notify.success("Đã cập nhật phiếu nhận hàng");
+    },
+    onError: (e: any) => notify.error(e?.message || "Cập nhật phiếu nhận hàng thất bại"),
+  });
+}
+
+export function useVoidTermReceipt(orderId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => TermPurchaseOrdersApi.voidReceipt(id),
+    onSuccess: () => {
+      invalidateTerm(qc, orderId);
+      notify.success("Đã hủy phiếu nhận hàng");
+    },
+    onError: (e: any) => notify.error(e?.message || "Hủy phiếu nhận hàng thất bại"),
+  });
+}
+
 export function useConfirmTermReceipt(orderId?: string) {
   const qc = useQueryClient();
 
@@ -171,13 +201,13 @@ export function useCreateTermBossSheetPricing(orderId?: string) {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: CreateTermPricingPayload) =>
+    mutationFn: (data: TermBossSheetPayload) =>
       TermPurchaseOrdersApi.createBossSheetPricing(orderId!, data),
     onSuccess: () => {
       invalidateTerm(qc, orderId);
-      notify.success("Đã lập bảng tổng hợp");
+      notify.success("Đã lưu bảng sếp");
     },
-    onError: (e: any) => notify.error(extractApiError(e).message || "Lập bảng tổng hợp thất bại"),
+    onError: (e: any) => notify.error(extractApiError(e).message || "Lưu bảng sếp thất bại"),
   });
 }
 
@@ -212,6 +242,21 @@ export function useCreateTermPaymentRequest(orderId?: string) {
       notify.success("Đã lập đề nghị thanh toán");
     },
     onError: (e: any) => notify.error(extractApiError(e).message || "Lập đề nghị thanh toán thất bại"),
+  });
+}
+
+/** Mua hàng gửi lại đề nghị bị ngân hàng trả lại / giám đốc từ chối: quay về bước ngân hàng lập kế hoạch. */
+export function useResubmitTermPaymentRequest(orderId?: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ requestId, note, amountVnd }: { requestId: string; note?: string; amountVnd?: number }) =>
+      apiCall("paymentPlans.resubmit", { params: { requestId }, data: { note, amountVnd } }),
+    onSuccess: () => {
+      invalidateTerm(qc, orderId);
+      notify.success("Đã gửi lại đề nghị thanh toán cho ngân hàng");
+    },
+    onError: (e: any) => notify.error(extractApiError(e).message || "Gửi lại đề nghị thất bại"),
   });
 }
 

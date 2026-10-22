@@ -1,5 +1,5 @@
-import React from "react";
-import { Alert, Modal, Table, Tag, Tooltip, Typography } from "antd";
+import React, { useRef, useState } from "react";
+import { Alert, Button, Modal, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { WarningOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -35,6 +35,7 @@ export type IssueInvoiceView = {
 type IssueInvoiceViewLine = NonNullable<IssueInvoiceView["lines"]>[number];
 import { useMisaSettings } from "../hooks";
 import { amountInWords, formatMoney, formatQty } from "./labels";
+import { extractApiError } from "../../../shared/lib/httpError";
 import "./issue-invoice-modal.css";
 
 /**
@@ -52,6 +53,10 @@ export function IssueInvoiceModal({
   isRetry,
   onCancel,
   onConfirm,
+  confirmText,
+  error,
+  cancelText,
+  loadMisaPreview,
 }: {
   open: boolean;
   invoice?: IssueInvoiceView;
@@ -59,9 +64,31 @@ export function IssueInvoiceModal({
   isRetry?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  confirmText?: string;
+  error?: string;
+  cancelText?: string;
+  loadMisaPreview?: () => Promise<{ url: string; expiresInSeconds: number }>;
 }) {
   // Hóa đơn nháp chưa có ký hiệu — nó chỉ được ghi lại sau khi MISA cấp. Lấy ký hiệu
   // của cấu hình đang chạy để nói trước hóa đơn sẽ ra dải nào.
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+  const previewBusy = useRef(false);
+  async function openMisaPreview() {
+    if (!loadMisaPreview || previewBusy.current) return;
+    // Open synchronously from the user gesture so Safari permits the new tab.
+    const viewer = window.open("about:blank", "_blank");
+    if (!viewer) { setPreviewError("Trình duyệt đang chặn cửa sổ xem trước. Cho phép mở cửa sổ rồi thử lại."); return; }
+    viewer.opener = null;
+    viewer.document.title = "Đang tải bản xem trước MISA";
+    viewer.document.body.textContent = "Đang lấy bản PDF từ MISA…";
+    previewBusy.current = true; setPreviewLoading(true); setPreviewError("");
+    try {
+      const result = await loadMisaPreview();
+      if (!viewer.closed) viewer.location.replace(result.url);
+    } catch (err) { viewer.close(); setPreviewError(extractApiError(err).message); }
+    finally { previewBusy.current = false; setPreviewLoading(false); }
+  }
   const settingsQuery = useMisaSettings();
   const running = settingsQuery.data?.running;
 
@@ -131,13 +158,20 @@ export function IssueInvoiceModal({
       // trong hộp chứ không đẩy cả trang chạy theo, tiêu đề với nút Phát hành đứng yên.
       centered
       title={isRetry ? "Phát hành lại hóa đơn" : "Phát hành hóa đơn"}
-      okText={isRetry ? "Thử lại" : "Phát hành"}
-      cancelText="Hủy bỏ"
+      okText={confirmText ?? (isRetry ? "Thử lại" : "Phát hành")}
+      cancelText={cancelText ?? "Hủy bỏ"}
+      footer={(_, { OkBtn, CancelBtn }) => <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>{loadMisaPreview ? <Button size="small" loading={previewLoading} disabled={loading} onClick={() => void openMisaPreview()}>Xem trước MISA</Button> : null}<CancelBtn /><OkBtn /></div>}
+      okButtonProps={{ size: "small", disabled: previewLoading }}
+      cancelButtonProps={{ size: "small", disabled: loading }}
+      closable={!loading}
+      maskClosable={!loading}
       confirmLoading={loading}
-      onCancel={onCancel}
+      onCancel={() => { if (!loading) onCancel(); }}
       onOk={onConfirm}
       className="issue-invoice-modal"
     >
+      {previewError ? <Alert type="error" showIcon message={previewError} className="issue-alert" /> : null}
+      {error ? <Alert type="error" showIcon message={error} className="issue-alert" /> : null}
       <div className="issue-head">
         <dl className="issue-head-facts">
           <div>
@@ -265,7 +299,7 @@ export function IssueInvoiceModal({
         pagination={false}
         columns={columns}
         dataSource={lines}
-        scroll={lines.length > 6 ? { y: 232 } : undefined}
+        scroll={{ x: 700, ...(lines.length > 6 ? { y: 232 } : {}) }}
       />
 
       <dl className="issue-totals">

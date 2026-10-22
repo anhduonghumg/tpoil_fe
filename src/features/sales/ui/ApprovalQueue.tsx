@@ -52,6 +52,7 @@ import type {
 } from "../types";
 import { ApprovalTypeTag, formatMoney, formatQty, OrderKindTag } from "./labels";
 import { InternalSalesOrderModal } from "./InternalSalesOrderModal";
+import { HoldSourceCell } from "./HoldSourceModal";
 import "../sales.css";
 
 const STATUS_TABS: Array<{ value: SalesApprovalStatus; label: string }> = [
@@ -630,6 +631,17 @@ export function ApprovalQueue({
           return <Tooltip title={value}><span className="sales-grid-clip">{value}</span></Tooltip>;
         }
         const preview = line.supplierPreview;
+        // Thiếu tồn bán được (hoặc đã chọn nguồn): cho lấy hàng đang giữ của đơn đã duyệt
+        // nhưng chưa xuất kho/hóa đơn. Hàng chuyển sang đơn này khi đơn được duyệt xong.
+        const holdPlans = line.holdPlans ?? [];
+        const shortageQty = Number(preview?.shortageQty ?? 0);
+        if (
+          (holdPlans.length > 0 || shortageQty > 0) &&
+          isActionable(group) &&
+          !group.head.withdrawalRequest
+        ) {
+          return <HoldSourceCell line={line} shortageQty={shortageQty} plans={holdPlans} />;
+        }
         const fifoCodes = [
           ...new Set((preview?.fifoAllocations ?? []).map((allocation) => allocation.supplierCode)),
         ];
@@ -819,10 +831,11 @@ export function ApprovalQueue({
               </>
             )}
             {group.head.status === "APPROVED" && order && group.head.canDecide && (
-              <Tooltip title="Trả về chờ duyệt">
+              <Tooltip title={group.head.returnToPendingBlockedReason ?? "Trả về chờ duyệt"}>
                 <Button
                   size="small"
                   icon={<RollbackOutlined />}
+                  disabled={Boolean(group.head.returnToPendingBlockedReason)}
                   loading={
                     returnToPendingMutation.isPending &&
                     returnToPendingMutation.variables === group.head.id

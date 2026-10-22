@@ -1,0 +1,28 @@
+.retail-mobile-panel { width: 100%; max-width: 100%; min-width: 0; }
+.retail-mobile-entry { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; width: 100%; max-width: 100%; min-width: 0; }
+.retail-mobile-entry > *, .retail-mobile-paste > *, .retail-mobile-line-fields > * { min-width: 0; max-width: 100%; }
+.retail-mobile-entry-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.retail-mobile-entry-tools > .ant-select { flex: 1 1 140px; min-width: 0; }
+.retail-mobile-paste { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding-block: 8px; border-bottom: 1px solid #e5e7eb; font-size: 12px; }
+.retail-mobile-order-heading, .retail-mobile-line-total, .retail-mobile-footer-total { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.retail-mobile-order-heading .ant-tag { margin: 0; }
+.retail-mobile-entry .ant-form-item { min-width: 0; margin-bottom: 10px; }
+.retail-mobile-entry :is(.ant-form-item-row, .ant-form-item-control, .ant-form-item-control-input, .ant-form-item-control-input-content) { min-width: 0; max-width: 100%; }
+.retail-mobile-entry .ant-form-item-label { padding-bottom: 3px; }
+.retail-mobile-two-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.retail-mobile-two-fields > * { min-width: 0; }
+.retail-mobile-entry :is(.ant-select-selector, .ant-select-selection-wrap, .ant-picker-input) { min-width: 0; max-width: 100%; }
+.retail-mobile-entry .ant-picker-input > input { min-width: 0; }
+.retail-mobile-entry .ant-select, .retail-mobile-entry .ant-input-number, .retail-mobile-entry .ant-picker { width: 100%; max-width: 100% !important; }
+.retail-mobile-entry input, .retail-mobile-entry textarea { font-size: 16px; }
+.retail-mobile-entry .ant-collapse > .ant-collapse-item { border-bottom: 1px solid #e5e7eb; }
+.retail-mobile-entry .ant-collapse .ant-collapse-header { padding: 10px 0; }
+.retail-mobile-entry .ant-collapse .ant-collapse-content-box { padding: 0 0 10px; }
+.retail-mobile-line-title { overflow-wrap: anywhere; font-weight: 600; font-size: 13px; }
+.retail-mobile-line-total { flex-wrap: wrap; font-size: 13px; padding-block: 4px; }
+.retail-mobile-footer-total { margin-bottom: 6px; font-size: 13px; }
+.retail-mobile-footer-total strong { overflow-wrap: anywhere; text-align: right; }
+.retail-mobile-footer-actions { display: flex; gap: 8px; }
+.retail-mobile-footer-actions > .ant-btn { flex: 1; min-width: 0; }
+.retail-mobile-entry .ant-alert { overflow-wrap: anywhere; }
+@media (max-width: 359px) { .retail-mobile-two-fields { grid-template-columns: minmax(0, 1fr); gap: 0; } }

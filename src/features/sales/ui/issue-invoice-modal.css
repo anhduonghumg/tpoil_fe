@@ -248,3 +248,21 @@
   margin-left: 8px;
   font-size: 11px;
 }
+
+.invoice-edit-reason { display: grid; gap: 4px; margin-top: 12px; }
+.invoice-edit-mobile-line { padding: 10px 0; border-bottom: 1px solid #edf0f4; }
+.invoice-edit-mobile-line > strong, .invoice-edit-mobile-line > small { display: block; overflow-wrap: anywhere; }
+.invoice-edit-mobile-line > small { color: #667085; }
+.invoice-edit-mobile-line.is-omitted { background: #fff2f0; }
+.invoice-edit-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 6px; }
+.invoice-edit-fields label { min-width: 0; }
+.invoice-edit-fields .ant-input-number { max-width: 100%; }
+.invoice-batch-line { display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid #edf0f4; }
+.invoice-batch-line > strong { overflow-wrap: anywhere; }
+.invoice-batch-line > button { justify-self: start; }
+@media (max-width: 767px) {
+  .issue-invoice-modal { max-width: calc(100vw - 16px); margin-inline: auto; }
+  .issue-invoice-modal .ant-modal-body { max-height: calc(100dvh - 180px); }
+  .issue-invoice-modal .ant-modal-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+  .issue-invoice-modal .ant-modal-footer > * { margin-inline-start: 0 !important; }
+}

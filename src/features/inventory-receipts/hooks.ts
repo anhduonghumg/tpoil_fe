@@ -32,9 +32,15 @@ export function useConfirmInventoryReceipt() {
   const refresh = useRefreshReceipts();
   return useMutation({
     mutationFn: (id: string) => InventoryReceiptsApi.confirm(id),
-    onSuccess: () => {
+    onSuccess: (result) => {
       refresh();
       notify.success("Đã xác nhận nhập kho và cộng tồn");
+      // Hàng vừa nhập đã được dùng để bù cho đơn bán đang chờ bù (nếu hàng đã tự do).
+      const backfills = (result as { holdBackfills?: Array<{ orderNo: string; qty: string }> } | undefined)
+        ?.holdBackfills;
+      if (backfills?.length) {
+        notify.info(`Đã bù hàng cho đơn bán: ${backfills.map((row) => `${row.orderNo} (${row.qty})`).join(", ")}`);
+      }
     },
     onError: (error) =>
       notify.error(extractApiError(error).message || "Không xác nhận được phiếu nhập"),

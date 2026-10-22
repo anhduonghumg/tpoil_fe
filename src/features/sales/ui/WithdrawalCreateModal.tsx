@@ -288,10 +288,35 @@ export function WithdrawalCreateModal({
       align: "right",
       render: (value) => <strong>{formatQty(value)}</strong>,
     },
+    {
+      // Hàng giữ của đơn lô đã phân bổ lại cho đơn khác thì phần đó phải chờ bù mới rút được.
+      title: "Rút được ngay",
+      key: "withdrawable",
+      width: 130,
+      align: "right",
+      render: (_, row) =>
+        Number(row.awaitingBackfillQty ?? 0) > 0 ? (
+          <span>
+            <strong>{formatQty(row.withdrawableQty)}</strong>
+            <span style={{ display: "block", fontSize: 11, color: "#d46b08" }}>
+              chờ bù {formatQty(row.awaitingBackfillQty)} (rút được nếu kho còn hàng dư)
+            </span>
+          </span>
+        ) : (
+          <strong>{formatQty(row.withdrawableQty ?? row.remainingQty)}</strong>
+        ),
+    },
   ];
 
-  // Không chọn gì thì backend tự lấy lô cũ nhất (FIFO), nên luôn gửi được.
-  const canSubmit = true;
+  // Không chọn gì thì backend tự lấy lô cũ nhất (FIFO). Không có lô nào phục vụ được thì
+  // không cho tạo — backend cũng chặn, ở đây chỉ để Sale thấy sớm.
+  const noSource =
+    Boolean(customerPartyId) &&
+    sourceQueryLines.some((line) => line.productId) &&
+    candidatesQuery.isSuccess &&
+    !candidatesQuery.isFetching &&
+    candidates.length === 0;
+  const canSubmit = !noSource;
 
   return (
     <Modal
@@ -393,7 +418,7 @@ export function WithdrawalCreateModal({
             <Alert
               type="warning"
               showIcon
-              message="Khách chưa có đơn lô nào còn đủ hàng cho lần rút này. Phiếu sẽ được tạo ở trạng thái chờ chọn lô nguồn."
+              message="Khách chưa có đơn lô nào còn đủ hàng cho lần rút này. Không thể tạo phiếu rút — cần có đơn lô đã duyệt trước."
             />
           ) : (
             <Radio.Group

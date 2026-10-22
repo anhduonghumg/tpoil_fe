@@ -4,18 +4,18 @@ import { PlusOutlined } from "@ant-design/icons";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../../shared/ui/PageHeader";
 import "../../../shared/ui/table-filter.css";
-import { useCommercialLotPaymentRequests } from "../../commercial-lots/hooks";
-import { useGeneralPaymentRequests, useTermPaymentBatches, useTermPaymentPendingRequests } from "../hooks";
-import { COMMERCIAL_APPROVAL_STATUSES, CommercialPaymentRequestsPanel } from "../ui/CommercialPaymentRequestsPanel";
+import { useGeneralPaymentRequests, usePaymentPlanRequests, useTermPaymentBatches, useTermPaymentPendingRequests } from "../hooks";
+import { COMMERCIAL_APPROVAL_STATUSES, CommercialPaymentRequestsPanel, isCommercialExecutionTodo } from "../ui/CommercialPaymentRequestsPanel";
 import { GENERAL_APPROVAL_STATUSES, GeneralPaymentRequestsPanel } from "../ui/GeneralPaymentRequestsPanel";
 import { GeneralPaymentCreateModal } from "../ui/GeneralPaymentCreateModal";
 import { TermPaymentBatchesPanel, batchNextStep } from "../ui/TermPaymentBatchesPanel";
 import "../banking.css";
 
 type Stage = "approval" | "execution";
-/* Ba loại hồ sơ chi, mỗi loại một cách chi:
-   - commercial: mua hàng lẻ (lô thương mại) đã có hóa đơn, chi từng hồ sơ;
-   - term: đơn mua TERM theo hợp đồng, gộp nhiều đề nghị vào một bảng kê gửi ngân hàng;
+/* Ba nhóm hồ sơ chi:
+   - commercial: đề nghị thanh toán đơn TE/TM — ngân hàng lập kế hoạch thanh toán, giám đốc duyệt
+     đề nghị kèm kế hoạch; đơn TM chi theo từng đợt ngay tại đây;
+   - term: đơn mua TERM đã duyệt, gộp nhiều đề nghị vào một bảng kê gửi ngân hàng;
    - general: chi ngoài mua hàng (nội bộ, tài sản, thuế phí...). */
 type Source = "commercial" | "term" | "general";
 
@@ -27,7 +27,6 @@ const PATH_BY_STAGE: Record<Stage, string> = {
 /* Việc tồn ở bước "Thực hiện chi": hồ sơ đã trả xong vẫn nằm trong danh sách để
    tra cứu, nhưng không tính vào số trên tab. */
 const GENERAL_EXECUTION_TODO = ["APPROVED", "BANK_VERIFIED", "PARTIALLY_PAID"];
-const COMMERCIAL_EXECUTION_TODO = ["SUBMITTED", "BANK_VERIFIED", "PARTIALLY_PAID"];
 
 const tabLabel = (text: string, count: number) => (
   <span>
@@ -47,7 +46,7 @@ export default function BankingPaymentsPage() {
   const isLegacyTermPath = location.pathname === "/banking/term-batches";
   const stage: Stage = location.pathname === PATH_BY_STAGE.approval ? "approval" : "execution";
 
-  const commercialQuery = useCommercialLotPaymentRequests();
+  const commercialQuery = usePaymentPlanRequests();
   const generalQuery = useGeneralPaymentRequests();
   const termPendingQuery = useTermPaymentPendingRequests();
   const termBatchesQuery = useTermPaymentBatches({ page: 1, pageSize: 20 });
@@ -64,7 +63,7 @@ export default function BankingPaymentsPage() {
         general: general.filter((item) => GENERAL_APPROVAL_STATUSES.includes(item.status)).length,
       },
       execution: {
-        commercial: commercial.filter((item) => COMMERCIAL_EXECUTION_TODO.includes(item.status)).length,
+        commercial: commercial.filter(isCommercialExecutionTodo).length,
         term: termPending + termBatches,
         general: general.filter((item) => GENERAL_EXECUTION_TODO.includes(item.status)).length,
       },
@@ -86,8 +85,8 @@ export default function BankingPaymentsPage() {
   };
 
   const sourceLabels: Record<Source, string> = {
-    commercial: "Mua TM",
-    term: "Mua Term",
+    commercial: "Đề nghị TE/TM",
+    term: "Bảng kê Term",
     general: "Chi khác",
   };
   const sourceSwitch = (
@@ -105,7 +104,7 @@ export default function BankingPaymentsPage() {
     <div className="page-shell">
       <PageHeader
         title="Chi tiền"
-        subtitle="Phê duyệt → kiểm tra thông tin thụ hưởng → lập lệnh tại ngân hàng → ghi nhận đã chi → đối soát sao kê."
+        subtitle="Mua hàng gửi đề nghị → ngân hàng lập kế hoạch thanh toán → giám đốc duyệt → chi theo từng đợt → đối soát sao kê."
         actions={
           <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
             Tạo hồ sơ chi

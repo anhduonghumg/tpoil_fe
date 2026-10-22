@@ -251,3 +251,108 @@ button.banking-kpi:hover {
   color: #334155;
   font-size: 14px;
 }
+
+/* ===== Tiền tại ngân hàng ===== */
+
+.cash-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 28px;
+  padding: 14px 16px;
+  border: 1px solid #e3eaf5;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.cash-hero-label {
+  color: #596579;
+  font-size: 12px;
+}
+
+.cash-hero-value {
+  color: #16305f;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.cash-hero-value small {
+  margin-left: 4px;
+  color: #596579;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.cash-hero-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  padding-bottom: 4px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.cash-up {
+  color: #1d7a3a;
+}
+
+.cash-down {
+  color: #c0392b;
+}
+
+.cash-bank-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.cash-bank-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid #e3eaf5;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cash-bank-card:hover {
+  border-color: #9dbbf0;
+  box-shadow: 0 2px 8px rgba(33, 65, 143, 0.08);
+}
+
+.cash-bank-card.is-active {
+  border-color: #3b6fd4;
+  background: #f3f7ff;
+  box-shadow: inset 0 -2px 0 #3b6fd4;
+}
+
+.cash-bank-name {
+  overflow: hidden;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cash-bank-value {
+  color: #16305f;
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cash-bank-meta {
+  color: #596579;
+  font-size: 12px;
+}
+
+.cash-bank-meta.is-stale {
+  color: #b7791f;
+}

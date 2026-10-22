@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Card,
@@ -18,6 +18,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -25,6 +26,11 @@ import {
   ArrowLeftOutlined,
   CalculatorOutlined,
   CheckCircleFilled,
+  CheckOutlined,
+  EditOutlined,
+  EyeOutlined,
+  PaperClipOutlined,
+  StopOutlined,
   ClockCircleOutlined,
   FileDoneOutlined,
   FileTextOutlined,
@@ -46,7 +52,10 @@ import {
   useGenerateTermOrderDocument,
   useCreateTermLogisticsCost,
   useCreateTermPaymentRequest,
+  useResubmitTermPaymentRequest,
   useCreateTermReceipt,
+  useUpdateTermReceipt,
+  useVoidTermReceipt,
   useCreateTermSettlementAdjustment,
   useCreateTermShipment,
   useMatchTermBankInstruction,
@@ -54,6 +63,8 @@ import {
   useVoidTermLogisticsCost,
 } from "../hooks";
 import type {
+  TermCharterSummary,
+  TermCharterVoyage,
   TermGoodsReceipt,
   GenerateTermOrderDocumentPayload,
   TermLogisticsCost,
@@ -65,7 +76,7 @@ import type {
   TermWorkflowStep,
 } from "../types";
 import { TermReceiptModal } from "../ui/TermReceiptModal";
-import { TermPricingModal } from "../ui/TermPricingModal";
+import { TermBossSheetModal } from "../ui/TermBossSheetModal";
 import { TermPricingSheetModal } from "../ui/TermPricingSheetModal";
 import TermPricingSheetTable from "../ui/TermPricingSheetTable";
 import { TermLogisticsCostModal, TermShipmentModal } from "../ui/TermLogisticsModals";
@@ -124,6 +135,7 @@ export default function TermPurchaseOrderDetailPage() {
   const autoOpenEstimateRef = useRef(false);
 
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptTarget, setReceiptTarget] = useState<TermGoodsReceipt | null>(null);
   const [shipmentOpen, setShipmentOpen] = useState(false);
   const [logisticsOpen, setLogisticsOpen] = useState(false);
   const [orderDocumentOpen, setOrderDocumentOpen] = useState(false);
@@ -137,7 +149,9 @@ export default function TermPurchaseOrderDetailPage() {
   const approveMutation = useApproveTermPurchaseOrder();
   const completeMutation = useCompleteTermPurchaseOrder();
   const createReceiptMutation = useCreateTermReceipt(data?.id);
+  const updateReceiptMutation = useUpdateTermReceipt(data?.id);
   const confirmReceiptMutation = useConfirmTermReceipt(data?.id);
+  const voidReceiptMutation = useVoidTermReceipt(data?.id);
   const createShipmentMutation = useCreateTermShipment(data?.id);
   const createLogisticsCostMutation = useCreateTermLogisticsCost(data?.id);
   const confirmLogisticsCostMutation = useConfirmTermLogisticsCost(data?.id);
@@ -186,6 +200,19 @@ export default function TermPurchaseOrderDetailPage() {
   const workflow = data.workflow;
   const currentAction = workflow?.currentAction || data.nextAction;
   const hasConfirmedReceipt = (data.receipts || []).some((item) => item.status === "CONFIRMED");
+  const latestReceipt =
+    [...(data.receipts || [])]
+      .filter((item) => item.status !== "VOID")
+      .sort((a, b) => `${b.receiptDate}${b.receiptNo}`.localeCompare(`${a.receiptDate}${a.receiptNo}`))[0] ?? null;
+
+  const openReceipt = (receipt: TermGoodsReceipt | null) => {
+    setReceiptTarget(receipt);
+    setReceiptOpen(true);
+  };
+  const closeReceipt = () => {
+    setReceiptOpen(false);
+    setReceiptTarget(null);
+  };
   const hasEstimate = !!pricing?.estimate;
   const hasBill = !!pricing?.bill;
   const hasFinal = !!pricing?.final;
@@ -200,7 +227,7 @@ export default function TermPurchaseOrderDetailPage() {
       if (!instruction) message.warning("Chưa có ủy nhiệm chi để đối chiếu.");
       else matchBankInstructionMutation.mutate(instruction.id);
     }
-    else if (isAction(currentAction, "CREATE_RECEIPT")) setReceiptOpen(true);
+    else if (isAction(currentAction, "CREATE_RECEIPT")) openReceipt(latestReceipt);
     else if (isAction(currentAction, "CALCULATE_ESTIMATE", "CALCULATE_TEMP_PRICE")) setPricingKind("ESTIMATE");
     else if (isAction(currentAction, "CALCULATE_BILL_NORMALIZE", "CALCULATE_INVOICE_PRICE")) setPricingKind("BILL_NORMALIZE");
     else if (isAction(currentAction, "CALCULATE_FINAL", "CALCULATE_OFFICIAL_FX")) setPricingKind("FINAL");
@@ -221,7 +248,8 @@ export default function TermPurchaseOrderDetailPage() {
 
   const openPricing = (kind: PricingKind) => {
     const existingStage = getPricingStage(kind);
-    if (existingStage) {
+    // Bảng sếp mở thẳng màn nhập (có sẵn số đã lưu), không qua màn xem chung.
+    if (existingStage && kind !== "BOSS_SHEET") {
       setViewPricingStage(existingStage);
       return;
     }
@@ -323,7 +351,7 @@ export default function TermPurchaseOrderDetailPage() {
               hasFinal={hasFinal}
               onGenerateOrder={() => setOrderDocumentOpen(true)}
               generatingOrder={generateOrderDocumentMutation.isPending}
-              onReceive={() => setReceiptOpen(true)}
+              onReceive={() => openReceipt(latestReceipt)}
               onEstimate={() => openPricing("ESTIMATE")}
               onBill={() => openPricing("BILL_NORMALIZE")}
               onFinal={() => openPricing("FINAL")}
@@ -343,9 +371,12 @@ export default function TermPurchaseOrderDetailPage() {
                   children: (
                     <GoodsAndReceiptSection
                       data={data}
-                      onReceive={() => setReceiptOpen(true)}
+                      onReceive={() => openReceipt(null)}
+                      onOpenReceipt={openReceipt}
                       onConfirm={(receiptId) => confirmReceiptMutation.mutate(receiptId)}
                       confirmingId={confirmReceiptMutation.isPending ? (confirmReceiptMutation.variables as string) : undefined}
+                      onVoid={(receiptId) => voidReceiptMutation.mutateAsync(receiptId)}
+                      voidingId={voidReceiptMutation.isPending ? (voidReceiptMutation.variables as string) : undefined}
                     />
                   ),
                 },
@@ -379,6 +410,20 @@ export default function TermPurchaseOrderDetailPage() {
                     />
                   ),
                 },
+                ...(data.charterVessel || data.charter?.voyages.length
+                  ? [
+                      {
+                        key: "charter",
+                        label: (
+                          <PanelLabel
+                            title="Thuê tàu"
+                            meta={`BH ${fmt(data.charter?.insuranceVnd ?? 0)} · GĐ ${fmt(data.charter?.inspectionVnd ?? 0)}`}
+                          />
+                        ),
+                        children: <CharterSection charter={data.charter} onOpen={(id) => navigate(`/operations/charter-orders/${id}`)} />,
+                      },
+                    ]
+                  : []),
               ]}
             />
           </Space>
@@ -392,11 +437,16 @@ export default function TermPurchaseOrderDetailPage() {
       <TermReceiptModal
         open={receiptOpen}
         data={data}
-        loading={createReceiptMutation.isPending}
-        onCancel={() => setReceiptOpen(false)}
+        receipt={receiptTarget}
+        loading={createReceiptMutation.isPending || updateReceiptMutation.isPending}
+        onCancel={closeReceipt}
         onSubmit={(payload) =>
-          createReceiptMutation.mutate(payload, { onSuccess: () => setReceiptOpen(false) })
+          createReceiptMutation.mutate(payload, { onSuccess: closeReceipt })
         }
+        onUpdate={(receiptId, payload) => {
+          const { sourceFile: _file, ...rest } = payload;
+          updateReceiptMutation.mutate({ id: receiptId, data: rest }, { onSuccess: closeReceipt });
+        }}
       />
 
       <TermOrderDocumentModal
@@ -447,17 +497,13 @@ export default function TermPurchaseOrderDetailPage() {
       ) : null}
 
       {pricingKind === "BOSS_SHEET" ? (
-        <TermPricingModal
+        <TermBossSheetModal
           open
-          kind="BOSS_SHEET"
           data={data}
           initialStage={getPricingStage("BOSS_SHEET")}
           loading={createBossSheetPricing.isPending}
           onCancel={() => setPricingKind(null)}
-          onSubmit={(payload) => {
-            const done = { onSuccess: () => setPricingKind(null) };
-            createBossSheetPricing.mutate(payload, done);
-          }}
+          onSubmit={(payload) => createBossSheetPricing.mutate(payload, { onSuccess: () => setPricingKind(null) })}
         />
       ) : null}
 
@@ -474,6 +520,80 @@ export default function TermPurchaseOrderDetailPage() {
         loading={createLogisticsCostMutation.isPending}
         onCancel={() => setLogisticsOpen(false)}
         onSubmit={(payload) => createLogisticsCostMutation.mutate(payload, { onSuccess: () => setLogisticsOpen(false) })}
+      />
+    </div>
+  );
+}
+
+const charterStatusMap: Record<string, { color: string; text: string }> = {
+  DRAFT: { color: "default", text: "Nháp" },
+  WAITING_CONFIRMATION: { color: "gold", text: "Chờ xác nhận" },
+  CONFIRMED: { color: "blue", text: "Đã xác nhận" },
+  APPENDIX_CREATED: { color: "cyan", text: "Đã có phụ lục" },
+  IN_PROGRESS: { color: "processing", text: "Đang chạy" },
+  COMPLETED: { color: "green", text: "Hoàn tất" },
+};
+
+/**
+ * Thuê tàu nhìn từ phía mua hàng: chỉ cần tiền bảo hiểm và giám định theo từng chuyến để làm bảng giá.
+ * Chi tiết (tàu, hợp đồng, đơn bảo hiểm, chứng thư giám định) do vận hành nhập ở lệnh thuê tàu.
+ */
+function CharterSection({ charter, onOpen }: { charter?: TermCharterSummary; onOpen: (id: string) => void }) {
+  const voyages = charter?.voyages ?? [];
+  const columns: ColumnsType<TermCharterVoyage> = [
+    {
+      title: "Chuyến / lệnh thuê tàu",
+      render: (_, row) => {
+        const status = charterStatusMap[row.status] || { color: "default", text: row.status };
+        return (
+          <div style={{ lineHeight: 1.35 }}>
+            <a style={{ fontWeight: 600 }} onClick={() => onOpen(row.id)}>{row.charterOrderNo}</a>
+            <div style={{ fontSize: 12, color: "#64748b" }}>
+              {[row.vesselName || "Chưa chọn tàu", row.ownerName].filter(Boolean).join(" · ")}
+            </div>
+            <Tag color={status.color} style={{ marginTop: 2, marginInlineEnd: 0 }}>{status.text}</Tag>
+          </div>
+        );
+      },
+    },
+    { title: "Laycan", width: 190, render: (_, row) => (row.laycanFrom || row.laycanTo ? `${date(row.laycanFrom)} – ${date(row.laycanTo)}` : "--") },
+    {
+      title: "Bảo hiểm hàng hóa",
+      width: 160,
+      align: "right",
+      render: (_, row) => (row.insuranceCount ? `${fmt(row.insuranceVnd)} đ` : <Text type="secondary">Chưa đăng ký</Text>),
+    },
+    {
+      title: "Giám định",
+      width: 160,
+      align: "right",
+      render: (_, row) => (row.inspectionCount ? `${fmt(row.inspectionVnd)} đ` : <Text type="secondary">Chưa đăng ký</Text>),
+    },
+  ];
+
+  return (
+    <div>
+      <Header
+        title="Thuê tàu"
+        desc="Vận hành đăng ký bảo hiểm và giám định theo từng chuyến; bảng giá và Bảng sếp tự lấy tổng tiền này."
+      />
+      <Table
+        size="small"
+        bordered
+        rowKey="id"
+        columns={columns}
+        dataSource={voyages}
+        pagination={false}
+        locale={{ emptyText: "Chưa có lệnh thuê tàu cho hồ sơ này" }}
+        summary={() =>
+          voyages.length > 1 ? (
+            <Table.Summary.Row>
+              <Table.Summary.Cell index={0} colSpan={2}><b>Tổng</b></Table.Summary.Cell>
+              <Table.Summary.Cell index={2} align="right"><b>{fmt(charter?.insuranceVnd)} đ</b></Table.Summary.Cell>
+              <Table.Summary.Cell index={3} align="right"><b>{fmt(charter?.inspectionVnd)} đ</b></Table.Summary.Cell>
+            </Table.Summary.Row>
+          ) : null
+        }
       />
     </div>
   );
@@ -581,7 +701,7 @@ function ActionBoard({
         <ActionButton icon={<CalculatorOutlined />} title="Bảng xuất HĐ" desc="Sau giao nhận/bill bồn" disabled={!hasConfirmedReceipt} onClick={onBill} done={hasBill} />
         <ActionButton icon={<CalculatorOutlined />} title="Bảng chính thức" desc="Khi có giá chính thức" disabled={!hasBill} onClick={onFinal} done={hasFinal} />
         <ActionButton icon={<FileTextOutlined />} title="Chi phí" desc="Kiểm định, vận chuyển, khác" onClick={onLogistics} />
-        <ActionButton icon={<PrinterOutlined />} title="Bảng sếp" desc="Tổng hợp cuối hồ sơ" disabled={!hasFinal} onClick={onBoss} />
+        <ActionButton icon={<PrinterOutlined />} title="Bảng sếp" desc="Lập khi có bill nhà máy" disabled={!hasConfirmedReceipt} onClick={onBoss} done={!!data.pricingRuns?.some((run) => run.stages?.some((item) => item.stageType === "BOSS_SHEET"))} />
       </div>
     </Card>
   );
@@ -757,7 +877,24 @@ function TermPaymentRequestModal({
   );
 }
 
-function GoodsAndReceiptSection({ data, onReceive, onConfirm, confirmingId }: { data: TermPurchaseOrderDetail; onReceive: () => void; onConfirm: (id: string) => void; confirmingId?: string }) {
+const receiptStatusMap: Record<string, { color: string; text: string }> = {
+  DRAFT: { color: "default", text: "Nháp" },
+  CONFIRMED: { color: "green", text: "Đã xác nhận" },
+  VOID: { color: "red", text: "Đã hủy" },
+};
+
+function QtyCell({ value, tone }: { value?: number | null; tone?: "loss" }) {
+  if (value === null || value === undefined) return <span style={{ color: "#cbd5e1" }}>—</span>;
+  const n = Number(value);
+  const color = tone === "loss" && n > 0 ? "#b45309" : undefined;
+  return <span style={{ color, fontVariantNumeric: "tabular-nums" }}>{fmt(n, 3)}</span>;
+}
+
+function DateCell({ value }: { value?: string | null }) {
+  return value ? <span>{date(value)}</span> : <span style={{ color: "#cbd5e1" }}>—</span>;
+}
+
+function GoodsAndReceiptSection({ data, onReceive, onOpenReceipt, onConfirm, confirmingId, onVoid, voidingId }: { data: TermPurchaseOrderDetail; onReceive: () => void; onOpenReceipt: (receipt: TermGoodsReceipt) => void; onConfirm: (id: string) => void; confirmingId?: string; onVoid: (id: string) => Promise<unknown>; voidingId?: string }) {
   const receiptByLine = useMemo(() => {
     const map = new Map<string, number>();
     (data.receipts || []).forEach((receipt) => {
@@ -775,32 +912,129 @@ function GoodsAndReceiptSection({ data, onReceive, onConfirm, confirmingId }: { 
     { title: "Giá tạm", dataIndex: "unitPrice", align: "right", render: (v) => (v == null ? "--" : `${fmt(v)} đ/L`) },
   ];
 
+  const multiLine = (data.lines?.length || 0) > 1;
+  const groupTitle = (title: string, unit: string) => (
+    <div style={{ lineHeight: 1.2 }}>
+      <div>{title}</div>
+      <div style={{ fontSize: 11, fontWeight: 400, color: "#64748b" }}>{unit}</div>
+    </div>
+  );
+
   const receiptColumns: ColumnsType<TermGoodsReceipt> = [
-    { title: "Phiếu", dataIndex: "receiptNo", width: 130 },
-    { title: "Ngày", dataIndex: "receiptDate", width: 110, render: (v) => date(v) },
-    { title: "Sản phẩm", dataIndex: "productName", render: (v) => v || "--" },
-    { title: "SL trên bill", dataIndex: "billQty", align: "right", width: 130, render: (v, r) => `${fmt(v ?? r.qty)} L` },
-    { title: "Lên bồn kho", dataIndex: "tankQty", align: "right", width: 130, render: (v, r) => `${fmt(v ?? r.qty)} L` },
-    { title: "Rút tạm tính", dataIndex: "temporaryWithdrawQty", align: "right", width: 140, render: (v, r) => `${fmt(v ?? r.standardQtyV15 ?? r.qty)} L` },
-    { title: "Hao hụt bill về bồn", dataIndex: "billToTankLossQty", align: "right", width: 155, render: (v, r) => `${fmt(v ?? Math.max(Number(r.billQty ?? r.qty) - Number(r.tankQty ?? r.qty), 0))} L` },
     {
-      title: "File",
-      width: 90,
-      render: (_, r) =>
-        r.sourceFileUrl ? (
-          <Button size="small" type="link" onClick={() => window.open(r.sourceFileUrl!, "_blank")}>
-            Xem
-          </Button>
-        ) : "--",
+      title: "Phiếu",
+      key: "receipt",
+      fixed: "left",
+      width: 170,
+      render: (_, r) => {
+        const status = receiptStatusMap[r.status] || { color: "default", text: r.status };
+        return (
+          <div style={{ lineHeight: 1.35 }}>
+            <a style={{ fontWeight: 600 }} onClick={() => onOpenReceipt(r)}>{r.receiptNo}</a>
+            <div style={{ fontSize: 12, color: "#64748b" }}>
+              {date(r.receiptDate)}
+              {multiLine && r.productName ? ` · ${r.productName}` : ""}
+            </div>
+            <Tag color={status.color} style={{ marginTop: 2, marginInlineEnd: 0 }}>{status.text}</Tag>
+          </div>
+        );
+      },
     },
-    { title: "Trạng thái", dataIndex: "status", width: 115, render: (v) => <Tag color={v === "CONFIRMED" ? "green" : "default"}>{v}</Tag> },
+    {
+      title: "Bill nhà máy",
+      children: [
+        { title: "Ngày", dataIndex: "billDate", width: 96, align: "center", render: (v) => <DateCell value={v} /> },
+        { title: "Thùng", dataIndex: "factoryBarrelQty", width: 90, align: "right", render: (v) => <QtyCell value={v} /> },
+        { title: groupTitle("Thực tế", "L"), dataIndex: "billQty", width: 110, align: "right", render: (v, r) => <QtyCell value={v ?? r.qty} /> },
+        { title: groupTitle("15°C", "L15"), dataIndex: "billQtyV15", width: 110, align: "right", render: (v) => <QtyCell value={v} /> },
+      ],
+    },
+    {
+      title: "Lên bồn kho",
+      children: [
+        { title: "Ngày", dataIndex: "tankDate", width: 96, align: "center", render: (v) => <DateCell value={v} /> },
+        { title: groupTitle("Thực tế", "L"), dataIndex: "tankQty", width: 110, align: "right", render: (v, r) => <QtyCell value={v ?? r.qty} /> },
+        { title: groupTitle("15°C", "L15"), dataIndex: "tankQtyV15", width: 110, align: "right", render: (v) => <QtyCell value={v} /> },
+      ],
+    },
+    {
+      title: "Hao hụt bill → bồn",
+      children: [
+        {
+          title: groupTitle("Thực tế", "L"),
+          dataIndex: "billToTankLossQty",
+          width: 100,
+          align: "right",
+          render: (v, r) => <QtyCell tone="loss" value={v ?? Math.max(Number(r.billQty ?? r.qty) - Number(r.tankQty ?? r.qty), 0)} />,
+        },
+        { title: groupTitle("15°C", "L15"), dataIndex: "billToTankLossQtyV15", width: 100, align: "right", render: (v) => <QtyCell tone="loss" value={v} /> },
+      ],
+    },
+    {
+      title: groupTitle("Rút tạm tính", "L"),
+      dataIndex: "temporaryWithdrawQty",
+      width: 115,
+      align: "right",
+      render: (v, r) => <b><QtyCell value={v ?? r.standardQtyV15 ?? r.qty} /></b>,
+    },
     {
       title: "",
-      width: 110,
+      key: "actions",
+      fixed: "right",
+      width: 112,
+      align: "center",
       render: (_, r) => (
-        <Button size="small" type="link" disabled={r.status !== "DRAFT"} loading={confirmingId === r.id} onClick={() => onConfirm(r.id)}>
-          Xác nhận
-        </Button>
+        <Space size={2}>
+          <Tooltip title={r.status === "VOID" ? "Xem phiếu" : "Sửa phiếu"}>
+            <Button
+              size="small"
+              type="text"
+              icon={r.status === "VOID" ? <EyeOutlined /> : <EditOutlined />}
+              onClick={() => onOpenReceipt(r)}
+            />
+          </Tooltip>
+          {r.sourceFileUrl ? (
+            <Tooltip title="Xem chứng từ">
+              <Button size="small" type="text" icon={<PaperClipOutlined />} onClick={() => window.open(r.sourceFileUrl!, "_blank")} />
+            </Tooltip>
+          ) : null}
+          {r.status === "DRAFT" ? (
+            <Tooltip title="Xác nhận phiếu">
+              <Button
+                size="small"
+                type="text"
+                style={{ color: "#16a34a" }}
+                icon={<CheckOutlined />}
+                loading={confirmingId === r.id}
+                onClick={() => onConfirm(r.id)}
+              />
+            </Tooltip>
+          ) : null}
+          {r.status !== "VOID" ? (
+            <Tooltip title="Hủy phiếu">
+            <Button
+              size="small"
+              type="text"
+              danger
+              icon={<StopOutlined />}
+              loading={voidingId === r.id}
+              onClick={() =>
+                Modal.confirm({
+                  title: `Hủy phiếu ${r.receiptNo}?`,
+                  content:
+                    r.status === "CONFIRMED"
+                      ? "Phiếu đã ghi kho: hủy sẽ đảo lại tồn kho của phiếu này. Sau đó lập phiếu mới với số liệu đúng."
+                      : "Phiếu nháp sẽ chuyển sang Đã hủy.",
+                  okText: "Hủy phiếu",
+                  okButtonProps: { danger: true },
+                  cancelText: "Không",
+                  onOk: () => onVoid(r.id),
+                })
+              }
+            />
+            </Tooltip>
+          ) : null}
+        </Space>
       ),
     },
   ];
@@ -810,7 +1044,17 @@ function GoodsAndReceiptSection({ data, onReceive, onConfirm, confirmingId }: { 
       <Header title="Hàng hóa & giao nhận" desc="Nhập số lượng bill, lượng lên bồn, lượng rút tạm tính và hao hụt." action={<Button type="primary" onClick={onReceive}>Tạo phiếu giao nhận</Button>} />
       <Table size="small" bordered rowKey="id" columns={lineColumns} dataSource={data.lines || []} pagination={false} scroll={{ x: 820 }} />
       <div style={{ height: 10 }} />
-      <Table size="small" rowKey="id" columns={receiptColumns} dataSource={data.receipts || []} pagination={false} scroll={{ x: 1160 }} locale={{ emptyText: "Chưa có phiếu giao nhận" }} />
+      <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>Phiếu giao nhận</div>
+      <Table
+        size="small"
+        bordered
+        rowKey="id"
+        columns={receiptColumns}
+        dataSource={data.receipts || []}
+        pagination={false}
+        scroll={{ x: 1330 }}
+        locale={{ emptyText: "Chưa có phiếu giao nhận" }}
+      />
     </div>
   );
 }
@@ -823,7 +1067,7 @@ function PricingSection({ estimate, bill, final, boss, latest, hasConfirmedRecei
         <PriceCard title="Tạm tính" stage={estimate} onClick={() => onCreate("ESTIMATE")} />
         <PriceCard title="Xuất hóa đơn" stage={bill} disabled={(!estimate && !canSkipEstimate) || !hasConfirmedReceipt} onClick={() => onCreate("BILL_NORMALIZE")} />
         <PriceCard title="Chính thức" stage={final} disabled={!bill} onClick={() => onCreate("FINAL")} />
-        <PriceCard title="Bảng sếp" stage={boss} disabled={!final} onClick={() => onCreate("BOSS_SHEET")} />
+        <PriceCard title="Bảng sếp" stage={boss} disabled={!hasConfirmedReceipt} onClick={() => onCreate("BOSS_SHEET")} />
       </div>
       {latest ? (
         <div>
@@ -998,14 +1242,87 @@ function termPaymentStatus(data: TermPurchaseOrderDetail) {
   ) {
     return { text: "Đã có sao kê thanh toán", color: "green" };
   }
-  if (requests.some((request) => request.status === "SENT_TO_BANK")) {
+  /* Đề nghị có kế hoạch thanh toán giữ trạng thái "đã duyệt" trong lúc chi từng đợt, nên tiến độ
+     bảng kê đọc từ trạng thái dòng bảng kê chứ không chỉ từ trạng thái đề nghị. */
+  if (requests.some((request) => request.status === "SENT_TO_BANK") || batchItems.some((item) => item.status === "SENT")) {
     return { text: "Đã gửi ngân hàng, chưa thanh toán", color: "blue" };
   }
-  if (requests.some((request) => request.status === "IN_BATCH")) {
+  if (requests.some((request) => request.status === "IN_BATCH") || batchItems.some((item) => item.status === "PENDING")) {
     return { text: "Đã vào bảng kê, chờ gửi ngân hàng", color: "cyan" };
   }
+  if (requests.some((request) => request.status === "BANK_RETURNED")) {
+    return { text: "Ngân hàng trả lại, cần gửi lại", color: "red" };
+  }
+  if (requests.some((request) => request.status === "DIRECTOR_REJECTED")) {
+    return { text: "Giám đốc từ chối", color: "red" };
+  }
+  if (requests.some((request) => request.status === "PENDING_BANK_PLAN")) {
+    return { text: "Chờ ngân hàng lập kế hoạch thanh toán", color: "purple" };
+  }
+  if (requests.some((request) => request.status === "PENDING_DIRECTOR_APPROVAL")) {
+    return { text: "Chờ giám đốc duyệt", color: "gold" };
+  }
 
-  return { text: "Chờ ngân hàng lập bảng kê", color: "orange" };
+  return { text: "Đã duyệt, chờ ngân hàng lập bảng kê", color: "orange" };
+}
+
+/* Đề nghị bị ngân hàng trả lại hoặc giám đốc từ chối: hiện lý do và cho mua hàng gửi lại. */
+function ReturnedPaymentRequest({ data }: { data: TermPurchaseOrderDetail }) {
+  const resubmit = useResubmitTermPaymentRequest(data.id);
+  const request = (data.termPaymentRequests || []).find(
+    (item) => item.status === "BANK_RETURNED" || item.status === "DIRECTOR_REJECTED",
+  );
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState<number | null>(null);
+  const [note, setNote] = useState("");
+  if (!request) return null;
+  const reason = request.status === "BANK_RETURNED" ? request.returnedReason : request.approvalNote;
+  const openModal = () => {
+    setAmount(Number(request.amountVnd));
+    setNote("");
+    setOpen(true);
+  };
+  return (
+    <div style={{ marginTop: 6 }}>
+      {reason ? <div style={{ color: "#c0392b", fontSize: 12, marginBottom: 4 }}>Lý do: {reason}</div> : null}
+      <Button size="small" onClick={openModal}>
+        Gửi lại đề nghị
+      </Button>
+      <Modal
+        open={open}
+        title={`Gửi lại đề nghị ${request.requestNo}`}
+        okText="Gửi lại"
+        cancelText="Đóng"
+        confirmLoading={resubmit.isPending}
+        onCancel={() => setOpen(false)}
+        onOk={() => {
+          if (!amount || amount <= 0) return void message.error("Nhập số tiền đề nghị");
+          resubmit.mutate(
+            { requestId: request.id, amountVnd: amount, note: note.trim() || undefined },
+            { onSuccess: () => setOpen(false) },
+          );
+        }}
+        width={440}
+        destroyOnHidden
+      >
+        <div style={{ marginBottom: 4, fontSize: 12 }}>Số tiền đề nghị (đ)</div>
+        <InputNumber
+          min={0}
+          precision={0}
+          value={amount}
+          onChange={(value) => setAmount(value == null ? null : Number(value))}
+          formatter={(value) => (value == null || `${value}` === "" ? "" : fmt(Number(value)))}
+          parser={(value) => Number(String(value || "").replace(/[^\d-]/g, ""))}
+          style={{ width: "100%", marginBottom: 10 }}
+        />
+        <div style={{ marginBottom: 4, fontSize: 12 }}>Ghi chú cho ngân hàng</div>
+        <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Đã bổ sung / chỉnh sửa gì so với lần trước" />
+        <div style={{ marginTop: 8, fontSize: 12, color: "#8a8f98" }}>
+          Đổi số tiền thì ngân hàng phải chỉnh lại các đợt của kế hoạch cho khớp trước khi trình duyệt.
+        </div>
+      </Modal>
+    </div>
+  );
 }
 
 function SummaryPanel({ data }: { data: TermPurchaseOrderDetail }) {
@@ -1019,7 +1336,10 @@ function SummaryPanel({ data }: { data: TermPurchaseOrderDetail }) {
         <Descriptions.Item label="Tổng lượng">{fmt(data.totalQty)} L</Descriptions.Item>
         <Descriptions.Item label="Tạm tính">{fmt(data.totalAmount)} đ</Descriptions.Item>
         <Descriptions.Item label="Thanh toán">
-          <Tag color={paymentStatus.color}>{paymentStatus.text}</Tag>
+          <div>
+            <Tag color={paymentStatus.color}>{paymentStatus.text}</Tag>
+            <ReturnedPaymentRequest data={data} />
+          </div>
         </Descriptions.Item>
         <Descriptions.Item label="Premium">{data.termPremiumUsdPerBbl == null ? "--" : fmt(data.termPremiumUsdPerBbl, 6) + " USD/bbl"}</Descriptions.Item>
         <Descriptions.Item label="Ghi chú">{data.note || "--"}</Descriptions.Item>

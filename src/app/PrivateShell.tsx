@@ -14,9 +14,13 @@ function Inner() {
 
   useEffect(() => {
     if (!loading && !me) {
-      nav("/login", { replace: true, state: { from: loc.pathname } });
+      // Truyền trang đang mở qua ?redirectTo= để đăng nhập xong Login quay lại đúng chỗ.
+      const current = `${loc.pathname}${loc.search}`;
+      const qs =
+        current !== "/" ? `?redirectTo=${encodeURIComponent(current)}` : "";
+      nav(`/login${qs}`, { replace: true, state: { from: loc.pathname } });
     }
-  }, [loading, me, nav, loc.pathname]);
+  }, [loading, me, nav, loc.pathname, loc.search]);
 
   // Ghi lại màn đang đứng để nếu người dùng gõ /login lúc còn phiên thì quay lại đây.
   useEffect(() => {

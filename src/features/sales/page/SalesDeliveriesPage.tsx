@@ -12,6 +12,7 @@ import {
   Space,
   Table,
   Tabs,
+  Tag,
   Tooltip,
   Typography,
 } from "antd";
@@ -25,7 +26,7 @@ import {
   ThunderboltOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   FilterButton,
   FilterTags,
@@ -43,11 +44,16 @@ import {
   useSalesDeliveries,
   useSalesDeliveryDetail,
   useSalesOrders,
+  useSalesReturns,
   useVoidDelivery,
 } from "../hooks";
 import type { SalesDelivery, SalesDeliveryLine, SalesDeliveryStatus } from "../types";
 import { DeliveryConfirmModal } from "../ui/DeliveryConfirmModal";
 import { DeliveryStatusTag, formatQty } from "../ui/labels";
+import { useAwaitingBackfillByOrder } from "../holdReallocation";
+import { SalesReturnsPanel } from "../ui/SalesReturnsPanel";
+
+const RETURNS_TAB = "RETURNS";
 
 const STATUS_FILTERS = [
   { value: "READY", label: "Chờ kho xuất" },
@@ -55,13 +61,18 @@ const STATUS_FILTERS = [
   { value: "RETURNED", label: "Đã trả lại" },
   { value: "VOIDED", label: "Đã hủy" },
   { value: "ALL", label: "Tất cả" },
+  // Không phải trạng thái lệnh xuất: tab riêng cho phiếu nhập hàng bán bị trả lại.
+  { value: RETURNS_TAB, label: "Nhập trả" },
 ];
 
 /** Hàng đợi việc của kho: mỗi lệnh xuất là phần việc của một kho cho một đơn. */
 export default function SalesDeliveriesPage() {
   const navigate = useNavigate();
+  const awaitingBackfillByOrder = useAwaitingBackfillByOrder();
+  const [searchParams] = useSearchParams();
   const { can } = useCan();
-  const [status, setStatus] = useState("READY");
+  // Thông báo "phiếu nhập trả chờ kho" dẫn thẳng vào tab Nhập trả.
+  const [status, setStatus] = useState(searchParams.get("tab") === RETURNS_TAB ? RETURNS_TAB : "READY");
   const [warehouseId, setWarehouseId] = useState<string>();
   const [warehouseKeyword, setWarehouseKeyword] = useState("");
   const [dateFrom, setDateFrom] = useState<string>();
@@ -81,8 +92,10 @@ export default function SalesDeliveriesPage() {
   const [recoveryOrderId, setRecoveryOrderId] = useState<string>();
 
   const warehousesQuery = useWarehouseSelect(warehouseKeyword);
+  const isReturnsTab = status === RETURNS_TAB;
+  const pendingReturnsQuery = useSalesReturns({ status: "PENDING", warehouseId, limit: 1 });
   const query = useSalesDeliveries({
-    status: status === "ALL" ? undefined : (status as SalesDeliveryStatus),
+    status: status === "ALL" || isReturnsTab ? undefined : (status as SalesDeliveryStatus),
     warehouseId,
     dateFrom,
     dateTo,
@@ -203,9 +216,18 @@ export default function SalesDeliveriesPage() {
       dataIndex: "deliveryNo",
       width: 108,
       render: (value: string, delivery) => (
-        <Button type="link" style={{ padding: 0 }} onClick={() => setDetailId(delivery.id)}>
-          {value}
-        </Button>
+        <Space size={4} direction="vertical" style={{ rowGap: 0 }}>
+          <Button type="link" style={{ padding: 0 }} onClick={() => setDetailId(delivery.id)}>
+            {value}
+          </Button>
+          {delivery.salesOrderAdjustmentId && (
+            <Tooltip title="Lệnh xuất bổ sung cho phần khách tăng sau khi đã xuất (theo phiếu điều chỉnh)">
+              <Tag color="purple" style={{ marginInlineEnd: 0, fontSize: 11 }}>
+                Bổ sung
+              </Tag>
+            </Tooltip>
+          )}
+        </Space>
       ),
     },
     {
@@ -219,9 +241,17 @@ export default function SalesDeliveriesPage() {
       key: "order",
       width: 138,
       render: (_, delivery) => (
-        <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/sales/orders/${delivery.salesOrder.id}`)}>
-          {delivery.salesOrder.orderNo}
-        </Button>
+        <Space size={4}>
+          <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/sales/orders/${delivery.salesOrder.id}`)}>
+            {delivery.salesOrder.orderNo}
+          </Button>
+          {/* Đơn đang chờ bù: hàng giữ đã phân bổ lại cho đơn khác, lệnh chưa xuất được. */}
+          {delivery.status !== "POSTED" && (awaitingBackfillByOrder.get(delivery.salesOrder.id) ?? 0) > 0 ? (
+            <Tooltip title={`Chờ bù ${formatQty(awaitingBackfillByOrder.get(delivery.salesOrder.id))}: hàng giữ của đơn đã phân bổ lại cho đơn khác. Lệnh xuất được khi hàng bù về.`}>
+              <Tag color="orange" style={{ marginInlineEnd: 0 }}>Chờ bù</Tag>
+            </Tooltip>
+          ) : null}
+        </Space>
       ),
     },
     { title: "Khách hàng", key: "customer", width: 96, ellipsis: true, render: (_, d) => d.salesOrder.customer.code ?? "—" },
@@ -389,7 +419,7 @@ export default function SalesDeliveriesPage() {
             <Space>
               {/* Luôn hiện khi tab còn lệnh chờ xuất, chỉ mờ đi lúc chưa tích dòng nào —
                   để người dùng biết có thể tích chọn hàng loạt, và nút không nhảy chỗ. */}
-              {canConfirm && readyIds.length > 0 && (
+              {canConfirm && !isReturnsTab && readyIds.length > 0 && (
                 <Button
                   type="primary"
                   size="small"
@@ -436,12 +466,21 @@ export default function SalesDeliveriesPage() {
             item.value === "POSTED" ? postedCountQuery.data?.total :
             item.value === "RETURNED" ? returnedCountQuery.data?.total :
             item.value === "VOIDED" ? voidedCountQuery.data?.total :
+            item.value === RETURNS_TAB ? pendingReturnsQuery.data?.total :
             allCountQuery.data?.total;
+          if (item.value === RETURNS_TAB && total) {
+            return {
+              key: item.value,
+              label: <span className="sales-tab-attention">{`${item.label} (${total} chờ nhận)`}</span>,
+            };
+          }
           return { key: item.value, label: `${item.label} (${total ?? 0})` };
         })}
       />
 
       <FilterTags items={filterTags} />
+
+      {isReturnsTab && <SalesReturnsPanel warehouseId={warehouseId} />}
 
       <Modal
         title="Bổ sung lệnh xuất từ đơn bán"
@@ -487,6 +526,7 @@ export default function SalesDeliveriesPage() {
       </Modal>
 
       <Table<SalesDelivery>
+        style={isReturnsTab ? { display: "none" } : undefined}
         className="sales-grid sales-deliveries-grid"
         rowKey="id"
         size="small"

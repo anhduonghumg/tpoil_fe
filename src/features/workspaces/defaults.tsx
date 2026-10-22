@@ -116,7 +116,7 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
       ],
     },
     { key: "/operations/inventory-receipts", label: "Nhập kho", icon: <DatabaseOutlined /> },
-    { key: "/suppliers", label: "Công nợ NCC", icon: <TeamOutlined /> },
+    { key: "/suppliers", label: "Nhà cung cấp", icon: <TeamOutlined /> },
     { key: "/settings/products", label: "Hàng hóa, dịch vụ", icon: <GoldOutlined /> },
     {
       key: "purchase-price-config",
@@ -133,7 +133,8 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
   banking: [
     { key: "/banking", label: "Tổng quan", icon: <DashboardOutlined /> },
     { key: "/banking/receipts", label: "Thu tiền", icon: <DollarOutlined /> },
-    { key: "/banking/payments", label: "Chi tiền", icon: <BankOutlined /> },
+    { key: "/banking/payment-approvals", label: "Đề nghị duyệt chi", icon: <CheckCircleOutlined /> },
+    { key: "/banking/payments", label: "Thực hiện chi", icon: <BankOutlined /> },
     { key: "/banking/statements", label: "Sao kê & đối soát", icon: <ReconciliationOutlined /> },
     { key: "/banking/reports", label: "Báo cáo", icon: <FileTextOutlined /> },
     { key: "/bank-accounts", label: "Tài khoản công ty", icon: <BankOutlined /> },
@@ -147,7 +148,7 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
    * Thứ tự trong nhóm "Đơn hàng" bám đúng luồng: lập đơn → duyệt → rút lô → xuất kho.
    */
   sales: [
-    { key: "/dashboard", label: "Tổng quan bán hàng", icon: <DashboardOutlined /> },
+    { key: "/dashboard", label: "Tổng quan bán hàng", icon: <DashboardOutlined />, need: PERMS.SALES_VIEW },
     {
       key: "sales-orders",
       label: "Đơn hàng",
@@ -156,7 +157,7 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
         { key: "/sales/orders", label: "Đơn bán", need: PERMS.SALES_VIEW },
         { key: "/sales/approvals", label: "Phê duyệt đơn bán", need: PERMS.SALES_VIEW },
         { key: "/sales/withdrawals", label: "Rút lô", need: PERMS.SALES_VIEW },
-        { key: "/sales/deliveries", label: "Lệnh xuất kho", need: PERMS.SALES_VIEW },
+        { key: "/sales/deliveries", label: "Lệnh xuất kho", needAny: [PERMS.SALES_VIEW, PERMS.SALES_DELIVERY_CONFIRM] },
         { key: "/sales/customer-stock", label: "Tồn kho của khách", need: PERMS.SALES_VIEW },
       ],
     },
@@ -168,7 +169,7 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
         {
           key: "/sales/invoices",
           label: "Hóa đơn bán hàng",
-          need: PERMS.SALES_INVOICE_VIEW,
+          needAny: [PERMS.SALES_INVOICE_VIEW, PERMS.SALES_INVOICE_ISSUE],
         },
         {
           key: "/sales/receivables",
@@ -217,7 +218,7 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
         { key: "/customers", label: "Khách hàng" },
         { key: "/settings/products", label: "Hàng hóa" },
         { key: "/contracts", label: "Hợp đồng bán hàng" },
-        { key: "/sales/aliases", label: "Cách khách viết tên", need: PERMS.SALES_VIEW },
+        { key: "/sales/aliases", label: "Cách khách viết tên", needAny: [PERMS.SALES_VIEW, PERMS.SALES_ALIAS_MANAGE] },
       ],
     },
     {
@@ -228,12 +229,12 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
         {
           key: "/sales/credit",
           label: "Cấu hình tín dụng",
-          need: PERMS.SALES_RECEIVABLE_VIEW,
+          needAny: [PERMS.SALES_RECEIVABLE_VIEW, PERMS.SALES_CREDIT_MANAGE],
         },
         {
           key: "/sales/invoices/settings",
           label: "Cấu hình xuất hóa đơn",
-          need: PERMS.SALES_INVOICE_ISSUE,
+          needAny: [PERMS.SALES_INVOICE_VIEW, PERMS.SALES_INVOICE_ISSUE],
         },
       ],
     },
@@ -250,7 +251,7 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
   operations: [
     {
       key: "/operations",
-      label: "Dashboard vận hành",
+      label: "Tổng quan vận hành",
       icon: <DashboardOutlined />,
       need: PERMS.OPERATIONS_VIEW,
     },
@@ -266,17 +267,32 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
       icon: <ContainerOutlined />,
       need: PERMS.OPERATIONS_VIEW,
       children: [
-        { key: "/operations/ship-charters/dashboard", label: "Dashboard thuê tàu" },
-        { key: "/operations/charter-orders", label: "Đơn thuê tàu" },
-        { key: "/operations/ship-owners", label: "Chủ tàu / Đơn vị vận tải biển" },
-        { key: "/operations/vessels", label: "Danh mục tàu" },
-        { key: "/operations/vessel-documents", label: "Hồ sơ con tàu" },
-        { key: "/operations/charter-contracts", label: "Hợp đồng thuê tàu" },
-        { key: "/operations/charter-appendices", label: "Phụ lục hợp đồng thuê tàu" },
-        { key: "/operations/freight-rates", label: "Bảng giá thuê tàu" },
-        { key: "/operations/charter-insurances", label: "Bảo hiểm hàng hóa" },
-        { key: "/operations/charter-inspections", label: "Đăng ký giám định" },
-        { key: "/operations/shipping-agent-registrations", label: "Đăng ký đại lý tàu" },
+        {
+          key: "charter-work", label: "Nghiệp vụ", type: "group",
+          children: [
+            { key: "/operations/ship-charters/dashboard", label: "Tổng quan thuê tàu" },
+            { key: "/operations/charter-orders", label: "Đơn thuê tàu" },
+            { key: "/operations/charter-insurances", label: "Bảo hiểm hàng hóa" },
+            { key: "/operations/charter-inspections", label: "Đăng ký giám định" },
+            { key: "/operations/shipping-agent-registrations", label: "Đăng ký đại lý tàu" },
+          ],
+        },
+        {
+          key: "charter-contracts", label: "Hợp đồng & giá cước", type: "group",
+          children: [
+            { key: "/operations/charter-contracts", label: "Hợp đồng thuê tàu" },
+            { key: "/operations/charter-appendices", label: "Phụ lục hợp đồng thuê tàu" },
+            { key: "/operations/freight-rates", label: "Bảng giá thuê tàu" },
+          ],
+        },
+        {
+          key: "charter-catalog", label: "Danh mục & hồ sơ", type: "group",
+          children: [
+            { key: "/operations/ship-owners", label: "Chủ tàu / Đơn vị vận tải biển" },
+            { key: "/operations/vessels", label: "Danh mục tàu" },
+            { key: "/operations/vessel-documents", label: "Hồ sơ con tàu" },
+          ],
+        },
       ],
     },
     {
@@ -285,17 +301,37 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
       icon: <TruckOutlined />,
       need: PERMS.OPERATIONS_ROAD_MANAGE,
       children: [
-        { key: "/operations/vehicles", label: "Danh mục xe" },
-        { key: "/operations/drivers", label: "Lái xe" },
-        { key: "/operations/vehicle-documents", label: "Hồ sơ xe" },
-        { key: "/operations/driver-documents", label: "Hồ sơ lái xe" },
-        { key: "/operations/sales-transport-requests", label: "Đơn có cước vận chuyển" },
-        { key: "/operations/transport-vehicle-settings", label: "Định mức xe và nhiên liệu" },
-        { key: "/operations/vehicle-fuel-logs", label: "Nhật ký đổ dầu xe" },
-        { key: "/operations/vehicle-maintenance-expenses", label: "Sửa chữa và thay thế xe" },
-        { key: "/operations/vehicle-monthly-fixed-costs", label: "Khấu hao và lương lái xe" },
-        { key: "/operations/vehicle-efficiency-report", label: "Hiệu quả xe theo tháng" },
-        { key: "/operations/vehicle-dispatches", label: "Đơn điều xe / chuyến xe" },
+        {
+          key: "road-dispatch", label: "Điều phối", type: "group",
+          children: [
+            { key: "/operations/sales-transport-requests", label: "Đơn có cước vận chuyển" },
+            { key: "/operations/vehicle-dispatches", label: "Đơn điều xe / chuyến xe" },
+          ],
+        },
+        {
+          key: "road-costs", label: "Chi phí", type: "group",
+          children: [
+            { key: "/operations/vehicle-fuel-logs", label: "Nhật ký đổ dầu xe" },
+            { key: "/operations/vehicle-maintenance-expenses", label: "Sửa chữa và thay thế xe" },
+            { key: "/operations/vehicle-monthly-fixed-costs", label: "Khấu hao và lương lái xe" },
+          ],
+        },
+        {
+          key: "road-reports", label: "Báo cáo", type: "group",
+          children: [
+            { key: "/operations/vehicle-efficiency-report", label: "Hiệu quả xe theo tháng" },
+          ],
+        },
+        {
+          key: "road-catalog", label: "Danh mục & thiết lập", type: "group",
+          children: [
+            { key: "/operations/vehicles", label: "Danh mục xe" },
+            { key: "/operations/drivers", label: "Lái xe" },
+            { key: "/operations/vehicle-documents", label: "Hồ sơ xe" },
+            { key: "/operations/driver-documents", label: "Hồ sơ lái xe" },
+            { key: "/operations/transport-vehicle-settings", label: "Định mức xe và nhiên liệu" },
+          ],
+        },
       ],
     },
     {
@@ -309,14 +345,14 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
    * Kho tách khỏi Vận hành thành workspace riêng: 12 mục để phẳng trong một submenu
    * thì thủ kho phải tự đoán mục nào là danh mục, mục nào là việc hằng ngày.
    *
-   * Chia theo vòng đời dữ liệu — khai báo trước, nghiệp vụ giữa, xem tồn sau — và
-   * đánh số mục để nhìn là biết đang ở tầng nào. Vận hành chỉ giữ một lối vào
+   * Đưa nghiệp vụ hằng ngày và tồn kho lên trước, danh mục khai báo xuống cuối.
+   * Vận hành chỉ giữ một lối vào
    * Dashboard kho, tránh hai bản danh sách kho trôi lệch nhau.
    */
   warehouse: [
     {
       key: "warehouse-overview",
-      label: "I. TỔNG QUAN",
+      label: "TỔNG QUAN",
       type: "group",
       need: PERMS.OPERATIONS_VIEW,
       children: [
@@ -328,70 +364,65 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
       ],
     },
     {
-      key: "warehouse-catalog",
-      label: "II. KHAI BÁO",
-      type: "group",
-      children: [
-        { key: "/settings/products", label: "Hàng hóa", icon: <GoldOutlined /> },
-        { key: "/settings/inventory", label: "Kho hàng", icon: <HddOutlined /> },
-        {
-          key: "/operations/storage-contracts",
-          label: "Hợp đồng thuê kho",
-          icon: <FileDoneOutlined />,
-          need: PERMS.OPERATIONS_VIEW,
-        },
-      ],
-    },
-    {
       key: "warehouse-operations",
-      label: "III. NGHIỆP VỤ",
+      label: "NGHIỆP VỤ",
       type: "group",
-      need: PERMS.OPERATIONS_VIEW,
       children: [
         {
           key: "/operations/inventory-receipts",
           label: "Nhập kho",
+          need: PERMS.OPERATIONS_VIEW,
           icon: <DownloadOutlined />,
         },
-        { key: "/sales/deliveries", label: "Xuất kho", icon: <UploadOutlined /> },
+        { key: "/sales/deliveries", label: "Xuất kho", icon: <UploadOutlined />, needAny: [PERMS.SALES_VIEW, PERMS.SALES_DELIVERY_CONFIRM] },
         {
           key: "/operations/warehouse-transfers",
           label: "Chuyển kho",
+          need: PERMS.OPERATIONS_VIEW,
           icon: <SwapOutlined />,
         },
         {
           key: "/operations/reservations",
           label: "Giữ hàng",
+          need: PERMS.OPERATIONS_VIEW,
           icon: <LockOutlined />,
         },
         {
           key: "/operations/expected-inventory",
           label: "Hàng dự kiến",
+          need: PERMS.OPERATIONS_VIEW,
           icon: <ClockCircleOutlined />,
         },
       ],
     },
     {
       key: "warehouse-stock",
-      label: "IV. TỒN KHO",
+      label: "TỒN KHO",
       type: "group",
-      need: PERMS.OPERATIONS_VIEW,
+      needAny: [PERMS.OPERATIONS_VIEW, PERMS.OPERATIONS_WAREHOUSE_MANAGE],
       children: [
         {
           key: "/operations/inventory-availability",
+          need: PERMS.OPERATIONS_VIEW,
           label: "Tồn kho kinh doanh",
           icon: <DatabaseOutlined />,
         },
         {
           key: "/operations/inventory-accounting",
+          need: PERMS.OPERATIONS_VIEW,
           label: "Tồn kho kế toán",
           icon: <ReconciliationOutlined />,
+        },
+        {
+          key: "/operations/daily-stock-reconciliation",
+          label: "Đối chiếu kho hằng ngày",
+          need: PERMS.OPERATIONS_WAREHOUSE_MANAGE,
         },
       ],
     },
     {
       key: "warehouse-reports",
-      label: "V. BÁO CÁO",
+      label: "BÁO CÁO",
       type: "group",
       need: PERMS.OPERATIONS_VIEW,
       children: [
@@ -407,22 +438,35 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
         },
       ],
     },
+    {
+      key: "warehouse-catalog",
+      label: "KHAI BÁO",
+      type: "group",
+      children: [
+        { key: "/settings/products", label: "Hàng hóa", icon: <GoldOutlined /> },
+        { key: "/settings/inventory", label: "Kho hàng", icon: <HddOutlined /> },
+        {
+          key: "/operations/storage-contracts",
+          label: "Hợp đồng thuê kho",
+          icon: <FileDoneOutlined />,
+          need: PERMS.OPERATIONS_VIEW,
+        },
+      ],
+    },
   ],
   legal: [
     { key: "/dashboard", label: "Tổng quan pháp chế", icon: <DashboardOutlined /> },
     { key: "/contracts", label: "Hợp đồng", icon: <SolutionOutlined /> },
-    { key: "/contractTypes", label: "Phụ lục", icon: <BookOutlined /> },
-    { key: "/contracts", label: "Tài liệu đính kèm", icon: <FileProtectOutlined /> },
+    { key: "/contractTypes", label: "Loại hợp đồng", icon: <BookOutlined /> },
     { key: "/contracts/expiry-report", label: "Cảnh báo hết hạn", icon: <BellOutlined /> },
-    { key: "/customers", label: "Rủi ro đối tác", icon: <SafetyCertificateOutlined /> },
+    { key: "/customers", label: "Khách hàng", icon: <SafetyCertificateOutlined /> },
   ],
   executive: [
-    { key: "/dashboard", label: "Dashboard tổng hợp", icon: <DashboardOutlined /> },
-    { key: "/purchase-terms", label: "Giá vốn / bảng sếp", icon: <BarChartOutlined /> },
+    { key: "/dashboard", label: "Tổng quan tổng hợp", icon: <DashboardOutlined /> },
+    { key: "/purchase-terms", label: "Hồ sơ mua TERM", icon: <BarChartOutlined /> },
     { key: "/banking", label: "Dòng tiền", icon: <DollarOutlined /> },
     { key: "/suppliers", label: "Công nợ", icon: <FileSearchOutlined /> },
-    { key: "/settings/inventory", label: "Tồn kho", icon: <DatabaseOutlined /> },
-    { key: "/purchase-terms", label: "Duyệt hồ sơ", icon: <CheckCircleOutlined /> },
+    { key: "/operations/inventory-availability", label: "Tồn kho kinh doanh", icon: <DatabaseOutlined />, need: PERMS.OPERATIONS_VIEW },
   ],
   admin: [
     { key: "/dashboard", label: "Tổng quan quản trị", icon: <DashboardOutlined /> },
@@ -430,18 +474,17 @@ export const WORKSPACE_MENU: Record<string, WorkspaceMenuItem[]> = {
     { key: "/employees", label: "Nhân viên", icon: <UserOutlined /> },
     { key: "/department", label: "Phòng ban", icon: <ApartmentOutlined /> },
     { key: "/settings/roles", label: "Vai trò & quyền", icon: <SafetyCertificateOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
-    { key: "/settings/roles", label: "Menu theo phòng ban", icon: <SettingOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
     { key: "/settings/opening-balances", label: "Số dư đầu kỳ", icon: <DatabaseOutlined />, need: PERMS.SYSTEM_OPENING_BALANCES_VIEW },
-    { key: "/settings/products", label: "Sản phẩm", icon: <GoldOutlined /> },
+    { key: "/settings/products", label: "Hàng hóa", icon: <GoldOutlined /> },
     {
       key: "/operations/price-discounts",
+      needAny: [PERMS.OPERATIONS_VIEW, PERMS.SALES_VIEW, PERMS.SALES_DISCOUNT_MANAGE],
       label: "Giá bán",
       icon: <PercentageOutlined />,
     },
     { key: "/purchase/platts-prices", label: "Platts/MOPS", icon: <BarChartOutlined /> },
     { key: "/purchase/environment-taxes", label: "Phí BVMT", icon: <DatabaseOutlined /> },
-    { key: "/cron", label: "Sequence", icon: <OrderedListOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
-    { key: "/cron", label: "Audit log", icon: <AuditOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
+    { key: "/cron", label: "Công việc định kỳ", icon: <OrderedListOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
   ],
 };
 
@@ -681,7 +724,7 @@ const WORKSPACE_DASHBOARDS: Record<string, WorkspaceDefaultConfig> = {
       { label: "Tạo hợp đồng", href: "/contracts", icon: <FormOutlined /> },
       { label: "Review hợp đồng", href: "/contracts", icon: <FileSearchOutlined /> },
       { label: "Phê duyệt hợp đồng", href: "/contracts", icon: <CheckCircleOutlined /> },
-      { label: "Phụ lục hợp đồng", href: "/contractTypes", icon: <BookOutlined /> },
+      { label: "Loại hợp đồng", href: "/contractTypes", icon: <BookOutlined /> },
       { label: "Upload bản scan ký", href: "/contracts", icon: <FileProtectOutlined /> },
       { label: "Theo dõi hiệu lực", href: "/contracts", icon: <SafetyCertificateOutlined /> },
       { label: "Cảnh báo hết hạn", href: "/contracts/expiry-report", icon: <BellOutlined /> },
@@ -690,7 +733,7 @@ const WORKSPACE_DASHBOARDS: Record<string, WorkspaceDefaultConfig> = {
     reports: [
       { label: "Hợp đồng sắp hết hạn", href: "/contracts/expiry-report" },
       { label: "Hợp đồng theo đối tác", href: "/contracts" },
-      { label: "Phụ lục hợp đồng", href: "/contractTypes" },
+      { label: "Loại hợp đồng", href: "/contractTypes" },
       { label: "Rủi ro đối tác", href: "/customers" },
     ],
     shortcuts: [
@@ -755,9 +798,7 @@ const WORKSPACE_DASHBOARDS: Record<string, WorkspaceDefaultConfig> = {
       { label: "Quản lý phòng ban", href: "/department", icon: <ApartmentOutlined /> },
       { label: "Quản lý vai trò", href: "/settings/roles", icon: <SafetyCertificateOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
       { label: "Quản lý quyền", href: "/settings/roles", icon: <SettingOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
-      { label: "Cấu hình menu theo phòng ban", href: "/settings/roles", icon: <OrderedListOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
-      { label: "Sequence chứng từ", href: "/cron", icon: <FileSyncOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
-      { label: "Audit log", href: "/cron", icon: <AuditOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
+      { label: "Công việc định kỳ", href: "/cron", icon: <ClockCircleOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
     ],
     reports: [
       { label: "Người dùng theo vai trò", href: "/users", need: PERMS.USERS_VIEW },
@@ -769,7 +810,7 @@ const WORKSPACE_DASHBOARDS: Record<string, WorkspaceDefaultConfig> = {
       { label: "Nhân viên", href: "/employees", icon: <TeamOutlined /> },
       { label: "Phòng ban", href: "/department", icon: <ApartmentOutlined /> },
       { label: "Vai trò & quyền", href: "/settings/roles", icon: <SafetyCertificateOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
-      { label: "Sequence", href: "/cron", icon: <OrderedListOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
+      { label: "Công việc định kỳ", href: "/cron", icon: <OrderedListOutlined />, need: PERMS.SYSTEM_RBAC_ADMIN },
     ],
   },
 };

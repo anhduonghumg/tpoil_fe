@@ -13,6 +13,9 @@ import type {
   CreateSalesOrderFromPurchasePayload,
   CreateSalesOrderPayload,
   CreateSalesOrderAdjustmentPayload,
+  ConfirmSalesReturnPayload,
+  SalesReturn,
+  SalesReturnStatus,
   CreateWithdrawalPayload,
   CustomerBalance,
   CustomerStockResult,
@@ -53,6 +56,8 @@ import type {
   SalesEntityAlias,
   SalesOrder,
   SalesOrderAdjustment,
+  AdjustmentInvoiceDraftResult,
+  SalesWithdrawalPage,
   SalesOrderCheckResult,
   SalesOrderCreditPreview,
   SalesOrderProfitability,
@@ -63,6 +68,8 @@ import type {
   SalesDeliveryStatus,
   SalesInvoice,
   SalesInvoicePreview,
+  InvoiceBatchRun,
+  InvoiceChangeReview,
   InvoiceEnvironment,
   MisaSettings,
   UpdateMisaSettingsPayload,
@@ -75,6 +82,7 @@ import type {
   SalesWithdrawalStatus,
   SendDiscountBoardResult,
   SubmitSalesOrderResult,
+  SubmitSalesOrdersBatchResult,
   UnmatchedAlias,
   UpsertDiscountBoardPayload,
   UpdateCustomerCreditPayload,
@@ -230,6 +238,25 @@ export const InternalSalesApi = {
       params: { id },
       data: { reason },
     }).then(unwrap<SalesOrder>),
+
+  /** Gộp các đơn nháp cùng khách, cùng ngày thành một đơn. */
+  merge: (ids: string[]) =>
+    apiCall<ApiResponse<SalesOrder>>("salesOrders.merge", { data: { ids } }).then(
+      unwrap<SalesOrder>,
+    ),
+
+  /** Tách các dòng đã chọn của một đơn nháp sang đơn nháp mới. */
+  split: (id: string, lineIds: string[]) =>
+    apiCall<ApiResponse<SalesOrder>>("salesOrders.split", {
+      params: { id },
+      data: { lineIds },
+    }).then(unwrap<SalesOrder>),
+
+  /** Gửi duyệt một lượt đơn nháp (tối đa 50 đơn mỗi lượt). */
+  submitBatch: (ids: string[]) =>
+    apiCall<ApiResponse<SubmitSalesOrdersBatchResult>>("salesOrders.submitBatch", {
+      data: { ids },
+    }).then(unwrap<SubmitSalesOrdersBatchResult>),
 };
 
 export const SalesOrderPrintApi = {
@@ -344,11 +371,12 @@ export const SalesWithdrawalsApi = {
     status?: SalesWithdrawalStatus;
     customerPartyId?: string;
     salesOrderId?: string;
+    keyword?: string;
     page?: number;
     limit?: number;
   }) =>
-    apiCall<ApiResponse<Paged<SalesWithdrawalRequest>>>("salesWithdrawals.list", { query }).then(
-      unwrap<Paged<SalesWithdrawalRequest>>,
+    apiCall<ApiResponse<SalesWithdrawalPage>>("salesWithdrawals.list", { query }).then(
+      unwrap<SalesWithdrawalPage>,
     ),
 
   detail: (id: string) =>
@@ -461,6 +489,34 @@ export const SalesWithdrawalsApi = {
     }).then(unwrap<SalesWithdrawalRequest>),
 };
 
+export const SalesReturnsApi = {
+  list: (query: {
+    status?: SalesReturnStatus;
+    warehouseId?: string;
+    salesOrderId?: string;
+    page?: number;
+    limit?: number;
+  }) =>
+    apiCall<ApiResponse<Paged<SalesReturn>>>("salesReturns.list", { query }).then(
+      unwrap<Paged<SalesReturn>>,
+    ),
+
+  detail: (id: string) =>
+    apiCall<ApiResponse<SalesReturn>>("salesReturns.detail", { params: { id } }).then(
+      unwrap<SalesReturn>,
+    ),
+
+  confirm: (id: string, payload: ConfirmSalesReturnPayload) =>
+    apiCall<ApiResponse<SalesReturn>>("salesReturns.confirm", { params: { id }, data: payload }).then(
+      unwrap<SalesReturn>,
+    ),
+
+  cancel: (id: string, reason: string) =>
+    apiCall<ApiResponse<SalesReturn>>("salesReturns.cancel", { params: { id }, data: { reason } }).then(
+      unwrap<SalesReturn>,
+    ),
+};
+
 export const SalesDeliveriesApi = {
   list: (query: {
     status?: SalesDeliveryStatus;
@@ -517,16 +573,20 @@ export const SalesDeliveriesApi = {
     }).then(unwrap<SalesDelivery>),
 };
 
+/** Chưa xuất lần nào thì chưa có bản đối soát: backend trả data = null, không phải lỗi. */
+const unwrapReconciliation = (response: any) =>
+  (response.data?.data ?? null) as SalesReconciliation | null;
+
 export const SalesReconciliationApi = {
   byOrder: (salesOrderId: string) =>
-    apiCall<ApiResponse<SalesReconciliation>>("salesReconciliations.byOrder", {
+    apiCall<ApiResponse<SalesReconciliation | null>>("salesReconciliations.byOrder", {
       params: { salesOrderId },
-    }).then(unwrap<SalesReconciliation>),
+    }).then(unwrapReconciliation),
 
   byWithdrawal: (withdrawalRequestId: string) =>
-    apiCall<ApiResponse<SalesReconciliation>>("salesReconciliations.byWithdrawal", {
+    apiCall<ApiResponse<SalesReconciliation | null>>("salesReconciliations.byWithdrawal", {
       params: { withdrawalRequestId },
-    }).then(unwrap<SalesReconciliation>),
+    }).then(unwrapReconciliation),
 
   updateLine: (lineId: string, payload: { docQty?: number; varianceNote?: string }) =>
     apiCall<ApiResponse<SalesReconciliation>>("salesReconciliations.updateLine", {
@@ -542,8 +602,24 @@ export const SalesReconciliationApi = {
     }).then(unwrap<SalesReconciliation>),
 };
 
+export type SalesInvoiceColumnQuery = {
+  orderNo?: string;
+  productKeyword?: string;
+  orderDateFrom?: string;
+  orderDateTo?: string;
+  minTotal?: number;
+  maxTotal?: number;
+};
 export const SalesInvoicesApi = {
-  list: (query: {
+  createBatch: (data: { requestId: string; items: Array<{ source: InvoiceSource; overrideMissingPurchaseInvoice?: boolean }> }) => apiCall<ApiResponse<InvoiceBatchRun>>("salesInvoices.batchCreate", { data }).then(unwrap<InvoiceBatchRun>),
+  batches: () => apiCall<ApiResponse<InvoiceBatchRun[]>>("salesInvoices.batches").then(unwrap<InvoiceBatchRun[]>),
+  batch: (id: string) => apiCall<ApiResponse<InvoiceBatchRun>>("salesInvoices.batch", { params: { id } }).then(unwrap<InvoiceBatchRun>),
+  stopBatch: (id: string) => apiCall<ApiResponse<InvoiceBatchRun>>("salesInvoices.batchStop", { params: { id } }).then(unwrap<InvoiceBatchRun>),
+  retryBatch: (id: string) => apiCall<ApiResponse<InvoiceBatchRun>>("salesInvoices.batchRetry", { params: { id } }).then(unwrap<InvoiceBatchRun>),
+  accountingChange: (id: string) => apiCall<ApiResponse<InvoiceChangeReview>>("salesInvoices.accountingChange", { params: { id } }).then(unwrap<InvoiceChangeReview>),
+  reviewAccountingChange: (id: string, data: { changeId: string; previousDecisionId: string | null; decision: "CONFIRMED" | "REJECTED"; reason?: string }) => apiCall<ApiResponse<InvoiceChangeReview>>("salesInvoices.reviewAccountingChange", { params: { id }, data }).then(unwrap<InvoiceChangeReview>),
+  list: (query: SalesInvoiceColumnQuery & {
+    invoiceNo?: string;
     status?: SalesInvoiceStatus;
     customerPartyId?: string;
     accountantEmployeeId?: string;
@@ -556,7 +632,7 @@ export const SalesInvoicesApi = {
       unwrap<Paged<SalesInvoice>>,
     ),
 
-  unissued: (query: {
+  unissued: (query: SalesInvoiceColumnQuery & {
     customerPartyId?: string;
     accountantEmployeeId?: string;
     page?: number;
@@ -571,6 +647,12 @@ export const SalesInvoicesApi = {
       unwrap<SalesInvoice>,
     ),
 
+  misaPreview: (source: InvoiceSource) =>
+    apiCall<ApiResponse<{ url: string; expiresInSeconds: number }>>("salesInvoices.misaPreview", { data: source }).then(unwrap<{ url: string; expiresInSeconds: number }>),
+
+  draftMisaPreview: (id: string) =>
+    apiCall<ApiResponse<{ url: string; expiresInSeconds: number }>>("salesInvoices.draftMisaPreview", { params: { id } }).then(unwrap<{ url: string; expiresInSeconds: number }>),
+
   preview: (source: InvoiceSource) =>
     apiCall<ApiResponse<SalesInvoicePreview>>("salesInvoices.preview", { data: source }).then(
       unwrap<SalesInvoicePreview>,
@@ -580,6 +662,11 @@ export const SalesInvoicesApi = {
     apiCall<ApiResponse<SalesInvoice>>("salesInvoices.createDraft", { data: source }).then(
       unwrap<SalesInvoice>,
     ),
+
+  createAdjustments: (salesOrderAdjustmentId: string) =>
+    apiCall<ApiResponse<AdjustmentInvoiceDraftResult>>("salesInvoices.createAdjustments", {
+      data: { salesOrderAdjustmentId },
+    }).then(unwrap<AdjustmentInvoiceDraftResult>),
 
   issue: (id: string, payload: IssueSalesInvoicePayload = {}) =>
     apiCall<ApiResponse<SalesInvoice>>("salesInvoices.issue", { params: { id }, data: payload }).then(

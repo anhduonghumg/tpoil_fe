@@ -12,8 +12,13 @@ import type {
   Paged,
   PreviewBankImportPayload,
   PaymentMatch,
+  CashLedger,
+  CashPositionOverview,
+  PaymentPlanRequest,
+  SavePaymentPlanPayload,
 } from "./types";
 import { apiCall } from "../../shared/lib/api";
+import { extractApiError } from "../../shared/lib/httpError";
 import { notify } from "../../shared/lib/notification";
 import { APP_BOOTSTRAP_QUERY_KEY } from "../app/hooks";
 
@@ -34,6 +39,7 @@ export const bankingKeys = {
   termPaymentBatchDetail: (id?: string) =>
     ["banking", "term-payment-batch-detail", id] as const,
   generalPaymentRequests: () => ["banking", "general-payment-requests"] as const,
+  paymentPlanRequests: () => ["banking", "payment-plan-requests"] as const,
   generalPaymentReconciliationQueue: () => ["banking", "general-payment-reconciliation-queue"] as const,
   recentGeneralPaymentReconciliations: () => ["banking", "recent-general-payment-reconciliations"] as const,
 };
@@ -242,6 +248,108 @@ export function useConfirmBankTransaction() {
         queryKey: bankingKeys.suggestions(vars.id),
       });
     },
+  });
+}
+
+/** Tiền tại ngân hàng: số dư từng tài khoản, tính ở server. */
+export function useCashPosition(query: { fromDate: string; toDate: string; upcomingDays: number }) {
+  return useQuery<CashPositionOverview>({
+    queryKey: ["banking", "cash-position", query],
+    queryFn: () => apiCall<any>("bankCashPosition.overview", { query }).then((r) => r.data?.data ?? r.data),
+  });
+}
+
+/** Sổ chi tiết một tài khoản với số dư sau từng giao dịch; chỉ tải khi đã chọn tài khoản. */
+export function useCashLedger(bankAccountId: string | undefined, query: { fromDate: string; toDate: string }) {
+  return useQuery<CashLedger>({
+    queryKey: ["banking", "cash-ledger", bankAccountId, query],
+    queryFn: () => apiCall<any>("bankCashPosition.ledger", { params: { bankAccountId: bankAccountId! }, query }).then((r) => r.data?.data ?? r.data),
+    enabled: Boolean(bankAccountId),
+  });
+}
+
+/** Đề nghị thanh toán đơn TE/TM kèm kế hoạch thanh toán. */
+export function usePaymentPlanRequests() {
+  return useQuery<PaymentPlanRequest[]>({
+    queryKey: bankingKeys.paymentPlanRequests(),
+    queryFn: () => BankingApi.listPaymentPlanRequests(),
+  });
+}
+
+function useRefreshPaymentPlans() {
+  const qc = useQueryClient();
+  return () => {
+    qc.invalidateQueries({ queryKey: bankingKeys.paymentPlanRequests() });
+    qc.invalidateQueries({ queryKey: bankingKeys.termPaymentPendingRequests() });
+    qc.invalidateQueries({ queryKey: ["commercial-lots"] });
+    qc.invalidateQueries({ queryKey: ["purchaseOrders"] });
+    qc.invalidateQueries({ queryKey: APP_BOOTSTRAP_QUERY_KEY });
+  };
+}
+
+export function useSavePaymentPlan() {
+  const refresh = useRefreshPaymentPlans();
+  return useMutation({
+    mutationFn: ({ requestId, data }: { requestId: string; data: SavePaymentPlanPayload }) =>
+      BankingApi.savePaymentPlan(requestId, data),
+    onSuccess: refresh,
+    onError: (error) => notify.error(extractApiError(error).message || "Không lưu được kế hoạch thanh toán"),
+  });
+}
+
+export function usePaymentPlanAction() {
+  const refresh = useRefreshPaymentPlans();
+  return useMutation({
+    mutationFn: ({
+      requestId,
+      action,
+      data,
+    }: {
+      requestId: string;
+      action: "submit" | "approve" | "reject" | "revise" | "return";
+      data?: { note?: string; reason?: string };
+    }) => BankingApi.paymentPlanAction(requestId, action, data),
+    onSuccess: refresh,
+    onError: (error) => notify.error(extractApiError(error).message || "Không cập nhật được kế hoạch thanh toán"),
+  });
+}
+
+/* Các thao tác lùi lại của phân hệ ngân hàng: hủy đề nghị / hồ sơ chi, xóa lần chi ghi sai, gỡ ghép và
+   hủy bảng kê. Cùng một kiểu gọi (route + tham số + lý do) nên dùng chung một hook. */
+export type BankingUndoRoute =
+  | "paymentPlans.cancel"
+  | "commercialPayments.removePayment"
+  | "generalPaymentRequests.cancel"
+  | "generalPaymentRequests.removePayment"
+  | "banking.unmatchTermPaymentBatchItem"
+  | "banking.cancelTermPaymentBatch";
+
+export function useBankingUndo() {
+  const refresh = useRefreshPaymentPlans();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ route, params, reason }: { route: BankingUndoRoute; params: Record<string, string>; reason?: string }) =>
+      apiCall(route, { params, data: reason ? { reason } : {} }),
+    onSuccess: () => {
+      refresh();
+      qc.invalidateQueries({ queryKey: bankingKeys.all });
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không thực hiện được thao tác"),
+  });
+}
+
+/** Gắn (hoặc gỡ khi không truyền bankTransactionId) dòng tiền vào của khoản giải ngân với một đợt. */
+export function usePlanDisbursementLink() {
+  const refresh = useRefreshPaymentPlans();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lineId, bankTransactionId }: { lineId: string; bankTransactionId?: string }) =>
+      bankTransactionId ? BankingApi.linkPlanDisbursement(lineId, bankTransactionId) : BankingApi.unlinkPlanDisbursement(lineId),
+    onSuccess: () => {
+      refresh();
+      qc.invalidateQueries({ queryKey: ["banking", "transactions"] });
+    },
+    onError: (error) => notify.error(extractApiError(error).message || "Không cập nhật được dòng giải ngân"),
   });
 }
 

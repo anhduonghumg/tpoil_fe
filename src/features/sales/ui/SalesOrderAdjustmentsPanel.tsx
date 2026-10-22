@@ -1,15 +1,17 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Button, Card, Input, InputNumber, Modal, Space, Table, Tag, Typography } from "antd";
-import { CheckOutlined, EditOutlined, PlusOutlined, StopOutlined } from "@ant-design/icons";
+import { CheckOutlined, EditOutlined, FileAddOutlined, PlusOutlined, StopOutlined } from "@ant-design/icons";
 import { useCan } from "../../../shared/authz/useCan";
 import { PERMS } from "../../../shared/authz/perms";
 import {
+  useCreateAdjustmentInvoices,
   useCreateSalesOrderAdjustment,
   useDecideSalesOrderAdjustment,
   useSalesOrderAdjustments,
 } from "../hooks";
 import type { SalesOrder, SalesOrderAdjustment } from "../types";
-import { formatMoney, formatQty } from "./labels";
+import { DELIVERY_STATUS_LABELS, formatMoney, formatQty } from "./labels";
+import { SalesInvoiceDrawer } from "./SalesInvoiceDrawer";
 
 const statusColor: Record<string, string> = {
   PENDING: "gold",
@@ -23,6 +25,8 @@ export const SalesOrderAdjustmentsPanel: React.FC<{ order: SalesOrder }> = ({ or
   const query = useSalesOrderAdjustments(order.id);
   const createMutation = useCreateSalesOrderAdjustment(order.id);
   const decideMutation = useDecideSalesOrderAdjustment(order.id);
+  const adjustmentInvoiceMutation = useCreateAdjustmentInvoices();
+  const [invoiceId, setInvoiceId] = useState<string>();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [values, setValues] = useState<
@@ -30,9 +34,32 @@ export const SalesOrderAdjustmentsPanel: React.FC<{ order: SalesOrder }> = ({ or
   >({});
   const [rejecting, setRejecting] = useState<SalesOrderAdjustment | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [supplementaryVehiclePlate, setSupplementaryVehiclePlate] = useState("");
+  const [supplementaryDriverName, setSupplementaryDriverName] = useState("");
+
+  /** Lượng đã xuất thật còn lại ở khách (đã trừ phần trả lại). Đơn lô xuất theo phiếu rút → 0. */
+  const netIssued = (line: SalesOrder["lines"][number]) =>
+    order.kind === "LOT" ? 0 : Number(line.issuedQty ?? 0) - Number(line.returnedQty ?? 0);
+
+  /** Việc kho sẽ phát sinh nếu đổi lượng dòng này — nói trước cho Sale biết. */
+  const warehouseImpact = (line: SalesOrder["lines"][number]) => {
+    const next = values[line.id]?.adjustedQty;
+    const current = Number(line.orderedActualQty);
+    if (next == null || next === current) return null;
+    if (netIssued(line) > 0) {
+      return next > current
+        ? { color: "purple", text: `Xuất bổ sung +${formatQty(next - current)}` }
+        : { color: "volcano", text: `Nhập trả −${formatQty(current - next)}` };
+    }
+    return order.kind === "LOT"
+      ? { color: "blue", text: "Đổi tổng lô" }
+      : { color: "blue", text: "Sửa lệnh xuất đang chờ" };
+  };
 
   const begin = () => {
     setReason("");
+    setSupplementaryVehiclePlate("");
+    setSupplementaryDriverName("");
     setValues(
       Object.fromEntries(
         order.lines.map((line) => [
@@ -61,6 +88,17 @@ export const SalesOrderAdjustmentsPanel: React.FC<{ order: SalesOrder }> = ({ or
         .map((line) => ({ salesOrderLineId: line.id, ...values[line.id] })),
     [order.lines, values]
   );
+
+  const needsSupplementary = order.lines.some((line) => {
+    const next = values[line.id]?.adjustedQty;
+    return netIssued(line) > 0 && next != null && next > Number(line.orderedActualQty);
+  });
+  /** Giảm quá phần đã xuất còn ở khách thì không có gì để nhận trả — chặn ngay trên form. */
+  const overReturnLine = order.lines.find((line) => {
+    const next = values[line.id]?.adjustedQty;
+    const issued = netIssued(line);
+    return issued > 0 && next != null && Number(line.orderedActualQty) - next > issued;
+  });
 
   const rows = query.data ?? [];
   const mayCreate =
@@ -132,16 +170,88 @@ export const SalesOrderAdjustmentsPanel: React.FC<{ order: SalesOrder }> = ({ or
             },
             {
               title: "Xử lý tiếp",
-              width: 230,
-              render: (_, record) => (
-                <Space size={4} wrap>
-                  {record.requiresWarehouseCorrection && <Tag color="orange">Điều chỉnh kho</Tag>}
-                  {record.requiresInvoiceCorrection && <Tag color="purple">Điều chỉnh HĐ</Tag>}
-                  {record.status === "APPROVED" &&
-                    !record.requiresWarehouseCorrection &&
-                    !record.requiresInvoiceCorrection && <Tag color="green">Đã áp dụng</Tag>}
-                </Space>
-              ),
+              width: 360,
+              render: (_, record) => {
+                const liveInvoices = (record.invoices ?? []).filter(
+                  (invoice) => invoice.status !== "CANCELLED",
+                );
+                const mayCreateInvoice =
+                  record.status === "APPROVED" &&
+                  record.requiresInvoiceCorrection &&
+                  !record.invoiceCorrectedAt &&
+                  !liveInvoices.length &&
+                  can(PERMS.SALES_INVOICE_ISSUE);
+                return (
+                  <Space size={4} wrap>
+                    {record.requiresWarehouseCorrection &&
+                      (record.warehouseCorrectedAt ? (
+                        <Tag color="green">Đã điều chỉnh kho</Tag>
+                      ) : (
+                        <Tag color="orange">Chờ kho</Tag>
+                      ))}
+                    {(record.deliveries ?? []).map((delivery) => (
+                      <Tag key={delivery.id} color={delivery.status === "POSTED" ? "green" : delivery.status === "VOIDED" ? "default" : "purple"}>
+                        Xuất bổ sung {delivery.deliveryNo} · {DELIVERY_STATUS_LABELS[delivery.status] ?? delivery.status}
+                      </Tag>
+                    ))}
+                    {(record.returns ?? []).map((row) => {
+                      const qty = row.lines.reduce(
+                        (sum, line) => sum + Number(line.actualQty ?? line.requestedActualQty),
+                        0,
+                      );
+                      return (
+                        <Tag
+                          key={row.id}
+                          color={row.status === "POSTED" ? "green" : row.status === "CANCELLED" ? "default" : "volcano"}
+                        >
+                          Nhập trả {row.returnNo} · {formatQty(qty)} ·{" "}
+                          {row.status === "POSTED" ? "đã nhận" : row.status === "CANCELLED" ? "đã hủy" : "chờ kho"}
+                        </Tag>
+                      );
+                    })}
+                    {record.requiresInvoiceCorrection &&
+                      (record.invoiceCorrectedAt ? (
+                        <Tag color="green">Đã điều chỉnh HĐ</Tag>
+                      ) : (
+                        <Tag color="purple">Điều chỉnh HĐ</Tag>
+                      ))}
+                    {record.status === "APPROVED" && record.appliedAt && (
+                      <Tag color="green">Đã áp dụng</Tag>
+                    )}
+                    {liveInvoices.map((invoice) => (
+                      <Button
+                        key={invoice.id}
+                        type="link"
+                        size="small"
+                        style={{ padding: 0 }}
+                        onClick={() => setInvoiceId(invoice.id)}
+                      >
+                        {invoice.adjustmentDirection === "DECREASE" ? "HĐ giảm" : "HĐ tăng"}{" "}
+                        {invoice.misaInvoiceNo ?? invoice.invoiceNoInternal} ({invoice.status})
+                      </Button>
+                    ))}
+                    {mayCreateInvoice && (
+                      <Button
+                        size="small"
+                        icon={<FileAddOutlined />}
+                        loading={
+                          adjustmentInvoiceMutation.isPending &&
+                          adjustmentInvoiceMutation.variables === record.id
+                        }
+                        onClick={() =>
+                          adjustmentInvoiceMutation.mutate(record.id, {
+                            onSuccess: (result) => {
+                              if (result.invoices[0]) setInvoiceId(result.invoices[0].id);
+                            },
+                          })
+                        }
+                      >
+                        Lập HĐ điều chỉnh
+                      </Button>
+                    )}
+                  </Space>
+                );
+              },
             },
             {
               title: "Thao tác",
@@ -176,15 +286,25 @@ export const SalesOrderAdjustmentsPanel: React.FC<{ order: SalesOrder }> = ({ or
 
       <Modal
         open={open}
-        width={860}
+        width={1000}
         title={`Tạo đơn điều chỉnh ${order.orderNo}`}
         okText="Gửi duyệt"
         cancelText="Đóng"
-        okButtonProps={{ disabled: !reason.trim() || !changedLines.length }}
+        okButtonProps={{ disabled: !reason.trim() || !changedLines.length || Boolean(overReturnLine) }}
         confirmLoading={createMutation.isPending}
         onCancel={() => setOpen(false)}
         onOk={async () => {
-          await createMutation.mutateAsync({ salesOrderId: order.id, reason: reason.trim(), lines: changedLines });
+          await createMutation.mutateAsync({
+            salesOrderId: order.id,
+            reason: reason.trim(),
+            lines: changedLines,
+            ...(needsSupplementary
+              ? {
+                  supplementaryVehiclePlate: supplementaryVehiclePlate.trim() || undefined,
+                  supplementaryDriverName: supplementaryDriverName.trim() || undefined,
+                }
+              : {}),
+          });
           setOpen(false);
         }}
       >
@@ -192,8 +312,24 @@ export const SalesOrderAdjustmentsPanel: React.FC<{ order: SalesOrder }> = ({ or
           showIcon
           type="info"
           style={{ marginBottom: 12 }}
-          message="Chỉ nhập dòng bị sai. Nếu đơn đã phát sinh kho hoặc hóa đơn, hệ thống sẽ yêu cầu chứng từ điều chỉnh tương ứng."
+          message="Chỉ nhập dòng cần đổi. Hệ thống tự xử lý phần kho khi phiếu được duyệt:"
+          description={
+            <ul className="so-plain-list">
+              <li>Hàng <strong>chưa xuất</strong>: cập nhật lệnh xuất đang chờ kho.</li>
+              <li>Hàng <strong>đã xuất</strong>, tăng: tạo <strong>lệnh xuất bổ sung</strong> phần tăng.</li>
+              <li>Hàng <strong>đã xuất</strong>, giảm: tạo <strong>phiếu nhập trả</strong> để kho nhận lại hàng.</li>
+              <li>Chỉ đổi giá: không có việc kho; đã có hóa đơn thì hệ thống dựng hóa đơn điều chỉnh.</li>
+            </ul>
+          }
         />
+        {overReturnLine && (
+          <Alert
+            showIcon
+            type="error"
+            style={{ marginBottom: 12 }}
+            message={`Dòng ${overReturnLine.lineNo}: giảm nhiều hơn lượng đã xuất còn ở khách (${formatQty(netIssued(overReturnLine))}) — không có hàng để nhận trả.`}
+          />
+        )}
         <Typography.Text>Lý do điều chỉnh *</Typography.Text>
         <Input.TextArea
           rows={2}
@@ -215,9 +351,21 @@ export const SalesOrderAdjustmentsPanel: React.FC<{ order: SalesOrder }> = ({ or
             },
             {
               title: "Số lượng cũ",
-              width: 130,
+              width: 110,
               render: (_: unknown, line: SalesOrder["lines"][number]) =>
                 formatQty(line.orderedActualQty),
+            },
+            {
+              title: "Đã xuất",
+              width: 100,
+              render: (_: unknown, line: SalesOrder["lines"][number]) =>
+                order.kind === "LOT" ? (
+                  <Typography.Text type="secondary">theo phiếu rút</Typography.Text>
+                ) : netIssued(line) > 0 ? (
+                  formatQty(netIssued(line))
+                ) : (
+                  <Typography.Text type="secondary">chưa xuất</Typography.Text>
+                ),
             },
             {
               title: "Số lượng mới",
@@ -267,8 +415,38 @@ export const SalesOrderAdjustmentsPanel: React.FC<{ order: SalesOrder }> = ({ or
                 />
               ),
             },
+            {
+              title: "Việc kho",
+              width: 170,
+              render: (_: unknown, line: SalesOrder["lines"][number]) => {
+                const impact = warehouseImpact(line);
+                return impact ? <Tag color={impact.color}>{impact.text}</Tag> : null;
+              },
+            },
           ]}
         />
+        {needsSupplementary && (
+          <div style={{ marginTop: 12 }}>
+            <Typography.Text strong>Xe / lái xe cho lần xuất bổ sung</Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+              (bỏ trống thì lấy theo lệnh xuất trước)
+            </Typography.Text>
+            <Space style={{ display: "flex", marginTop: 6 }}>
+              <Input
+                placeholder="Biển số xe"
+                value={supplementaryVehiclePlate}
+                onChange={(event) => setSupplementaryVehiclePlate(event.target.value)}
+                style={{ width: 180 }}
+              />
+              <Input
+                placeholder="Lái xe"
+                value={supplementaryDriverName}
+                onChange={(event) => setSupplementaryDriverName(event.target.value)}
+                style={{ width: 240 }}
+              />
+            </Space>
+          </div>
+        )}
       </Modal>
 
       <Modal
@@ -295,6 +473,12 @@ export const SalesOrderAdjustmentsPanel: React.FC<{ order: SalesOrder }> = ({ or
           placeholder="Lý do từ chối (bắt buộc)"
         />
       </Modal>
+
+      <SalesInvoiceDrawer
+        id={invoiceId}
+        open={Boolean(invoiceId)}
+        onClose={() => setInvoiceId(undefined)}
+      />
     </>
   );
 };

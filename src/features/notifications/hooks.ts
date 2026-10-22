@@ -22,10 +22,12 @@ export function useNotifications(input: { unreadOnly?: boolean; tab?: Notificati
   });
 }
 
-export function useNotificationSummary() {
+export function useNotificationSummary({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: notificationKeys.summary,
     queryFn: NotificationsApi.summary,
+    enabled,
+    staleTime: 15_000,
     refetchInterval: 60_000,
   });
 }

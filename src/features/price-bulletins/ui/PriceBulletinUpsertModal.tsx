@@ -219,7 +219,7 @@ export const PriceBulletinUpsertModal: React.FC<Props> = ({
       confirmLoading={saving}
       okText="Lưu bản nháp"
       cancelText="Đóng"
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
       width={980}
       centered

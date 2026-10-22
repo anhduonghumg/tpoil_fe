@@ -122,3 +122,18 @@ export type CreateWarehouseAreaPayload = {
   sortOrder?: number;
   isActive?: boolean;
 };
+
+/** Một kho trong bảng tỷ lệ hao hụt rút hàng (%), dầu và xăng riêng. */
+export type WarehouseLossRateRow = {
+  warehouseId: string;
+  warehouseCode: string;
+  warehouseName: string;
+  dieselLossRatePercent: number | null;
+  gasolineLossRatePercent: number | null;
+};
+
+export type SaveWarehouseLossRateItem = {
+  warehouseId: string;
+  productGroup: "DIESEL" | "GASOLINE";
+  withdrawLossRatePercent: number | null;
+};

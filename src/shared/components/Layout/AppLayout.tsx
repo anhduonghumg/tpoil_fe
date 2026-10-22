@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Avatar,
@@ -30,6 +30,9 @@ import NotificationsBell from "./NotificationsBell";
 import BirthdaysButton from "./BirthdaysButton";
 import { useAppSession } from "../../authz/AppSessionProvider";
 import { getAuthorizedMenu } from "./MenuUtils";
+import { withMenuTaskCounts } from "./menuTaskCounts";
+import { useNotificationSummary } from "../../../features/notifications/hooks";
+import { getMenuAncestors, getSelectedMenuKey, getWorkspaceHome } from "../../../features/workspaces/navigation";
 import {
   DepartmentWorkspaceProvider,
   useDepartmentWorkspaceValue,
@@ -43,8 +46,9 @@ const { Header, Sider, Content } = Layout;
 const { useBreakpoint } = Grid;
 
 const BREADCRUMB: Record<string, string> = {
-  "/": "Dashboard",
-  "/dashboard": "Dashboard",
+  "/": "Tổng quan",
+  "/dashboard": "Tổng quan",
+  "/profile": "Hồ sơ của tôi",
   "/purchase-orders": "Đơn mua hàng",
   "/commercial-purchases/lots": "Mua thương mại lô",
   "/commercial-purchases/retail": "Mua thương mại lẻ",
@@ -91,6 +95,7 @@ const SiderMenu = React.memo(function SiderMenu({
   onNavigate,
   items,
   selectedKeys,
+  taskCounts,
 }: {
   collapsed: boolean;
   currentWorkspace: DepartmentWorkspace;
@@ -99,7 +104,9 @@ const SiderMenu = React.memo(function SiderMenu({
   onNavigate: (key: string) => void;
   items: any[];
   selectedKeys: string[];
+  taskCounts?: Record<string, number>;
 }) {
+  const { permissions } = useAppSession();
   const workspaceOptions = useMemo(
     () =>
       workspaces.map((item) => ({
@@ -109,22 +116,50 @@ const SiderMenu = React.memo(function SiderMenu({
     [workspaces],
   );
 
+  const displayItems = useMemo(() => withMenuTaskCounts(items, taskCounts, collapsed), [items, taskCounts, collapsed]);
+  const activeKey = selectedKeys[0] || "";
+  const storageKey = "erp.menuOpenKeys." + currentWorkspace.key;
+  const [openKeys, setOpenKeys] = useState<string[]>([]);
+  useEffect(() => {
+    let saved: string[] = [];
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem(storageKey) || "[]");
+      if (Array.isArray(parsed)) saved = parsed.filter((key) => typeof key === "string");
+    } catch { /* Storage may be unavailable. Navigation still works. */ }
+    const submenuKeys = flattenMenu(items).filter((item) => item.children?.length && item.type !== "group").map((item) => item.key);
+    setOpenKeys([...new Set([...saved, ...getMenuAncestors(items, activeKey)])].filter((key) => submenuKeys.includes(key)));
+  }, [storageKey, activeKey, items, collapsed]);
+
+  const onOpenChange = (keys: string[]) => {
+    setOpenKeys(keys);
+    if (!collapsed) {
+      try { sessionStorage.setItem(storageKey, JSON.stringify(keys)); } catch { /* Optional preference. */ }
+    }
+  };
+
   return (
     <>
-      <div className="app-brand" onClick={() => onNavigate("/dashboard")}>
+      <button type="button" className="app-brand" aria-label={"Mở tổng quan " + currentWorkspace.name} onClick={() => onNavigate(getWorkspaceHome(currentWorkspace.key, permissions))}>
         <img style={{ width: "64px" }} src={logo} alt="Logo" />
-      </div>
+      </button>
 
       <div className="app-workspace">
         {collapsed ? (
-          <div className="app-workspace-compact" title={currentWorkspace.name}>
-            {currentWorkspace.name.charAt(0).toUpperCase()}
-          </div>
+          <Dropdown trigger={["click"]} placement="bottomRight" menu={{
+            selectedKeys: [currentWorkspace.key],
+            items: workspaceOptions.map((option) => ({ key: option.value, label: option.label })),
+            onClick: ({ key }) => onWorkspaceChange(key),
+          }}>
+            <button type="button" className="app-workspace-compact" title={"Đổi khu vực: " + currentWorkspace.name} aria-label={"Đổi khu vực, hiện tại " + currentWorkspace.name} disabled={workspaceOptions.length <= 1}>
+              {currentWorkspace.name.charAt(0).toUpperCase()}
+            </button>
+          </Dropdown>
         ) : (
           <>
-            <div className="app-workspace-label">Workspace</div>
+            <div className="app-workspace-label">Khu vực làm việc</div>
             <Select
               className="app-workspace-select"
+              aria-label="Khu vực làm việc"
               value={currentWorkspace.key}
               options={workspaceOptions}
               disabled={workspaceOptions.length <= 1}
@@ -137,10 +172,14 @@ const SiderMenu = React.memo(function SiderMenu({
 
       <div className="app-menu-scroll">
         <Menu
+          id="app-navigation"
+          aria-label="Điều hướng chính"
           theme="dark"
           mode="inline"
-          items={items}
+          items={displayItems as any}
           selectedKeys={selectedKeys}
+          openKeys={openKeys}
+          onOpenChange={onOpenChange}
           onClick={({ key }) => onNavigate(String(key))}
         />
       </div>
@@ -155,6 +194,7 @@ const HeaderRight = React.memo(function HeaderRight({
   userName: string;
   onLogout: () => void;
 }) {
+  const navigate = useNavigate();
   const userMenu = useMemo(
     () => ({
       items: [
@@ -162,7 +202,7 @@ const HeaderRight = React.memo(function HeaderRight({
           key: "profile",
           icon: <UserOutlined />,
           label: "Hồ sơ",
-          disabled: false,
+          onClick: () => navigate("/profile"),
         },
         { type: "divider" as const },
         {
@@ -173,7 +213,7 @@ const HeaderRight = React.memo(function HeaderRight({
         },
       ],
     }),
-    [onLogout],
+    [onLogout, navigate],
   );
 
   return (
@@ -204,6 +244,7 @@ export default function AppLayout() {
   const { pathname } = useLocation();
 
   const { me, ready, permissions } = useAppSession();
+  const taskSummary = useNotificationSummary({ enabled: ready });
   const workspaceValue = useDepartmentWorkspaceValue({
     enabled: ready,
     permissions,
@@ -214,14 +255,6 @@ export default function AppLayout() {
   const menuItems = useMemo(() => {
     return getAuthorizedMenu(workspaceValue.menu as any, permissions);
   }, [permissions, workspaceValue.menu]);
-
-  const flatKeys = useMemo(() => {
-    const walk = (items: any[]): string[] =>
-      items.flatMap((item) =>
-        item.children?.length ? [item.key, ...walk(item.children)] : [item.key],
-      );
-    return walk(menuItems);
-  }, [menuItems]);
 
   const menuLabels = useMemo(() => {
     return flattenMenu(workspaceValue.menu).reduce<Record<string, string>>(
@@ -245,9 +278,9 @@ export default function AppLayout() {
   const onWorkspaceChange = useCallback(
     (key: string) => {
       workspaceValue.setWorkspaceKey(key);
-      if (pathname === "/" || pathname === "/dashboard") nav("/dashboard");
+      setOpen(false);
     },
-    [nav, pathname, workspaceValue],
+    [workspaceValue],
   );
 
   const onToggleSider = useCallback(() => {
@@ -279,11 +312,9 @@ export default function AppLayout() {
   }, [onLogout]);
 
   const selectedKeys = useMemo(() => {
-    const best = flatKeys
-      .filter((key) => pathname === key || pathname.startsWith(key + "/"))
-      .sort((a, b) => b.length - a.length)[0];
-    return [best || "/dashboard"];
-  }, [pathname, flatKeys]);
+    const selected = getSelectedMenuKey(menuItems, pathname);
+    return selected ? [selected] : [];
+  }, [pathname, menuItems]);
 
   const breadcrumbItems = useMemo(() => {
     const segs = pathname.split("/").filter(Boolean);
@@ -332,7 +363,7 @@ export default function AppLayout() {
             collapsed={collapsed}
             onCollapse={setCollapsed}
             breakpoint="lg"
-            width={220}
+            width={260}
             className="app-sider"
           >
             <SiderMenu
@@ -343,6 +374,7 @@ export default function AppLayout() {
               onNavigate={onNavigate}
               items={menuItems}
               selectedKeys={selectedKeys}
+              taskCounts={taskSummary.data?.menuCounts}
             />
           </Sider>
         )}
@@ -350,16 +382,9 @@ export default function AppLayout() {
         <Layout>
           <Header className="app-header">
             <div className="app-header-left">
-              {isMobile ? (
-                <MenuUnfoldOutlined
-                  className="trigger"
-                  onClick={() => setOpen(true)}
-                />
-              ) : collapsed ? (
-                <MenuUnfoldOutlined className="trigger" onClick={onToggleSider} />
-              ) : (
-                <MenuFoldOutlined className="trigger" onClick={onToggleSider} />
-              )}
+              <button type="button" className="trigger" aria-controls="app-navigation" aria-expanded={isMobile ? open : !collapsed} aria-label={isMobile ? "Mở menu điều hướng" : collapsed ? "Mở rộng menu" : "Thu gọn menu"} onClick={onToggleSider}>
+                {isMobile || collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              </button>
               <Breadcrumb
                 items={breadcrumbItems.map((item, index) => ({
                   title:
@@ -386,6 +411,7 @@ export default function AppLayout() {
               <Outlet />
             </div>
           </Content>
+          <footer id="app-mobile-footer" className="app-mobile-footer" aria-label="Công cụ trang" />
         </Layout>
 
         {isMobile && (
@@ -394,7 +420,9 @@ export default function AppLayout() {
             placement="left"
             onClose={() => setOpen(false)}
             style={{ padding: 0 }}
-            width={260}
+            title="Menu điều hướng"
+            width="min(320px, 100vw)"
+            styles={{ body: { background: "#001529", display: "flex", flexDirection: "column", padding: 0, minHeight: 0 } }}
           >
             <SiderMenu
               collapsed={false}
@@ -404,6 +432,7 @@ export default function AppLayout() {
               onNavigate={onNavigate}
               items={menuItems}
               selectedKeys={selectedKeys}
+              taskCounts={taskSummary.data?.menuCounts}
             />
           </Drawer>
         )}

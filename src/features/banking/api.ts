@@ -18,9 +18,32 @@ import type {
   GeneralPaymentReconciliationQueueItem,
   GeneralPaymentReconciliation,
   BankTransactionRecognition,
+  PaymentPlanRequest,
+  SavePaymentPlanPayload,
 } from "./types";
 
+const unwrap = (r: any) => r.data?.data ?? r.data;
+
 export const BankingApi = {
+  listPaymentPlanRequests: () =>
+    apiCall<PaymentPlanRequest[]>("paymentPlans.list").then((r) => (unwrap(r) ?? []) as PaymentPlanRequest[]),
+
+  savePaymentPlan: (requestId: string, data: SavePaymentPlanPayload) =>
+    apiCall<PaymentPlanRequest>("paymentPlans.save", { params: { requestId }, data }).then(unwrap),
+
+  paymentPlanAction: (
+    requestId: string,
+    action: "submit" | "approve" | "reject" | "revise" | "return",
+    data: { note?: string; reason?: string } = {},
+  ) => apiCall<PaymentPlanRequest>(`paymentPlans.${action}`, { params: { requestId }, data }).then(unwrap),
+
+  /* Giải ngân về tài khoản công ty: gắn dòng tiền vào trên sao kê với đợt giải ngân. */
+  linkPlanDisbursement: (lineId: string, bankTransactionId: string) =>
+    apiCall<PaymentPlanRequest>("paymentPlans.linkDisbursement", { params: { lineId }, data: { bankTransactionId } }).then(unwrap),
+
+  unlinkPlanDisbursement: (lineId: string) =>
+    apiCall<PaymentPlanRequest>("paymentPlans.unlinkDisbursement", { params: { lineId } }).then(unwrap),
+
   listGeneralPaymentRequests: () =>
     apiCall<GeneralPaymentRequest[]>("generalPaymentRequests.list").then(
       (r) => (r.data as any)?.data ?? r.data ?? [],
@@ -173,7 +196,8 @@ export const BankingApi = {
     ).then((r) => (r.data as any)?.data ?? r.data),
 
   createTermPaymentBatch: (data: {
-    paymentRequestIds: string[];
+    paymentRequestIds?: string[];
+    planLineIds?: string[];
     bankAccountId?: string;
     batchDate?: string;
     note?: string;

@@ -38,6 +38,8 @@ export const PERMS = {
   SALES_CANCEL: "sales.cancel",
   SALES_APPROVE_ORDER: "sales.approve_order",
   SALES_APPROVE_PRICE: "sales.approve_price",
+  /** Cho phép bán vượt: lấy hàng đơn lô khách chưa rút để bán cho đơn khác, bù sau. */
+  SALES_OVERSELL: "sales.oversell",
   SALES_APPROVE_CREDIT: "sales.approve_credit",
   SALES_APPROVE_EXCEPTION: "sales.approve_exception",
   SALES_DELIVERY_CONFIRM: "sales.delivery.confirm",

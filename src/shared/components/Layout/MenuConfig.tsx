@@ -18,6 +18,7 @@ export type NavItem = {
   icon?: JSX.Element;
   children?: NavItem[];
   need?: string | string[];
+  needAny?: string[];
   /** "group" dựng tiêu đề mục, không bấm được. */
   type?: "group";
 };
@@ -76,6 +77,7 @@ export const NAV_ITEMS: NavItem[] = [
           { key: "/operations/inventory-availability", label: "Tồn kho kinh doanh" },
           { key: "/operations/inventory-receipts", label: "Nhập kho mua hàng" },
           { key: "/operations/inventory-accounting", label: "Tồn kho kế toán" },
+          { key: "/operations/daily-stock-reconciliation", label: "Đối chiếu kho hằng ngày", need: PERMS.OPERATIONS_WAREHOUSE_MANAGE },
           { key: "/operations/expected-inventory", label: "Hàng dự kiến" },
           { key: "/operations/reservations", label: "Giữ hàng" },
           { key: "/operations/warehouse-transfers", label: "Chuyển kho" },

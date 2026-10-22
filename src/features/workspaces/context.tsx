@@ -5,6 +5,8 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { canAccessWorkspace, getWorkspaceHome } from "./navigation";
+import { useNavigate } from "react-router-dom";
 import type { PermCode } from "../../shared/authz/perms";
 import { PERMS } from "../../shared/authz/perms";
 import {
@@ -146,6 +148,7 @@ export function useDepartmentWorkspaceValue({
   enabled: boolean;
   permissions: Set<PermCode>;
 }): DepartmentWorkspaceContextValue {
+  const navigate = useNavigate();
   const isAdmin = permissions.has(PERMS.SYSTEM_RBAC_ADMIN);
   const [selectedKey, setSelectedKey] = useState(readStoredWorkspaceKey);
 
@@ -163,8 +166,10 @@ export function useDepartmentWorkspaceValue({
         ? [current]
         : DEFAULT_WORKSPACES;
 
-    return isAdmin ? mergeAdminWorkspaces(source) : source;
-  }, [currentQuery.data, isAdmin, workspacesQuery.data]);
+    return (isAdmin ? mergeAdminWorkspaces(source) : source).filter((item) =>
+      canAccessWorkspace(item.key, permissions),
+    );
+  }, [currentQuery.data, isAdmin, permissions, workspacesQuery.data]);
 
   const currentWorkspace = useMemo(
     () =>
@@ -246,8 +251,10 @@ export function useDepartmentWorkspaceValue({
   );
 
   const setWorkspaceKey = (key: string) => {
+    if (key === currentWorkspace.key || !workspaces.some((item) => item.key === key)) return;
     setSelectedKey(key);
     storeWorkspaceKey(key);
+    navigate(getWorkspaceHome(key, permissions));
   };
 
   return {

@@ -1,0 +1,16 @@
+.common-table { min-width: 0; }
+.common-table .ant-table-thead > tr > th { position: relative; overflow: hidden; text-overflow: ellipsis; }
+.common-table-resize { position: absolute; z-index: 4; inset-block: 0; right: 0; width: 6px; cursor: col-resize; touch-action: none; user-select: none; }
+.common-table-resize:hover, .common-table-resize:focus-visible { background: rgba(22,119,255,.2); outline: 1px solid #1677ff; }
+.common-table .ant-table-filter-trigger { margin-inline-end: 3px; }
+.common-table .ant-table-column-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.common-table-filter-active { color: #1677ff; }
+.common-table-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 4px; }
+.common-table-toolbar-left { display: flex; align-items: center; flex: 1; flex-wrap: wrap; min-width: 0; gap: 4px; }
+.common-table-toolbar .table-filter-tags { display: contents; }
+.common-table-toolbar .ant-tag { margin: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.common-table-reset-widths { margin-inline-start: auto; flex: 0 0 auto; }
+.common-table-filter-panel { padding: 10px; width: min(300px, calc(100vw - 32px)); white-space: normal; }
+.common-table-filter-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.common-table-filter-fields > *, .common-table-filter-panel .ant-select { min-width: 0; width: 100%; }
+.common-table-filter-fields [role="alert"] { color: #cf1322; font-size: 12px; }

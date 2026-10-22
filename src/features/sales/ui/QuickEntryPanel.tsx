@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { MutableRefObject, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -56,6 +57,8 @@ import {
   readMutedCustomers,
 } from "./CreditLimitWarningModal";
 import { notify } from "../../../shared/lib/notification";
+import { useIsMobile } from "../../../shared/ui/mobile";
+import { RetailMobileEntry } from "./RetailMobileEntry";
 import "../sales.css";
 
 /** Sale asked for Vùng I prices by default; the point is not stopping to pick one. */
@@ -83,10 +86,11 @@ function kindForMode(mode: QuickEntryMode, parsed: QuickEntryKind | null): Quick
   return mode === "LOT" ? "LOT" : "SINGLE";
 }
 
-type DraftLine = {
+export type DraftLine = {
   key: string;
   productId?: string;
   productCode: string | null;
+  productUom?: string;
   productRawText: string | null;
   /** Đã có alias sẵn cho cách viết này chưa — nếu chưa thì lúc lưu sẽ hỏi có nhớ không. */
   productAliasKnown: boolean;
@@ -133,7 +137,7 @@ type SaveState =
   | { kind: "SAVED"; orderNo?: string; orderId: string; violations: string[]; warnings: string[] }
   | { kind: "FAILED"; message: string };
 
-type DraftOrder = {
+export type DraftOrder = {
   key: string;
   /** Nguyên văn đoạn tin đã đọc ra đơn này. */
   rawText: string;
@@ -147,9 +151,15 @@ type DraftOrder = {
   orderDate: dayjs.Dayjs;
   plate: string;
   driver: string;
+  /** Số "Đơn 1/2/3…" khách ghi trong tin — giữ để đối chiếu sau khi gộp đơn. */
+  customerOrderRef?: string | null;
   lines: DraftLine[];
   save: SaveState;
 };
+export type QuickEntryDraftCache = Partial<Record<QuickEntryMode, {
+  orders: DraftOrder[]; staged: DraftOrder[]; text: string; regionCode: string;
+  lotInvoiceMode: SalesLotInvoiceMode; paymentTermType: "SAME_DAY" | "NET_DAYS"; paymentPlans: PaymentPlanRow[];
+}>>;
 
 /** One table row per goods line; order-level cells span the group. */
 type FlatRow = {
@@ -245,27 +255,53 @@ const CUSTOMER_LABEL = /^\s*(kh[áa]ch\s*h[àa]ng|kh)\s*[:：]/i;
  * order carrying the last plate it saw.
  */
 export function splitPastedOrders(text: string): string[] {
-  const chunks: string[] = [];
+  return splitPastedOrdersWithRefs(text).map((chunk) => chunk.text);
+}
+
+/**
+ * Như splitPastedOrders, kèm số "Đơn k" của khách ở dòng ngăn phía trên mỗi đoạn. Khách
+ * như Thụy Dương đánh số từng xe là "Đơn 1, 2, 3…" dù thực chất là một đơn — số này đi
+ * theo dòng hàng để sau khi Sale gộp vẫn đối chiếu được với tin nhắn của khách.
+ */
+export function splitPastedOrdersWithRefs(text: string): Array<{ text: string; ref: string | null }> {
+  const chunks: Array<{ text: string; ref: string | null }> = [];
   let current: string[] = [];
+  let ref: string | null = null;
+  /**
+   * Phần đầu tin trước "Đơn 1" mà không có khách hàng ("Ngày 22/10/2026", ghi chú chung)
+   * là thông tin chung của mọi đơn bên dưới — ghép vào từng đơn, không tách thành đơn trống.
+   */
+  let header: string[] = [];
+  let seenDivider = false;
 
   const flush = () => {
-    if (current.some((line) => line.trim())) chunks.push(current.join("\n").trim());
+    if (current.some((line) => line.trim())) {
+      chunks.push({ text: [...header, ...current].join("\n").trim(), ref });
+    }
     current = [];
   };
 
   for (const line of text.split(/\r?\n/)) {
     if (ORDER_DIVIDER.test(line)) {
-      flush();
+      if (!seenDivider && !current.some((row) => CUSTOMER_LABEL.test(row))) {
+        header = current.filter((row) => row.trim());
+        current = [];
+      } else {
+        flush();
+      }
+      seenDivider = true;
+      ref = line.match(/\d+/)?.[0] ?? null;
       continue;
     }
     if (CUSTOMER_LABEL.test(line) && current.some((row) => CUSTOMER_LABEL.test(row))) {
       flush();
+      ref = null;
     }
     current.push(line);
   }
   flush();
 
-  return chunks.length ? chunks : [text.trim()];
+  return chunks.length ? chunks : [{ text: text.trim(), ref: null }];
 }
 
 /** Anything the template could not pin down still needs a human before saving. */
@@ -323,17 +359,23 @@ function aliasSuggestionsOf(order: DraftOrder): AliasSuggestion[] {
 export function QuickEntryPanel({
   mode,
   onSaved,
+  draftCache,
+  onDraftChange,
 }: {
   mode: QuickEntryMode;
   onSaved?: () => void;
+  draftCache?: MutableRefObject<QuickEntryDraftCache>;
+  onDraftChange?: (mode: QuickEntryMode, dirty: boolean, busy: boolean) => void;
 }) {
-  const [text, setText] = useState("");
+  const mobileRetail = useIsMobile() && mode === "RETAIL";
+  const restored = draftCache?.current[mode];
+  const [text, setText] = useState(restored?.text ?? "");
   const [useAi, setUseAi] = useState(true);
-  const [regionCode, setRegionCode] = useState(DEFAULT_REGION);
+  const [regionCode, setRegionCode] = useState(restored?.regionCode ?? DEFAULT_REGION);
   const [regionKeyword, setRegionKeyword] = useState("");
-  const [orders, setOrders] = useState<DraftOrder[]>([]);
+  const [orders, setOrders] = useState<DraftOrder[]>(restored?.orders ?? []);
   /** Đơn tạm chỉ dùng khi Sale chủ động sửa lại; Enter sẽ đẩy thẳng xuống bảng. */
-  const [staged, setStaged] = useState<DraftOrder[]>([]);
+  const [staged, setStaged] = useState<DraftOrder[]>(restored?.staged ?? []);
   const [draftOpen, setDraftOpen] = useState(true);
   /**
    * Màn đơn lô chủ yếu được nhập tay, ô dán tin nhắn chỉ thỉnh thoảng mới dùng — nên ở
@@ -342,9 +384,14 @@ export function QuickEntryPanel({
   const [composerOpen, setComposerOpen] = useState(mode !== "LOT");
   // Điều khoản đặt chung cho cả lượt nhập đơn lô.
   const [lotInvoiceMode, setLotInvoiceMode] =
-    useState<SalesLotInvoiceMode>("ON_WITHDRAWAL");
-  const [paymentTermType, setPaymentTermType] = useState<"SAME_DAY" | "NET_DAYS">("SAME_DAY");
-  const [paymentPlans, setPaymentPlans] = useState<PaymentPlanRow[]>([]);
+    useState<SalesLotInvoiceMode>(restored?.lotInvoiceMode ?? "ON_WITHDRAWAL");
+  const [paymentTermType, setPaymentTermType] = useState<"SAME_DAY" | "NET_DAYS">(restored?.paymentTermType ?? "SAME_DAY");
+  const [paymentPlans, setPaymentPlans] = useState<PaymentPlanRow[]>(restored?.paymentPlans ?? []);
+  const workflowLock = useRef(false);
+  const selectedCustomerCodes = useRef(new Map<string, string>());
+  const parseLock = useRef(false);
+  const [workflowBusy, setWorkflowBusy] = useState(false);
+  const [parsing, setParsing] = useState(false);
   const [lotTermsOpen, setLotTermsOpen] = useState(false);
   const [productKeyword, setProductKeyword] = useState("");
   const [warehouseKeyword, setWarehouseKeyword] = useState("");
@@ -376,6 +423,11 @@ export function QuickEntryPanel({
   const regionsQuery = usePriceRegionsSelect(regionKeyword);
   const parseMutation = useParseQuickEntry();
   const confirmMutation = useConfirmQuickEntry();
+  const busy = workflowBusy || parsing;
+  useEffect(() => {
+    if (draftCache) draftCache.current[mode] = { orders, staged, text, regionCode, lotInvoiceMode, paymentTermType, paymentPlans };
+    onDraftChange?.(mode, Boolean(text.trim() || orders.some((order) => order.save.kind !== "SAVED")), busy);
+  }, [orders, staged, text, regionCode, lotInvoiceMode, paymentTermType, paymentPlans, mode, draftCache, onDraftChange, busy]);
   const discountBoard = useCurrentDiscountBoard();
   const announcedDiscounts = useMemo(
     () =>
@@ -424,7 +476,7 @@ export function QuickEntryPanel({
     setOrders((current) => {
       let changed = false;
       const next = current.map((order) => {
-        if (order.orderKind === "WITHDRAWAL") return order;
+        if (order.orderKind === "WITHDRAWAL" || order.save.kind === "SAVED" || order.save.kind === "SAVING") return order;
 
         const lines = order.lines.map((line) => {
           if (!line.productId) return line;
@@ -547,7 +599,7 @@ export function QuickEntryPanel({
     }
   };
 
-  const parseOne = async (chunk: string) => {
+  const parseOne = async (chunk: string, customerOrderRef: string | null) => {
     // Template first. AI is a deliberate second attempt, only when something is missing.
     let preview = await parseMutation.mutateAsync({ text: chunk, useAi: false });
     const incomplete =
@@ -564,21 +616,26 @@ export function QuickEntryPanel({
       const kind = line.orderKind ?? preview.orderKind;
       byKind.set(kind, [...(byKind.get(kind) ?? []), line]);
     }
-    const drafts = [...byKind.entries()].map(([kind, lines]) => draftFrom(preview, mode, chunk, lines, kind));
-    if (!drafts.length) return [{ ...draftFrom(preview, mode, chunk), lines: [emptyLine()] }];
+    const drafts = [...byKind.entries()].map(([kind, lines]) => ({
+      ...draftFrom(preview, mode, chunk, lines, kind),
+      customerOrderRef,
+    }));
+    if (!drafts.length) return [{ ...draftFrom(preview, mode, chunk), customerOrderRef, lines: [emptyLine()] }];
     return drafts;
   };
 
   /** Đọc tin nhắn và đưa thẳng các đơn đã nhận diện xuống bảng. */
   const submitText = async () => {
     const raw = text.trim();
-    if (!raw) return;
+    if (!raw || parseLock.current || workflowLock.current) return;
+    parseLock.current = true; setParsing(true);
+    try {
 
     // One paste often holds several orders; each becomes its own draft.
-    const chunks = splitPastedOrders(raw);
+    const chunks = splitPastedOrdersWithRefs(raw);
     const drafts: DraftOrder[] = [];
     for (const chunk of chunks) {
-      drafts.push(...(await parseOne(chunk)));
+      drafts.push(...(await parseOne(chunk.text, chunk.ref)));
     }
 
     const priced = await Promise.all(drafts.map((draft) => applyPrices(draft)));
@@ -586,6 +643,9 @@ export function QuickEntryPanel({
     setStaged(priced);
     setText("");
     if (chunks.length > 1) notify.success(`Đã tách ${chunks.length} đơn từ tin nhắn`);
+    } catch (error: any) {
+      notify.error(error?.response?.data?.message ?? error?.message ?? "Không đọc được tin nhắn. Nội dung vẫn được giữ lại để thử lại.");
+    } finally { parseLock.current = false; setParsing(false); }
   };
 
   /** Trả một đơn tạm về ô nhập để sửa lại nguyên văn. */
@@ -726,6 +786,7 @@ export function QuickEntryPanel({
           supplySource: line.supplySource,
           productRawText: learn("PRODUCT", line.productRawText, line.productId),
           warehouseRawText: learn("WAREHOUSE", line.warehouseRawText, line.warehouseId),
+          customerOrderRef: mode === "LOT" ? undefined : order.customerOrderRef ?? undefined,
         })),
       });
 
@@ -764,18 +825,27 @@ export function QuickEntryPanel({
 
   /** Lưu một đơn: hỏi ghi nhớ cách viết trước, rồi mới ghi. */
   const saveOne = async (order: DraftOrder) => {
+    if (workflowLock.current || parseLock.current || order.save.kind === "SAVED") return;
+    const problems = blockingOf(order);
+    if (problems.length) return notify.warning(`Cần bổ sung: ${problems.join(", ")}`);
     if (paymentPlanError) return notify.error(paymentPlanError);
+    workflowLock.current = true; setWorkflowBusy(true);
+    try {
     if (!(await confirmCreditFor([order]))) return;
     const approved = await askAliases([order]);
     await saveOrder(order, approved);
+    } finally { workflowLock.current = false; setWorkflowBusy(false); }
   };
 
   const saveAll = async () => {
+    if (workflowLock.current || parseLock.current) return;
     if (paymentPlanError) return notify.error(paymentPlanError);
     const pending = orders.filter(
       (order) => order.save.kind !== "SAVED" && !blockingOf(order).length,
     );
     if (!pending.length) return notify.warning("Không có đơn nào đủ điều kiện lưu");
+    workflowLock.current = true; setWorkflowBusy(true);
+    try {
     if (!(await confirmCreditFor(pending))) return;
     // Hỏi một lần cho cả lượt, không hỏi lại từng đơn.
     const approved = await askAliases(pending);
@@ -783,6 +853,7 @@ export function QuickEntryPanel({
       // Sequential on purpose: each order reports its own check result.
       await saveOrder(order, approved);
     }
+    } finally { workflowLock.current = false; setWorkflowBusy(false); }
   };
 
   /** Chỉ một chấm màu cho đỡ chật; nội dung đầy đủ nằm ở tooltip. */
@@ -807,6 +878,9 @@ export function QuickEntryPanel({
       if (violations.length)
         return dot("#cf1322", `${orderNo}: ${violations.join(" · ")}`);
       if (warnings.length) return dot("#d46b08", `${orderNo}: ${warnings.join(" · ")}`);
+      // Đơn lẻ lưu xong nằm ở Nháp; Sale gộp (nếu cần) rồi gửi duyệt ở tab Nháp.
+      if (order.orderKind === "SINGLE" || order.orderKind === "DAY_TRADE")
+        return dot("#389e0d", `${orderNo} · đã lưu vào Nháp — gộp/gửi duyệt ở tab Nháp`);
       return dot("#389e0d", `${orderNo} · đã lưu, không vướng gì`);
     }
     const problems = blockingOf(order);
@@ -827,7 +901,7 @@ export function QuickEntryPanel({
 
   /** Order-level cells are merged across the order's goods lines. */
   const groupCell = (row: FlatRow) => ({ rowSpan: row.rowSpan });
-  const locked = (row: FlatRow) => row.order.save.kind === "SAVED";
+  const locked = (row: FlatRow) => busy || row.order.save.kind === "SAVED";
 
   const columns: ColumnsType<FlatRow> = [
     {
@@ -852,11 +926,18 @@ export function QuickEntryPanel({
           onChange={(value) =>
             patchOrder(row.order.key, {
               customerPartyId: value ?? undefined,
-              customerCode: null,
+              customerCode: value ? selectedCustomerCodes.current.get(value) ?? null : null,
               // Sale chọn lại: cách viết trong tin nhắn chắc chắn chưa trỏ về khách này.
               customerAliasKnown: false,
             })
           }
+          onSelect={(value, option: any) => {
+            const code = option?.raw?.code;
+            if (code) {
+              selectedCustomerCodes.current.set(value, code);
+              patchOrder(row.order.key, { customerCode: code });
+            }
+          }}
           placeholder={row.order.customerRawText ?? "Chọn khách"}
         />
       ),
@@ -980,19 +1061,24 @@ export function QuickEntryPanel({
             loading={productsQuery.isFetching}
             onSearch={setProductKeyword}
             onChange={async (value) => {
+              const product = productsQuery.data?.find((item) => item.id === value);
               patchLine(row.order.key, row.line!.key, {
                 productId: value,
-                productCode: null,
+                productCode: product?.code ?? null,
+                productUom: product?.uom,
+                unitPrice: undefined,
                 productAliasKnown: false,
               });
               // A line added by hand has no price yet; fetch it the moment we know the product.
               const price = await fetchPrice(value, row.order.orderDate.format("YYYY-MM-DD"));
-              if (price != null) patchLine(row.order.key, row.line!.key, { unitPrice: price });
+              if (price != null) setOrders((current) => current.map((order) => order.key !== row.order.key || !order.orderDate.isSame(row.order.orderDate, "day") || order.save.kind === "SAVED" || order.save.kind === "SAVING" ? order : {
+                ...order, lines: order.lines.map((line) => line.key === row.line!.key && line.productId === value && line.unitPrice == null ? { ...line, unitPrice: price } : line),
+              }));
             }}
-            options={(productsQuery.data ?? []).map((product) => ({
+            options={[...(row.line.productId && !(productsQuery.data ?? []).some((product) => product.id === row.line!.productId) ? [{ value: row.line.productId, label: row.line.productCode ?? row.line.productRawText ?? "Mặt hàng đã chọn" }] : []), ...(productsQuery.data ?? []).map((product) => ({
               value: product.id,
-              label: product.code,
-            }))}
+              label: mobileRetail ? `${product.code} — ${product.name}` : product.code,
+            }))]}
           />
         ) : null,
     },
@@ -1049,6 +1135,8 @@ export function QuickEntryPanel({
           <InputNumber
             size="small"
             min={0.001}
+            inputMode="decimal"
+            addonAfter={mobileRetail ? row.line.productUom ?? productsQuery.data?.find((item) => item.id === row.line!.productId)?.uom : undefined}
             precision={3}
             controls={false}
             style={{ width: "100%" }}
@@ -1304,7 +1392,24 @@ export function QuickEntryPanel({
   const unsavedCount = orders.length - savedCount;
 
   return (
-    <div className="quick-entry">
+    <div className={mobileRetail ? "retail-mobile-panel" : "quick-entry"}>
+      {mobileRetail ? <RetailMobileEntry orders={orders} busy={busy} parsing={parsing} text={text}
+        onTextChange={setText} onParse={() => { void submitText(); }} useAi={useAi} onUseAiChange={setUseAi}
+        regionControl={<Select size="small" showSearch filterOption={false} aria-label="Vùng giá" value={regionCode} disabled={busy}
+          loading={regionsQuery.isFetching} onSearch={setRegionKeyword} onChange={setRegionCode}
+          options={(regionsQuery.data ?? []).map((region) => ({ value: region.code, label: `${region.name} (${region.code})` }))} />}
+        renderField={(key, order, line) => {
+          const column = columns.find((item) => item.key === key);
+          return column && "render" in column && column.render ? column.render(undefined, { key: line?.key ?? order.key, order, line: line ?? null, rowSpan: 1 }, 0) as ReactNode : null;
+        }}
+        totalOf={orderTotalOf} onAdd={addBlankOrder} onAddLine={addLine}
+        onRemoveLine={(orderKey, lineKey) => Modal.confirm({ title: "Xóa dòng hàng?", content: orders.find((order) => order.key === orderKey)?.lines.length === 1 ? "Đây là dòng cuối; đơn đang nhập sẽ được bỏ." : "Các dòng hàng khác được giữ nguyên.",
+          okText: "Xóa", cancelText: "Giữ lại", okButtonProps: { danger: true, size: "small" }, cancelButtonProps: { size: "small" }, onOk: () => removeLine(orderKey, lineKey) })}
+        onRemove={(key) => Modal.confirm({ title: "Bỏ đơn khỏi lượt nhập?", content: "Đơn chưa lưu sẽ mất nội dung. Đơn đã lưu vẫn còn trong danh sách theo dõi.",
+          okText: "Bỏ đơn", cancelText: "Giữ lại", okButtonProps: { danger: true, size: "small" }, cancelButtonProps: { size: "small" },
+          onOk: () => { setOrders((current) => current.filter((order) => order.key !== key)); setStaged((current) => current.filter((order) => order.key !== key)); } })}
+        onSave={(order) => { void saveOne(order); }}
+      /> : <>
       {/* Thanh gọn thay cho ô dán khi đang thu: vẫn giữ vùng giá (nó quyết định giá tự
           điền cho cả dòng nhập tay) và đưa "Thêm đơn" lên làm việc chính. */}
       {composerOpen ? null : (
@@ -1793,6 +1898,7 @@ export function QuickEntryPanel({
         </div>
       ) : null}
 
+      </>}
       <CreditLimitWarningModal
         preview={creditPrompt?.preview ?? null}
         customerName={creditPrompt?.customerName}
@@ -1817,6 +1923,8 @@ export function QuickEntryPanel({
         onOk={() => closeAliasPrompt(new Set(aliasChecked))}
         onCancel={() => closeAliasPrompt(new Set())}
         width={520}
+        okButtonProps={{ size: "small" }} cancelButtonProps={{ size: "small" }}
+        maskClosable={false}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 10 }}>
           Những cách viết dưới đây chưa có trong từ điển. Nhớ lại thì lần sau hệ thống

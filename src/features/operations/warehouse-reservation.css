@@ -1,0 +1,22 @@
+.warehouse-reservation-page .table-filter-toolbar { margin-bottom: 0; }
+.reservation-search-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.reservation-search { width: 260px; }
+.reservation-status { width: 165px; }
+.reservation-result-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 8px; color: #596579; font-size: 12px; }
+.reservation-stack { display: flex; flex-direction: column; gap: 3px; white-space: normal; overflow-wrap: anywhere; }
+.reservation-wrap { white-space: normal; overflow-wrap: anywhere; }
+.reservation-unit { color: #6b7f9e; font-size: 11px; font-weight: 400; }
+.mobile-list-row .reservation-unit { font-size: inherit; color: inherit; }
+.reservation-mobile-actions { margin-top: 10px; }
+.reservation-pagination { display: flex; justify-content: flex-end; margin-top: 12px; }
+.reservation-order-link { display: inline-block; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.reservation-release-summary .reservation-stack { align-items: flex-start; }
+.reservation-release-summary .data-grid-sub { display: inline; }
+.reservation-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.reservation-form-row .ant-input-number, .reservation-form-row .ant-picker { width: 100%; }
+@media (max-width: 767px) {
+  .warehouse-reservation-page .ant-alert { flex-wrap: wrap; gap: 8px; }
+  .reservation-pagination { justify-content: center; }
+  .reservation-form-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .reservation-create-modal .ant-modal-content { padding: 16px; }
+}

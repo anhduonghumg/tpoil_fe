@@ -222,6 +222,8 @@ export default function StockCardPage() {
             ? () => setSelectedReceiptId(source.id)
             : source?.type === "SALES_DELIVERY"
               ? () => navigate("/sales/deliveries")
+              : source?.type === "SALES_RETURN"
+                ? () => navigate("/sales/deliveries?tab=RETURNS")
               : source?.type === "WAREHOUSE_TRANSFER"
                 ? () => navigate(`/operations/warehouse-transfers/${source.id}`)
                 : null;

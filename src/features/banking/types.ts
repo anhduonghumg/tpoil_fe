@@ -153,8 +153,21 @@ export type GeneralPaymentReconciliation = {
   payment: { amountVnd: number; paymentRequest: { requestNo: string; beneficiaryName: string } };
 };
 
+/* Việc chờ lập bảng kê. kind = LINE: một đợt của kế hoạch thanh toán đã duyệt (id là id của đợt);
+   kind = REQUEST: đề nghị lập trước khi có kế hoạch, cả đề nghị là một dòng (id là id đề nghị). */
 export type TermPaymentPendingRequest = {
   id: UUID;
+  kind?: "LINE" | "REQUEST";
+  paymentRequestId?: UUID;
+  planLineId?: UUID | null;
+  lineNo?: number;
+  lineCount?: number;
+  plannedDate?: string;
+  method?: "TRANSFER" | "DISBURSEMENT";
+  lenderBankName?: string | null;
+  bankAccount?: BankAccountOption | null;
+  beneficiaryBankName?: string | null;
+  beneficiaryAccountNo?: string | null;
   requestNo: string;
   requestDate: string;
   purchaseOrderId: UUID;
@@ -471,4 +484,191 @@ export type BankStatementFilters = {
   direction?: BankTxnDirection | "";
   confirmed?: "true" | "false" | "";
   keyword?: string;
+};
+
+/* ===== Kế hoạch thanh toán cho đề nghị thanh toán đơn TE/TM ===== */
+
+export type PaymentPlanMethod = "TRANSFER" | "DISBURSEMENT";
+export type PaymentPlanStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
+
+export type SupplierBankAccount = {
+  id: UUID;
+  bankName: string;
+  bankCode?: string | null;
+  accountNo: string;
+  accountName: string;
+  isDefault?: boolean;
+};
+
+export type PaymentPlanLine = {
+  id: UUID;
+  sortOrder: number;
+  plannedDate: string;
+  amountVnd: string;
+  method: PaymentPlanMethod;
+  bankAccountId: UUID;
+  bankAccount?: BankAccountOption | null;
+  beneficiaryBankAccountId?: UUID | null;
+  beneficiaryBankName?: string | null;
+  beneficiaryAccountNo?: string | null;
+  beneficiaryAccountName?: string | null;
+  lenderBankName?: string | null;
+  creditFacilityRef?: string | null;
+  status: "PLANNED" | "PARTIALLY_PAID" | "PAID";
+  note?: string | null;
+  paidAmount: string;
+  remainingAmount: string;
+  disbursementTransaction?: { id: UUID; txnDate: string; amount: string; description: string; externalRef?: string | null } | null;
+  /** Đơn TE: dòng bảng kê đang giữ đợt này. */
+  batchItems?: Array<{ id: UUID; status: string; amountVnd: string; paidAmountVnd: string; batch: { id: UUID; batchNo: string; batchDate: string } }>;
+};
+
+export type PaymentPlan = {
+  id: UUID;
+  version: number;
+  status: PaymentPlanStatus;
+  note?: string | null;
+  decisionNote?: string | null;
+  lines: PaymentPlanLine[];
+};
+
+export type PaymentPlanRequestPayment = {
+  id: UUID;
+  planLineId?: UUID | null;
+  fundingSource?: "OWN_BANK" | "DIRECT_DISBURSEMENT";
+  amountVnd: string;
+  paidAt: string;
+  lenderBankName?: string | null;
+  disbursementNo?: string | null;
+  proofFileUrl?: string | null;
+  proofFileName?: string | null;
+  note?: string | null;
+  sourceBankAccount?: BankAccountOption | null;
+};
+
+/** Đề nghị thanh toán đơn TE/TM kèm kế hoạch thanh toán của ngân hàng. */
+export type PaymentPlanRequest = {
+  id: UUID;
+  purchaseOrderId: UUID;
+  requestNo: string;
+  requestDate: string;
+  amountVnd: string;
+  paidAmount: string;
+  remainingAmount: string;
+  paymentDeadline?: string | null;
+  status: string;
+  content?: string | null;
+  note?: string | null;
+  beneficiaryBankAccountId?: UUID | null;
+  beneficiaryAccountNo?: string | null;
+  beneficiaryAccountName?: string | null;
+  beneficiaryBankName?: string | null;
+  approvalNote?: string | null;
+  returnedReason?: string | null;
+  purchaseOrder: {
+    id: UUID;
+    orderNo: string;
+    bizType: "COMMERCIAL" | "TERM";
+    supplier: { code: string; name: string; bankAccounts: SupplierBankAccount[] };
+  };
+  supplierInvoice?: { id: UUID; invoiceNo: string; invoiceDate: string } | null;
+  payments: PaymentPlanRequestPayment[];
+  plan?: PaymentPlan | null;
+};
+
+export type SavePaymentPlanPayload = {
+  note?: string;
+  lines: Array<{
+    id?: UUID;
+    plannedDate: string;
+    amountVnd: number;
+    method: PaymentPlanMethod;
+    bankAccountId: UUID;
+    beneficiaryBankAccountId: UUID;
+    lenderBankName?: string;
+    creditFacilityRef?: string;
+    note?: string;
+  }>;
+};
+
+/* ===== Tiền tại ngân hàng ===== */
+
+export type CashOpening = { amount: number; cutoverDate: string; batchNo: string };
+
+export type CashAccountRow = {
+  bankAccountId: UUID;
+  bankCode: string;
+  bankName?: string | null;
+  accountNo: string;
+  accountName?: string | null;
+  /** Chưa có số dư đầu kỳ thì các con số chỉ là tiền vào trừ tiền ra đã ghi nhận. */
+  hasOpening: boolean;
+  opening: CashOpening | null;
+  periodOpening: number;
+  periodIncoming: number;
+  periodOutgoing: number;
+  periodClosing: number;
+  periodCount: number;
+  current: number;
+  changeToday: number;
+  changeThisMonth: number;
+  lastTransactionDate: string | null;
+  pendingReconciliation: number;
+  upcomingTransfer: number;
+  upcomingDisbursement: number;
+  upcomingLineCount: number;
+  upcomingOverdueCount: number;
+  projected: number;
+};
+
+export type CashBankRow = {
+  bankCode: string;
+  bankName?: string | null;
+  current: number;
+  accountCount: number;
+  lastTransactionDate: string | null;
+  upcomingTransfer: number;
+  missingOpening: number;
+};
+
+export type CashPositionOverview = {
+  asOf: string;
+  fromDate: string;
+  toDate: string;
+  upcomingDays: number;
+  totals: {
+    current: number;
+    changeToday: number;
+    changeThisMonth: number;
+    periodIncoming: number;
+    periodOutgoing: number;
+    upcomingTransfer: number;
+    upcomingDisbursement: number;
+    projected: number;
+    missingOpeningCount: number;
+  };
+  banks: CashBankRow[];
+  accounts: CashAccountRow[];
+};
+
+export type CashLedger = {
+  account: { id: UUID; bankCode: string; bankName?: string | null; accountNo: string; accountName?: string | null };
+  fromDate: string;
+  toDate: string;
+  hasOpening: boolean;
+  opening: CashOpening | null;
+  openingBalance: number;
+  closingBalance: number;
+  truncated: boolean;
+  transactions: Array<{
+    id: UUID;
+    txnDate: string;
+    direction: "IN" | "OUT";
+    amount: number;
+    description: string;
+    counterpartyName?: string | null;
+    externalRef?: string | null;
+    reconciliationStatus?: string | null;
+    balanceAfter: number;
+  }>;
 };

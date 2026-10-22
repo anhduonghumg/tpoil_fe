@@ -1,0 +1,43 @@
+.profile-page { width: 100%; max-width: 880px; margin: 0 auto; padding: 6px 4px 12px; gap: 10px; color: #263c31; }
+.profile-page-heading h1 { margin: 0; color: #234535; font-size: 20px; line-height: 28px; font-weight: 650; letter-spacing: -.3px; }
+.profile-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.profile-sidebar { min-width: 0; border: 1px solid #e5ece7; border-radius: 9px; background: #f6f9f7; }
+.profile-identity { display: flex; align-items: center; gap: 10px; padding: 9px 12px; }
+.profile-avatar { display: grid; place-items: center; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 9px; background: #dfede3; color: #36704e; font-size: 12px; font-weight: 650; }
+.profile-identity-details { min-width: 0; }
+.profile-identity h2 { margin: 0; color: #355340; font-size: 13px; font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
+.profile-contact { min-width: 0; margin-left: auto; }
+.profile-email { display: flex; align-items: center; gap: 7px; color: #708176; font-size: 12px; line-height: 18px; }
+.profile-email > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.profile-settings { display: grid; grid-template-columns: .85fr 1.15fr; min-width: 0; border: 1px solid #e3eae5; border-radius: 10px; background: #fff; }
+.profile-settings-section { min-width: 0; padding: 16px 18px; }
+.profile-settings-section + .profile-settings-section { border-left: 1px solid #e9eeea; }
+.profile-section-heading { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+.profile-section-icon { display: grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 8px; background: #edf5ef; color: #548367; font-size: 14px; }
+.profile-section-heading h2 { margin: 0; color: #344d3c; font-size: 14px; line-height: 20px; font-weight: 600; }
+.profile-section-heading p { display: none; }
+.profile-settings .ant-form-item { margin-bottom: 10px; }
+.profile-settings .ant-form-item-label { padding-bottom: 4px; }
+.profile-settings .ant-form-item-label > label { height: auto; color: #586b5f; font-size: 12px; font-weight: 500; }
+.profile-settings .profile-name-input, .profile-settings .ant-input-affix-wrapper { min-height: 32px; height: 32px; padding: 4px 9px; border-radius: 6px; border-color: #dfe7e1; background: #fcfdfc; font-size: 13px; box-shadow: none; }
+.profile-settings .ant-input-affix-wrapper input.ant-input { background: transparent; font-size: 13px; }
+.profile-settings .ant-input::placeholder { color: #a0aca4; font-size: 11px; }
+.profile-settings .profile-name-input:hover, .profile-settings .ant-input-affix-wrapper:hover { border-color: #8caf99; }
+.profile-settings .profile-name-input:focus, .profile-settings .ant-input-affix-wrapper-focused { border-color: #4e9070; box-shadow: 0 0 0 2px #47846712; }
+.profile-settings .ant-input-password-icon { color: #91a296; }
+.profile-password-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.profile-form-footer { display: flex; justify-content: flex-end; padding-top: 2px; }
+.profile-settings .ant-btn { height: 30px; padding: 0 12px; border-radius: 6px; font-size: 12px; font-weight: 500; box-shadow: none; }
+.profile-settings .ant-btn-primary { background: #287957; border-color: #287957; }
+.profile-settings .ant-btn-primary:not(:disabled):hover { background: #206447; border-color: #206447; }
+.profile-settings .profile-password-submit { background: #eef6f0; border-color: #d4e4d9; color: #3d7452; }
+.profile-settings .profile-password-submit:not(:disabled):hover { background: #e4f0e8; border-color: #99bda5; color: #245e3b; }
+.profile-feedback { margin-bottom: 10px; border-radius: 6px; }
+@media (max-width: 650px) {
+  .profile-settings { grid-template-columns: minmax(0, 1fr); }
+  .profile-settings-section { padding: 12px; }
+  .profile-settings-section + .profile-settings-section { border-left: 0; border-top: 1px solid #e9eeea; }
+  .profile-identity { flex-wrap: wrap; gap: 5px 9px; }
+  .profile-contact { flex-basis: 100%; margin-left: 41px; }
+  .profile-section-heading { margin-bottom: 10px; }
+}

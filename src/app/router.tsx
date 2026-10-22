@@ -1,5 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
+import DailyStockReconciliationPage from "../features/operations/DailyStockReconciliationPage";
 import Login from "../features/auth/pages/Login";
+import ProfilePage from "../features/auth/pages/ProfilePage";
 import Dashboard from "../features/dashboard/pages/Dashboard";
 import AppLayout from "../shared/components/Layout/AppLayout";
 import UsersList from "../features/employees/page/UsersList";
@@ -35,6 +37,7 @@ import SalesApprovalsPage from "../features/sales/page/SalesApprovalsPage";
 import SalesWithdrawalsPage from "../features/sales/page/SalesWithdrawalsPage";
 import CustomerStockPage from "../features/sales/page/CustomerStockPage";
 import SalesDeliveriesPage from "../features/sales/page/SalesDeliveriesPage";
+import InvoiceChangeReviewPage from "../features/sales/page/InvoiceChangeReviewPage";
 import SalesInvoicesPage from "../features/sales/page/SalesInvoicesPage";
 import InvoiceSettingsPage from "../features/sales/page/InvoiceSettingsPage";
 import ReceivablesPage from "../features/sales/page/ReceivablesPage";
@@ -129,6 +132,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Dashboard /> },
           { path: "dashboard", element: <Dashboard /> },
+          { path: "profile", element: <ProfilePage /> },
           { path: "notifications", element: <NotificationsCenterPage /> },
           {
             path: "purchase-orders",
@@ -203,6 +207,10 @@ export const router = createBrowserRouter([
                 <InvoiceSettingsPage />
               </RouteGuard>
             ),
+          },
+          {
+            path: "/sales/invoice-changes/:id",
+            element: <InvoiceChangeReviewPage />,
           },
           {
             path: "/sales/invoices",
@@ -410,11 +418,20 @@ export const router = createBrowserRouter([
           { path: "operations/inventory-receipts", element: <InventoryReceiptsPage /> },
           { path: "operations/stock-card", element: <StockCardPage /> },
           { path: "operations/inventory-accounting", element: <InventoryAccountingPage /> },
+          {
+            path: "operations/daily-stock-reconciliation",
+            element: (
+              <RouteGuard need={PERMS.OPERATIONS_WAREHOUSE_MANAGE}>
+                <DailyStockReconciliationPage />
+              </RouteGuard>
+            ),
+          },
           { path: "operations/inventory-matrix", element: <InventoryMatrixReportPage /> },
           { path: "operations/expected-inventory", element: <ExpectedInventoryPage /> },
           { path: "operations/reservations", element: <WarehouseReservationPage /> },
           { path: "operations/warehouse-transfers", element: <WarehouseTransferListPage /> },
           { path: "operations/warehouse-transfers/create", element: <WarehouseTransferFormPage /> },
+          { path: "operations/warehouse-transfers/:id/edit", element: <WarehouseTransferFormPage /> },
           { path: "operations/warehouse-transfers/:id", element: <WarehouseTransferDetailPage /> },
           { path: "operations/vehicles", element: <VehicleListPage /> },
           { path: "operations/vehicle-documents", element: <VehicleDocumentPage /> },

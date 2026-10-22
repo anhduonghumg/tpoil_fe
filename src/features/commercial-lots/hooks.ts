@@ -132,7 +132,7 @@ export function useResubmitCommercialLotPaymentRequest(id?: string) {
       CommercialLotsApi.resubmitPaymentRequest(id!, requestId, data),
     onSuccess: () => {
       refresh();
-      notify.success("Đã gửi lại đề nghị thanh toán để chờ giám đốc duyệt");
+      notify.success("Đã gửi lại đề nghị thanh toán cho ngân hàng lập kế hoạch");
     },
     onError: (error) => showLotError(error, "Không gửi lại được đề nghị thanh toán"),
   });

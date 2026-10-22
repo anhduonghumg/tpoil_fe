@@ -30,7 +30,11 @@ export const GENERAL_REQUEST_STATUS: Record<string, StatusMeta> = {
 
 /** Trạng thái đề nghị thanh toán mua hàng (lô thương mại / TERM). */
 export const COMMERCIAL_REQUEST_STATUS: Record<string, StatusMeta> = {
+  PENDING_BANK_PLAN: { label: "Chờ lập kế hoạch", color: "purple" },
   PENDING_DIRECTOR_APPROVAL: { label: "Chờ phê duyệt", color: "gold" },
+  APPROVED: { label: "Đã duyệt · chờ chi", color: "cyan" },
+  IN_BATCH: { label: "Đã vào bảng kê", color: "blue" },
+  SENT_TO_BANK: { label: "Đã gửi ngân hàng", color: "blue" },
   DIRECTOR_REJECTED: { label: "Từ chối", color: "red" },
   SUBMITTED: { label: "Chờ kiểm tra", color: "blue" },
   BANK_VERIFIED: { label: "Sẵn sàng lập lệnh", color: "cyan" },

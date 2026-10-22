@@ -163,6 +163,8 @@ export interface ShipCharterOrder {
   status: CharterOrderStatus;
   purchaseOrderId?: string | null;
   purchaseOrder?: { id: string; orderNo: string } | null;
+  /** Bảo hiểm/giám định mua hàng đã tạm tính trên bảng giá TERM, để đối chiếu khi đăng ký. */
+  termEstimate?: { insuranceVnd: number; inspectionVnd: number } | null;
   termShipmentId?: string | null;
   ownerCustomerId?: string | null;
   owner?: CompactCustomer | null;

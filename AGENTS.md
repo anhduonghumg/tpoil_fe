@@ -20,6 +20,22 @@ Use ES modules and React function components. Prefer colocating feature-specific
 
 ESLint is configured in `eslint.config.js` for JS/JSX, React Hooks, and React Refresh. Run `npm run lint` before submitting changes. Match the surrounding formatting style; existing files use two-space indentation and no semicolons.
 
+## Mobile UI Standard (user-approved)
+
+For every new screen or screen being modified, follow [MOBILE_UI.md](MOBILE_UI.md). The approved reference is `ExpectedInventoryPage` on mobile. Reuse `src/shared/ui/MobileList.tsx`, `mobile-list.css`, and `MobilePageFooter.tsx` instead of copying feature-specific mobile layouts.
+
+- Use Ant Design `size="small"` for inputs, selects, pickers, buttons, forms and pagination on both desktop and mobile. Keep control heights consistent; do not override mobile controls to 44px or switch them to middle/large.
+- Mobile lists use flat rows with thin separators, a bold primary line, concise secondary information and details/actions behind an accessible ellipsis button. Do not wrap each record in a bordered, rounded card.
+- Keep the app header and page footer stationary; only the central `.app-content` scrolls. Render page tools through the shared footer portal; preserve dynamic viewport and safe-area support.
+- Put search/filter tools in the mobile footer, opening their panels on demand. Show active-filter indicators and removable filter tags, total results and pagination. Preserve server-wide search, filtering, permission checks, loading/error states and quantity units.
+- Use the shared `MobileListToolbar`, `MobileList`, `MobileListItem`, `MobileListValues` components. Keep business data, query state and permissions in the owning feature.
+- Avoid redundant page titles/subtitles already present in the app header. Keep content readable; compact controls do not mean tiny body text.
+- Sales-order entry must show customer codes only, in both the selected value and dropdown options (`PartySelect` displayMode/optionDisplayMode="code"). Preserve the selected code in draft state; do not switch to full customer names on mobile.
+
+## Shared Table Standard
+
+Use `src/shared/ui/CommonTable.tsx` for new or modified desktop list tables. Reuse `data-grid.css` and the existing `TableFilter` controls. See [COMMON_TABLE.md](COMMON_TABLE.md). Do not implement independent column resize or header filter mechanisms per feature. Keep a stable `tableKey` per screen/schema and stable column keys. `columnTools` are controlled by the feature and must filter all records through its API before pagination; never add `onFilter` over a server-paginated subset. Mobile uses the approved `MobileList`/footer pattern with the same filter state.
+
 ## Testing Guidelines
 
 No test framework is currently wired into the project. For risky changes, verify with `npm run lint`, `npm run build`, and targeted manual checks in the browser. When introducing tests, prefer colocated test files such as `ComponentName.test.jsx` or `helperName.test.js`, and document the new command in `package.json`.

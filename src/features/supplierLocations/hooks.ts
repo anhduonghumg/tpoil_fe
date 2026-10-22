@@ -5,6 +5,7 @@ import type {
   CreateSupplierLocationPayload,
   UpdateSupplierLocationPayload,
   BatchUpdateSupplierLocationPayload,
+  SaveWarehouseLossRateItem,
 } from "./types";
 
 const keys = {
@@ -77,5 +78,24 @@ export function useActivateSupplierLocation() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: keys.all });
     },
+  });
+}
+
+const lossRateKey = ["supplierLocations", "lossRates"] as const;
+
+/** Bảng tỷ lệ hao hụt rút hàng theo kho (dầu/xăng). */
+export function useWarehouseLossRates(enabled = true) {
+  return useQuery({
+    queryKey: lossRateKey,
+    queryFn: () => SupplierLocationsApi.lossRates(),
+    enabled,
+  });
+}
+
+export function useSaveWarehouseLossRates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (items: SaveWarehouseLossRateItem[]) => SupplierLocationsApi.saveLossRates(items),
+    onSuccess: (rows) => qc.setQueryData(lossRateKey, rows),
   });
 }

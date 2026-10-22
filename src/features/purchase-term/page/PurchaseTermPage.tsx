@@ -32,6 +32,7 @@ import {
 } from "../../../shared/ui/TableFilter";
 import type { ActiveFilterTag } from "../../../shared/ui/TableFilter";
 import "../../../shared/ui/data-grid.css";
+import "../ui/term-orders-list.css";
 
 import type {
   PaymentMode,
@@ -218,13 +219,13 @@ export default function TermPurchaseOrdersPage() {
       /* Mã đơn và ngày đơn luôn được đọc cùng nhau, xếp chồng thì tiết kiệm được
          một cột mà không mất thông tin nào. */
       title: "Mã đơn / ngày đơn",
-      width: 150,
-      fixed: "left",
+      width: "15%",
       render: (_, row) => (
         <div className="data-grid-stack">
           <Button
             type="link"
             className="page-cell-link"
+            title={row.orderNo}
             onClick={() => navigate(`/purchase-terms/${row.id}`)}
           >
             <span className="data-grid-clip data-grid-strong">{row.orderNo}</span>
@@ -235,20 +236,23 @@ export default function TermPurchaseOrdersPage() {
     },
     {
       title: "NCC / sản phẩm",
-      width: 230,
-      render: (_, row) => stack(row.supplierName, row.productSummary),
+      width: "16%",
+      render: (_, row) => stack(
+        <span title={row.supplierName || undefined}>{row.supplierCode?.trim() || row.orderNo.match(/^TE\d+-(.+)$/i)?.[1]?.trim() || "—"}</span>,
+        row.productSummary,
+      ),
     },
     {
       title: "Tổng lượng",
       dataIndex: "totalQty",
-      width: 110,
+      width: "9%",
       align: "right",
       render: qty,
     },
     {
       title: "Tạm tính",
       dataIndex: "totalAmount",
-      width: 125,
+      width: "14%",
       align: "right",
       render: money,
     },
@@ -256,7 +260,7 @@ export default function TermPurchaseOrdersPage() {
       /* Tình trạng thanh toán và hình thức trả trước/trả sau đi liền nhau khi đối
          chiếu công nợ, nên gộp chung một cột. */
       title: "Thanh toán",
-      width: 145,
+      width: "12%",
       render: (_, row) => (
         <div className="data-grid-stack">
           <span>{paymentStatusTag(row.paymentStatus)}</span>
@@ -269,27 +273,26 @@ export default function TermPurchaseOrdersPage() {
     {
       title: "Trạng thái",
       dataIndex: "status",
-      width: 115,
+      width: "9%",
       render: statusTag,
     },
     {
       title: "Bước tiếp theo",
       dataIndex: "nextAction",
-      width: 140,
+      width: "11%",
       render: nextActionTag,
     },
     {
       title: "Cập nhật",
       dataIndex: "updatedAt",
-      width: 100,
+      width: "8%",
       render: (value) => dateText(value),
     },
     {
       title: "",
       key: "actions",
-      width: 46,
+      width: "3%",
       align: "center",
-      fixed: "right",
       render: (_, row) => {
         const items: MenuProps["items"] = [
           {
@@ -496,17 +499,16 @@ export default function TermPurchaseOrdersPage() {
       <FilterTags items={filterTags} />
 
       <Table<TermPurchaseOrderListItem>
-        className="data-grid"
+        className="data-grid term-orders-grid"
         rowKey="id"
         size="small"
         bordered
         tableLayout="fixed"
-        scroll={{ x: 1197 }}
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,
           preserveSelectedRowKeys: true,
-          columnWidth: 36,
+          columnWidth: "3%",
         }}
         columns={columns}
         dataSource={rows}

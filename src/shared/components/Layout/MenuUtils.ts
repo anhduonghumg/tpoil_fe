@@ -10,8 +10,9 @@ export function getAuthorizedMenu(
     const isAdmin = userPermissions.has(PERMS.SYSTEM_RBAC_ADMIN);
     if (
       !isAdmin &&
-      item.need &&
-      !hasPerm({ permissions: userPermissions }, item.need as PermCode | PermCode[])
+      ((item.need &&
+        !hasPerm({ permissions: userPermissions }, item.need as PermCode | PermCode[])) ||
+        (item.needAny && !item.needAny.some((permission) => userPermissions.has(permission as PermCode))))
     ) {
       return acc;
     }

@@ -60,7 +60,9 @@ const WITHDRAWAL_STATUS = {
 } as const;
 
 const PAYMENT_REQUEST_STATUS: Record<string, { label: string; color: string }> = {
+  PENDING_BANK_PLAN: { label: "Chờ ngân hàng lập kế hoạch", color: "purple" },
   PENDING_DIRECTOR_APPROVAL: { label: "Chờ giám đốc duyệt", color: "gold" },
+  APPROVED: { label: "Đã duyệt · chờ thanh toán", color: "cyan" },
   DIRECTOR_REJECTED: { label: "Giám đốc từ chối", color: "red" },
   SUBMITTED: { label: "Chờ ngân hàng kiểm tra", color: "blue" },
   BANK_VERIFIED: { label: "Chờ thanh toán", color: "cyan" },
@@ -534,15 +536,10 @@ export default function CommercialLotPurchaseDetailPage() {
                 title: "Xử lý",
                 width: 190,
                 render: (_, request) => {
-                  const act = (action: "approve" | "reject", title: string) =>
-                    Modal.confirm({
-                      title,
-                      okText: "Xác nhận",
-                      cancelText: "Đóng",
-                      onOk: () => paymentAction.mutateAsync({ requestId: request.id, action }),
-                    });
+                  /* Giám đốc duyệt đề nghị kèm kế hoạch thanh toán của ngân hàng, nên việc duyệt
+                     nằm ở màn Chi tiền — nơi xem được các đợt, tài khoản chuyển và người nhận. */
                   if (request.status === "PENDING_DIRECTOR_APPROVAL") {
-                    return <Space size={4}><Button size="small" type="primary" onClick={() => act("approve", "Duyệt đề nghị thanh toán?")}>Duyệt</Button><Button size="small" danger onClick={() => act("reject", "Từ chối đề nghị thanh toán?")}>Từ chối</Button></Space>;
+                    return <Button size="small" onClick={() => navigate("/banking/payment-approvals?source=commercial")}>Xem và duyệt</Button>;
                   }
                   if (request.status === "DIRECTOR_REJECTED" || request.status === "BANK_RETURNED") {
                     return <Button size="small" onClick={() => openPaymentRequestEditor(undefined, request)}>Gửi lại</Button>;

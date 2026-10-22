@@ -4,6 +4,7 @@ import type {
   CreateTermGoodsReceiptPayload,
   CreateTermLogisticsCostPayload,
   CreateTermPricingPayload,
+  TermBossSheetPayload,
   CreateTermPricingResult,
   CreateTermPurchaseOrderPayload,
   CreateTermShipmentPayload,
@@ -126,7 +127,7 @@ export const TermPurchaseOrdersApi = {
       },
     ).then((r) => (r.data!.data ?? r.data) as any),
 
-  createBossSheetPricing: (orderId: string, data: CreateTermPricingPayload) =>
+  createBossSheetPricing: (orderId: string, data: TermBossSheetPayload) =>
     apiCall<ApiResponse<CreateTermPricingResult>>(
       "purchaseTerm.createBossSheetPricing",
       {
@@ -202,7 +203,8 @@ export const TermPurchaseOrdersApi = {
       (r) => (r.data!.data ?? r.data) as any,
     ),
 
-  getPlattsAverage: (params: { productId: string; baseDate: string; limit?: number }) =>
+  /** `after`: số ngày có giá sau ngày mốc (Bảng sếp: 5 ngày trước, ngày bill, 5 ngày sau). */
+  getPlattsAverage: (params: { productId: string; baseDate: string; limit?: number; after?: number }) =>
     apiCall<any>("purchaseTerm.getPlattsAverage", {
       query: params,
     }).then((r) => (r.data!.data ?? r.data) as any),

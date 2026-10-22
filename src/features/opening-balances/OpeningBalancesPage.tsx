@@ -5,13 +5,13 @@ import dayjs, { Dayjs } from "dayjs";
 import { http } from "../../shared/lib/http";
 
 type Status = "DRAFT" | "VALIDATED" | "POSTED" | "REVERSED";
-type Section = "INVENTORY" | "RECEIVABLE" | "PAYABLE";
+type Section = "INVENTORY" | "RECEIVABLE" | "PAYABLE" | "BANK";
 type TabKey = Section | "VALIDATION";
 type InventoryKind = "ON_HAND" | "RESERVED" | "BLOCKED" | "EXPECTED";
-type Summary = { valid: boolean; inventoryLineCount: number; receivableLineCount: number; payableLineCount: number; onHandQty: string; receivableAmount: string; payableAmount: string; issues: Array<{ sheet: string; lineNo: number; field?: string; message: string }> };
-type Batch = { id: string; batchNo: string; legalEntityId: string; cutoverDate: string; sourceSystem?: string; sourceFileName?: string; status: Status; validationSummary?: Summary; legalEntity?: { code: string; party: { code: string; name: string } }; _count?: { inventoryLines: number; debtLines: number } };
-type Detail = Batch & { inventoryLines: any[]; debtLines: any[] };
-type Options = { legalEntities: any[]; warehouses: any[]; warehouseAreas: any[]; products: any[]; parties: any[]; employees: any[] };
+type Summary = { valid: boolean; inventoryLineCount: number; receivableLineCount: number; payableLineCount: number; onHandQty: string; receivableAmount: string; payableAmount: string; bankLineCount?: number; bankAmount?: string; issues: Array<{ sheet: string; lineNo: number; field?: string; message: string }> };
+type Batch = { id: string; batchNo: string; legalEntityId: string; cutoverDate: string; sourceSystem?: string; sourceFileName?: string; status: Status; validationSummary?: Summary; legalEntity?: { code: string; party: { code: string; name: string } }; _count?: { inventoryLines: number; debtLines: number; bankLines?: number } };
+type Detail = Batch & { inventoryLines: any[]; debtLines: any[]; bankLines?: any[] };
+type Options = { legalEntities: any[]; warehouses: any[]; warehouseAreas: any[]; products: any[]; parties: any[]; employees: any[]; bankAccounts: any[] };
 
 const statusMap: Record<Status, { label: string; color: string }> = {
   DRAFT: { label: "Nháp", color: "default" }, VALIDATED: { label: "Đã kiểm tra", color: "processing" },
@@ -22,17 +22,19 @@ const kindMap: Record<InventoryKind, { label: string; color: string }> = {
   BLOCKED: { label: "Không được bán", color: "red" }, EXPECTED: { label: "Hàng dự kiến", color: "blue" },
 };
 const sectionMeta: Record<Section, { label: string; template: string }> = {
+  /* Tiền ngân hàng chỉ vài dòng (mỗi tài khoản một dòng) nên nhập tay, không có mẫu Excel. */
+  BANK: { label: "Tiền ngân hàng", template: "" },
   INVENTORY: { label: "Tồn kho", template: "mau-ton-kho-dau-ky.xlsx" },
   RECEIVABLE: { label: "Phải thu", template: "mau-phai-thu-dau-ky.xlsx" },
   PAYABLE: { label: "Phải trả", template: "mau-phai-tra-dau-ky.xlsx" },
 };
 const number = (value?: string | number) => Number(value || 0).toLocaleString("vi-VN", { maximumFractionDigits: 3 });
 const unwrap = <T,>(response: any): T => (response?.data?.data ?? response?.data ?? response) as T;
-const emptyOptions: Options = { legalEntities: [], warehouses: [], warehouseAreas: [], products: [], parties: [], employees: [] };
+const emptyOptions: Options = { legalEntities: [], warehouses: [], warehouseAreas: [], products: [], parties: [], employees: [], bankAccounts: [] };
 const datePayload = (value?: Dayjs | string | null) => value ? dayjs(value).format("YYYY-MM-DD") : undefined;
 
 function normalizeOptions(value?: Partial<Options> | null): Options {
-  return { legalEntities: value?.legalEntities ?? [], warehouses: value?.warehouses ?? [], warehouseAreas: value?.warehouseAreas ?? [], products: value?.products ?? [], parties: value?.parties ?? [], employees: value?.employees ?? [] };
+  return { legalEntities: value?.legalEntities ?? [], warehouses: value?.warehouses ?? [], warehouseAreas: value?.warehouseAreas ?? [], products: value?.products ?? [], parties: value?.parties ?? [], employees: value?.employees ?? [], bankAccounts: value?.bankAccounts ?? [] };
 }
 function downloadBlob(data: Blob, fileName: string) {
   const url = URL.createObjectURL(data); const anchor = document.createElement("a");
@@ -61,6 +63,7 @@ export default function OpeningBalancesPage() {
     warehouses: new Map(options.warehouses.map((v) => [v.id, v])), areas: new Map(options.warehouseAreas.map((v) => [v.id, v])),
     products: new Map(options.products.map((v) => [v.id, v])), parties: new Map(options.parties.map((v) => [v.id, v])),
     employees: new Map(options.employees.map((v) => [v.id, v])),
+    bankAccounts: new Map(options.bankAccounts.map((v) => [v.id, v])),
   }), [options]);
   const partyOptions = useMemo(() => options.parties.map((v) => ({ value: v.id, label: `${v.code} — ${v.name}` })), [options.parties]);
   const productOptions = useMemo(() => options.products.map((v) => ({ value: v.id, label: `${v.code} — ${v.name}` })), [options.products]);
@@ -108,7 +111,7 @@ export default function OpeningBalancesPage() {
   const openCreateLine = (section: Section) => {
     if (!detail) return; setActiveSection(section); setActiveTab(section); setEditingLine(null); lineForm.resetFields();
     const entity = options.legalEntities.find((v) => v.id === detail.legalEntityId);
-    lineForm.setFieldsValue(section === "INVENTORY" ? { kind: "ON_HAND", ownerPartyId: entity?.partyId, currency: "VND" } : { side: section, balanceType: "DEBT", currency: "VND", settledAmount: 0 });
+    lineForm.setFieldsValue(section === "BANK" ? {} : section === "INVENTORY" ? { kind: "ON_HAND", ownerPartyId: entity?.partyId, currency: "VND" } : { side: section, balanceType: "DEBT", currency: "VND", settledAmount: 0 });
     setLineOpen(true);
   };
   const openEditLine = (section: Section, row: any) => {
@@ -117,6 +120,7 @@ export default function OpeningBalancesPage() {
       receivedAt: row.receivedAt ? dayjs(row.receivedAt) : undefined, expectedAt: row.expectedAt ? dayjs(row.expectedAt) : undefined, expiresAt: row.expiresAt ? dayjs(row.expiresAt) : undefined,
       documentDate: row.documentDate ? dayjs(row.documentDate) : undefined, dueDate: row.dueDate ? dayjs(row.dueDate) : undefined,
       actualQty: row.actualQty == null ? undefined : Number(row.actualQty), v15Qty: row.v15Qty == null ? undefined : Number(row.v15Qty), unitCost: row.unitCost == null ? undefined : Number(row.unitCost),
+      amount: row.amount == null ? undefined : Number(row.amount),
       originalAmount: row.originalAmount == null ? undefined : Number(row.originalAmount), settledAmount: row.settledAmount == null ? 0 : Number(row.settledAmount), outstandingAmount: row.outstandingAmount == null ? undefined : Number(row.outstandingAmount),
     }); setLineOpen(true);
   };
@@ -127,7 +131,11 @@ export default function OpeningBalancesPage() {
     }
     setBusy(true);
     try {
-      if (activeSection === "INVENTORY") {
+      if (activeSection === "BANK") {
+        const payload = { bankAccountId: values.bankAccountId, amount: values.amount, note: values.note };
+        if (editingLine) await http.patch(`/opening-balances/${detail.id}/bank-lines/${editingLine.id}`, payload);
+        else await http.post(`/opening-balances/${detail.id}/bank-lines`, payload);
+      } else if (activeSection === "INVENTORY") {
         const payload = { ...values, receivedAt: datePayload(values.receivedAt), expectedAt: datePayload(values.expectedAt), expiresAt: datePayload(values.expiresAt) };
         if (editingLine) await http.patch(`/opening-balances/${detail.id}/inventory-lines/${editingLine.id}`, payload);
         else await http.post(`/opening-balances/${detail.id}/inventory-lines`, payload);
@@ -141,7 +149,7 @@ export default function OpeningBalancesPage() {
   };
   const deleteLine = async (section: Section, row: any) => {
     if (!detail) return; setBusy(true);
-    try { await http.delete(`/opening-balances/${detail.id}/${section === "INVENTORY" ? "inventory-lines" : "debt-lines"}/${row.id}`); message.success("Đã xóa dòng dữ liệu"); await refresh(); }
+    try { await http.delete(`/opening-balances/${detail.id}/${section === "BANK" ? "bank-lines" : section === "INVENTORY" ? "inventory-lines" : "debt-lines"}/${row.id}`); message.success("Đã xóa dòng dữ liệu"); await refresh(); }
     catch (error) { fail(error); } finally { setBusy(false); }
   };
 
@@ -168,20 +176,34 @@ export default function OpeningBalancesPage() {
     { title: "Còn lại", dataIndex: "outstandingAmount", align: "right", width: 125, render: (v: string) => <b>{number(v)}</b> }, { title: "Kế toán", dataIndex: "accountantEmployeeId", width: 130, render: (v: string) => maps.employees.get(v)?.fullName || "—" }, actionColumn(section),
   ];
 
+  const bankLines = detail?.bankLines ?? [];
+  const bankTotal = bankLines.reduce((sum, line) => sum + Number(line.amount || 0), 0);
+  const bankColumns: any[] = [
+    { title: "Ngân hàng", dataIndex: "bankAccountId", key: "bank", width: 220, render: (v: string) => { const a = maps.bankAccounts.get(v); return a ? `${a.bankCode}${a.bankName ? ` — ${a.bankName}` : ""}` : v; } },
+    { title: "Số tài khoản", dataIndex: "bankAccountId", key: "accountNo", width: 190, render: (v: string) => maps.bankAccounts.get(v)?.accountNo || "—" },
+    { title: "Tên tài khoản", dataIndex: "bankAccountId", key: "accountName", ellipsis: true, render: (v: string) => maps.bankAccounts.get(v)?.accountName || "—" },
+    { title: "Số dư đầu ngày chốt (đ)", dataIndex: "amount", align: "right", width: 200, render: (v: string) => <b>{number(v)}</b> },
+    { title: "Ghi chú", dataIndex: "note", ellipsis: true, render: (v: string) => v || "—" }, actionColumn("BANK"),
+  ];
+  /* Tài khoản thuộc pháp nhân của đợt (hoặc chưa gắn pháp nhân) và chưa có dòng trong đợt. */
+  const bankAccountOptions = options.bankAccounts
+    .filter((a) => !a.legalEntityId || a.legalEntityId === detail?.legalEntityId)
+    .filter((a) => a.id === editingLine?.bankAccountId || !bankLines.some((line) => line.bankAccountId === a.id))
+    .map((a) => ({ value: a.id, label: `${a.bankCode} · ${a.accountNo}${a.accountName ? ` — ${a.accountName}` : ""}` }));
   const summary = detail?.validationSummary; const receivables = detail?.debtLines.filter((v) => v.side === "RECEIVABLE") ?? []; const payables = detail?.debtLines.filter((v) => v.side === "PAYABLE") ?? [];
   const sectionToolbar = (section: Section) => <Row justify="space-between" align="middle" style={{ marginBottom: 10 }}><Col><Space>
     {editable && <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreateLine(section)}>Thêm dòng</Button>}
-    {editable && <Button icon={<FileExcelOutlined />} onClick={() => { setActiveSection(section); importRef.current?.click(); }}>Nhập nhanh Excel</Button>}
-    <Button icon={<DownloadOutlined />} onClick={() => downloadSectionTemplate(section)}>Tải mẫu</Button>
-  </Space></Col><Col><Typography.Text type="secondary">Excel chỉ là phương án nhập nhanh dữ liệu của tab này.</Typography.Text></Col></Row>;
+    {editable && section !== "BANK" && <Button icon={<FileExcelOutlined />} onClick={() => { setActiveSection(section); importRef.current?.click(); }}>Nhập nhanh Excel</Button>}
+    {section !== "BANK" && <Button icon={<DownloadOutlined />} onClick={() => downloadSectionTemplate(section)}>Tải mẫu</Button>}
+  </Space></Col><Col><Typography.Text type="secondary">{section === "BANK" ? "Mỗi tài khoản một dòng: số dư tại đầu ngày chốt, trước mọi giao dịch của ngày đó." : "Excel chỉ là phương án nhập nhanh dữ liệu của tab này."}</Typography.Text></Col></Row>;
 
   return <div style={{ padding: 16 }}>
-    <Row justify="space-between" align="middle" style={{ marginBottom: 12 }}><Col><Typography.Title level={3} style={{ margin: 0 }}>Số dư đầu kỳ</Typography.Title><Typography.Text type="secondary">Nhập tồn kho và công nợ khi chuyển từ hệ thống cũ</Typography.Text></Col><Col><Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>Tạo đợt nhập</Button></Col></Row>
+    <Row justify="space-between" align="middle" style={{ marginBottom: 12 }}><Col><Typography.Title level={3} style={{ margin: 0 }}>Số dư đầu kỳ</Typography.Title><Typography.Text type="secondary">Nhập tồn kho, công nợ và tiền ngân hàng khi chuyển từ hệ thống cũ</Typography.Text></Col><Col><Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>Tạo đợt nhập</Button></Col></Row>
     <Alert type="info" showIcon style={{ marginBottom: 12 }} message="Tạo đợt → nhập trực tiếp từng phần → kiểm tra đối chiếu → ghi sổ. Excel chỉ dùng khi cần nhập nhanh nhiều dòng." />
     <Card styles={{ body: { padding: 0 } }}><Table rowKey="id" size="small" loading={loading} dataSource={rows} pagination={{ pageSize: 20 }} onRow={(r) => ({ onClick: () => openDetail(r.id), style: { cursor: "pointer" } })} columns={[
       { title: "Mã đợt", dataIndex: "batchNo", width: 130, render: (v) => <Typography.Link strong>{v}</Typography.Link> }, { title: "Ngày chốt", dataIndex: "cutoverDate", width: 110, render: (v) => dayjs(v).format("DD/MM/YYYY") },
       { title: "Pháp nhân", width: 160, render: (_, r) => r.legalEntity?.party?.code || r.legalEntity?.code || r.legalEntityId }, { title: "Nguồn dữ liệu", dataIndex: "sourceSystem", ellipsis: true }, { title: "File gần nhất", dataIndex: "sourceFileName", ellipsis: true },
-      { title: "Tồn", width: 70, align: "right", render: (_, r) => r._count?.inventoryLines || 0 }, { title: "Công nợ", width: 80, align: "right", render: (_, r) => r._count?.debtLines || 0 }, { title: "Trạng thái", dataIndex: "status", width: 115, render: (v: Status) => <Tag color={statusMap[v].color}>{statusMap[v].label}</Tag> },
+      { title: "Tồn", width: 70, align: "right", render: (_, r) => r._count?.inventoryLines || 0 }, { title: "Công nợ", width: 80, align: "right", render: (_, r) => r._count?.debtLines || 0 }, { title: "TK ngân hàng", width: 110, align: "right", render: (_, r) => r._count?.bankLines || 0 }, { title: "Trạng thái", dataIndex: "status", width: 115, render: (v: Status) => <Tag color={statusMap[v].color}>{statusMap[v].label}</Tag> },
     ]} /></Card>
 
     <Modal title="Tạo đợt nhập số dư đầu kỳ" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={createBatch} okText="Tạo đợt" destroyOnClose><Form form={form} layout="vertical" initialValues={{ cutoverDate: dayjs().subtract(1, "day"), sourceSystem: "Hệ thống cũ" }}>
@@ -192,24 +214,29 @@ export default function OpeningBalancesPage() {
 
     <Drawer width="94vw" loading={busy} title={detail && <Space><b>{detail.batchNo}</b><Tag color={statusMap[detail.status].color}>{statusMap[detail.status].label}</Tag></Space>} open={!!detail} onClose={() => setDetail(null)} extra={detail && <Space>
       {editable && <Button icon={<CheckCircleOutlined />} onClick={() => runAction("validate")}>Kiểm tra</Button>}
-      {detail.status === "VALIDATED" && <Popconfirm title="Ghi số dư chính thức?" description="Tồn kho và công nợ sẽ được tạo tại ngày chốt." onConfirm={() => runAction("post")}><Button type="primary" icon={<SafetyCertificateOutlined />}>Ghi sổ</Button></Popconfirm>}
+      {detail.status === "VALIDATED" && <Popconfirm title="Ghi số dư chính thức?" description="Tồn kho, công nợ và số dư tiền ngân hàng sẽ có hiệu lực tại ngày chốt." onConfirm={() => runAction("post")}><Button type="primary" icon={<SafetyCertificateOutlined />}>Ghi sổ</Button></Popconfirm>}
       {detail.status === "POSTED" && <Popconfirm title="Đảo toàn bộ đợt số dư?" description="Chỉ được đảo khi chưa có nghiệp vụ sử dụng sau đó." onConfirm={() => runAction("reverse")}><Button danger icon={<RollbackOutlined />}>Đảo số dư</Button></Popconfirm>}
     </Space>}>
       {detail && <><input ref={importRef} type="file" accept=".xlsx" hidden onChange={(e) => e.target.files?.[0] && importSection(e.target.files[0])} />
-        <Descriptions size="small" bordered column={4} style={{ marginBottom: 12 }} items={[{ key: "date", label: "Ngày chốt", children: dayjs(detail.cutoverDate).format("DD/MM/YYYY") }, { key: "source", label: "Nguồn", children: detail.sourceSystem || "—" }, { key: "file", label: "File nhập gần nhất", children: detail.sourceFileName || "—" }, { key: "count", label: "Số dòng", children: `${detail.inventoryLines.length} tồn / ${detail.debtLines.length} công nợ` }]} />
-        {summary && <Row gutter={10} style={{ marginBottom: 12 }}><Col span={6}><Card size="small"><Statistic title="Tồn thực tế" value={Number(summary.onHandQty || 0)} suffix="L" /></Card></Col><Col span={6}><Card size="small"><Statistic title="Phải thu" value={Number(summary.receivableAmount || 0)} suffix="đ" /></Card></Col><Col span={6}><Card size="small"><Statistic title="Phải trả" value={Number(summary.payableAmount || 0)} suffix="đ" /></Card></Col><Col span={6}><Card size="small"><Statistic title="Lỗi đối chiếu" value={summary.issues?.length || 0} valueStyle={{ color: summary.valid ? "#3f8600" : "#cf1322" }} /></Card></Col></Row>}
+        <Descriptions size="small" bordered column={4} style={{ marginBottom: 12 }} items={[{ key: "date", label: "Ngày chốt", children: dayjs(detail.cutoverDate).format("DD/MM/YYYY") }, { key: "source", label: "Nguồn", children: detail.sourceSystem || "—" }, { key: "file", label: "File nhập gần nhất", children: detail.sourceFileName || "—" }, { key: "count", label: "Số dòng", children: `${detail.inventoryLines.length} tồn / ${detail.debtLines.length} công nợ / ${bankLines.length} tài khoản` }]} />
+        {summary && <Row gutter={10} style={{ marginBottom: 12 }}><Col span={5}><Card size="small"><Statistic title="Tồn thực tế" value={Number(summary.onHandQty || 0)} suffix="L" /></Card></Col><Col span={5}><Card size="small"><Statistic title="Phải thu" value={Number(summary.receivableAmount || 0)} suffix="đ" /></Card></Col><Col span={5}><Card size="small"><Statistic title="Phải trả" value={Number(summary.payableAmount || 0)} suffix="đ" /></Card></Col><Col span={5}><Card size="small"><Statistic title="Tiền ngân hàng" value={Number(summary.bankAmount || 0)} suffix="đ" /></Card></Col><Col span={4}><Card size="small"><Statistic title="Lỗi đối chiếu" value={summary.issues?.length || 0} valueStyle={{ color: summary.valid ? "#3f8600" : "#cf1322" }} /></Card></Col></Row>}
         <Tabs activeKey={activeTab} onChange={(key) => { setActiveTab(key as TabKey); if (key !== "VALIDATION") setActiveSection(key as Section); }} items={[
           { key: "INVENTORY", label: `Tồn kho (${detail.inventoryLines.length})`, children: <>{sectionToolbar("INVENTORY")}<Table size="small" rowKey="id" scroll={{ x: 1230 }} dataSource={detail.inventoryLines} columns={inventoryColumns} /></> },
           { key: "RECEIVABLE", label: `Phải thu (${receivables.length})`, children: <>{sectionToolbar("RECEIVABLE")}<Table size="small" rowKey="id" scroll={{ x: 1160 }} dataSource={receivables} columns={debtColumns("RECEIVABLE")} /></> },
           { key: "PAYABLE", label: `Phải trả (${payables.length})`, children: <>{sectionToolbar("PAYABLE")}<Table size="small" rowKey="id" scroll={{ x: 1160 }} dataSource={payables} columns={debtColumns("PAYABLE")} /></> },
+          { key: "BANK", label: `Tiền ngân hàng (${bankLines.length})`, children: <>{sectionToolbar("BANK")}<Table size="small" rowKey="id" pagination={false} dataSource={bankLines} columns={bankColumns} summary={() => bankLines.length > 1 ? <Table.Summary.Row><Table.Summary.Cell index={0} colSpan={3}><b>Tổng tiền tại ngân hàng</b></Table.Summary.Cell><Table.Summary.Cell index={3} align="right"><b>{number(bankTotal)}</b></Table.Summary.Cell><Table.Summary.Cell index={4} colSpan={2} /></Table.Summary.Row> : null} /></> },
           { key: "VALIDATION", label: <>Đối chiếu {summary?.issues?.length ? <Tag color="red">{summary.issues.length}</Tag> : null}</>, children: summary?.issues?.length ? <Table size="small" rowKey={(_, i) => String(i)} pagination={false} dataSource={summary.issues} columns={[{ title: "Phần dữ liệu", dataIndex: "sheet", width: 120 }, { title: "Dòng", dataIndex: "lineNo", width: 70 }, { title: "Trường", dataIndex: "field", width: 150 }, { title: "Nội dung", dataIndex: "message" }]} /> : <Alert showIcon type={summary?.valid ? "success" : "info"} message={summary?.valid ? "Dữ liệu đã đối chiếu hợp lệ" : "Bấm Kiểm tra trước khi ghi sổ"} /> },
         ]} />
       </>}
     </Drawer>
 
-    <Modal width={activeSection === "INVENTORY" ? 1000 : 820} title={`${editingLine ? "Sửa" : "Thêm"} ${sectionMeta[activeSection].label.toLowerCase()} đầu kỳ`} open={lineOpen} onCancel={() => setLineOpen(false)} onOk={saveLine} okText={editingLine ? "Lưu thay đổi" : "Thêm dòng"} confirmLoading={busy} destroyOnClose>
+    <Modal width={activeSection === "INVENTORY" ? 1000 : activeSection === "BANK" ? 520 : 820} title={`${editingLine ? "Sửa" : "Thêm"} ${sectionMeta[activeSection].label.toLowerCase()} đầu kỳ`} open={lineOpen} onCancel={() => setLineOpen(false)} onOk={saveLine} okText={editingLine ? "Lưu thay đổi" : "Thêm dòng"} confirmLoading={busy} destroyOnClose>
       <Form form={lineForm} layout="vertical" onValuesChange={(changed, values) => { if (activeSection !== "INVENTORY" && ("originalAmount" in changed || "settledAmount" in changed)) lineForm.setFieldValue("outstandingAmount", Math.max(Number(values.originalAmount || 0) - Number(values.settledAmount || 0), 0) || undefined); }}>
-        {activeSection === "INVENTORY" ? <>
+        {activeSection === "BANK" ? <>
+          <Form.Item name="bankAccountId" label="Tài khoản ngân hàng" rules={[{ required: true, message: "Chọn tài khoản" }]}><Select showSearch optionFilterProp="label" options={bankAccountOptions} placeholder="Chọn tài khoản của pháp nhân này" /></Form.Item>
+          <Form.Item name="amount" label={`Số dư đầu ngày ${detail ? dayjs(detail.cutoverDate).format("DD/MM/YYYY") : "chốt"} (đ)`} rules={[{ required: true, message: "Nhập số dư" }]} extra="Số dư trước mọi giao dịch của ngày chốt. Nhập số âm nếu tài khoản đang thấu chi."><InputNumber precision={0} style={{ width: "100%" }} formatter={(value) => (value == null || `${value}` === "" ? "" : Number(value).toLocaleString("vi-VN"))} parser={(value) => Number(String(value || "").replace(/[^\d-]/g, ""))} /></Form.Item>
+          <Form.Item name="note" label="Ghi chú"><Input placeholder="Ví dụ: theo sổ phụ ngân hàng ngày 30/09" /></Form.Item>
+        </> : activeSection === "INVENTORY" ? <>
           <Row gutter={12}><Col span={6}><Form.Item name="kind" label="Loại tồn" rules={[{ required: true, message: "Chọn loại tồn" }]}><Select options={Object.entries(kindMap).map(([value, meta]) => ({ value, label: meta.label }))} /></Form.Item></Col>
             <Col span={9}><Form.Item name="warehouseId" label={inventoryKind === "EXPECTED" ? "Kho đích danh (nếu đã biết)" : "Kho"} rules={inventoryKind !== "EXPECTED" ? [{ required: true, message: "Chọn kho" }] : []}><Select showSearch allowClear disabled={inventoryKind === "EXPECTED" && !!selectedAreaId} optionFilterProp="label" options={warehouseOptions} onChange={(value) => value && lineForm.setFieldValue("warehouseAreaId", undefined)} /></Form.Item></Col>
             <Col span={9}><Form.Item name="warehouseAreaId" label="Khu vực kho (khi chưa biết kho)"><Select showSearch allowClear disabled={inventoryKind !== "EXPECTED" || !!selectedWarehouseId} optionFilterProp="label" options={areaOptions} onChange={(value) => value && lineForm.setFieldValue("warehouseId", undefined)} /></Form.Item></Col></Row>
